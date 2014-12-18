@@ -1,4 +1,5 @@
 librw
 =====
 
-New implementation of some parts of Renderware
+This still very much work in progress.
+The basics of DFFs are implemented, no plugins yet.
