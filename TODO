@@ -1,0 +1,45 @@
+Clump & related:
+	- make pointer arrays into lists
+	- work on ref counts, destruction, copying etc.
+	- define and use types:
+		sphere
+		matrix
+		color
+		realcolor
+		vector3
+		triangle
+		texcoord
+	- implement plugins:
+		Clump
+			Collision
+		Frame
+			Frame
+			HAnim
+		Atomic
+			Right To Render
+			(Particles)
+			Mat FX
+			Pipeline Set
+		Geometry
+			Mesh
+			Native Data
+			Mesh Extension
+			Night Vertex Colors
+			(Morph)
+			Skin
+			(ADC)
+			2dfx
+		Material
+			Right To Render
+			Mat FX
+			Reflection mat
+			Specular Mat
+			UV Anim
+		Texture
+			(Sky Mipmap Val)
+
+
+- UV Anim Dict
+
+- Texture Dictionary
+
