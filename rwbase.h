@@ -97,4 +97,5 @@ bool WriteChunkHeader(std::ostream &s, int32 type, int32 size);
 bool ReadChunkHeaderInfo(std::istream &s, ChunkHeaderInfo *header);
 bool FindChunk(std::istream &s, uint32 type, uint32 *length, uint32 *version);
 
+int32 findPointer(void *p, void **list, int32 num);
 }

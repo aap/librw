@@ -3,12 +3,12 @@ namespace Rw {
 #define PLUGINOFFSET(type, base, offset) \
 	((type*)((char*)(base) + (offset)))
 
-typedef void *(*Constructor)(void *object, int offset, int size);
-typedef void *(*Destructor)(void *object, int offset, int size);
-typedef void *(*CopyConstructor)(void *dst, void *src, int offset, int size);
-typedef void (*StreamRead)(std::istream &stream, int length, void *object, int offset, int size);
-typedef void (*StreamWrite)(std::ostream &stream, int length, void *object, int offset, int size);
-typedef int32 (*StreamGetSize)(void *object, int offset, int size);
+typedef void *(*Constructor)(void *object, int32 offset, int32 size);
+typedef void *(*Destructor)(void *object, int32 offset, int32 size);
+typedef void *(*CopyConstructor)(void *dst, void *src, int32 offset, int32 size);
+typedef void (*StreamRead)(std::istream &stream, int32 length, void *object, int32 offset, int32 size);
+typedef void (*StreamWrite)(std::ostream &stream, int32 length, void *object, int32 offset, int32 size);
+typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
 
 struct Plugin
 {

@@ -160,4 +160,16 @@ FindChunk(istream &s, uint32 type, uint32 *length, uint32 *version)
 	return false;
 }
 
+int32
+findPointer(void *p, void **list, int32 num)
+{
+	int i;
+	for(i = 0; i < num; i++)
+		if(list[i] == p)
+			goto found;
+	return -1;
+found:
+	return i;
+}
+
 }

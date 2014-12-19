@@ -36,6 +36,22 @@ struct Material : PluginBase<Material>
 	uint32 streamGetSize(void);
 };
 
+struct Mesh
+{
+	uint16 *indices;
+	uint32 numIndices;
+	Material *material;
+};
+
+struct MeshHeader
+{
+	uint32 flags;
+	uint16 numMeshes;
+	// RW has uint16 serialNum here
+	uint32 totalIndices;
+	Mesh *mesh;	// RW has a byte offset here
+};
+
 struct MorphTarget
 {
 	float32 boundingSphere[4];
@@ -59,6 +75,8 @@ struct Geometry : PluginBase<Geometry>, Object
 
 	int32 numMaterials;
 	Material **materialList;
+
+	MeshHeader *meshHeader;
 
 	Geometry(void);
 	Geometry(Geometry *g);
@@ -159,3 +177,6 @@ private:
 };
 
 }
+
+void registerNodeNamePlugin(void);
+void registerMeshPlugin(void);

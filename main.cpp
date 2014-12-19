@@ -74,10 +74,9 @@ main(int argc, char *argv[])
 //	Rw::Version = 0x31000;
 //	Rw::Build = 0;
 
-//	int Xoff = Rw::Clump::registerPlugin(8, 0x123, ctorX, dtorX, cctorX);
-//	Xoff = Rw::Clump::registerPluginStream(0x123, readX, writeX, getSizeX);
+	registerNodeNamePlugin();
+	registerMeshPlugin();
 	Rw::Clump *c;
-//	X *x;
 
 	ifstream in(argv[1], ios::binary);
 	Rw::FindChunk(in, Rw::ID_CLUMP, NULL, NULL);

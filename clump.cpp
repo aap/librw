@@ -13,18 +13,6 @@ using namespace std;
 
 namespace Rw {
 
-static int32
-findFrame(Frame *f, Frame **frameList, int32 numFrames)
-{
-	int frm;
-	for(frm = 0; frm < numFrames; frm++)
-		if(frameList[frm] == f)
-			goto foundfrm;
-	return -1;
-foundfrm:
-	return frm;
-}
-
 Frame::Frame(void)
 {
 	this->child = NULL;
@@ -224,7 +212,7 @@ Clump::streamWrite(ostream &stream)
 
 	for(int32 i = 0; i < this->numLights; i++){
 		Light *l = this->lightList[i];
-		int frm = findFrame(l->frame, flist, numFrames);
+		int frm = findPointer((void*)l->frame, (void**)flist,numFrames);
 		if(frm < 0)
 			return false;
 		WriteChunkHeader(stream, ID_STRUCT, 4);
@@ -347,7 +335,7 @@ Clump::frameListStreamWrite(ostream &stream, Frame **frameList, int32 numFrames)
 		buf.pos[0] = f->matrix[12];
 		buf.pos[1] = f->matrix[13];
 		buf.pos[2] = f->matrix[14];
-		buf.parent = findFrame(f, frameList, numFrames);
+		buf.parent = findPointer((void*)f, (void**)frameList,numFrames);
 		buf.matflag = f->matflag;
 		stream.write((char*)&buf, sizeof(buf));
 	}
@@ -399,7 +387,7 @@ Atomic::streamWriteClump(ostream &stream, Frame **frameList, int32 numFrames)
 		return false;
 	WriteChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
 	WriteChunkHeader(stream, ID_STRUCT, 16);
-	buf[0] = findFrame(this->frame, frameList, numFrames);
+	buf[0] = findPointer((void*)this->frame, (void**)frameList, numFrames);
 
 // TODO
 	for(buf[1] = 0; buf[1] < c->numAtomics; buf[1]++)
