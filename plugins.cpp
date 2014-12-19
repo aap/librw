@@ -71,24 +71,6 @@ registerNodeNamePlugin(void)
 }
 
 
-static void*
-createMesh(void *object, int, int)
-{
-	return object;
-}
-
-static void*
-copyMesh(void *dst, void *src, int, int)
-{
-	return dst;
-}
-
-static void*
-destroyMesh(void *object, int, int)
-{
-	return object;
-}
-
 static void
 readMesh(istream &stream, Rw::int32, void *object, int32, int32)
 {
@@ -164,9 +146,7 @@ getSizeMesh(void *object, int32)
 void
 registerMeshPlugin(void)
 {
-	Rw::Geometry::registerPlugin(0, 0x50E, (Constructor)createMesh,
-	                             (Destructor)destroyMesh,
-	                             (CopyConstructor)copyMesh);
+	Rw::Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
 	Rw::Geometry::registerPluginStream(0x50E, (StreamRead)readMesh,
 	                                   (StreamWrite)writeMesh,
 	                                   (StreamGetSize)getSizeMesh);

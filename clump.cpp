@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include <iostream>
 #include <fstream>
@@ -45,6 +46,26 @@ Frame::addChild(Frame *child)
 	child->next = NULL;
 	child->parent = this;
 	child->root = this->root;
+	return this;
+}
+
+Frame*
+Frame::removeChild(void)
+{
+	Frame *parent = (Frame*)this->parent;
+	if(parent->child == this)
+		parent->child = this->next;
+	else{
+		Frame *f;
+		for(f = parent->child; f; f = f->next)
+			if(f->next == this)
+				goto found;
+		// not found
+found:
+		f->next = f->next->next;
+	}
+	this->parent = NULL;
+	this->next = this->root = NULL;
 	return this;
 }
 
@@ -120,8 +141,7 @@ Clump::streamRead(istream &stream)
 	uint32 length, version;
 	int32 buf[3];
 	Clump *clump;
-	if(!FindChunk(stream, ID_STRUCT, &length, &version))
-		return NULL;
+	assert(FindChunk(stream, ID_STRUCT, &length, &version));
 	clump = new Clump;
 	stream.read((char*)buf, length);
 	clump->numAtomics = buf[0];
@@ -140,23 +160,19 @@ Clump::streamRead(istream &stream)
 
 	// Geometry list
 	int32 numGeometries = 0;
-	if(!FindChunk(stream, ID_GEOMETRYLIST, NULL, NULL))
-		return NULL;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	numGeometries = readInt32(stream);
 	Geometry **geometryList = new Geometry*[numGeometries];
 	for(int32 i = 0; i < numGeometries; i++){
-		if(!FindChunk(stream, ID_GEOMETRY, NULL, NULL))
-			return NULL;
+		assert(FindChunk(stream, ID_GEOMETRY, NULL, NULL));
 		geometryList[i] = Geometry::streamRead(stream);
 	}
 
 	// Atomics
 	clump->atomicList = new Atomic*[clump->numAtomics];
 	for(int32 i = 0; i < clump->numAtomics; i++){
-		if(!FindChunk(stream, ID_ATOMIC, NULL, NULL))
-			return NULL;
+		assert(FindChunk(stream, ID_ATOMIC, NULL, NULL));
 		clump->atomicList[i] = Atomic::streamReadClump(stream,
 			frameList, geometryList);
 		clump->atomicList[i]->clump = clump;
@@ -166,11 +182,9 @@ Clump::streamRead(istream &stream)
 	clump->lightList = new Light*[clump->numLights];
 	for(int32 i = 0; i < clump->numLights; i++){
 		int32 frm;
-		if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-			return NULL;
+		assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 		frm = readInt32(stream);
-		if(!FindChunk(stream, ID_LIGHT, NULL, NULL))
-			return NULL;
+		assert(FindChunk(stream, ID_LIGHT, NULL, NULL));
 		clump->lightList[i] = Light::streamRead(stream);
 		clump->lightList[i]->frame = frameList[frm];
 		clump->lightList[i]->clump = clump;
@@ -271,10 +285,8 @@ Clump::frameListStreamRead(istream &stream, Frame ***flp, int32 *nf)
 {
 	FrameStreamData buf;
 	int32 numFrames = 0;
-	if(!FindChunk(stream, ID_FRAMELIST, NULL, NULL))
-		return;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return;
+	assert(FindChunk(stream, ID_FRAMELIST, NULL, NULL));
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	numFrames = readInt32(stream);
 	Frame **frameList = new Frame*[numFrames];
 	for(int32 i = 0; i < numFrames; i++){
@@ -368,8 +380,7 @@ Atomic::streamReadClump(istream &stream,
                         Frame **frameList, Geometry **geometryList)
 {
 	int32 buf[4];
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	stream.read((char*)buf, 16);
 	Atomic *atomic = new Atomic;
 	atomic->frame = frameList[buf[0]];
@@ -438,8 +449,7 @@ Light*
 Light::streamRead(istream &stream)
 {
 	LightChunkData buf;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	Light *light = new Light;
 	stream.read((char*)&buf, sizeof(LightChunkData));
 	light->radius = buf.radius;

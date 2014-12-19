@@ -78,12 +78,12 @@ struct Geometry : PluginBase<Geometry>, Object
 
 	MeshHeader *meshHeader;
 
-	Geometry(void);
-	Geometry(Geometry *g);
+	Geometry(int32 numVerts, int32 numTris, uint32 flags);
 	~Geometry(void);
 	static Geometry *streamRead(std::istream &stream);
 	bool streamWrite(std::ostream &stream);
 	uint32 streamGetSize(void);
+	void addMorphTargets(int32 n);
 
 	enum Flags
 	{
@@ -117,6 +117,7 @@ struct Frame : PluginBase<Frame>, Object
 	Frame(Frame *f);
 	~Frame(void);
 	Frame *addChild(Frame *f);
+	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
 	int32 count(void);
 };

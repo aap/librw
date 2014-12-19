@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include <iostream>
 #include <fstream>
@@ -13,35 +14,58 @@ using namespace std;
 
 namespace Rw {
 
-Geometry::Geometry(void)
+Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 {
-	geoflags = 0;
-	numTriangles = 0;
-	numVertices = 0;
-	numMorphTargets = 0;
-	numTexCoordSets = 0;
-	triangles = 0;
-	colors = 0;
-	for(int i = 0; i < 8; i++)
-		texCoords[i] = 0;
-	morphTargets = NULL;
-	constructPlugins();
-}
+	this->geoflags = flags & 0xFF00FFFF;
+	this->numTexCoordSets = (flags & 0xFF0000) >> 16;
+	if(this->numTexCoordSets == 0 && (this->geoflags & TEXTURED))
+		this->numTexCoordSets = 1;
+	this->numTriangles = numTris;
+	this->numVertices = numVerts;
+	this->numMorphTargets = 1;
 
-Geometry::Geometry(Geometry *g)
-{
-	// TODO
-	geoflags = g->geoflags;
-	numTriangles = g->numTriangles;
-	numVertices = g->numVertices;
-	numMorphTargets = g->numMorphTargets;
-	numTexCoordSets = g->numTexCoordSets;
-	copyPlugins(g);
+	this->colors = NULL;
+	for(int32 i = 0; i < this->numTexCoordSets; i++)
+		this->texCoords[i] = NULL;
+	this->triangles = NULL;
+	if(!(this->geoflags & 0xFF000000)){
+		if(this->geoflags & PRELIT)
+			this->colors = new uint8[4*this->numVertices];
+		if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
+			for(int32 i = 0; i < this->numTexCoordSets; i++)
+				this->texCoords[i] =
+					new float32[2*this->numVertices];
+		this->triangles = new uint16[4*this->numTriangles];
+	}
+	this->morphTargets = new MorphTarget[1];
+	MorphTarget *m = this->morphTargets;
+	m->vertices = NULL;
+	m->normals = NULL;
+	if(!(this->geoflags & 0xFF000000)){
+		m->vertices = new float32[3*this->numVertices];
+		if(this->geoflags & NORMALS)
+			m->normals = new float32[3*this->numVertices];
+	}
+	this->numMaterials = 0;
+	materialList = NULL;
+	meshHeader = NULL;
+
+	this->constructPlugins();
 }
 
 Geometry::~Geometry(void)
 {
-	destructPlugins();
+	this->destructPlugins();
+	delete[] this->colors;
+	for(int32 i = 0; i < this->numTexCoordSets; i++)
+		delete[] this->texCoords[i];
+	delete[] this->triangles;
+	for(int32 i = 0; i < this->numMorphTargets; i++){
+		MorphTarget *m = &this->morphTargets[i];
+		delete[] m->vertices;
+		delete[] m->normals;
+	}
+	delete[] this->morphTargets;
 }
 
 struct GeoStreamData
@@ -57,63 +81,43 @@ Geometry::streamRead(istream &stream)
 {
 	uint32 version;
 	GeoStreamData buf;
-	if(!FindChunk(stream, ID_STRUCT, NULL, &version))
-		return NULL;
-	Geometry *geo = new Geometry;
+	assert(FindChunk(stream, ID_STRUCT, NULL, &version));
 	stream.read((char*)&buf, sizeof(buf));
-	geo->geoflags = buf.flags & 0xFF00FFFF;
-	geo->numTexCoordSets = (buf.flags & 0xFF0000) >> 16;
-	if(geo->numTexCoordSets == 0 && (geo->geoflags & TEXTURED))
-		geo->numTexCoordSets = 1;
-	geo->numTriangles = buf.numTriangles;
-	geo->numVertices = buf.numVertices;
-	geo->numMorphTargets = buf.numMorphTargets;
+	Geometry *geo = new Geometry(buf.numVertices,
+	                             buf.numTriangles, buf.flags);
+	geo->addMorphTargets(buf.numMorphTargets-1);
 	// skip surface properties
 	if(version < 0x34000)
 		stream.seekg(12, ios::cur);
 
 	if(!(geo->geoflags & 0xFF000000)){
-		if(geo->geoflags & PRELIT){
-			geo->colors = new uint8[4*geo->numVertices];
+		if(geo->geoflags & PRELIT)
 			stream.read((char*)geo->colors, 4*geo->numVertices);
-		}
 		if((geo->geoflags & TEXTURED) || (geo->geoflags & TEXTURED2))
-			for(int32 i = 0; i < geo->numTexCoordSets; i++){
-				geo->texCoords[i] =
-					new float32[2*geo->numVertices];
+			for(int32 i = 0; i < geo->numTexCoordSets; i++)
 				stream.read((char*)geo->texCoords[i],
 				            2*geo->numVertices*4);
-			}
-		geo->triangles = new uint16[4*geo->numTriangles];
 		stream.read((char*)geo->triangles, 4*geo->numTriangles*2);
 	}
 
-	geo->morphTargets = new MorphTarget[geo->numMorphTargets];
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
 		stream.read((char*)m->boundingSphere, 4*4);
 		int32 hasVertices = readInt32(stream);
 		int32 hasNormals = readInt32(stream);
-		if(hasVertices){
-			m->vertices = new float32[3*geo->numVertices];
+		if(hasVertices)
 			stream.read((char*)m->vertices, 3*geo->numVertices*4);
-		}
-		if(hasNormals){
-			m->normals = new float32[3*geo->numVertices];
+		if(hasNormals)
 			stream.read((char*)m->normals, 3*geo->numVertices*4);
-		}
 	}
 
-	if(!FindChunk(stream, ID_MATLIST, NULL, NULL))
-		return geo;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return geo;
+	assert(FindChunk(stream, ID_MATLIST, NULL, NULL));
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	geo->numMaterials = readInt32(stream);
 	geo->materialList = new Material*[geo->numMaterials];
 	stream.seekg(geo->numMaterials*4, ios::cur);	// unused (-1)
 	for(int32 i = 0; i < geo->numMaterials; i++){
-		if(!FindChunk(stream, ID_MATERIAL, NULL, NULL))
-			return geo;
+		assert(FindChunk(stream, ID_MATERIAL, NULL, NULL));
 		geo->materialList[i] = Material::streamRead(stream);
 	}
 
@@ -215,6 +219,28 @@ Geometry::streamGetSize(void)
 	return size;
 }
 
+void
+Geometry::addMorphTargets(int32 n)
+{
+	if(n == 0)
+		return;
+	MorphTarget *morphTargets = new MorphTarget[this->numMorphTargets+n];
+	memcpy(morphTargets, this->morphTargets,
+	       this->numMorphTargets*sizeof(MorphTarget));
+	delete[] this->morphTargets;
+	this->morphTargets = morphTargets;
+	for(int32 i = this->numMorphTargets; i < n; i++){
+		MorphTarget *m = &morphTargets[i];
+		m->vertices = NULL;
+		m->normals = NULL;
+		if(!(this->geoflags & 0xFF000000)){
+			m->vertices = new float32[3*this->numVertices];
+			if(this->geoflags & NORMALS)
+				m->normals = new float32[3*this->numVertices];
+		}
+	}
+	this->numMorphTargets += n;
+}
 
 
 
@@ -258,8 +284,7 @@ Material::streamRead(istream &stream)
 {
 	uint32 length;
 	MatStreamData buf;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	stream.read((char*)&buf, sizeof(buf));
 	Material *mat = new Material;
 	mat->color[0] = buf.color[0];
@@ -271,8 +296,7 @@ Material::streamRead(istream &stream)
 	mat->surfaceProps[2] = buf.surfaceProps[2];
 
 	if(buf.textured){
-		if(!FindChunk(stream, ID_TEXTURE, &length, NULL))
-			return NULL;
+		assert(FindChunk(stream, ID_TEXTURE, &length, NULL));
 		mat->texture = Texture::streamRead(stream);
 	}
 
@@ -346,18 +370,15 @@ Texture*
 Texture::streamRead(istream &stream)
 {
 	uint32 length;
-	if(!FindChunk(stream, ID_STRUCT, NULL, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	Texture *tex = new Texture;
 	tex->filterAddressing = readUInt16(stream);
 	stream.seekg(2, ios::cur);
 
-	if(!FindChunk(stream, ID_STRING, &length, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRING, &length, NULL));
 	stream.read(tex->name, length);
 
-	if(!FindChunk(stream, ID_STRING, &length, NULL))
-		return NULL;
+	assert(FindChunk(stream, ID_STRING, &length, NULL));
 	stream.read(tex->mask, length);
 
 	tex->streamReadPlugins(stream);
