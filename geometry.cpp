@@ -47,8 +47,9 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 			m->normals = new float32[3*this->numVertices];
 	}
 	this->numMaterials = 0;
-	materialList = NULL;
-	meshHeader = NULL;
+	this->materialList = NULL;
+	this->meshHeader = NULL;
+	this->refCount = 1;
 
 	this->constructPlugins();
 }
@@ -60,12 +61,32 @@ Geometry::~Geometry(void)
 	for(int32 i = 0; i < this->numTexCoordSets; i++)
 		delete[] this->texCoords[i];
 	delete[] this->triangles;
+
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
 		delete[] m->vertices;
 		delete[] m->normals;
 	}
 	delete[] this->morphTargets;
+
+	if(this->meshHeader){
+		for(uint32 i = 0; i < this->meshHeader->numMeshes; i++)
+			delete[] this->meshHeader->mesh[i].indices;
+		delete[] this->meshHeader->mesh;
+		delete this->meshHeader;
+	}
+
+	for(int32 i = 0; i < this->numMaterials; i++)
+		this->materialList[i]->decRef();
+	delete[] this->materialList;
+}
+
+void
+Geometry::decRef(void)
+{
+	this->refCount--;
+	if(this->refCount)
+		delete this;
 }
 
 struct GeoStreamData
@@ -248,9 +269,10 @@ Geometry::addMorphTargets(int32 n)
 Material::Material(void)
 {
 	this->texture = NULL;
-	color[0] = color[1] = color[2] = color[3] = 0xFF;
+	memset(this->color, 0xFF, 4);
 	surfaceProps[0] = surfaceProps[1] = surfaceProps[2] = 1.0f;
-	constructPlugins();
+	this->refCount = 1;
+	this->constructPlugins();
 }
 
 Material::Material(Material *m)
@@ -262,12 +284,25 @@ Material::Material(Material *m)
 	m->surfaceProps[0] = this->surfaceProps[0];
 	m->surfaceProps[1] = this->surfaceProps[1];
 	m->surfaceProps[2] = this->surfaceProps[2];
-	copyPlugins(m);
+	m->texture = this->texture;
+	if(m->texture)
+		m->texture->refCount++;
+	this->copyPlugins(m);
 }
 
 Material::~Material(void)
 {
-	destructPlugins();
+	this->destructPlugins();
+	if(this->texture)
+		this->texture->decRef();
+}
+
+void
+Material::decRef(void)
+{
+	this->refCount--;
+	if(this->refCount)
+		delete this;
 }
 
 struct MatStreamData
@@ -349,21 +384,22 @@ Texture::Texture(void)
 {
 	memset(this->name, 0, 32);
 	memset(this->mask, 0, 32);
-	this->filterAddressing = 0;
-	constructPlugins();
-}
-
-Texture::Texture(Texture *t)
-{
-	memcpy(this->name, t->name, 32);
-	memcpy(this->mask, t->name, 32);
-	this->filterAddressing = t->filterAddressing;
-	copyPlugins(t);
+	this->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
+	this->refCount = 1;
+	this->constructPlugins();
 }
 
 Texture::~Texture(void)
 {
-	destructPlugins();
+	this->destructPlugins();
+}
+
+void
+Texture::decRef(void)
+{
+	this->refCount--;
+	if(this->refCount)
+		delete this;
 }
 
 Texture*

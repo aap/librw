@@ -13,7 +13,6 @@ Clump & related:
 		Clump
 			Collision
 		Frame
-			Frame
 			HAnim
 		Atomic
 			Right To Render
@@ -21,10 +20,9 @@ Clump & related:
 			Mat FX
 			Pipeline Set
 		Geometry
-			Mesh
 			Native Data
-			Mesh Extension
-			Night Vertex Colors
+			Breakable
+			Extra Vertex Colors
 			(Morph)
 			Skin
 			(ADC)

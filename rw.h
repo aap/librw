@@ -8,18 +8,35 @@ struct Object
 	void *parent;
 };
 
+// TODO: raster, link into texdict
 struct Texture : PluginBase<Texture>
 {
 	char name[32];
 	char mask[32];
 	uint32 filterAddressing;
+	int32 refCount;
 
 	Texture(void);
-	Texture(Texture *t);
 	~Texture(void);
+	void decRef(void);
 	static Texture *streamRead(std::istream &stream);
 	bool streamWrite(std::ostream &stream);
 	uint32 streamGetSize(void);
+
+	enum FilterMode {
+		NEAREST = 1,
+		LINEAR,
+		MIPNEAREST,
+		MIPLINEAR,
+		LINEARMIPNEAREST,
+		LINEARMIPLINEAR
+	};
+	enum Addressing {
+		WRAP = 1,
+		MIRROR,
+		CLAMP,
+		BORDER
+	};
 };
 
 struct Material : PluginBase<Material>
@@ -27,9 +44,11 @@ struct Material : PluginBase<Material>
 	Texture *texture;
 	uint8 color[4];
 	float32 surfaceProps[3];
+	int32 refCount;
 
 	Material(void);
 	Material(Material *m);
+	void decRef(void);
 	~Material(void);
 	static Material *streamRead(std::istream &stream);
 	bool streamWrite(std::ostream &stream);
@@ -78,7 +97,10 @@ struct Geometry : PluginBase<Geometry>, Object
 
 	MeshHeader *meshHeader;
 
+	int32 refCount;
+
 	Geometry(int32 numVerts, int32 numTris, uint32 flags);
+	void decRef(void);
 	~Geometry(void);
 	static Geometry *streamRead(std::istream &stream);
 	bool streamWrite(std::ostream &stream);
