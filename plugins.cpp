@@ -8,9 +8,16 @@
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rw.h"
+#include "rwps2.h"
 
 using namespace std;
 using namespace Rw;
+
+//
+// Frame
+//
+
+// Node Name
 
 static void*
 createNodeName(void *object, int32 offset, int32)
@@ -70,6 +77,11 @@ registerNodeNamePlugin(void)
 	                                (StreamGetSize)getSizeNodeName);
 }
 
+//
+// Geometry
+//
+
+// Mesh
 
 static void
 readMesh(istream &stream, Rw::int32, void *object, int32, int32)
@@ -169,4 +181,63 @@ registerMeshPlugin(void)
 	                                   (StreamGetSize)getSizeMesh);
 }
 
+// Native Data
 
+static void
+readNativeData(istream &stream, int32 len, void *object, int32 o, int32 s)
+{
+	ChunkHeaderInfo header;
+	uint32 libid;
+	uint32 platform;
+	// ugly hack to find out platform
+	stream.seekg(-4, ios::cur);
+	libid = readUInt32(stream);
+	ReadChunkHeaderInfo(stream, &header);
+	if(header.type == ID_STRUCT && 
+	   LibraryIDPack(header.version, header.build) == libid){
+		// must be PS2 or Xbox
+		platform = readUInt32(stream);
+		stream.seekg(-16, ios::cur);
+		if(platform == PLATFORM_PS2)
+			ReadNativeDataPS2(stream, len, object, o, s);
+		else if(platform == PLATFORM_XBOX)
+			stream.seekg(len, ios::cur);
+	}else
+		// OpenGL
+		// doesn't work always, some headers have wrong size
+		stream.seekg(len-12, ios::cur);
+}
+
+static void
+writeNativeData(ostream &stream, int32 len, void *object, int32 o, int32 s)
+{
+	Geometry *geometry = (Geometry*)object;
+	if(geometry->instData == NULL)
+		return;
+	if(geometry->instData->platform == PLATFORM_PS2)
+		WriteNativeDataPS2(stream, len, object, o, s);
+}
+
+static int32
+getSizeNativeData(void *object, int32 offset, int32 size)
+{
+	Geometry *geometry = (Geometry*)object;
+	if(geometry->instData == NULL)
+		return -1;
+	if(geometry->instData->platform == PLATFORM_PS2)
+		return GetSizeNativeDataPS2(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_XBOX)
+		return -1;
+	else if(geometry->instData->platform == PLATFORM_OGL)
+		return -1;
+	return -1;
+}
+
+void
+registerNativeDataPlugin(void)
+{
+	Rw::Geometry::registerPlugin(0, 0x510, NULL, NULL, NULL);
+	Rw::Geometry::registerPluginStream(0x510, (StreamRead)readNativeData,
+	                                   (StreamWrite)writeNativeData,
+	                                   (StreamGetSize)getSizeNativeData);
+}

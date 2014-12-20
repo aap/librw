@@ -210,3 +210,4 @@ private:
 
 void registerNodeNamePlugin(void);
 void registerMeshPlugin(void);
+void registerNativeDataPlugin(void);
