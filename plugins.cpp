@@ -183,6 +183,17 @@ registerMeshPlugin(void)
 
 // Native Data
 
+static void*
+destroyNativeData(void *object, int32 offset, int32 size)
+{
+	Geometry *geometry = (Geometry*)object;
+	if(geometry->instData == NULL)
+		return object;
+	if(geometry->instData->platform == PLATFORM_PS2)
+		return DestroyNativeDataPS2(object, offset, size);
+	return object;
+}
+
 static void
 readNativeData(istream &stream, int32 len, void *object, int32 o, int32 s)
 {
@@ -236,7 +247,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 void
 registerNativeDataPlugin(void)
 {
-	Rw::Geometry::registerPlugin(0, 0x510, NULL, NULL, NULL);
+	Rw::Geometry::registerPlugin(0, 0x510, NULL, destroyNativeData, NULL);
 	Rw::Geometry::registerPluginStream(0x510, (StreamRead)readNativeData,
 	                                   (StreamWrite)writeNativeData,
 	                                   (StreamGetSize)getSizeNativeData);

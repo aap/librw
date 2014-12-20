@@ -15,8 +15,22 @@ using namespace std;
 
 namespace Rw {
 
+void*
+DestroyNativeDataPS2(void *object, int32, int32)
+{
+	Geometry *geometry = (Geometry*)object;
+	assert(geometry->instData->platform == PLATFORM_PS2);
+	PS2InstanceDataHeader *header =
+		(PS2InstanceDataHeader*)geometry->instData;
+	for(uint32 i = 0; i < header->numMeshes; i++)
+		delete[] header->instanceMeshes[i].data;
+	delete[] header->instanceMeshes;
+	delete header;
+	return object;
+}
+
 void
-ReadNativeDataPS2(istream &stream, int32 len, void *object, int32, int32)
+ReadNativeDataPS2(istream &stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
@@ -43,7 +57,8 @@ WriteNativeDataPS2(ostream &stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	WriteChunkHeader(stream, ID_STRUCT, len-12);
-	writeUInt32(4, stream);
+	assert(geometry->instData->platform == PLATFORM_PS2);
+	writeUInt32(PLATFORM_PS2, stream);
 	assert(geometry->instData != NULL);
 	PS2InstanceDataHeader *header =
 		(PS2InstanceDataHeader*)geometry->instData;
@@ -62,6 +77,7 @@ GetSizeNativeDataPS2(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	int32 size = 16;
+	assert(geometry->instData->platform == PLATFORM_PS2);
 	assert(geometry->instData != NULL);
 	PS2InstanceDataHeader *header =
 		(PS2InstanceDataHeader*)geometry->instData;

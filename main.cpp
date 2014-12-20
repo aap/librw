@@ -19,8 +19,8 @@ main(int argc, char *argv[])
 //	Rw::Build = 0;
 
 	registerNodeNamePlugin();
-	registerMeshPlugin();
 	registerNativeDataPlugin();
+	registerMeshPlugin();
 	Rw::Clump *c;
 
 	ifstream in(argv[1], ios::binary);
