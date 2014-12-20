@@ -27,6 +27,15 @@ int32 readInt32(std::istream &rw);
 uint32 readUInt32(std::istream &rw);
 float32 readFloat32(std::istream &rw);
 
+enum Platform
+{
+	PLATFORM_OGL  = 2,
+	PLATFORM_PS2  = 4,
+	PLATFORM_XBOX = 5,
+	PLATFORM_D3D8 = 8,
+	PLATFORM_D3D9 = 9
+};
+
 enum PluginID
 {
 	// Core

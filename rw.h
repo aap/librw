@@ -78,6 +78,11 @@ struct MorphTarget
 	float32 *normals;
 };
 
+struct InstanceDataHeader
+{
+	uint32 platform;
+};
+
 struct Geometry : PluginBase<Geometry>, Object
 {
 	uint32 geoflags;
@@ -96,6 +101,8 @@ struct Geometry : PluginBase<Geometry>, Object
 	Material **materialList;
 
 	MeshHeader *meshHeader;
+
+	InstanceDataHeader *instData;
 
 	int32 refCount;
 

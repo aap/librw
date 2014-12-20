@@ -75,6 +75,7 @@ static void
 readMesh(istream &stream, Rw::int32, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
+	int32 indbuf[256];
 	uint32 buf[3];
 	stream.read((char*)buf, 12);
 	geo->meshHeader = new MeshHeader;
@@ -93,8 +94,15 @@ readMesh(istream &stream, Rw::int32, void *object, int32, int32)
 			;
 		else{
 			mesh->indices = new uint16[mesh->numIndices];
-			for(uint32 j = 0; j < mesh->numIndices; j++)
-				mesh->indices[j] = readUInt32(stream);
+			uint16 *ind = mesh->indices;
+			int32 numIndices = mesh->numIndices;
+			for(; numIndices > 0; numIndices -= 256){
+				int32 n = numIndices < 256 ? numIndices : 256;
+				stream.read((char*)indbuf, n*4);
+				for(int32 j = 0; j < n; j++)
+					ind[j] = indbuf[j];
+				ind += n;
+			}
 		}
 		mesh++;
 	}
@@ -104,6 +112,7 @@ static void
 writeMesh(ostream &stream, Rw::int32, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
+	int32 indbuf[256];
 	uint32 buf[3];
 	buf[0] = geo->meshHeader->flags;
 	buf[1] = geo->meshHeader->numMeshes;
@@ -119,9 +128,17 @@ writeMesh(ostream &stream, Rw::int32, void *object, int32, int32)
 		if(geo->geoflags & Geometry::NATIVE)
 			// TODO: compressed indices in OpenGL
 			;
-		else
-			for(uint32 j = 0; j < mesh->numIndices; j++)
-				writeUInt32(mesh->indices[j], stream);
+		else{
+			uint16 *ind = mesh->indices;
+			int32 numIndices = mesh->numIndices;
+			for(; numIndices > 0; numIndices -= 256){
+				int32 n = numIndices < 256 ? numIndices : 256;
+				for(int32 j = 0; j < n; j++)
+					indbuf[j] = ind[j];
+				stream.write((char*)indbuf, n*4);
+				ind += n;
+			}
+		}
 		mesh++;
 	}
 }
