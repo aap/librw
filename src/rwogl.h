@@ -3,7 +3,9 @@ namespace Rw {
 struct OGLAttrib
 {
 	// arguments to glVertexAttribPointer (should use OpenGL types here)
+	// Vertex = 0, TexCoord, Normal, Color, Weight, Bone Index
 	uint32 index;
+	// float = 0, byte, ubyte, short, ushort
 	int32 type;
 	bool32 normalized;
 	int32 size;
