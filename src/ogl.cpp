@@ -8,7 +8,7 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
-#include "rw.h"
+#include "rwobjects.h"
 #include "rwogl.h"
 
 using namespace std;

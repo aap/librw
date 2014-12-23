@@ -7,7 +7,7 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
-#include "rw.h"
+#include "rwobjects.h"
 #include "rwps2.h"
 #include "rwogl.h"
 

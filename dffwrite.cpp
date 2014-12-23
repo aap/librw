@@ -6,8 +6,6 @@
 #include <fstream>
 #include <list>
 
-#include "rwbase.h"
-#include "rwplugin.h"
 #include "rw.h"
 
 using namespace std;
