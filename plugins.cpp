@@ -9,6 +9,7 @@
 #include "rwplugin.h"
 #include "rw.h"
 #include "rwps2.h"
+#include "rwogl.h"
 
 using namespace std;
 using namespace Rw;
@@ -43,7 +44,7 @@ destroyNodeName(void *object, int32, int32)
 }
 
 static void
-readNodeName(istream &stream, Rw::int32 len, void *object, int32 offset, int32)
+readNodeName(istream &stream, int32 len, void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
 	stream.read(name, len);
@@ -51,7 +52,7 @@ readNodeName(istream &stream, Rw::int32 len, void *object, int32 offset, int32)
 }
 
 static void
-writeNodeName(ostream &stream, Rw::int32 len, void *object, int32 offset, int32)
+writeNodeName(ostream &stream, int32 len, void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
 	stream.write(name, len);
@@ -69,12 +70,12 @@ getSizeNodeName(void *object, int32 offset)
 void
 registerNodeNamePlugin(void)
 {
-	Rw::Frame::registerPlugin(18, 0x253f2fe, (Constructor)createNodeName,
-	                          (Destructor)destroyNodeName,
-	                          (CopyConstructor)copyNodeName);
-	Rw::Frame::registerPluginStream(0x253f2fe, (StreamRead)readNodeName,
-	                                (StreamWrite)writeNodeName,
-	                                (StreamGetSize)getSizeNodeName);
+	Frame::registerPlugin(18, 0x253f2fe, (Constructor)createNodeName,
+	                      (Destructor)destroyNodeName,
+	                      (CopyConstructor)copyNodeName);
+	Frame::registerPluginStream(0x253f2fe, (StreamRead)readNodeName,
+	                            (StreamWrite)writeNodeName,
+	                            (StreamGetSize)getSizeNodeName);
 }
 
 //
@@ -84,7 +85,7 @@ registerNodeNamePlugin(void)
 // Mesh
 
 static void
-readMesh(istream &stream, Rw::int32, void *object, int32, int32)
+readMesh(istream &stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
 	int32 indbuf[256];
@@ -96,15 +97,20 @@ readMesh(istream &stream, Rw::int32, void *object, int32, int32)
 	geo->meshHeader->totalIndices = buf[2];
 	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
 	Mesh *mesh = geo->meshHeader->mesh;
+	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		stream.read((char*)buf, 8);
 		mesh->numIndices = buf[0];
 		mesh->material = geo->materialList[buf[1]];
 		mesh->indices = NULL;
-		if(geo->geoflags & Geometry::NATIVE)
-			// TODO: compressed indices in OpenGL
-			;
-		else{
+		if(geo->geoflags & Geometry::NATIVE){
+			// OpenGL stores uint16 indices here
+			if(hasData){
+				mesh->indices = new uint16[mesh->numIndices];
+				stream.read((char*)mesh->indices,
+				            mesh->numIndices*2);
+			}
+		}else{
 			mesh->indices = new uint16[mesh->numIndices];
 			uint16 *ind = mesh->indices;
 			int32 numIndices = mesh->numIndices;
@@ -121,7 +127,7 @@ readMesh(istream &stream, Rw::int32, void *object, int32, int32)
 }
 
 static void
-writeMesh(ostream &stream, Rw::int32, void *object, int32, int32)
+writeMesh(ostream &stream, int32, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
 	int32 indbuf[256];
@@ -137,10 +143,11 @@ writeMesh(ostream &stream, Rw::int32, void *object, int32, int32)
 		                     (void**)geo->materialList,
 		                     geo->numMaterials);
 		stream.write((char*)buf, 8);
-		if(geo->geoflags & Geometry::NATIVE)
-			// TODO: compressed indices in OpenGL
-			;
-		else{
+		if(geo->geoflags & Geometry::NATIVE){
+			if(mesh->indices)
+				stream.write((char*)mesh->indices,
+				            mesh->numIndices*2);
+		}else{
 			uint16 *ind = mesh->indices;
 			int32 numIndices = mesh->numIndices;
 			for(; numIndices > 0; numIndices -= 256){
@@ -162,10 +169,10 @@ getSizeMesh(void *object, int32)
 	if(geo->meshHeader == NULL)
 		return -1;
 	int32 size = 12 + geo->meshHeader->numMeshes*8;
-	if(geo->geoflags & Geometry::NATIVE)
-		// TODO: compressed indices in OpenGL
-		;
-	else{
+	if(geo->geoflags & Geometry::NATIVE){
+		if(geo->meshHeader[0].mesh->indices)
+			size += geo->meshHeader->totalIndices*2;
+	}else{
 		size += geo->meshHeader->totalIndices*4;
 	}
 	return size;
@@ -175,10 +182,10 @@ getSizeMesh(void *object, int32)
 void
 registerMeshPlugin(void)
 {
-	Rw::Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
-	Rw::Geometry::registerPluginStream(0x50E, (StreamRead)readMesh,
-	                                   (StreamWrite)writeMesh,
-	                                   (StreamGetSize)getSizeMesh);
+	Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
+	Geometry::registerPluginStream(0x50E, (StreamRead)readMesh,
+	                               (StreamWrite)writeMesh,
+	                               (StreamGetSize)getSizeMesh);
 }
 
 // Native Data
@@ -191,6 +198,8 @@ destroyNativeData(void *object, int32 offset, int32 size)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return DestroyNativeDataPS2(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_OGL)
+		return DestroyNativeDataOGL(object, offset, size);
 	return object;
 }
 
@@ -213,10 +222,10 @@ readNativeData(istream &stream, int32 len, void *object, int32 o, int32 s)
 			ReadNativeDataPS2(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
 			stream.seekg(len, ios::cur);
-	}else
-		// OpenGL
-		// doesn't work always, some headers have wrong size
-		stream.seekg(len-12, ios::cur);
+	}else{
+		stream.seekg(-12, ios::cur);
+		ReadNativeDataOGL(stream, len, object, o, s);
+	}
 }
 
 static void
@@ -227,6 +236,8 @@ writeNativeData(ostream &stream, int32 len, void *object, int32 o, int32 s)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		WriteNativeDataPS2(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_OGL)
+		WriteNativeDataOGL(stream, len, object, o, s);
 }
 
 static int32
@@ -240,15 +251,15 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return -1;
 	else if(geometry->instData->platform == PLATFORM_OGL)
-		return -1;
+		return GetSizeNativeDataOGL(object, offset, size);
 	return -1;
 }
 
 void
 registerNativeDataPlugin(void)
 {
-	Rw::Geometry::registerPlugin(0, 0x510, NULL, destroyNativeData, NULL);
-	Rw::Geometry::registerPluginStream(0x510, (StreamRead)readNativeData,
-	                                   (StreamWrite)writeNativeData,
-	                                   (StreamGetSize)getSizeNativeData);
+	Geometry::registerPlugin(0, 0x510, NULL, destroyNativeData, NULL);
+	Geometry::registerPluginStream(0x510, (StreamRead)readNativeData,
+	                               (StreamWrite)writeNativeData,
+	                               (StreamGetSize)getSizeNativeData);
 }

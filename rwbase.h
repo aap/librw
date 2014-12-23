@@ -9,6 +9,7 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef float float32;
+typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
 

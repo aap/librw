@@ -34,10 +34,10 @@ ReadNativeDataPS2(istream &stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(readUInt32(stream) == 4);
+	assert(readUInt32(stream) == PLATFORM_PS2);
 	PS2InstanceDataHeader *header = new PS2InstanceDataHeader;
 	geometry->instData = header;
-	header->platform = 4;
+	header->platform = PLATFORM_PS2;
 	assert(geometry->meshHeader != NULL);
 	header->numMeshes = geometry->meshHeader->numMeshes;
 	header->instanceMeshes = new PS2InstanceData[header->numMeshes];
