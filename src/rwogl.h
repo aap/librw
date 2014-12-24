@@ -1,6 +1,7 @@
 namespace Rw {
+namespace Gl {
 
-struct OGLAttrib
+struct AttribDesc
 {
 	// arguments to glVertexAttribPointer (should use OpenGL types here)
 	// Vertex = 0, TexCoord, Normal, Color, Weight, Bone Index
@@ -13,17 +14,25 @@ struct OGLAttrib
 	uint32 offset;
 };
 
-struct OGLInstanceDataHeader : InstanceDataHeader
+struct InstanceDataHeader : Rw::InstanceDataHeader
 {
 	int32 numAttribs;
-	OGLAttrib *attribs;
+	AttribDesc *attribs;
 	uint32 dataSize;
 	uint8 *data;
+
+	// needed for rendering
+	uint32 vbo;
+	uint32 ibo;
 };
 
-void *DestroyNativeDataOGL(void *object, int32, int32);
-void ReadNativeDataOGL(std::istream &stream, int32 len, void *object, int32, int32);
-void WriteNativeDataOGL(std::ostream &stream, int32 len, void *object, int32, int32);
-int32 GetSizeNativeDataOGL(void *object, int32, int32);
+void *DestroyNativeData(void *object, int32, int32);
+void ReadNativeData(std::istream &stream, int32 len, void *object, int32, int32);
+void WriteNativeData(std::ostream &stream, int32 len, void *object, int32, int32);
+int32 GetSizeNativeData(void *object, int32, int32);
 
+void UploadGeo(Geometry *geo);
+void SetAttribPointers(InstanceDataHeader *inst);
+
+}
 }

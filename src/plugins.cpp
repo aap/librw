@@ -199,7 +199,7 @@ destroyNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return DestroyNativeDataPS2(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_OGL)
-		return DestroyNativeDataOGL(object, offset, size);
+		return Gl::DestroyNativeData(object, offset, size);
 	return object;
 }
 
@@ -224,7 +224,7 @@ readNativeData(istream &stream, int32 len, void *object, int32 o, int32 s)
 			stream.seekg(len, ios::cur);
 	}else{
 		stream.seekg(-12, ios::cur);
-		ReadNativeDataOGL(stream, len, object, o, s);
+		Gl::ReadNativeData(stream, len, object, o, s);
 	}
 }
 
@@ -237,7 +237,7 @@ writeNativeData(ostream &stream, int32 len, void *object, int32 o, int32 s)
 	if(geometry->instData->platform == PLATFORM_PS2)
 		WriteNativeDataPS2(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
-		WriteNativeDataOGL(stream, len, object, o, s);
+		Gl::WriteNativeData(stream, len, object, o, s);
 }
 
 static int32
@@ -251,7 +251,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return -1;
 	else if(geometry->instData->platform == PLATFORM_OGL)
-		return GetSizeNativeDataOGL(object, offset, size);
+		return Gl::GetSizeNativeData(object, offset, size);
 	return -1;
 }
 

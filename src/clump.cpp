@@ -19,6 +19,12 @@ Frame::Frame(void)
 	this->child = NULL;
 	this->next = NULL;
 	this->root = NULL;
+	for(int i = 0; i < 16; i++)
+		this->matrix[i] = 0.0f;
+	this->matrix[0] = 1.0f;
+	this->matrix[5] = 1.0f;
+	this->matrix[10] = 1.0f;
+	this->matrix[15] = 1.0f;
 	constructPlugins();
 }
 
