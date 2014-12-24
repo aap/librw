@@ -258,8 +258,119 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 void
 registerNativeDataPlugin(void)
 {
-	Geometry::registerPlugin(0, 0x510, NULL, destroyNativeData, NULL);
-	Geometry::registerPluginStream(0x510, (StreamRead)readNativeData,
+	Geometry::registerPlugin(0, ID_NATIVEDATA,
+	                         NULL, destroyNativeData, NULL);
+	Geometry::registerPluginStream(ID_NATIVEDATA,
+	                               (StreamRead)readNativeData,
 	                               (StreamWrite)writeNativeData,
 	                               (StreamGetSize)getSizeNativeData);
+}
+
+// Breakable Model
+
+// TODO: put this in a header
+struct Breakable
+{
+	uint32 position;
+	uint32 numVertices;
+	uint32 numFaces;
+	uint32 numMaterials;
+
+	float32 *vertices;
+	float32 *texCoords;
+	uint8   *colors;
+	uint16  *faces;
+	uint16  *matIDs;
+	char    (*texNames)[32];
+	char    (*maskNames)[32];
+	float32 (*surfaceProps)[3];
+};
+
+static void*
+destroyBreakableModel(void *object, int32 offset, int32 size)
+{
+	uint8 *p = *PLUGINOFFSET(uint8*, object, offset);
+	delete[] p;
+	return object;
+}
+
+static void
+readBreakableModel(istream &stream, int32 len, void *object, int32 o, int32 s)
+{
+	uint32 header[13];
+	uint32 hasBreakable = readUInt32(stream);
+	if(hasBreakable == 0)
+		return;
+	stream.read((char*)header, 13*4);
+	uint32 size = header[1]*(12+8+4) + header[5]*(6+2) +
+	              header[8]*(32+32+12);
+	uint8 *p = new uint8[sizeof(Breakable)+size];
+	Breakable *breakable = (Breakable*)p;
+	*PLUGINOFFSET(Breakable*, object, o) = breakable;
+	breakable->position     = header[0];
+	breakable->numVertices  = header[1];
+	breakable->numFaces     = header[5];
+	breakable->numMaterials = header[8];
+	p += sizeof(Breakable);
+	stream.read((char*)p, size);
+	breakable->vertices = (float*)p;
+	p += breakable->numVertices*12;
+	breakable->texCoords = (float*)p;
+	p += breakable->numVertices*8;
+	breakable->colors = (uint8*)p;
+	p += breakable->numVertices*4;
+	breakable->faces = (uint16*)p;
+	p += breakable->numFaces*6;
+	breakable->matIDs = (uint16*)p;
+	p += breakable->numFaces*2;
+	breakable->texNames = (char(*)[32])p;
+	p += breakable->numMaterials*32;
+	breakable->maskNames = (char(*)[32])p;
+	p += breakable->numMaterials*32;
+	breakable->surfaceProps = (float32(*)[3])p;
+}
+
+static void
+writeBreakableModel(ostream &stream, int32 len, void *object, int32 o, int32 s)
+{
+	uint32 header[13];
+	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, o);
+	uint8 *p = (uint8*)breakable;
+	if(breakable == NULL){
+		writeUInt32(0, stream);
+		return;
+	}
+	writeUInt32(1, stream);
+	memset((char*)header, 0, 13*4);
+	header[0] = breakable->position;
+	header[1] = breakable->numVertices;
+	header[5] = breakable->numFaces;
+	header[8] = breakable->numMaterials;
+	stream.write((char*)header, 13*4);
+	p += sizeof(Breakable);
+	stream.write((char*)p, breakable->numVertices*(12+8+4) +
+	                       breakable->numFaces*(6+2) +
+	                       breakable->numMaterials*(32+32+12));
+}
+
+static int32
+getSizeBreakableModel(void *object, int32 offset, int32 size)
+{
+	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, offset);
+	if(breakable == NULL)
+		return 4;
+	return 56 + breakable->numVertices*(12+8+4) +
+	            breakable->numFaces*(6+2) +
+	            breakable->numMaterials*(32+32+12);
+}
+
+void
+registerBreakableModelPlugin(void)
+{
+	Geometry::registerPlugin(sizeof(Breakable*), ID_BREAKABLE, NULL,
+	                         destroyBreakableModel, NULL);
+	Geometry::registerPluginStream(ID_BREAKABLE,
+	                               (StreamRead)readBreakableModel,
+	                               (StreamWrite)writeBreakableModel,
+	                               (StreamGetSize)getSizeBreakableModel);
 }

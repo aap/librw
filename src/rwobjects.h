@@ -211,3 +211,4 @@ private:
 void registerNodeNamePlugin(void);
 void registerMeshPlugin(void);
 void registerNativeDataPlugin(void);
+void registerBreakableModelPlugin(void);

@@ -18,11 +18,21 @@ using namespace std;
 namespace Rw {
 namespace Gl {
 
+//  20303 0 0 0 3	vertices:  3 float
+//     53 1 0 0 2	texCoords: 2 floats
+//  20043 1 3 0 2	texCoords: 2 shorts
+//   6954 2 1 1 3	normal:    3 bytes normalized
+//  13527 3 2 1 4	color:     4 ubytes normalized
+//    196 4 2 1 4	weight:    4 ubytes normalized
+//    225 4 4 1 4	weight:    4 ushorts normalized
+//    421 5 2 0 4	indices:   4 ubytes
+//  12887 6 2 1 4	extracolor:4 ubytes normalized
+
 static void
 printAttribInfo(AttribDesc *attribs, int n)
 {
 	for(int i = 0; i < n; i++)
-		printf("%x %x %x %x %x %x\n",
+		printf("%x %x %x %x\n",
 			attribs[i].index,
 			attribs[i].type,
 			attribs[i].normalized,
@@ -55,7 +65,7 @@ ReadNativeData(istream &stream, int32, void *object, int32, int32)
 	header->attribs = new AttribDesc[header->numAttribs];
 	stream.read((char*)header->attribs,
 	            header->numAttribs*sizeof(AttribDesc));
-	// Any better way to find out the size? (header length can be wrong)
+	printAttribInfo(header->attribs, header->numAttribs);
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = new uint8[header->dataSize];
 	stream.read((char*)header->data, header->dataSize);

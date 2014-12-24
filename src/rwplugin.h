@@ -80,11 +80,11 @@ PluginBase<T>::copyPlugins(T *t)
 template <typename T> void
 PluginBase<T>::streamReadPlugins(std::istream &stream)
 {
-	uint32 length;
+	int32 length;
 	Rw::ChunkHeaderInfo header;
-	if(!Rw::FindChunk(stream, Rw::ID_EXTENSION, &length, NULL))
+	if(!Rw::FindChunk(stream, Rw::ID_EXTENSION, (uint32*)&length, NULL))
 		return;
-	while(length){
+	while(length > 0){
 		Rw::ReadChunkHeaderInfo(stream, &header);
 		length -= 12;
 		for(Plugin *p = this->s_plugins; p; p = p->next)

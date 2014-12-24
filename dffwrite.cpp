@@ -17,6 +17,7 @@ main(int argc, char *argv[])
 //	Rw::Build = 0;
 
 	registerNodeNamePlugin();
+	registerBreakableModelPlugin();
 	registerNativeDataPlugin();
 	registerMeshPlugin();
 	Rw::Clump *c;

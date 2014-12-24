@@ -4,7 +4,7 @@ namespace Gl {
 struct AttribDesc
 {
 	// arguments to glVertexAttribPointer (should use OpenGL types here)
-	// Vertex = 0, TexCoord, Normal, Color, Weight, Bone Index
+	// Vertex = 0, TexCoord, Normal, Color, Weight, Bone Index, Extra Color
 	uint32 index;
 	// float = 0, byte, ubyte, short, ushort
 	int32 type;
