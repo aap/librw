@@ -65,7 +65,6 @@ ReadNativeData(istream &stream, int32, void *object, int32, int32)
 	header->attribs = new AttribDesc[header->numAttribs];
 	stream.read((char*)header->attribs,
 	            header->numAttribs*sizeof(AttribDesc));
-	printAttribInfo(header->attribs, header->numAttribs);
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = new uint8[header->dataSize];
 	stream.read((char*)header->data, header->dataSize);

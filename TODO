@@ -20,8 +20,7 @@ Clump & related:
 			Mat FX
 			Pipeline Set
 		Geometry
-			Native Data
-			Breakable
+			-Native Data
 			Extra Vertex Colors
 			(Morph)
 			Skin
