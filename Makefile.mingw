@@ -1,13 +1,19 @@
+# null, opengl
+BUILD=null
+
+# e.g. null -> -DRW_NULL
+BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
+BUILDDIR=build-$(BUILD)
 SRCDIR=src
-BUILDDIR=build
 SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
                                          geometry.cpp plugins.cpp ps2.cpp\
                                          ogl.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
-CFLAGS=-Wall -Wextra -g -DGLEW_STATIC #-Wno-parentheses #-Wconversion
+CFLAGS=-Wall -Wextra -g -DGLEW_STATIC $(BUILDDEF) #-Wno-parentheses #-Wconversion
+LIB=librw-$(BUILD).a
 
-librw.a: $(OBJ)
+$(LIB): $(OBJ)
 	ar scr $@ $(OBJ)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
@@ -15,5 +21,8 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 
 $(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
 	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $< > $@
+
+clean:
+	rm -f $(BUILDDIR)/*.[od]
 
 -include $(DEP)

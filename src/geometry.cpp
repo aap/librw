@@ -430,13 +430,14 @@ Texture::streamWrite(ostream &stream)
 	WriteChunkHeader(stream, ID_STRUCT, 4);
 	writeUInt32(this->filterAddressing, stream);
 
-	size = strnlen(this->name, 32)+3 & ~3;
+	// TODO: length can't be > 32
+	size = strlen(this->name)+3 & ~3;
 	if(size < 4)
 		size = 4;
 	WriteChunkHeader(stream, ID_STRING, size);
 	stream.write(this->name, size);
 
-	size = strnlen(this->mask, 32)+3 & ~3;
+	size = strlen(this->mask)+3 & ~3;
 	if(size < 4)
 		size = 4;
 	WriteChunkHeader(stream, ID_STRING, size);
@@ -453,9 +454,10 @@ Texture::streamGetSize(void)
 	int strsize;
 	size += 12 + 4;
 	size += 12 + 12;
-	strsize = strnlen(this->name, 32)+3 & ~3;
+	// TODO: see above
+	strsize = strlen(this->name)+3 & ~3;
 	size += strsize < 4 ? 4 : strsize;
-	strsize = strnlen(this->mask, 32)+3 & ~3;
+	strsize = strlen(this->mask)+3 & ~3;
 	size += strsize < 4 ? 4 : strsize;
 	size += 12 + this->streamGetPluginSize();
 	return size;
