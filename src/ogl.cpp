@@ -18,6 +18,17 @@ using namespace std;
 namespace Rw {
 namespace Gl {
 
+static void
+printAttribInfo(AttribDesc *attribs, int n)
+{
+	for(int i = 0; i < n; i++)
+		printf("%x %x %x %x %x %x\n",
+			attribs[i].index,
+			attribs[i].type,
+			attribs[i].normalized,
+			attribs[i].size);
+}
+
 void*
 DestroyNativeData(void *object, int32, int32)
 {
@@ -74,10 +85,10 @@ GetSizeNativeData(void *object, int32, int32)
 }
 
 
+#ifdef RW_OPENGL
 void
 UploadGeo(Geometry *geo)
 {
-	using namespace Rw;
 	InstanceDataHeader *inst = (InstanceDataHeader*)geo->instData;
 	MeshHeader *meshHeader = geo->meshHeader;
 
@@ -103,7 +114,6 @@ UploadGeo(Geometry *geo)
 void
 SetAttribPointers(InstanceDataHeader *inst)
 {
-	using namespace Rw;
 	static GLenum attribType[] = {
 		GL_FLOAT,
 		GL_BYTE, GL_UNSIGNED_BYTE,
@@ -117,6 +127,7 @@ SetAttribPointers(InstanceDataHeader *inst)
 		                      (void*)(uint64)a->offset);
 	}
 }
+#endif
 
 }
 }
