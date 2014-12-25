@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include <iostream>
 #include <fstream>
@@ -144,7 +145,8 @@ writeMesh(ostream &stream, int32, void *object, int32, int32)
 		                     geo->numMaterials);
 		stream.write((char*)buf, 8);
 		if(geo->geoflags & Geometry::NATIVE){
-			if(mesh->indices)
+			assert(geo->instData != NULL);
+			if(geo->instData->platform == PLATFORM_OGL)
 				stream.write((char*)mesh->indices,
 				            mesh->numIndices*2);
 		}else{
@@ -170,7 +172,8 @@ getSizeMesh(void *object, int32)
 		return -1;
 	int32 size = 12 + geo->meshHeader->numMeshes*8;
 	if(geo->geoflags & Geometry::NATIVE){
-		if(geo->meshHeader[0].mesh->indices)
+		assert(geo->instData != NULL);
+		if(geo->instData->platform == PLATFORM_OGL)
 			size += geo->meshHeader->totalIndices*2;
 	}else{
 		size += geo->meshHeader->totalIndices*4;

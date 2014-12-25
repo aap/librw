@@ -18,8 +18,9 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 {
 	this->geoflags = flags & 0xFF00FFFF;
 	this->numTexCoordSets = (flags & 0xFF0000) >> 16;
-	if(this->numTexCoordSets == 0 && (this->geoflags & TEXTURED))
-		this->numTexCoordSets = 1;
+	if(this->numTexCoordSets == 0)
+		this->numTexCoordSets = (this->geoflags & TEXTURED)  ? 1 :
+		                        (this->geoflags & TEXTURED2) ? 2 : 0;
 	this->numTriangles = numTris;
 	this->numVertices = numVerts;
 	this->numMorphTargets = 1;
@@ -28,7 +29,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	for(int32 i = 0; i < this->numTexCoordSets; i++)
 		this->texCoords[i] = NULL;
 	this->triangles = NULL;
-	if(!(this->geoflags & 0xFF000000)){
+	if(!(this->geoflags & NATIVE)){
 		if(this->geoflags & PRELIT)
 			this->colors = new uint8[4*this->numVertices];
 		if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
@@ -41,7 +42,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	MorphTarget *m = this->morphTargets;
 	m->vertices = NULL;
 	m->normals = NULL;
-	if(!(this->geoflags & 0xFF000000)){
+	if(!(this->geoflags & NATIVE)){
 		m->vertices = new float32[3*this->numVertices];
 		if(this->geoflags & NORMALS)
 			m->normals = new float32[3*this->numVertices];
@@ -111,13 +112,12 @@ Geometry::streamRead(istream &stream)
 	if(version < 0x34000)
 		stream.seekg(12, ios::cur);
 
-	if(!(geo->geoflags & 0xFF000000)){
+	if(!(geo->geoflags & NATIVE)){
 		if(geo->geoflags & PRELIT)
 			stream.read((char*)geo->colors, 4*geo->numVertices);
-		if((geo->geoflags & TEXTURED) || (geo->geoflags & TEXTURED2))
-			for(int32 i = 0; i < geo->numTexCoordSets; i++)
-				stream.read((char*)geo->texCoords[i],
-				            2*geo->numVertices*4);
+		for(int32 i = 0; i < geo->numTexCoordSets; i++)
+			stream.read((char*)geo->texCoords[i],
+				    2*geo->numVertices*4);
 		stream.read((char*)geo->triangles, 4*geo->numTriangles*2);
 	}
 
@@ -157,10 +157,8 @@ geoStructSize(Geometry *geo)
 	if(!(geo->geoflags & 0xFF000000)){
 		if(geo->geoflags&geo->PRELIT)
 			size += 4*geo->numVertices;
-		if((geo->geoflags & geo->TEXTURED) ||
-		   (geo->geoflags & geo->TEXTURED2))
-			for(int32 i = 0; i < geo->numTexCoordSets; i++)
-				size += 2*geo->numVertices*4;
+		for(int32 i = 0; i < geo->numTexCoordSets; i++)
+			size += 2*geo->numVertices*4;
 		size += 4*geo->numTriangles*2;
 	}
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
@@ -192,13 +190,12 @@ Geometry::streamWrite(ostream &stream)
 	if(Version < 0x34000)
 		stream.write((char*)fbuf, sizeof(fbuf));
 
-	if(!(this->geoflags & 0xFF000000)){
+	if(!(this->geoflags & NATIVE)){
 		if(this->geoflags & PRELIT)
 			stream.write((char*)this->colors, 4*this->numVertices);
-		if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
-			for(int32 i = 0; i < this->numTexCoordSets; i++)
-				stream.write((char*)this->texCoords[i],
-				            2*this->numVertices*4);
+		for(int32 i = 0; i < this->numTexCoordSets; i++)
+			stream.write((char*)this->texCoords[i],
+				    2*this->numVertices*4);
 		stream.write((char*)this->triangles, 4*this->numTriangles*2);
 	}
 
@@ -254,7 +251,7 @@ Geometry::addMorphTargets(int32 n)
 		MorphTarget *m = &morphTargets[i];
 		m->vertices = NULL;
 		m->normals = NULL;
-		if(!(this->geoflags & 0xFF000000)){
+		if(!(this->geoflags & NATIVE)){
 			m->vertices = new float32[3*this->numVertices];
 			if(this->geoflags & NORMALS)
 				m->normals = new float32[3*this->numVertices];
