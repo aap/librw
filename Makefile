@@ -7,7 +7,7 @@ BUILDDIR=build-$(BUILD)
 SRCDIR=src
 SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
                                          geometry.cpp plugins.cpp ps2.cpp\
-                                         ogl.cpp)
+                                         ogl.cpp image.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 CFLAGS=-Wall -Wextra -g $(BUILDDEF) #-Wno-parentheses #-Wconversion

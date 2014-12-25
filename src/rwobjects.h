@@ -8,6 +8,23 @@ struct Object
 	void *parent;
 };
 
+struct Image
+{
+	int32 flags;
+	int32 width, height;
+	int32 depth;
+	int32 stride;
+	uint8 *pixels;
+	uint8 *palette;
+
+	Image(int32 width, int32 height, int32 depth);
+	~Image(void);
+	void allocate(void);
+	void free(void);
+	void setPixels(uint8 *pixels);
+	void setPalette(uint8 *palette);
+};
+
 // TODO: raster, link into texdict
 struct Texture : PluginBase<Texture>
 {
