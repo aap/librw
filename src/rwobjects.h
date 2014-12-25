@@ -24,6 +24,8 @@ struct Image
 	void setPixels(uint8 *pixels);
 	void setPalette(uint8 *palette);
 };
+Image *readTGA(const char *filename);
+void writeTGA(Image *image, const char *filename);
 
 // TODO: raster, link into texdict
 struct Texture : PluginBase<Texture>

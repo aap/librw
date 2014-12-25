@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include <iostream>
 #include <fstream>
@@ -25,10 +26,15 @@ main(int argc, char *argv[])
 	ifstream in(argv[1], ios::binary);
 	Rw::FindChunk(in, Rw::ID_CLUMP, NULL, NULL);
 	c = Rw::Clump::streamRead(in);
+	assert(c != NULL);
 	in.close();
 
-	for(Rw::int32 i = 0; i < c->numAtomics; i++)
-		Rw::Gl::Instance(c->atomicList[i]);
+	Rw::Image *tga = Rw::readTGA("b.tga");
+	assert(tga != NULL);
+	Rw::writeTGA(tga, "out.tga");
+
+//	for(Rw::int32 i = 0; i < c->numAtomics; i++)
+//		Rw::Gl::Instance(c->atomicList[i]);
 
 	ofstream out(argv[2], ios::binary);
 	c->streamWrite(out);
