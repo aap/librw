@@ -125,7 +125,9 @@ Clump::Clump(void)
 	this->numAtomics = 0;
 	this->numLights = 0;
 	this->numCameras = 0;
-	constructPlugins();
+	this->atomicList = NULL;
+	this->lightList = NULL;
+	this->constructPlugins();
 }
 
 Clump::Clump(Clump *c)
@@ -133,12 +135,13 @@ Clump::Clump(Clump *c)
 	this->numAtomics = c->numAtomics;
 	this->numLights = c->numLights;
 	this->numCameras = c->numCameras;
-	copyPlugins(c);
+	// TODO: atomics and lights
+	this->copyPlugins(c);
 }
 
 Clump::~Clump(void)
 {
-	destructPlugins();
+	this->destructPlugins();
 }
 
 Clump*
@@ -169,14 +172,17 @@ Clump::streamRead(istream &stream)
 	assert(FindChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	numGeometries = readInt32(stream);
-	Geometry **geometryList = new Geometry*[numGeometries];
+	Geometry **geometryList = 0;
+	if(numGeometries)
+		geometryList = new Geometry*[numGeometries];
 	for(int32 i = 0; i < numGeometries; i++){
 		assert(FindChunk(stream, ID_GEOMETRY, NULL, NULL));
 		geometryList[i] = Geometry::streamRead(stream);
 	}
 
 	// Atomics
-	clump->atomicList = new Atomic*[clump->numAtomics];
+	if(clump->numAtomics)
+		clump->atomicList = new Atomic*[clump->numAtomics];
 	for(int32 i = 0; i < clump->numAtomics; i++){
 		assert(FindChunk(stream, ID_ATOMIC, NULL, NULL));
 		clump->atomicList[i] = Atomic::streamReadClump(stream,
@@ -185,7 +191,8 @@ Clump::streamRead(istream &stream)
 	}
 
 	// Lights
-	clump->lightList = new Light*[clump->numLights];
+	if(clump->numLights)
+		clump->lightList = new Light*[clump->numLights];
 	for(int32 i = 0; i < clump->numLights; i++){
 		int32 frm;
 		assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
@@ -278,7 +285,7 @@ Clump::streamGetSize(void)
 		size += 12 + this->atomicList[i]->streamGetSize();
 
 	// light
-	for(int32 i = 0; i < this->numAtomics; i++)
+	for(int32 i = 0; i < this->numLights; i++)
 		size += 16 + 12 + this->lightList[i]->streamGetSize();
 
 	size += 12 + this->streamGetPluginSize();

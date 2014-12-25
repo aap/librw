@@ -27,6 +27,9 @@ main(int argc, char *argv[])
 	c = Rw::Clump::streamRead(in);
 	in.close();
 
+	for(Rw::int32 i = 0; i < c->numAtomics; i++)
+		Rw::Gl::Instance(c->atomicList[i]);
+
 	ofstream out(argv[2], ios::binary);
 	c->streamWrite(out);
 	out.close();

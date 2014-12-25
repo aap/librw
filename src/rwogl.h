@@ -31,6 +31,9 @@ void ReadNativeData(std::istream &stream, int32 len, void *object, int32, int32)
 void WriteNativeData(std::ostream &stream, int32 len, void *object, int32, int32);
 int32 GetSizeNativeData(void *object, int32, int32);
 
+void Instance(Atomic *atomic);
+
+// only RW_OPENGL
 void UploadGeo(Geometry *geo);
 void SetAttribPointers(InstanceDataHeader *inst);
 

@@ -290,7 +290,7 @@ struct Breakable
 };
 
 static void*
-destroyBreakableModel(void *object, int32 offset, int32 size)
+destroyBreakableModel(void *object, int32 offset, int32)
 {
 	uint8 *p = *PLUGINOFFSET(uint8*, object, offset);
 	delete[] p;
@@ -298,7 +298,7 @@ destroyBreakableModel(void *object, int32 offset, int32 size)
 }
 
 static void
-readBreakableModel(istream &stream, int32 len, void *object, int32 o, int32 s)
+readBreakableModel(istream &stream, int32, void *object, int32 o, int32)
 {
 	uint32 header[13];
 	uint32 hasBreakable = readUInt32(stream);
@@ -334,7 +334,7 @@ readBreakableModel(istream &stream, int32 len, void *object, int32 o, int32 s)
 }
 
 static void
-writeBreakableModel(ostream &stream, int32 len, void *object, int32 o, int32 s)
+writeBreakableModel(ostream &stream, int32, void *object, int32 o, int32)
 {
 	uint32 header[13];
 	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, o);
@@ -357,7 +357,7 @@ writeBreakableModel(ostream &stream, int32 len, void *object, int32 o, int32 s)
 }
 
 static int32
-getSizeBreakableModel(void *object, int32 offset, int32 size)
+getSizeBreakableModel(void *object, int32 offset, int32)
 {
 	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, offset);
 	if(breakable == NULL)

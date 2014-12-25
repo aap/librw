@@ -154,7 +154,7 @@ geoStructSize(Geometry *geo)
 	size += sizeof(GeoStreamData);
 	if(Version < 0x34000)
 		size += 12;	// surface properties
-	if(!(geo->geoflags & 0xFF000000)){
+	if(!(geo->geoflags & Geometry::NATIVE)){
 		if(geo->geoflags&geo->PRELIT)
 			size += 4*geo->numVertices;
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
@@ -164,10 +164,12 @@ geoStructSize(Geometry *geo)
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
 		size += 4*4 + 2*4; // bounding sphere and bools
-		if(m->vertices)
-			size += 3*geo->numVertices*4;
-		if(m->normals)
-			size += 3*geo->numVertices*4;
+		if(!(geo->geoflags & Geometry::NATIVE)){
+			if(m->vertices)
+				size += 3*geo->numVertices*4;
+			if(m->normals)
+				size += 3*geo->numVertices*4;
+		}
 	}
 	return size;
 }
@@ -202,12 +204,19 @@ Geometry::streamWrite(ostream &stream)
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
 		stream.write((char*)m->boundingSphere, 4*4);
-		writeInt32(m->vertices != NULL, stream);
-		writeInt32(m->normals != NULL, stream);
-		if(m->vertices)
-			stream.write((char*)m->vertices, 3*this->numVertices*4);
-		if(m->normals)
-			stream.write((char*)m->normals, 3*this->numVertices*4);
+		if(!(this->geoflags & NATIVE)){
+			writeInt32(m->vertices != NULL, stream);
+			writeInt32(m->normals != NULL, stream);
+			if(m->vertices)
+				stream.write((char*)m->vertices,
+				             3*this->numVertices*4);
+			if(m->normals)
+				stream.write((char*)m->normals,
+				             3*this->numVertices*4);
+		}else{
+			writeInt32(0, stream);
+			writeInt32(0, stream);
+		}
 	}
 
 	size = 12 + 4;
