@@ -2,8 +2,7 @@
 #include <cstdlib>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -15,123 +14,169 @@ namespace Rw {
 int Version = 0x36003;
 int Build = 0xFFFF;
 
-uint32
-writeInt8(int8 tmp, ostream &rw)
+int32
+Stream::writeI8(int8 val)
 {
-	rw.write((char*)&tmp, sizeof(int8));
-	return sizeof(int8);
+	return write(&val, sizeof(int8));
 }
 
-uint32
-writeUInt8(uint8 tmp, ostream &rw)
+int32
+Stream::writeU8(uint8 val)
 {
-        rw.write((char*)&tmp, sizeof(uint8));
-        return sizeof(uint8);
+	return write(&val, sizeof(uint8));
 }
 
-uint32
-writeInt16(int16 tmp, ostream &rw)
+int32
+Stream::writeI16(int16 val)
 {
-        rw.write((char*)&tmp, sizeof(int16));
-        return sizeof(int16);
+	return write(&val, sizeof(int16));
 }
 
-uint32
-writeUInt16(uint16 tmp, ostream &rw)
+int32
+Stream::writeU16(uint16 val)
 {
-        rw.write((char*)&tmp, sizeof(uint16));
-        return sizeof(uint16);
+	return write(&val, sizeof(uint16));
 }
 
-uint32
-writeInt32(int32 tmp, ostream &rw)
+int32
+Stream::writeI32(int32 val)
 {
-        rw.write((char*)&tmp, sizeof(int32));
-        return sizeof(int32);
+	return write(&val, sizeof(int32));
 }
 
-uint32
-writeUInt32(uint32 tmp, ostream &rw)
+int32
+Stream::writeU32(uint32 val)
 {
-        rw.write((char*)&tmp, sizeof(uint32));
-        return sizeof(uint32);
+	return write(&val, sizeof(uint32));
 }
 
-uint32
-writeFloat32(float32 tmp, ostream &rw)
+int32
+Stream::writeF32(float32 val)
 {
-        rw.write((char*)&tmp, sizeof(float32));
-        return sizeof(float32);
+	return write(&val, sizeof(float32));
+}
+
+int8
+Stream::readI8(void)
+{
+	int8 tmp;
+	read(&tmp, sizeof(int8));
+	return tmp;
 }
 
 uint8
-readUInt8(istream &rw)
+Stream::readU8(void)
 {
 	uint8 tmp;
-	rw.read((char*)&tmp, sizeof(uint8));
+	read(&tmp, sizeof(uint8));
 	return tmp;
 }
 
 int16
-readInt16(istream &rw)
+Stream::readI16(void)
 {
 	int16 tmp;
-	rw.read((char*)&tmp, sizeof(int16));
+	read(&tmp, sizeof(int16));
 	return tmp;
 }
 
 uint16
-readUInt16(istream &rw)
+Stream::readU16(void)
 {
 	uint16 tmp;
-	rw.read((char*)&tmp, sizeof(uint16));
+	read(&tmp, sizeof(uint16));
 	return tmp;
 }
 
 int32
-readInt32(istream &rw)
+Stream::readI32(void)
 {
 	int32 tmp;
-	rw.read((char*)&tmp, sizeof(int32));
+	read(&tmp, sizeof(int32));
 	return tmp;
 }
 
 uint32
-readUInt32(istream &rw)
+Stream::readU32(void)
 {
 	uint32 tmp;
-	rw.read((char*)&tmp, sizeof(uint32));
+	read(&tmp, sizeof(uint32));
 	return tmp;
 }
 
 float32
-readFloat32(istream &rw)
+Stream::readF32(void)
 {
 	float32 tmp;
-	rw.read((char*)&tmp, sizeof(float32));
+	read(&tmp, sizeof(float32));
 	return tmp;
 }
 
+
+StreamFile*
+StreamFile::open(const char *path, const char *mode)
+{
+	this->file = fopen(path, mode);
+	return this->file ? this : NULL;
+}
+
+void
+StreamFile::close(void)
+{
+	fclose(this->file);
+}
+
+uint32
+StreamFile::write(const void *data, uint32 length)
+{
+	return fwrite(data, length, 1, this->file);
+}
+
+uint32
+StreamFile::read(void *data, uint32 length)
+{
+	printf("read %d bytes @ %x\n", length, this->tell());
+	return fread(data, length, 1, this->file);
+}
+
+void
+StreamFile::seek(int32 offset, int32 whence)
+{
+	fseek(this->file, offset, whence);
+}
+
+uint32
+StreamFile::tell(void)
+{
+	return ftell(this->file);
+}
+
 bool
-WriteChunkHeader(ostream &s, int32 type, int32 size)
+StreamFile::eof(void)
+{
+	return feof(this->file);
+}
+
+bool
+WriteChunkHeader(Stream *s, int32 type, int32 size)
 {
 	struct {
 		int32 type, size;
 		uint32 id;
 	} buf = { type, size, LibraryIDPack(Version, Build) };
-	s.write((char*)&buf, 12);
+	s->write(&buf, 12);
 	return true;
 }
 
 bool
-ReadChunkHeaderInfo(istream &s, ChunkHeaderInfo *header)
+ReadChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
 {
 	struct {
 		int32 type, size;
 		uint32 id;
 	} buf;
-	s.read((char*)&buf, 12);
-	if(s.eof())
+	s->read(&buf, 12);
+	if(s->eof())
 		return false;
 	assert(header != NULL);
 	header->type = buf.type;
@@ -142,7 +187,7 @@ ReadChunkHeaderInfo(istream &s, ChunkHeaderInfo *header)
 }
 
 bool
-FindChunk(istream &s, uint32 type, uint32 *length, uint32 *version)
+FindChunk(Stream *s, uint32 type, uint32 *length, uint32 *version)
 {
 	ChunkHeaderInfo header;
 	while(ReadChunkHeaderInfo(s, &header)){
@@ -155,7 +200,7 @@ FindChunk(istream &s, uint32 type, uint32 *length, uint32 *version)
 				*version = header.version;
 			return true;
 		}
-		s.seekg(header.length, ios::cur);
+		s->seek(header.length);
 	}
 	return false;
 }

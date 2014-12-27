@@ -14,6 +14,22 @@ using namespace std;
 
 namespace Rw {
 
+uint8
+readUInt8(istream &rw)
+{
+	uint8 tmp;
+	rw.read((char*)&tmp, sizeof(uint8));
+	return tmp;
+}
+
+uint32
+writeUInt8(uint8 tmp, ostream &rw)
+{
+        rw.write((char*)&tmp, sizeof(uint8));
+        return sizeof(uint8);
+}
+
+
 Image::Image(int32 width, int32 height, int32 depth)
 {
 	this->flags = 0;
@@ -72,9 +88,9 @@ Image::setPalette(uint8 *palette)
 // TGA I/O
 //
 
-#pragma pack(push)
-#pragma pack(1)
-struct TGAHeader
+//#pragma pack(push)
+//#pragma pack(1)
+struct __attribute__((__packed__)) TGAHeader
 {
 	int8  IDlen;
 	int8  colorMapType;
@@ -87,7 +103,7 @@ struct TGAHeader
 	uint8 depth;
 	uint8 descriptor;
 };
-#pragma pack(push)
+//#pragma pack(push)
 
 Image*
 readTGA(const char *filename)

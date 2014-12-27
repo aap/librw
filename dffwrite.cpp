@@ -3,9 +3,10 @@
 #include <cstring>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
-#include <list>
+//#include <iostream>
+//#include <fstream>
+//#include <list>
+#include <new>
 
 #include "rw.h"
 
@@ -23,9 +24,11 @@ main(int argc, char *argv[])
 	registerMeshPlugin();
 	Rw::Clump *c;
 
-	ifstream in(argv[1], ios::binary);
-	Rw::FindChunk(in, Rw::ID_CLUMP, NULL, NULL);
-	c = Rw::Clump::streamRead(in);
+//	ifstream in(argv[1], ios::binary);
+	Rw::StreamFile in;
+	in.open(argv[1], "rb");
+	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
+	c = Rw::Clump::streamRead(&in);
 	assert(c != NULL);
 	in.close();
 
@@ -36,8 +39,10 @@ main(int argc, char *argv[])
 //	for(Rw::int32 i = 0; i < c->numAtomics; i++)
 //		Rw::Gl::Instance(c->atomicList[i]);
 
-	ofstream out(argv[2], ios::binary);
-	c->streamWrite(out);
+//	ofstream out(argv[2], ios::binary);
+	Rw::StreamFile out;
+	out.open(argv[2], "wb");
+	c->streamWrite(&out);
 	out.close();
 
 	delete c;

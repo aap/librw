@@ -3,15 +3,16 @@
 #include <cstring>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwobjects.h"
 #include "rwogl.h"
 
+#ifdef RW_OPENGL
 #include <GL/glew.h>
+#endif
 
 using namespace std;
 
@@ -66,7 +67,7 @@ DestroyNativeData(void *object, int32, int32)
 }
 
 void
-ReadNativeData(istream &stream, int32, void *object, int32, int32)
+ReadNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	InstanceDataHeader *header = new InstanceDataHeader;
@@ -74,26 +75,25 @@ ReadNativeData(istream &stream, int32, void *object, int32, int32)
 	header->platform = PLATFORM_OGL;
 	header->vbo = 0;
 	header->ibo = 0;
-	header->numAttribs = readUInt32(stream);
+	header->numAttribs = stream->readU32();
 	header->attribs = new AttribDesc[header->numAttribs];
-	stream.read((char*)header->attribs,
+	stream->read(header->attribs,
 	            header->numAttribs*sizeof(AttribDesc));
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = new uint8[header->dataSize];
-	stream.read((char*)header->data, header->dataSize);
+	stream->read(header->data, header->dataSize);
 }
 
 void
-WriteNativeData(ostream &stream, int32, void *object, int32, int32)
+WriteNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
-	writeUInt32(header->numAttribs, stream);
-	stream.write((char*)header->attribs,
-	             header->numAttribs*sizeof(AttribDesc));
-	stream.write((char*)header->data, header->dataSize);
+	stream->writeU32(header->numAttribs);
+	stream->write(header->attribs, header->numAttribs*sizeof(AttribDesc));
+	stream->write(header->data, header->dataSize);
 }
 
 int32

@@ -13,20 +13,43 @@ typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
 
-uint32 writeInt8(int8 tmp, std::ostream &rw);
-uint32 writeUInt8(uint8 tmp, std::ostream &rw);
-uint32 writeInt16(int16 tmp, std::ostream &rw);
-uint32 writeUInt16(uint16 tmp, std::ostream &rw);
-uint32 writeInt32(int32 tmp, std::ostream &rw);
-uint32 writeUInt32(uint32 tmp, std::ostream &rw);
-uint32 writeFloat32(float32 tmp, std::ostream &rw);
-int8 readInt8(std::istream &rw);
-uint8 readUInt8(std::istream &rw);
-int16 readInt16(std::istream &rw);
-uint16 readUInt16(std::istream &rw);
-int32 readInt32(std::istream &rw);
-uint32 readUInt32(std::istream &rw);
-float32 readFloat32(std::istream &rw);
+class Stream
+{
+public:
+	virtual void close(void) = 0;
+	virtual uint32 write(const void *data, uint32 length) = 0;
+	virtual uint32 read(void *data, uint32 length) = 0;
+	virtual void seek(int32 offset, int32 whence = 1) = 0;
+	virtual uint32 tell(void) = 0;
+	virtual bool eof(void) = 0;
+	int32   writeI8(int8 val);
+	int32   writeU8(uint8 val);
+	int32   writeI16(int16 val);
+	int32   writeU16(uint16 val);
+	int32   writeI32(int32 val);
+	int32   writeU32(uint32 val);
+	int32   writeF32(float32 val);
+	int8    readI8(void);
+	uint8   readU8(void);
+	int16   readI16(void);
+	uint16  readU16(void);
+	int32   readI32(void);
+	uint32  readU32(void);
+	float32 readF32(void);
+};
+
+class StreamFile : public Stream
+{
+	FILE *file;
+public:
+	void close(void);
+	uint32 write(const void *data, uint32 length);
+	uint32 read(void *data, uint32 length);
+	void seek(int32 offset, int32 whence);
+	uint32 tell(void);
+	bool eof(void);
+	StreamFile *open(const char *path, const char *mode);
+};
 
 enum Platform
 {
@@ -72,6 +95,7 @@ extern int Build;
 inline uint32
 LibraryIDPack(int version, int build)
 {
+	// TODO: check version in if statement
 	if(build){
 		version -= 0x30000;
 		return (version&0xFFC0) << 14 | (version&0x3F) << 16 |
@@ -108,9 +132,9 @@ struct ChunkHeaderInfo
 };
 
 // TODO?: make these methods of ChunkHeaderInfo?
-bool WriteChunkHeader(std::ostream &s, int32 type, int32 size);
-bool ReadChunkHeaderInfo(std::istream &s, ChunkHeaderInfo *header);
-bool FindChunk(std::istream &s, uint32 type, uint32 *length, uint32 *version);
+bool WriteChunkHeader(Stream *s, int32 type, int32 size);
+bool ReadChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header);
+bool FindChunk(Stream *s, uint32 type, uint32 *length, uint32 *version);
 
 int32 findPointer(void *p, void **list, int32 num);
 }

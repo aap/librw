@@ -3,8 +3,7 @@
 #include <cstring>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -99,44 +98,44 @@ struct GeoStreamData
 };
 
 Geometry*
-Geometry::streamRead(istream &stream)
+Geometry::streamRead(Stream *stream)
 {
 	uint32 version;
 	GeoStreamData buf;
 	assert(FindChunk(stream, ID_STRUCT, NULL, &version));
-	stream.read((char*)&buf, sizeof(buf));
+	stream->read(&buf, sizeof(buf));
 	Geometry *geo = new Geometry(buf.numVertices,
 	                             buf.numTriangles, buf.flags);
 	geo->addMorphTargets(buf.numMorphTargets-1);
 	// skip surface properties
 	if(version < 0x34000)
-		stream.seekg(12, ios::cur);
+		stream->seek(12);
 
 	if(!(geo->geoflags & NATIVE)){
 		if(geo->geoflags & PRELIT)
-			stream.read((char*)geo->colors, 4*geo->numVertices);
+			stream->read(geo->colors, 4*geo->numVertices);
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
-			stream.read((char*)geo->texCoords[i],
+			stream->read(geo->texCoords[i],
 				    2*geo->numVertices*4);
-		stream.read((char*)geo->triangles, 4*geo->numTriangles*2);
+		stream->read(geo->triangles, 4*geo->numTriangles*2);
 	}
 
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
-		stream.read((char*)m->boundingSphere, 4*4);
-		int32 hasVertices = readInt32(stream);
-		int32 hasNormals = readInt32(stream);
+		stream->read(m->boundingSphere, 4*4);
+		int32 hasVertices = stream->readI32();
+		int32 hasNormals = stream->readI32();
 		if(hasVertices)
-			stream.read((char*)m->vertices, 3*geo->numVertices*4);
+			stream->read(m->vertices, 3*geo->numVertices*4);
 		if(hasNormals)
-			stream.read((char*)m->normals, 3*geo->numVertices*4);
+			stream->read(m->normals, 3*geo->numVertices*4);
 	}
 
 	assert(FindChunk(stream, ID_MATLIST, NULL, NULL));
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
-	geo->numMaterials = readInt32(stream);
+	geo->numMaterials = stream->readI32();
 	geo->materialList = new Material*[geo->numMaterials];
-	stream.seekg(geo->numMaterials*4, ios::cur);	// unused (-1)
+	stream->seek(geo->numMaterials*4);	// unused (-1)
 	for(int32 i = 0; i < geo->numMaterials; i++){
 		assert(FindChunk(stream, ID_MATERIAL, NULL, NULL));
 		geo->materialList[i] = Material::streamRead(stream);
@@ -175,7 +174,7 @@ geoStructSize(Geometry *geo)
 }
 
 bool
-Geometry::streamWrite(ostream &stream)
+Geometry::streamWrite(Stream *stream)
 {
 	GeoStreamData buf;
 	uint32 size;
@@ -188,34 +187,34 @@ Geometry::streamWrite(ostream &stream)
 	buf.numTriangles = this->numTriangles;
 	buf.numVertices = this->numVertices;
 	buf.numMorphTargets = this->numMorphTargets;
-	stream.write((char*)&buf, sizeof(buf));
+	stream->write(&buf, sizeof(buf));
 	if(Version < 0x34000)
-		stream.write((char*)fbuf, sizeof(fbuf));
+		stream->write(fbuf, sizeof(fbuf));
 
 	if(!(this->geoflags & NATIVE)){
 		if(this->geoflags & PRELIT)
-			stream.write((char*)this->colors, 4*this->numVertices);
+			stream->write(this->colors, 4*this->numVertices);
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
-			stream.write((char*)this->texCoords[i],
+			stream->write(this->texCoords[i],
 				    2*this->numVertices*4);
-		stream.write((char*)this->triangles, 4*this->numTriangles*2);
+		stream->write(this->triangles, 4*this->numTriangles*2);
 	}
 
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		stream.write((char*)m->boundingSphere, 4*4);
+		stream->write(m->boundingSphere, 4*4);
 		if(!(this->geoflags & NATIVE)){
-			writeInt32(m->vertices != NULL, stream);
-			writeInt32(m->normals != NULL, stream);
+			stream->writeI32(m->vertices != NULL);
+			stream->writeI32(m->normals != NULL);
 			if(m->vertices)
-				stream.write((char*)m->vertices,
+				stream->write(m->vertices,
 				             3*this->numVertices*4);
 			if(m->normals)
-				stream.write((char*)m->normals,
+				stream->write(m->normals,
 				             3*this->numVertices*4);
 		}else{
-			writeInt32(0, stream);
-			writeInt32(0, stream);
+			stream->writeI32(0);
+			stream->writeI32(0);
 		}
 	}
 
@@ -224,9 +223,9 @@ Geometry::streamWrite(ostream &stream)
 		size += 4 + 12 + this->materialList[i]->streamGetSize();
 	WriteChunkHeader(stream, ID_MATLIST, size);
 	WriteChunkHeader(stream, ID_STRUCT, 4 + this->numMaterials*4);
-	writeInt32(this->numMaterials, stream);
+	stream->writeI32(this->numMaterials);
 	for(int32 i = 0; i < this->numMaterials; i++)
-		writeInt32(-1, stream);
+		stream->writeI32(-1);
 	for(int32 i = 0; i < this->numMaterials; i++)
 		this->materialList[i]->streamWrite(stream);
 
@@ -321,12 +320,12 @@ struct MatStreamData
 };
 
 Material*
-Material::streamRead(istream &stream)
+Material::streamRead(Stream *stream)
 {
 	uint32 length;
 	MatStreamData buf;
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
-	stream.read((char*)&buf, sizeof(buf));
+	stream->read(&buf, sizeof(buf));
 	Material *mat = new Material;
 	mat->color[0] = buf.color[0];
 	mat->color[1] = buf.color[1];
@@ -347,7 +346,7 @@ Material::streamRead(istream &stream)
 }
 
 bool
-Material::streamWrite(ostream &stream)
+Material::streamWrite(Stream *stream)
 {
 	MatStreamData buf;
 
@@ -364,7 +363,7 @@ Material::streamWrite(ostream &stream)
 	buf.flags = 0;
 	buf.unused = 0;
 	buf.textured = this->texture != NULL;
-	stream.write((char*)&buf, sizeof(buf));
+	stream->write(&buf, sizeof(buf));
 
 	if(this->texture)
 		this->texture->streamWrite(stream);
@@ -409,19 +408,19 @@ Texture::decRef(void)
 }
 
 Texture*
-Texture::streamRead(istream &stream)
+Texture::streamRead(Stream *stream)
 {
 	uint32 length;
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	Texture *tex = new Texture;
-	tex->filterAddressing = readUInt16(stream);
-	stream.seekg(2, ios::cur);
+	tex->filterAddressing = stream->readU16();
+	stream->seek(2);
 
 	assert(FindChunk(stream, ID_STRING, &length, NULL));
-	stream.read(tex->name, length);
+	stream->read(tex->name, length);
 
 	assert(FindChunk(stream, ID_STRING, &length, NULL));
-	stream.read(tex->mask, length);
+	stream->read(tex->mask, length);
 
 	tex->streamReadPlugins(stream);
 
@@ -429,25 +428,25 @@ Texture::streamRead(istream &stream)
 }
 
 bool
-Texture::streamWrite(ostream &stream)
+Texture::streamWrite(Stream *stream)
 {
 	int size;
 	WriteChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
 	WriteChunkHeader(stream, ID_STRUCT, 4);
-	writeUInt32(this->filterAddressing, stream);
+	stream->writeU32(this->filterAddressing);
 
 	// TODO: length can't be > 32
 	size = strlen(this->name)+3 & ~3;
 	if(size < 4)
 		size = 4;
 	WriteChunkHeader(stream, ID_STRING, size);
-	stream.write(this->name, size);
+	stream->write(this->name, size);
 
 	size = strlen(this->mask)+3 & ~3;
 	if(size < 4)
 		size = 4;
 	WriteChunkHeader(stream, ID_STRING, size);
-	stream.write(this->mask, size);
+	stream->write(this->mask, size);
 
 	this->streamWritePlugins(stream);
 	return true;

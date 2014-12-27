@@ -38,8 +38,8 @@ struct Texture : PluginBase<Texture>
 	Texture(void);
 	~Texture(void);
 	void decRef(void);
-	static Texture *streamRead(std::istream &stream);
-	bool streamWrite(std::ostream &stream);
+	static Texture *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
 	enum FilterMode {
@@ -69,8 +69,8 @@ struct Material : PluginBase<Material>
 	Material(Material *m);
 	void decRef(void);
 	~Material(void);
-	static Material *streamRead(std::istream &stream);
-	bool streamWrite(std::ostream &stream);
+	static Material *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
 
@@ -128,8 +128,8 @@ struct Geometry : PluginBase<Geometry>, Object
 	Geometry(int32 numVerts, int32 numTris, uint32 flags);
 	void decRef(void);
 	~Geometry(void);
-	static Geometry *streamRead(std::istream &stream);
-	bool streamWrite(std::ostream &stream);
+	static Geometry *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	void addMorphTargets(int32 n);
 
@@ -183,8 +183,8 @@ struct Light : PluginBase<Light>, Object
 	Light(void);
 	Light(Light *l);
 	~Light(void);
-	static Light *streamRead(std::istream &stream);
-	bool streamWrite(std::ostream &stream);
+	static Light *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
 
@@ -197,9 +197,9 @@ struct Atomic : PluginBase<Atomic>, Object
 	Atomic(void);
 	Atomic(Atomic *a);
 	~Atomic(void);
-	static Atomic *streamReadClump(std::istream &stream,
+	static Atomic *streamReadClump(Stream *stream,
 		Frame **frameList, Geometry **geometryList);
-	bool streamWriteClump(std::ostream &stream,
+	bool streamWriteClump(Stream *stream,
 		Frame **frameList, int32 numFrames);
 	uint32 streamGetSize(void);
 };
@@ -216,13 +216,13 @@ struct Clump : PluginBase<Clump>, Object
 	Clump(void);
 	Clump(Clump *c);
 	~Clump(void);
-	static Clump *streamRead(std::istream &stream);
-	bool streamWrite(std::ostream &stream);
+	static Clump *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
 private:
-	void frameListStreamRead(std::istream &stream, Frame ***flp, int32 *nf);
-	void frameListStreamWrite(std::ostream &stream, Frame **flp, int32 nf);
+	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
+	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 
 }

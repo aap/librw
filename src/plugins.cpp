@@ -3,8 +3,9 @@
 #include <cstring>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
+//#include <iostream>
+//#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -45,18 +46,18 @@ destroyNodeName(void *object, int32, int32)
 }
 
 static void
-readNodeName(istream &stream, int32 len, void *object, int32 offset, int32)
+readNodeName(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
-	stream.read(name, len);
+	stream->read(name, len);
 	name[len] = '\0';
 }
 
 static void
-writeNodeName(ostream &stream, int32 len, void *object, int32 offset, int32)
+writeNodeName(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
-	stream.write(name, len);
+	stream->write(name, len);
 }
 
 static int32
@@ -86,12 +87,12 @@ registerNodeNamePlugin(void)
 // Mesh
 
 static void
-readMesh(istream &stream, int32 len, void *object, int32, int32)
+readMesh(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
 	int32 indbuf[256];
 	uint32 buf[3];
-	stream.read((char*)buf, 12);
+	stream->read(buf, 12);
 	geo->meshHeader = new MeshHeader;
 	geo->meshHeader->flags = buf[0];
 	geo->meshHeader->numMeshes = buf[1];
@@ -100,7 +101,7 @@ readMesh(istream &stream, int32 len, void *object, int32, int32)
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
-		stream.read((char*)buf, 8);
+		stream->read(buf, 8);
 		mesh->numIndices = buf[0];
 		mesh->material = geo->materialList[buf[1]];
 		mesh->indices = NULL;
@@ -108,7 +109,7 @@ readMesh(istream &stream, int32 len, void *object, int32, int32)
 			// OpenGL stores uint16 indices here
 			if(hasData){
 				mesh->indices = new uint16[mesh->numIndices];
-				stream.read((char*)mesh->indices,
+				stream->read(mesh->indices,
 				            mesh->numIndices*2);
 			}
 		}else{
@@ -117,7 +118,7 @@ readMesh(istream &stream, int32 len, void *object, int32, int32)
 			int32 numIndices = mesh->numIndices;
 			for(; numIndices > 0; numIndices -= 256){
 				int32 n = numIndices < 256 ? numIndices : 256;
-				stream.read((char*)indbuf, n*4);
+				stream->read(indbuf, n*4);
 				for(int32 j = 0; j < n; j++)
 					ind[j] = indbuf[j];
 				ind += n;
@@ -128,7 +129,7 @@ readMesh(istream &stream, int32 len, void *object, int32, int32)
 }
 
 static void
-writeMesh(ostream &stream, int32, void *object, int32, int32)
+writeMesh(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
 	int32 indbuf[256];
@@ -136,18 +137,18 @@ writeMesh(ostream &stream, int32, void *object, int32, int32)
 	buf[0] = geo->meshHeader->flags;
 	buf[1] = geo->meshHeader->numMeshes;
 	buf[2] = geo->meshHeader->totalIndices;
-	stream.write((char*)buf, 12);
+	stream->write(buf, 12);
 	Mesh *mesh = geo->meshHeader->mesh;
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		buf[0] = mesh->numIndices;
 		buf[1] = findPointer((void*)mesh->material,
 		                     (void**)geo->materialList,
 		                     geo->numMaterials);
-		stream.write((char*)buf, 8);
+		stream->write(buf, 8);
 		if(geo->geoflags & Geometry::NATIVE){
 			assert(geo->instData != NULL);
 			if(geo->instData->platform == PLATFORM_OGL)
-				stream.write((char*)mesh->indices,
+				stream->write(mesh->indices,
 				            mesh->numIndices*2);
 		}else{
 			uint16 *ind = mesh->indices;
@@ -156,7 +157,7 @@ writeMesh(ostream &stream, int32, void *object, int32, int32)
 				int32 n = numIndices < 256 ? numIndices : 256;
 				for(int32 j = 0; j < n; j++)
 					indbuf[j] = ind[j];
-				stream.write((char*)indbuf, n*4);
+				stream->write(indbuf, n*4);
 				ind += n;
 			}
 		}
@@ -207,32 +208,32 @@ destroyNativeData(void *object, int32 offset, int32 size)
 }
 
 static void
-readNativeData(istream &stream, int32 len, void *object, int32 o, int32 s)
+readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 {
 	ChunkHeaderInfo header;
 	uint32 libid;
 	uint32 platform;
 	// ugly hack to find out platform
-	stream.seekg(-4, ios::cur);
-	libid = readUInt32(stream);
+	stream->seek(-4);
+	libid = stream->readU32();
 	ReadChunkHeaderInfo(stream, &header);
 	if(header.type == ID_STRUCT && 
 	   LibraryIDPack(header.version, header.build) == libid){
 		// must be PS2 or Xbox
-		platform = readUInt32(stream);
-		stream.seekg(-16, ios::cur);
+		platform = stream->readU32();
+		stream->seek(-16);
 		if(platform == PLATFORM_PS2)
 			ReadNativeDataPS2(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
-			stream.seekg(len, ios::cur);
+			stream->seek(len);
 	}else{
-		stream.seekg(-12, ios::cur);
+		stream->seek(-12);
 		Gl::ReadNativeData(stream, len, object, o, s);
 	}
 }
 
 static void
-writeNativeData(ostream &stream, int32 len, void *object, int32 o, int32 s)
+writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 {
 	Geometry *geometry = (Geometry*)object;
 	if(geometry->instData == NULL)
@@ -298,13 +299,13 @@ destroyBreakableModel(void *object, int32 offset, int32)
 }
 
 static void
-readBreakableModel(istream &stream, int32, void *object, int32 o, int32)
+readBreakableModel(Stream *stream, int32, void *object, int32 o, int32)
 {
 	uint32 header[13];
-	uint32 hasBreakable = readUInt32(stream);
+	uint32 hasBreakable = stream->readU32();
 	if(hasBreakable == 0)
 		return;
-	stream.read((char*)header, 13*4);
+	stream->read(header, 13*4);
 	uint32 size = header[1]*(12+8+4) + header[5]*(6+2) +
 	              header[8]*(32+32+12);
 	uint8 *p = new uint8[sizeof(Breakable)+size];
@@ -315,7 +316,7 @@ readBreakableModel(istream &stream, int32, void *object, int32 o, int32)
 	breakable->numFaces     = header[5];
 	breakable->numMaterials = header[8];
 	p += sizeof(Breakable);
-	stream.read((char*)p, size);
+	stream->read(p, size);
 	breakable->vertices = (float*)p;
 	p += breakable->numVertices*12;
 	breakable->texCoords = (float*)p;
@@ -334,24 +335,24 @@ readBreakableModel(istream &stream, int32, void *object, int32 o, int32)
 }
 
 static void
-writeBreakableModel(ostream &stream, int32, void *object, int32 o, int32)
+writeBreakableModel(Stream *stream, int32, void *object, int32 o, int32)
 {
 	uint32 header[13];
 	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, o);
 	uint8 *p = (uint8*)breakable;
 	if(breakable == NULL){
-		writeUInt32(0, stream);
+		stream->writeU32(0);
 		return;
 	}
-	writeUInt32(1, stream);
+	stream->writeU32(1);
 	memset((char*)header, 0, 13*4);
 	header[0] = breakable->position;
 	header[1] = breakable->numVertices;
 	header[5] = breakable->numFaces;
 	header[8] = breakable->numMaterials;
-	stream.write((char*)header, 13*4);
+	stream->write(header, 13*4);
 	p += sizeof(Breakable);
-	stream.write((char*)p, breakable->numVertices*(12+8+4) +
+	stream->write(p, breakable->numVertices*(12+8+4) +
 	                       breakable->numFaces*(6+2) +
 	                       breakable->numMaterials*(32+32+12));
 }

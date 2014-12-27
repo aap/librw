@@ -27,8 +27,8 @@ struct InstanceDataHeader : Rw::InstanceDataHeader
 };
 
 void *DestroyNativeData(void *object, int32, int32);
-void ReadNativeData(std::istream &stream, int32 len, void *object, int32, int32);
-void WriteNativeData(std::ostream &stream, int32 len, void *object, int32, int32);
+void ReadNativeData(Stream *stream, int32 len, void *object, int32, int32);
+void WriteNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 GetSizeNativeData(void *object, int32, int32);
 
 void Instance(Atomic *atomic);

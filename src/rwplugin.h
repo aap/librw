@@ -6,8 +6,8 @@ namespace Rw {
 typedef void *(*Constructor)(void *object, int32 offset, int32 size);
 typedef void *(*Destructor)(void *object, int32 offset, int32 size);
 typedef void *(*CopyConstructor)(void *dst, void *src, int32 offset, int32 size);
-typedef void (*StreamRead)(std::istream &stream, int32 length, void *object, int32 offset, int32 size);
-typedef void (*StreamWrite)(std::ostream &stream, int32 length, void *object, int32 offset, int32 size);
+typedef void (*StreamRead)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
+typedef void (*StreamWrite)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
 typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
 
 struct Plugin
@@ -34,8 +34,8 @@ struct PluginBase
 	void constructPlugins(void);
 	void destructPlugins(void);
 	void copyPlugins(T *t);
-	void streamReadPlugins(std::istream &stream);
-	void streamWritePlugins(std::ostream &stream);
+	void streamReadPlugins(Stream *stream);
+	void streamWritePlugins(Stream *stream);
 	int streamGetPluginSize(void);
 
 	static int registerPlugin(int size, uint id,
@@ -78,7 +78,7 @@ PluginBase<T>::copyPlugins(T *t)
 }
 
 template <typename T> void
-PluginBase<T>::streamReadPlugins(std::istream &stream)
+PluginBase<T>::streamReadPlugins(Stream *stream)
 {
 	int32 length;
 	Rw::ChunkHeaderInfo header;
@@ -93,14 +93,14 @@ PluginBase<T>::streamReadPlugins(std::istream &stream)
 				        (void*)this, p->offset, p->size);
 				goto cont;
 			}
-		stream.seekg(header.length, std::ios::cur);
+		stream->seek(header.length);
 cont:
 		length -= header.length;
 	}
 }
 
 template <typename T> void
-PluginBase<T>::streamWritePlugins(std::ostream &stream)
+PluginBase<T>::streamWritePlugins(Stream *stream)
 {
 	int size = this->streamGetPluginSize();
 	Rw::WriteChunkHeader(stream, Rw::ID_EXTENSION, size);

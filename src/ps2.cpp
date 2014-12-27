@@ -3,8 +3,7 @@
 #include <cstring>
 #include <cassert>
 
-#include <iostream>
-#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -30,11 +29,11 @@ DestroyNativeDataPS2(void *object, int32, int32)
 }
 
 void
-ReadNativeDataPS2(istream &stream, int32, void *object, int32, int32)
+ReadNativeDataPS2(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(readUInt32(stream) == PLATFORM_PS2);
+	assert(stream->readU32() == PLATFORM_PS2);
 	PS2InstanceDataHeader *header = new PS2InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_PS2;
@@ -44,21 +43,21 @@ ReadNativeDataPS2(istream &stream, int32, void *object, int32, int32)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		PS2InstanceData *instance = &header->instanceMeshes[i];
 		uint32 buf[2];
-		stream.read((char*)buf, 8);
+		stream->read(buf, 8);
 		instance->dataSize = buf[0];
 		instance->noRefChain = buf[1];
 		instance->data = new uint8[instance->dataSize];
-		stream.read((char*)instance->data, instance->dataSize);
+		stream->read(instance->data, instance->dataSize);
 	}
 }
 
 void
-WriteNativeDataPS2(ostream &stream, int32 len, void *object, int32, int32)
+WriteNativeDataPS2(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	WriteChunkHeader(stream, ID_STRUCT, len-12);
 	assert(geometry->instData->platform == PLATFORM_PS2);
-	writeUInt32(PLATFORM_PS2, stream);
+	stream->writeU32(PLATFORM_PS2);
 	assert(geometry->instData != NULL);
 	PS2InstanceDataHeader *header =
 		(PS2InstanceDataHeader*)geometry->instData;
@@ -67,8 +66,8 @@ WriteNativeDataPS2(ostream &stream, int32 len, void *object, int32, int32)
 		uint32 buf[2];
 		buf[0] = instance->dataSize;
 		buf[1] = instance->noRefChain;
-		stream.write((char*)buf, 8);
-		stream.write((char*)instance->data, instance->dataSize);
+		stream->write(buf, 8);
+		stream->write(instance->data, instance->dataSize);
 	}
 }
 
