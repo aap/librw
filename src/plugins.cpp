@@ -270,6 +270,17 @@ registerNativeDataPlugin(void)
 	                               (StreamGetSize)getSizeNativeData);
 }
 
+void
+registerNativeDataPS2Plugin(void)
+{
+	Geometry::registerPlugin(0, ID_NATIVEDATA,
+	                         NULL, DestroyNativeDataPS2, NULL);
+	Geometry::registerPluginStream(ID_NATIVEDATA,
+	                               (StreamRead)ReadNativeDataPS2,
+	                               (StreamWrite)WriteNativeDataPS2,
+	                               (StreamGetSize)GetSizeNativeDataPS2);
+}
+
 // Breakable Model
 
 // TODO: put this in a header
@@ -289,6 +300,13 @@ struct Breakable
 	char    (*maskNames)[32];
 	float32 (*surfaceProps)[3];
 };
+
+static void*
+createBreakableModel(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(uint8*, object, offset) = 0;
+	return object;
+}
 
 static void*
 destroyBreakableModel(void *object, int32 offset, int32)
@@ -371,7 +389,8 @@ getSizeBreakableModel(void *object, int32 offset, int32)
 void
 registerBreakableModelPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(Breakable*), ID_BREAKABLE, NULL,
+	Geometry::registerPlugin(sizeof(Breakable*), ID_BREAKABLE,
+	                         createBreakableModel,
 	                         destroyBreakableModel, NULL);
 	Geometry::registerPluginStream(ID_BREAKABLE,
 	                               (StreamRead)readBreakableModel,

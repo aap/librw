@@ -149,7 +149,6 @@ Clump::streamRead(Stream *stream)
 	uint32 length, version;
 	int32 buf[3];
 	Clump *clump;
-printf("- before chunk: %X\n", stream->tell());
 	assert(FindChunk(stream, ID_STRUCT, &length, &version));
 	clump = new Clump;
 	stream->read(buf, length);
@@ -161,14 +160,12 @@ printf("- before chunk: %X\n", stream->tell());
 		clump->numCameras = buf[2];
 	}
 
-printf("- frame list: %X\n", stream->tell());
 	// Frame list
 	Frame **frameList;
 	int32 numFrames;
 	clump->frameListStreamRead(stream, &frameList, &numFrames);
 	clump->parent = (void*)frameList[0];
 
-printf("- geometry list: %X\n", stream->tell());
 	// Geometry list
 	int32 numGeometries = 0;
 	assert(FindChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
@@ -182,7 +179,6 @@ printf("- geometry list: %X\n", stream->tell());
 		geometryList[i] = Geometry::streamRead(stream);
 	}
 
-printf("- atomics: %X\n", stream->tell());
 	// Atomics
 	if(clump->numAtomics)
 		clump->atomicList = new Atomic*[clump->numAtomics];

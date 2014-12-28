@@ -129,13 +129,14 @@ StreamFile::close(void)
 uint32
 StreamFile::write(const void *data, uint32 length)
 {
+//printf("write %d bytes @ %x\n", length, this->tell());
 	return fwrite(data, length, 1, this->file);
 }
 
 uint32
 StreamFile::read(void *data, uint32 length)
 {
-	printf("read %d bytes @ %x\n", length, this->tell());
+//printf("read %d bytes @ %x\n", length, this->tell());
 	return fread(data, length, 1, this->file);
 }
 
@@ -164,6 +165,7 @@ WriteChunkHeader(Stream *s, int32 type, int32 size)
 		int32 type, size;
 		uint32 id;
 	} buf = { type, size, LibraryIDPack(Version, Build) };
+//printf("- write chunk %x @ %x\n", buf.type, s->tell());
 	s->write(&buf, 12);
 	return true;
 }
@@ -198,6 +200,7 @@ FindChunk(Stream *s, uint32 type, uint32 *length, uint32 *version)
 				*length = header.length;
 			if(version)
 				*version = header.version;
+//printf("- chunk %x @ %x\n", header.type, s->tell()-12);
 			return true;
 		}
 		s->seek(header.length);

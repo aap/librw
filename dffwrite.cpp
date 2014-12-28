@@ -21,6 +21,7 @@ main(int argc, char *argv[])
 	registerNodeNamePlugin();
 	registerBreakableModelPlugin();
 	registerNativeDataPlugin();
+//	registerNativeDataPS2Plugin();
 	registerMeshPlugin();
 	Rw::Clump *c;
 
@@ -32,9 +33,9 @@ main(int argc, char *argv[])
 	assert(c != NULL);
 	in.close();
 
-	Rw::Image *tga = Rw::readTGA("b.tga");
-	assert(tga != NULL);
-	Rw::writeTGA(tga, "out.tga");
+//	Rw::Image *tga = Rw::readTGA("b.tga");
+//	assert(tga != NULL);
+//	Rw::writeTGA(tga, "out.tga");
 
 //	for(Rw::int32 i = 0; i < c->numAtomics; i++)
 //		Rw::Gl::Instance(c->atomicList[i]);
