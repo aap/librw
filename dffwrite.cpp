@@ -3,9 +3,6 @@
 #include <cstring>
 #include <cassert>
 
-//#include <iostream>
-//#include <fstream>
-//#include <list>
 #include <new>
 
 #include "rw.h"
@@ -21,17 +18,32 @@ main(int argc, char *argv[])
 	registerNodeNamePlugin();
 	registerBreakableModelPlugin();
 	registerNativeDataPlugin();
-//	registerNativeDataPS2Plugin();
+//	Ps2::registerNativeDataPlugin();
 	registerMeshPlugin();
 	Rw::Clump *c;
 
 //	ifstream in(argv[1], ios::binary);
-	Rw::StreamFile in;
-	in.open(argv[1], "rb");
+
+//	Rw::StreamFile in;
+//	in.open(argv[1], "rb");
+
+	FILE *cf = fopen(argv[1], "rb");
+	assert(cf != NULL);
+	fseek(cf, 0, SEEK_END);
+	Rw::uint32 len = ftell(cf);
+	fseek(cf, 0, SEEK_SET);
+	Rw::uint8 *data = new Rw::uint8[len];
+	fread(data, len, 1, cf);
+	fclose(cf);
+	Rw::StreamMemory in;
+	in.open(data, len);
+
 	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
 	c = Rw::Clump::streamRead(&in);
 	assert(c != NULL);
+
 	in.close();
+	delete[] data;
 
 //	Rw::Image *tga = Rw::readTGA("b.tga");
 //	assert(tga != NULL);
@@ -41,10 +53,19 @@ main(int argc, char *argv[])
 //		Rw::Gl::Instance(c->atomicList[i]);
 
 //	ofstream out(argv[2], ios::binary);
-	Rw::StreamFile out;
-	out.open(argv[2], "wb");
+//	Rw::StreamFile out;
+//	out.open(argv[2], "wb");
+	data = new Rw::uint8[256*1024];
+	Rw::StreamMemory out;
+	out.open(data, 0, 256*1024);
 	c->streamWrite(&out);
+
+	cf = fopen(argv[2], "wb");
+	assert(cf != NULL);
+	fwrite(data, out.getLength(), 1, cf);
+	fclose(cf);
 	out.close();
+	delete[] data;
 
 	delete c;
 

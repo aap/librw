@@ -201,7 +201,7 @@ destroyNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData == NULL)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		return DestroyNativeDataPS2(object, offset, size);
+		return Ps2::DestroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_OGL)
 		return Gl::DestroyNativeData(object, offset, size);
 	return object;
@@ -223,7 +223,7 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		platform = stream->readU32();
 		stream->seek(-16);
 		if(platform == PLATFORM_PS2)
-			ReadNativeDataPS2(stream, len, object, o, s);
+			Ps2::ReadNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
 			stream->seek(len);
 	}else{
@@ -239,7 +239,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 	if(geometry->instData == NULL)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		WriteNativeDataPS2(stream, len, object, o, s);
+		Ps2::WriteNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		Gl::WriteNativeData(stream, len, object, o, s);
 }
@@ -251,7 +251,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData == NULL)
 		return -1;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		return GetSizeNativeDataPS2(object, offset, size);
+		return Ps2::GetSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return -1;
 	else if(geometry->instData->platform == PLATFORM_OGL)
@@ -268,17 +268,6 @@ registerNativeDataPlugin(void)
 	                               (StreamRead)readNativeData,
 	                               (StreamWrite)writeNativeData,
 	                               (StreamGetSize)getSizeNativeData);
-}
-
-void
-registerNativeDataPS2Plugin(void)
-{
-	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, DestroyNativeDataPS2, NULL);
-	Geometry::registerPluginStream(ID_NATIVEDATA,
-	                               (StreamRead)ReadNativeDataPS2,
-	                               (StreamWrite)WriteNativeDataPS2,
-	                               (StreamGetSize)GetSizeNativeDataPS2);
 }
 
 // Breakable Model

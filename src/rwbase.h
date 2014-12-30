@@ -38,6 +38,27 @@ public:
 	float32 readF32(void);
 };
 
+class StreamMemory : public Stream
+{
+	uint8 *data;
+	uint32 length;
+	uint32 capacity;
+	uint32 position;
+public:
+	void close(void);
+	uint32 write(const void *data, uint32 length);
+	uint32 read(void *data, uint32 length);
+	void seek(int32 offset, int32 whence);
+	uint32 tell(void);
+	bool eof(void);
+	StreamMemory *open(uint8 *data, uint32 length, uint32 capacity = 0);
+	uint32 getLength(void);
+
+	enum {
+		S_EOF = 0xFFFFFFFF
+	};
+};
+
 class StreamFile : public Stream
 {
 	FILE *file;

@@ -1,6 +1,7 @@
 namespace Rw {
+namespace Ps2 {
 
-struct PS2InstanceData
+struct InstanceData
 {
 	uint32 noRefChain;
 	uint32 dataSize;
@@ -8,15 +9,17 @@ struct PS2InstanceData
 	Material *material;
 };
 
-struct PS2InstanceDataHeader : InstanceDataHeader
+struct InstanceDataHeader : Rw::InstanceDataHeader
 {
 	uint32 numMeshes;
-	PS2InstanceData *instanceMeshes;
+	InstanceData *instanceMeshes;
 };
 
-void *DestroyNativeDataPS2(void *object, int32, int32);
-void ReadNativeDataPS2(Stream *stream, int32 len, void *object, int32, int32);
-void WriteNativeDataPS2(Stream *stream, int32 len, void *object, int32, int32);
-int32 GetSizeNativeDataPS2(void *object, int32, int32);
+void *DestroyNativeData(void *object, int32, int32);
+void ReadNativeData(Stream *stream, int32 len, void *object, int32, int32);
+void WriteNativeData(Stream *stream, int32 len, void *object, int32, int32);
+int32 GetSizeNativeData(void *object, int32, int32);
+void registerNativeDataPlugin(void);
 
+}
 }

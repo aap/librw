@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <cassert>
 
 #include <new>
@@ -110,6 +111,94 @@ Stream::readF32(void)
 	float32 tmp;
 	read(&tmp, sizeof(float32));
 	return tmp;
+}
+
+
+
+void
+StreamMemory::close(void)
+{
+}
+
+uint32
+StreamMemory::write(const void *data, uint32 len)
+{
+	if(this->eof())
+		return 0;
+	uint32 l = len;
+	if(this->position+l > this->length){
+		if(this->position+l > this->capacity)
+			l = this->capacity-this->position;
+		this->length = this->position+l;
+	}
+	memcpy(&this->data[this->position], data, l);
+	this->position += l;
+	if(len != l)
+		this->position = S_EOF;
+	return l;
+}
+
+uint32
+StreamMemory::read(void *data, uint32 len)
+{
+	if(this->eof())
+		return 0;
+	uint32 l = len;
+	if(this->position+l > this->length)
+		l = this->length-this->position;
+	memcpy(data, &this->data[this->position], l);
+	this->position += l;
+	if(len != l)
+		this->position = S_EOF;
+	return l;
+}
+
+void
+StreamMemory::seek(int32 offset, int32 whence)
+{
+	if(whence == 0)
+		this->position = offset;
+	else if(whence == 1)
+		this->position += offset;
+	else
+		this->position = this->length-offset;
+	if(this->position > this->length){
+		// TODO: ideally this would depend on the mode
+		if(this->position > this->capacity)
+			this->position = S_EOF;
+		else
+			this->length = this->position;
+	}
+}
+
+uint32
+StreamMemory::tell(void)
+{
+	return this->position;
+}
+
+bool
+StreamMemory::eof(void)
+{
+	return this->position == S_EOF;
+}
+
+StreamMemory*
+StreamMemory::open(uint8 *data, uint32 length, uint32 capacity)
+{
+	this->data = data;
+	this->capacity = capacity;
+	this->length = length;
+	if(this->capacity < this->length)
+		this->capacity = this->length;
+	this->position = 0;
+	return this;
+}
+
+uint32
+StreamMemory::getLength(void)
+{
+	return this->length;
 }
 
 

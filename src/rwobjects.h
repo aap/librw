@@ -230,5 +230,4 @@ private:
 void registerNodeNamePlugin(void);
 void registerMeshPlugin(void);
 void registerNativeDataPlugin(void);
-void registerNativeDataPS2Plugin(void);
 void registerBreakableModelPlugin(void);
