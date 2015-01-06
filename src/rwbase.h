@@ -104,10 +104,8 @@ enum PluginID
 	ID_RIGHTTORENDER = 0x1F,
 	ID_UVANIMDICT    = 0x2B,
 
+	ID_ADC           = 0x134,
 	ID_NATIVEDATA    = 0x510,
-
-	ID_EXTRACOLORS   = 0x253f2f9,
-	ID_BREAKABLE     = 0x253f2fd
 };
 
 extern int Version;

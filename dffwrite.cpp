@@ -6,6 +6,7 @@
 #include <new>
 
 #include "rw.h"
+#include "src/gtaplg.h"
 
 using namespace std;
 
@@ -15,11 +16,13 @@ main(int argc, char *argv[])
 //	Rw::Version = 0x31000;
 //	Rw::Build = 0;
 
-	registerNodeNamePlugin();
-	registerBreakableModelPlugin();
-	registerNativeDataPlugin();
-//	Ps2::registerNativeDataPlugin();
-	registerMeshPlugin();
+	Rw::RegisterNodeNamePlugin();
+	Rw::RegisterBreakableModelPlugin();
+	Rw::RegisterExtraVertColorPlugin();
+	Rw::Ps2::RegisterADCPlugin();
+	Rw::RegisterNativeDataPlugin();
+//	Rw::Ps2::RegisterNativeDataPlugin();
+	Rw::RegisterMeshPlugin();
 	Rw::Clump *c;
 
 //	ifstream in(argv[1], ios::binary);

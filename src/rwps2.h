@@ -23,11 +23,26 @@ void *DestroyNativeData(void *object, int32, int32);
 void ReadNativeData(Stream *stream, int32 len, void *object, int32, int32);
 void WriteNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 GetSizeNativeData(void *object, int32, int32);
-void registerNativeDataPlugin(void);
+void RegisterNativeDataPlugin(void);
+
+void walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size));
+void sizedebug(InstanceData *inst);
 
 // only RW_PS2
 void fixDmaOffsets(InstanceData *inst);
 void unfixDmaOffsets(InstanceData *inst);
+
+// ADC plugin
+
+// The plugin is a little crippled due to lack of documentation
+
+struct ADCData
+{
+	// only information we can get from GTA DFFs :/
+	uint32 adcFormatted;
+};
+
+void RegisterADCPlugin(void);
 
 }
 }

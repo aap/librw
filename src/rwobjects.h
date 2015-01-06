@@ -225,9 +225,7 @@ private:
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 
-}
+void RegisterMeshPlugin(void);
+void RegisterNativeDataPlugin(void);
 
-void registerNodeNamePlugin(void);
-void registerMeshPlugin(void);
-void registerNativeDataPlugin(void);
-void registerBreakableModelPlugin(void);
+}

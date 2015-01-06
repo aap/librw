@@ -435,6 +435,7 @@ Texture::streamWrite(Stream *stream)
 	WriteChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeU32(this->filterAddressing);
 
+	// TODO: 4 char string -> 8 bytes
 	// TODO: length can't be > 32
 	size = strlen(this->name)+3 & ~3;
 	if(size < 4)

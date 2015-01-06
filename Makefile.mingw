@@ -6,8 +6,9 @@ BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
 BUILDDIR=build-$(BUILD)
 SRCDIR=src
 SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
-                                         geometry.cpp plugins.cpp ps2.cpp\
-                                         ogl.cpp)
+                                         geometry.cpp geometryplg.cpp\
+                                         ps2.cpp ogl.cpp\
+                                         image.cpp gtaplg.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 CFLAGS=-Wall -Wextra -g -DGLEW_STATIC $(BUILDDEF) #-Wno-parentheses #-Wconversion

@@ -53,6 +53,7 @@ ReadNativeData(Stream *stream, int32, void *object, int32, int32)
 		assert(a % 0x10 == 0);
 #endif
 		stream->read(instance->data, instance->dataSize);
+//		sizedebug(instance);
 	}
 }
 
@@ -94,7 +95,7 @@ GetSizeNativeData(void *object, int32, int32)
 }
 
 void
-registerNativeDataPlugin(void)
+RegisterNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
 	                         NULL, DestroyNativeData, NULL);
@@ -178,6 +179,132 @@ unfixDmaOffsets(InstanceData *inst)
 		}
 	}
 #endif
+}
+
+// ADC
+
+static void*
+createADC(void *object, int32 offset, int32)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
+	adc->adcFormatted = 0;
+	return object;
+}
+
+static void*
+copyADC(void *dst, void *src, int32 offset, int32)
+{
+	ADCData *dstadc = PLUGINOFFSET(ADCData, dst, offset);
+	ADCData *srcadc = PLUGINOFFSET(ADCData, src, offset);
+	dstadc->adcFormatted = srcadc->adcFormatted;
+	return dst;
+}
+
+static void
+readADC(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
+	stream->seek(12);
+	uint32 x = stream->readU32();
+	assert(x == 0);
+	adc->adcFormatted = 1;
+}
+
+static void
+writeADC(Stream *stream, int32, void *, int32, int32)
+{
+	WriteChunkHeader(stream, ID_ADC, 4);
+	stream->writeI32(0);
+}
+
+static int32
+getSizeADC(void *object, int32 offset, int32)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
+	return adc->adcFormatted ? 16 : -1;
+}
+
+void
+RegisterADCPlugin(void)
+{
+	Geometry::registerPlugin(sizeof(ADCData), ID_ADC,
+	                         createADC, NULL, copyADC);
+	Geometry::registerPluginStream(ID_ADC,
+	                               (StreamRead)readADC,
+	                               (StreamWrite)writeADC,
+	                               (StreamGetSize)getSizeADC);
+}
+
+
+// misc stuff
+
+/* Function to specifically walk geometry chains */
+void
+walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size))
+{
+	if(inst->arePointersFixed == 2)
+		return;
+	uint32 *base = (uint32*)inst->data;
+	uint32 *tag = (uint32*)inst->data;
+	for(;;){
+		switch(tag[0]&0x70000000){
+		// DMAcnt
+		case 0x10000000:
+			f(tag+2, 2+(tag[0]&0xFFFF)*4);
+			tag += (1+(tag[0]&0xFFFF))*4;
+			break;
+
+		// DMAref
+		case 0x3000000:
+			f(base + tag[1]*4, (tag[0]&0xFFFF)*4);
+			tag += 4;
+			break;
+
+		// DMAret
+		case 0x60000000:
+			f(tag+2, 2+(tag[0]&0xFFFF)*4);
+			return;
+		}
+	}
+}
+
+void
+sizedebug(InstanceData *inst)
+{
+	if(inst->arePointersFixed == 2)
+		return;
+	uint32 *base = (uint32*)inst->data;
+	uint32 *tag = (uint32*)inst->data;
+	uint32 *last = NULL;
+	for(;;){
+		switch(tag[0]&0x70000000){
+		// DMAcnt
+		case 0x10000000:
+			tag += (1+(tag[0]&0xFFFF))*4;
+			break;
+
+		// DMAref
+		case 0x30000000:
+			last = base + tag[1]*4 + (tag[0]&0xFFFF)*4;
+			tag += 4;
+			break;
+
+		// DMAret
+		case 0x60000000:
+			tag += (1+(tag[0]&0xFFFF))*4;
+			uint32 diff;
+			if(!last)
+				diff = (uint8*)tag - (uint8*)base;
+			else
+				diff = (uint8*)last - (uint8*)base;
+			printf("%x %x %x\n", inst->dataSize-diff, diff, inst->dataSize);
+			return;
+
+		default:
+			printf("unkown DMAtag: %X %X\n", tag[0], tag[1]);
+			break;
+		}
+	}
 }
 
 }
