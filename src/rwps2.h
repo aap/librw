@@ -32,6 +32,12 @@ void sizedebug(InstanceData *inst);
 void fixDmaOffsets(InstanceData *inst);
 void unfixDmaOffsets(InstanceData *inst);
 
+// Skin plugin
+
+void ReadNativeSkin(Stream *stream, int32, void *object, int32 offset);
+void WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
+int32 GetSizeNativeSkin(void *object, int32 offset);
+
 // ADC plugin
 
 // The plugin is a little crippled due to lack of documentation

@@ -12,6 +12,11 @@ typedef float float32;
 typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
+#if __WORDSIZE == 64
+typedef uint64 uintptr;
+#else
+typedef uint32 uintptr;
+#endif
 
 class Stream
 {
@@ -104,6 +109,7 @@ enum PluginID
 	ID_RIGHTTORENDER = 0x1F,
 	ID_UVANIMDICT    = 0x2B,
 
+	ID_SKIN          = 0x116,
 	ID_ADC           = 0x134,
 	ID_NATIVEDATA    = 0x510,
 };

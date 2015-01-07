@@ -148,6 +148,18 @@ struct Geometry : PluginBase<Geometry>, Object
 	};
 };
 
+struct Skin
+{
+	int32 numBones;
+	int32 numUsedBones;
+	int32 maxIndex;
+	uint8 *usedBones;
+	float *inverseMatrices;
+	uint8 *indices;
+	float *weights;
+	uint8 *data;	// only used by delete
+};
+
 struct Frame : PluginBase<Frame>, Object
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
@@ -227,5 +239,6 @@ private:
 
 void RegisterMeshPlugin(void);
 void RegisterNativeDataPlugin(void);
+void RegisterSkinPlugin(void);
 
 }

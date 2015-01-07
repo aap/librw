@@ -16,10 +16,13 @@ main(int argc, char *argv[])
 //	Rw::Version = 0x31000;
 //	Rw::Build = 0;
 
+//	Rw::Version = 0x33002;
+
 	Rw::RegisterNodeNamePlugin();
 	Rw::RegisterBreakableModelPlugin();
 	Rw::RegisterExtraVertColorPlugin();
 	Rw::Ps2::RegisterADCPlugin();
+	Rw::RegisterSkinPlugin();
 	Rw::RegisterNativeDataPlugin();
 //	Rw::Ps2::RegisterNativeDataPlugin();
 	Rw::RegisterMeshPlugin();

@@ -181,6 +181,95 @@ unfixDmaOffsets(InstanceData *inst)
 #endif
 }
 
+// Skin
+
+void
+ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
+{
+	uint8 header[4];
+	uint32 vers;
+	Geometry *geometry = (Geometry*)object;
+	assert(FindChunk(stream, ID_STRUCT, NULL, &vers));
+	assert(stream->readU32() == PLATFORM_PS2);
+	stream->read(header, 4);
+	Skin *skin = new Skin;
+	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
+	skin->numBones = header[0];
+
+	// both values unused in/before 33002, used in/after 34003
+	skin->numUsedBones = header[1];
+	skin->maxIndex = header[2];
+
+	bool oldFormat = skin->numUsedBones == 0;
+	int32 size = skin->numUsedBones + skin->numBones*64 + 15;
+	uint8 *data = new uint8[size];
+	skin->data = data;
+	skin->indices = NULL;
+	skin->weights = NULL;
+
+	skin->usedBones = NULL;
+	if(skin->numUsedBones){
+		skin->usedBones = data;
+		data += skin->numUsedBones;
+		stream->read(skin->data, skin->numUsedBones);
+	}
+
+	uintptr ptr = (uintptr)data + 15;
+	ptr &= ~0xF;
+	data = (uint8*)ptr;
+	skin->inverseMatrices = NULL;
+	if(skin->numBones){
+		skin->inverseMatrices = (float*)data;
+		stream->read(skin->inverseMatrices, skin->numBones*64);
+	}
+
+	if(!oldFormat)
+		// last 3 ints are probably the same as in generic format
+		// TODO: what are the other 4?
+		stream->seek(7*4);
+}
+
+void
+WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
+{
+	uint8 header[4];
+
+	WriteChunkHeader(stream, ID_STRUCT, len-12);
+	stream->writeU32(PLATFORM_PS2);
+	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
+	bool oldFormat = Version < 0x34003;
+	header[0] = skin->numBones;
+	header[1] = skin->numUsedBones;
+	header[2] = skin->maxIndex;
+	header[3] = 0;
+	if(oldFormat){
+		header[1] = 0;
+		header[2] = 0;
+	}
+	stream->write(header, 4);
+
+	if(!oldFormat)
+		stream->write(skin->usedBones, skin->numUsedBones);
+	stream->write(skin->inverseMatrices, skin->numBones*64);
+	if(!oldFormat){
+		uint32 buffer[7] = { 0, 0, 0, 0, 0, 0, 0 };
+		stream->write(buffer, 7*4);
+	}
+}
+
+int32
+GetSizeNativeSkin(void *object, int32 offset)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
+	if(skin == NULL)
+		return -1;
+	int32 size = 12 + 4 + 4 + skin->numBones*64;
+	// not sure which version introduced the new format
+	if(Version >= 0x34003)
+		size += skin->numUsedBones + 16 + 12;
+	return size;
+}
+
 // ADC
 
 static void*
@@ -199,6 +288,8 @@ copyADC(void *dst, void *src, int32 offset, int32)
 	dstadc->adcFormatted = srcadc->adcFormatted;
 	return dst;
 }
+
+// TODO: look at PC SA rccam.dff bloodrb.dff
 
 static void
 readADC(Stream *stream, int32, void *object, int32 offset, int32)
