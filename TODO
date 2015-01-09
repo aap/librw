@@ -20,18 +20,14 @@ Clump & related:
 		Atomic
 			Right To Render
 			(Particles)
-			Mat FX
 			Pipeline Set
 		Geometry
 			-Native Data
-			Extra Vertex Colors
 			(Morph)
-			Skin
-			(ADC)
+			-Skin
 			2dfx
 		Material
 			Right To Render
-			Mat FX
 			Reflection mat
 			Specular Mat
 			UV Anim
