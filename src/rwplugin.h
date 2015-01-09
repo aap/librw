@@ -105,7 +105,8 @@ PluginBase<T>::streamWritePlugins(Stream *stream)
 	int size = this->streamGetPluginSize();
 	Rw::WriteChunkHeader(stream, Rw::ID_EXTENSION, size);
 	for(Plugin *p = this->s_plugins; p; p = p->next){
-		if((size = p->getSize(this, p->offset, p->size)) < 0)
+		if(p->getSize == NULL ||
+		   (size = p->getSize(this, p->offset, p->size)) < 0)
 			continue;
 		Rw::WriteChunkHeader(stream, p->id, size);
 		p->write(stream, size, this, p->offset, p->size);

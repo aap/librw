@@ -18,6 +18,9 @@ main(int argc, char *argv[])
 
 //	Rw::Version = 0x33002;
 
+	Rw::RegisterMaterialRightsPlugin();
+	Rw::RegisterMatFXPlugin();
+	Rw::RegisterAtomicRightsPlugin();
 	Rw::RegisterNodeNamePlugin();
 	Rw::RegisterBreakableModelPlugin();
 	Rw::RegisterExtraVertColorPlugin();
@@ -26,6 +29,7 @@ main(int argc, char *argv[])
 	Rw::RegisterNativeDataPlugin();
 //	Rw::Ps2::RegisterNativeDataPlugin();
 	Rw::RegisterMeshPlugin();
+
 	Rw::Clump *c;
 
 //	ifstream in(argv[1], ios::binary);
@@ -45,6 +49,7 @@ main(int argc, char *argv[])
 	in.open(data, len);
 
 	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
+	Rw::DebugFile = argv[1];
 	c = Rw::Clump::streamRead(&in);
 	assert(c != NULL);
 

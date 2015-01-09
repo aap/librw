@@ -14,6 +14,7 @@ namespace Rw {
 
 int Version = 0x36003;
 int Build = 0xFFFF;
+char *DebugFile = NULL;
 
 int32
 Stream::writeI8(int8 val)

@@ -229,12 +229,12 @@ destroySkin(void *object, int32 offset, int32)
 static void*
 copySkin(void *dst, void *src, int32 offset, int32)
 {
-	Geometry *geometry = (Geometry*)src;
-	assert(geometry->instData == NULL);
-	assert(((Geometry*)src)->numVertices == ((Geometry*)dst)->numVertices);
 	Skin *srcskin = *PLUGINOFFSET(Skin*, src, offset);
 	if(srcskin == NULL)
 		return dst;
+	Geometry *geometry = (Geometry*)src;
+	assert(geometry->instData == NULL);
+	assert(((Geometry*)src)->numVertices == ((Geometry*)dst)->numVertices);
 	Skin *dstskin = new Skin;
 	*PLUGINOFFSET(Skin*, dst, offset) = dstskin;
 	dstskin->numBones = srcskin->numBones;
@@ -413,9 +413,330 @@ RegisterSkinPlugin(void)
 	Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                         createSkin, destroySkin, copySkin);
 	Geometry::registerPluginStream(ID_SKIN,
-	                               (StreamRead)readSkin,
-	                               (StreamWrite)writeSkin,
-	                               (StreamGetSize)getSizeSkin);
+	                               readSkin, writeSkin, getSizeSkin);
+}
+
+// Atomic MatFX
+
+static void*
+createAtomicMatFX(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(int32, object, offset) = 0;
+	return object;
+}
+
+static void*
+copyAtomicMatFX(void *dst, void *src, int32 offset, int32)
+{
+	*PLUGINOFFSET(int32, dst, offset) = *PLUGINOFFSET(int32, src, offset);
+	return dst;
+}
+
+static void
+readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	int32 flag;
+//	uint32 version;
+//stream->seek(-4);
+//version = stream->readU32();
+	stream->read(&flag, 4);
+//printf("atomicMatFX: %X %X\n", LibraryIDUnpackVersion(version), flag);
+	*PLUGINOFFSET(int32, object, offset) = flag;
+	// TODO: set Pipeline
+}
+
+static void
+writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	int32 flag;
+	flag = *PLUGINOFFSET(int32, object, offset);
+	stream->writeI32(flag);
+}
+
+static int32
+getSizeAtomicMatFX(void *object, int32 offset, int32)
+{
+	int32 flag;
+	flag = *PLUGINOFFSET(int32, object, offset);
+	return flag ? 4 : -1;
+}
+
+// Material MatFX
+
+// TODO: Frames and Matrices?
+static void
+clearMatFX(MatFX *matfx)
+{
+	for(int i = 0; i < 2; i++)
+		switch(matfx->fx[i].type){
+		case MatFX::BUMPMAP:
+			if(matfx->fx[i].bump.bumpedTex)
+				matfx->fx[i].bump.bumpedTex->decRef();
+			if(matfx->fx[i].bump.tex)
+				matfx->fx[i].bump.tex->decRef();
+			break;
+
+		case MatFX::ENVMAP:
+			if(matfx->fx[i].env.tex)
+				matfx->fx[i].env.tex->decRef();
+			break;
+
+		case MatFX::DUAL:
+			if(matfx->fx[i].dual.tex)
+				matfx->fx[i].dual.tex->decRef();
+			break;
+		}
+	memset(matfx, 0, sizeof(MatFX));
+}
+
+void
+MatFX::setEffects(uint32 flags)
+{
+	if(this->flags != 0 && this->flags != flags)
+		clearMatFX(this);
+	this->flags = flags;
+	switch(flags){
+	case BUMPMAP:
+	case ENVMAP:
+	case DUAL:
+	case UVTRANSFORM:
+		this->fx[0].type = flags;
+		this->fx[1].type = NOTHING;
+		break;
+
+	case BUMPENVMAP:
+		this->fx[0].type = BUMPMAP;
+		this->fx[1].type = ENVMAP;
+		break;
+
+	case DUALUVTRANSFORM:
+		this->fx[0].type = UVTRANSFORM;
+		this->fx[1].type = DUAL;
+		break;
+	}
+}
+
+int32
+MatFX::getEffectIndex(uint32 type)
+{
+	for(int i = 0; i < 2; i++)
+		if(this->fx[i].type == type)
+			return i;
+	return -1;
+}
+
+static void*
+createMaterialMatFX(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(MatFX*, object, offset) = NULL;
+	return object;
+}
+
+static void*
+destroyMaterialMatFX(void *object, int32 offset, int32)
+{
+	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
+	if(matfx){
+		clearMatFX(matfx);
+		delete matfx;
+	}
+	return object;
+}
+
+static void*
+copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
+{
+	MatFX *srcfx = *PLUGINOFFSET(MatFX*, src, offset);
+	if(srcfx == NULL)
+		return dst;
+	MatFX *dstfx = new MatFX;
+	*PLUGINOFFSET(MatFX*, dst, offset) = dstfx;
+	memcpy(dstfx, srcfx, sizeof(MatFX));
+	for(int i = 0; i < 2; i++)
+		switch(dstfx->fx[i].type){
+		case MatFX::BUMPMAP:
+			if(dstfx->fx[i].bump.bumpedTex)
+				dstfx->fx[i].bump.bumpedTex->refCount++;
+			if(dstfx->fx[i].bump.tex)
+				dstfx->fx[i].bump.tex->refCount++;
+			break;
+
+		case MatFX::ENVMAP:
+			if(dstfx->fx[i].env.tex)
+				dstfx->fx[i].env.tex->refCount++;
+			break;
+
+		case MatFX::DUAL:
+			if(dstfx->fx[i].dual.tex)
+				dstfx->fx[i].dual.tex->refCount++;
+			break;
+		}
+	return dst;
+}
+
+static void
+readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	Texture *tex, *bumpedTex;
+	float coefficient;
+	int32 fbAlpha;
+	int32 srcBlend, dstBlend;
+	int32 idx;
+
+	MatFX *matfx = new MatFX;
+	memset(matfx, 0, sizeof(MatFX));
+	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
+	matfx->setEffects(stream->readU32());
+
+	for(int i = 0; i < 2; i++){
+		uint32 type = stream->readU32();
+		switch(type){
+		case MatFX::BUMPMAP:
+			coefficient = stream->readF32();
+			bumpedTex = tex = NULL;
+			if(stream->readI32()){
+				assert(FindChunk(stream, ID_TEXTURE,
+				       NULL, NULL));
+				bumpedTex = Texture::streamRead(stream);
+			}
+			if(stream->readI32()){
+				assert(FindChunk(stream, ID_TEXTURE,
+				       NULL, NULL));
+				tex = Texture::streamRead(stream);
+			}
+			idx = matfx->getEffectIndex(type);
+			assert(idx >= 0);
+			matfx->fx[idx].bump.bumpedTex = bumpedTex;
+			matfx->fx[idx].bump.tex = tex;
+			matfx->fx[idx].bump.coefficient = coefficient;
+			break;
+
+		case MatFX::ENVMAP:
+			coefficient = stream->readF32();
+			fbAlpha = stream->readI32();
+			tex = NULL;
+			if(stream->readI32()){
+				assert(FindChunk(stream, ID_TEXTURE,
+				       NULL, NULL));
+				tex = Texture::streamRead(stream);
+			}
+			idx = matfx->getEffectIndex(type);
+			assert(idx >= 0);
+			matfx->fx[idx].env.tex = tex;
+			matfx->fx[idx].env.fbAlpha = fbAlpha;
+			matfx->fx[idx].env.coefficient = coefficient;
+			break;
+
+		case MatFX::DUAL:
+			srcBlend = stream->readI32();
+			dstBlend = stream->readI32();
+			tex = NULL;
+			if(stream->readI32()){
+				assert(FindChunk(stream, ID_TEXTURE,
+				       NULL, NULL));
+				tex = Texture::streamRead(stream);
+			}
+			idx = matfx->getEffectIndex(type);
+			assert(idx >= 0);
+			matfx->fx[idx].dual.tex = tex;
+			matfx->fx[idx].dual.srcBlend = srcBlend;
+			matfx->fx[idx].dual.dstBlend = dstBlend;
+			break;
+		}
+	}
+}
+
+static void
+writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
+
+	stream->writeU32(matfx->flags);
+	for(int i = 0; i < 2; i++){
+		stream->writeU32(matfx->fx[i].type);
+		switch(matfx->fx[i].type){
+		case MatFX::BUMPMAP:
+			stream->writeF32(matfx->fx[i].bump.coefficient);
+			stream->writeI32(matfx->fx[i].bump.bumpedTex != NULL);
+			if(matfx->fx[i].bump.bumpedTex)
+				matfx->fx[i].bump.bumpedTex->streamWrite(stream);
+			stream->writeI32(matfx->fx[i].bump.tex != NULL);
+			if(matfx->fx[i].bump.tex)
+				matfx->fx[i].bump.tex->streamWrite(stream);
+			break;
+
+		case MatFX::ENVMAP:
+			stream->writeF32(matfx->fx[i].env.coefficient);
+			stream->writeI32(matfx->fx[i].env.fbAlpha);
+			stream->writeI32(matfx->fx[i].env.tex != NULL);
+			if(matfx->fx[i].env.tex)
+				matfx->fx[i].env.tex->streamWrite(stream);
+			break;
+
+		case MatFX::DUAL:
+			stream->writeI32(matfx->fx[i].dual.srcBlend);
+			stream->writeI32(matfx->fx[i].dual.dstBlend);
+			stream->writeI32(matfx->fx[i].dual.tex != NULL);
+			if(matfx->fx[i].dual.tex)
+				matfx->fx[i].dual.tex->streamWrite(stream);
+			break;
+		}
+	}
+}
+
+static int32
+getSizeMaterialMatFX(void *object, int32 offset, int32)
+{
+	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
+	if(matfx == NULL)
+		return -1;
+	int32 size = 4 + 4 + 4;
+
+	for(int i = 0; i < 2; i++)
+		switch(matfx->fx[i].type){
+		case MatFX::BUMPMAP:
+			size += 4 + 4 + 4;
+			if(matfx->fx[i].bump.bumpedTex)
+				size += 12 +
+				  matfx->fx[i].bump.bumpedTex->streamGetSize();
+			if(matfx->fx[i].bump.tex)
+				size += 12 +
+				  matfx->fx[i].bump.tex->streamGetSize();
+			break;
+
+		case MatFX::ENVMAP:
+			size += 4 + 4 + 4;
+			if(matfx->fx[i].env.tex)
+				size += 12 +
+				  matfx->fx[i].env.tex->streamGetSize();
+			break;
+
+		case MatFX::DUAL:
+			size += 4 + 4 + 4;
+			if(matfx->fx[i].dual.tex)
+				size += 12 +
+				  matfx->fx[i].dual.tex->streamGetSize();
+			break;
+		}
+	return size;
+}
+
+void
+RegisterMatFXPlugin(void)
+{
+	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
+	                       createAtomicMatFX, NULL, copyAtomicMatFX);
+	Atomic::registerPluginStream(ID_MATFX,
+	                             readAtomicMatFX,
+	                             writeAtomicMatFX,
+	                             getSizeAtomicMatFX);
+	Material::registerPlugin(sizeof(MatFX*), ID_MATFX,
+	                         createMaterialMatFX, destroyMaterialMatFX,
+	                         copyMaterialMatFX);
+	Material::registerPluginStream(ID_MATFX,
+	                               readMaterialMatFX,
+	                               writeMaterialMatFX,
+	                               getSizeMaterialMatFX);
 }
 
 }

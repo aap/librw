@@ -1,11 +1,40 @@
 namespace Rw {
 
+// TODO: mostly 
+struct Pipeline
+{
+	uint32 pluginID;
+	uint32 pluginData;
+};
+
 struct Object
 {
 	uint8 type;
 	uint8 subType;
 	uint8 flags;
 	void *parent;
+};
+
+struct Frame : PluginBase<Frame>, Object
+{
+	typedef Frame *(*Callback)(Frame *f, void *data);
+	float32	matrix[16];
+	float32	ltm[16];
+
+	Frame *child;
+	Frame *next;
+	Frame *root;
+
+	// temporary
+	int32 matflag;
+
+	Frame(void);
+	Frame(Frame *f);
+	~Frame(void);
+	Frame *addChild(Frame *f);
+	Frame *removeChild(void);
+	Frame *forAllChildren(Callback cb, void *data);
+	int32 count(void);
 };
 
 struct Image
@@ -73,6 +102,56 @@ struct Material : PluginBase<Material>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
+
+struct MatFX
+{
+	enum Flags {
+		NOTHING = 0,
+		BUMPMAP,
+		ENVMAP,
+		BUMPENVMAP,
+		DUAL,
+		UVTRANSFORM,
+		DUALUVTRANSFORM
+	};
+	struct Bump {
+		Frame   *frame;
+		Texture *bumpedTex;
+		Texture *tex;
+		float    coefficient;
+	};
+	struct Env {
+		Frame   *frame;
+		Texture *tex;
+		float    coefficient;
+		int32    fbAlpha;
+	};
+	struct Dual {
+		Texture *tex;
+		int32    srcBlend;
+		int32    dstBlend;
+	};
+	struct UVtransform {
+		float *baseTransform;
+		float *dualTransform;
+	};
+	struct {
+		uint32 type;
+		union {
+			Bump bump;
+			Env  env;
+			Dual dual;
+			UVtransform uvtransform;
+		};
+	} fx[2];
+	uint32 flags;
+
+	void setEffects(uint32 flags);
+	int32 getEffectIndex(uint32 type);
+};
+
+void RegisterMaterialRightsPlugin(void);
+void RegisterMatFXPlugin(void);
 
 struct Mesh
 {
@@ -160,27 +239,9 @@ struct Skin
 	uint8 *data;	// only used by delete
 };
 
-struct Frame : PluginBase<Frame>, Object
-{
-	typedef Frame *(*Callback)(Frame *f, void *data);
-	float32	matrix[16];
-	float32	ltm[16];
-
-	Frame *child;
-	Frame *next;
-	Frame *root;
-
-	// temporary
-	int32 matflag;
-
-	Frame(void);
-	Frame(Frame *f);
-	~Frame(void);
-	Frame *addChild(Frame *f);
-	Frame *removeChild(void);
-	Frame *forAllChildren(Callback cb, void *data);
-	int32 count(void);
-};
+void RegisterMeshPlugin(void);
+void RegisterNativeDataPlugin(void);
+void RegisterSkinPlugin(void);
 
 struct Clump;
 
@@ -216,6 +277,8 @@ struct Atomic : PluginBase<Atomic>, Object
 	uint32 streamGetSize(void);
 };
 
+void RegisterAtomicRightsPlugin(void);
+
 struct Clump : PluginBase<Clump>, Object
 {
 	int32 numAtomics;
@@ -236,9 +299,5 @@ private:
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
-
-void RegisterMeshPlugin(void);
-void RegisterNativeDataPlugin(void);
-void RegisterSkinPlugin(void);
 
 }

@@ -269,7 +269,9 @@ Geometry::addMorphTargets(int32 n)
 }
 
 
-
+//
+// Material
+//
 
 Material::Material(void)
 {
@@ -383,7 +385,29 @@ Material::streamGetSize(void)
 	return size;
 }
 
+// Material Rights plugin
 
+static void
+readMaterialRights(Stream *stream, int32, void *, int32, int32)
+{
+	uint32 buffer[2];
+	stream->read(buffer, 8);
+	printf("materialrights: %X %X\n", buffer[0], buffer[1]);
+}
+
+void
+RegisterMaterialRightsPlugin(void)
+{
+	Material::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
+	Material::registerPluginStream(ID_RIGHTTORENDER,
+	                               (StreamRead)readMaterialRights,
+	                               NULL, NULL);
+}
+
+
+//
+// Texture
+//
 
 Texture::Texture(void)
 {

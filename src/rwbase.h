@@ -110,12 +110,16 @@ enum PluginID
 	ID_UVANIMDICT    = 0x2B,
 
 	ID_SKIN          = 0x116,
+	ID_MATFX         = 0x120,
+	ID_PDS           = 0x131,
 	ID_ADC           = 0x134,
+	ID_MESH          = 0x50E,
 	ID_NATIVEDATA    = 0x510,
 };
 
 extern int Version;
 extern int Build;
+extern char *DebugFile;
 
 inline uint32
 LibraryIDPack(int version, int build)

@@ -117,7 +117,9 @@ makeFrameList(Frame *frame, Frame **flist)
 	return flist;
 }
 
-
+//
+// Clump
+//
 
 Clump::Clump(void)
 {
@@ -367,6 +369,9 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 		frameList[i]->streamWritePlugins(stream);
 }
 
+//
+// Atomic
+//
 
 Atomic::Atomic(void)
 {
@@ -430,6 +435,33 @@ Atomic::streamGetSize(void)
 	return 12 + 16 + 12 + this->streamGetPluginSize();
 }
 
+// Atomic Rights plugin
+
+static void
+readAtomicRights(Stream *stream, int32, void *, int32, int32)
+{
+	uint32 buffer[2];
+	uint32 version;
+stream->seek(-4);
+version = stream->readU32();
+	stream->read(buffer, 8);
+//	printf("atomicrights: %s %X %X %X\n", DebugFile, LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
+	printf("atomicrights: %X %X %X\n", LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
+}
+
+void
+RegisterAtomicRightsPlugin(void)
+{
+	Atomic::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
+	Atomic::registerPluginStream(ID_RIGHTTORENDER,
+	                             (StreamRead)readAtomicRights,
+	                             NULL, NULL);
+}
+
+
+//
+// Light
+//
 
 Light::Light(void)
 {
