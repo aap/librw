@@ -9,6 +9,7 @@ typedef void *(*CopyConstructor)(void *dst, void *src, int32 offset, int32 size)
 typedef void (*StreamRead)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
 typedef void (*StreamWrite)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
 typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
+typedef void (*RightsCallback)(void *object, int32 offset, int32 size, uint32 data);
 
 struct Plugin
 {
@@ -21,6 +22,7 @@ struct Plugin
 	StreamRead read;
 	StreamWrite write;
 	StreamGetSize getSize;
+	RightsCallback rightsCallback;
 	Plugin *next;
 };
 
@@ -37,11 +39,13 @@ struct PluginBase
 	void streamReadPlugins(Stream *stream);
 	void streamWritePlugins(Stream *stream);
 	int streamGetPluginSize(void);
+	void assertRights(uint32 pluginID, uint32 data);
 
 	static int registerPlugin(int size, uint id,
 	                          Constructor, Destructor, CopyConstructor);
 	static int registerPluginStream(uint id,
 	                                StreamRead, StreamWrite, StreamGetSize);
+	static int setStreamRightsCallback(uint id, RightsCallback cb);
 	static int getPluginOffset(uint id);
 	static void *operator new(size_t size);
 	static void operator delete(void *p);
@@ -125,6 +129,18 @@ PluginBase<T>::streamGetPluginSize(void)
 	return size;
 }
 
+template <typename T> void
+PluginBase<T>::assertRights(uint32 pluginID, uint32 data)
+{
+	for(Plugin *p = this->s_plugins; p; p = p->next)
+		if(p->id == pluginID){
+			if(p->rightsCallback)
+				p->rightsCallback(this,
+				                  p->offset, p->size, data);
+			return;
+		}
+}
+
 template <typename T> int
 PluginBase<T>::registerPlugin(int size, uint id,
 	Constructor ctor, Destructor dtor, CopyConstructor cctor)
@@ -141,6 +157,7 @@ PluginBase<T>::registerPlugin(int size, uint id,
 	p->read = NULL;
 	p->write = NULL;
 	p->getSize = NULL;
+	p->rightsCallback = NULL;
 
 	p->next = s_plugins;
 	s_plugins = p;
@@ -156,6 +173,17 @@ PluginBase<T>::registerPluginStream(uint id,
 			p->read = read;
 			p->write = write;
 			p->getSize = getSize;
+			return p->offset;
+		}
+	return -1;
+}
+
+template <typename T> int
+PluginBase<T>::setStreamRightsCallback(uint id, RightsCallback cb)
+{
+	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
+		if(p->id == id){
+			p->rightsCallback = cb;
 			return p->offset;
 		}
 	return -1;

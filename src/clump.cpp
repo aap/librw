@@ -377,6 +377,7 @@ Atomic::Atomic(void)
 {
 	this->frame = NULL;
 	this->geometry = NULL;
+	this->pipeline = NULL;
 	constructPlugins();
 }
 
@@ -392,6 +393,8 @@ Atomic::~Atomic(void)
 	destructPlugins();
 }
 
+static uint32 atomicRights[2];
+
 Atomic*
 Atomic::streamReadClump(Stream *stream,
                         Frame **frameList, Geometry **geometryList)
@@ -402,7 +405,11 @@ Atomic::streamReadClump(Stream *stream,
 	Atomic *atomic = new Atomic;
 	atomic->frame = frameList[buf[0]];
 	atomic->geometry = geometryList[buf[1]];
+
+	atomicRights[0] = 0;
 	atomic->streamReadPlugins(stream);
+	if(atomicRights[0])
+		atomic->assertRights(atomicRights[0], atomicRights[1]);
 	return atomic;
 }
 
@@ -440,13 +447,31 @@ Atomic::streamGetSize(void)
 static void
 readAtomicRights(Stream *stream, int32, void *, int32, int32)
 {
-	uint32 buffer[2];
-	uint32 version;
-stream->seek(-4);
-version = stream->readU32();
-	stream->read(buffer, 8);
+//	uint32 version;
+//stream->seek(-4);
+//version = stream->readU32();
+	stream->read(atomicRights, 8);
 //	printf("atomicrights: %s %X %X %X\n", DebugFile, LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
-	printf("atomicrights: %X %X %X\n", LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
+//	printf("atomicrights: %X %X %X\n", LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
+}
+
+static void
+writeAtomicRights(Stream *stream, int32, void *object, int32, int32)
+{
+	Atomic *atomic = (Atomic*)object;
+	uint32 buffer[2];
+	buffer[0] = atomic->pipeline->pluginID;
+	buffer[1] = atomic->pipeline->pluginData;
+	stream->write(buffer, 8);
+}
+
+static int32
+getSizeAtomicRights(void *object, int32, int32)
+{
+	Atomic *atomic = (Atomic*)object;
+	if(atomic->pipeline == NULL || atomic->pipeline->pluginID == 0)
+		return -1;
+	return 8;
 }
 
 void
@@ -454,8 +479,9 @@ RegisterAtomicRightsPlugin(void)
 {
 	Atomic::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
 	Atomic::registerPluginStream(ID_RIGHTTORENDER,
-	                             (StreamRead)readAtomicRights,
-	                             NULL, NULL);
+	                             readAtomicRights,
+	                             writeAtomicRights,
+	                             getSizeAtomicRights);
 }
 
 

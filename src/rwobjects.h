@@ -92,6 +92,7 @@ struct Material : PluginBase<Material>
 	Texture *texture;
 	uint8 color[4];
 	float32 surfaceProps[3];
+	Pipeline *pipeline;
 	int32 refCount;
 
 	Material(void);
@@ -102,6 +103,8 @@ struct Material : PluginBase<Material>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
+
+void RegisterMaterialRightsPlugin(void);
 
 struct MatFX
 {
@@ -150,7 +153,13 @@ struct MatFX
 	int32 getEffectIndex(uint32 type);
 };
 
-void RegisterMaterialRightsPlugin(void);
+struct MatFXGlobals_
+{
+	int32 atomicOffset;
+	int32 materialOffset;
+	Pipeline *pipeline;
+};
+extern MatFXGlobals_ MatFXGlobals;
 void RegisterMatFXPlugin(void);
 
 struct Mesh
@@ -227,6 +236,9 @@ struct Geometry : PluginBase<Geometry>, Object
 	};
 };
 
+void RegisterMeshPlugin(void);
+void RegisterNativeDataPlugin(void);
+
 struct Skin
 {
 	int32 numBones;
@@ -239,8 +251,12 @@ struct Skin
 	uint8 *data;	// only used by delete
 };
 
-void RegisterMeshPlugin(void);
-void RegisterNativeDataPlugin(void);
+struct SkinGlobals_
+{
+	int32 offset;
+	Pipeline *pipeline;
+};
+extern SkinGlobals_ SkinGlobals;
 void RegisterSkinPlugin(void);
 
 struct Clump;
@@ -266,6 +282,7 @@ struct Atomic : PluginBase<Atomic>, Object
 	Frame *frame;
 	Geometry *geometry;
 	Clump *clump;
+	Pipeline *pipeline;
 
 	Atomic(void);
 	Atomic(Atomic *a);

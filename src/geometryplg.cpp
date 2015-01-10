@@ -209,6 +209,8 @@ RegisterNativeDataPlugin(void)
 
 // Skin
 
+SkinGlobals_ SkinGlobals = { 0, NULL };
+
 static void*
 createSkin(void *object, int32 offset, int32)
 {
@@ -418,13 +420,26 @@ getSizeSkin(void *object, int32 offset, int32)
 	return size;
 }
 
+static void
+skinRights(void *object, int32, int32, uint32 data)
+{
+	((Atomic*)object)->pipeline = SkinGlobals.pipeline;
+}
+
 void
 RegisterSkinPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
-	                         createSkin, destroySkin, copySkin);
+	SkinGlobals.pipeline = new Pipeline;
+	SkinGlobals.pipeline->pluginID = ID_SKIN;
+	SkinGlobals.pipeline->pluginData = 1;
+
+	SkinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
+			createSkin, destroySkin, copySkin);
 	Geometry::registerPluginStream(ID_SKIN,
 	                               readSkin, writeSkin, getSizeSkin);
+	Atomic::registerPlugin(0, ID_SKIN,
+			NULL, NULL, NULL);
+	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 
 // Atomic MatFX
@@ -447,13 +462,14 @@ static void
 readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 flag;
-//	uint32 version;
+	uint32 version;
 //stream->seek(-4);
 //version = stream->readU32();
 	stream->read(&flag, 4);
 //printf("atomicMatFX: %X %X\n", LibraryIDUnpackVersion(version), flag);
 	*PLUGINOFFSET(int32, object, offset) = flag;
-	// TODO: set Pipeline
+	if(flag)
+		((Atomic*)object)->pipeline = MatFXGlobals.pipeline;
 }
 
 static void
@@ -473,6 +489,8 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 }
 
 // Material MatFX
+
+MatFXGlobals_ MatFXGlobals = { 0, 0, NULL };
 
 // TODO: Frames and Matrices?
 static void
@@ -735,12 +753,19 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 void
 RegisterMatFXPlugin(void)
 {
+	MatFXGlobals.pipeline = new Pipeline;
+	MatFXGlobals.pipeline->pluginID = ID_MATFX;
+	MatFXGlobals.pipeline->pluginData = 0;
+
+	MatFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
 	                       createAtomicMatFX, NULL, copyAtomicMatFX);
 	Atomic::registerPluginStream(ID_MATFX,
 	                             readAtomicMatFX,
 	                             writeAtomicMatFX,
 	                             getSizeAtomicMatFX);
+
+	MatFXGlobals.materialOffset =
 	Material::registerPlugin(sizeof(MatFX*), ID_MATFX,
 	                         createMaterialMatFX, destroyMaterialMatFX,
 	                         copyMaterialMatFX);

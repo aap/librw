@@ -278,6 +278,7 @@ Material::Material(void)
 	this->texture = NULL;
 	memset(this->color, 0xFF, 4);
 	surfaceProps[0] = surfaceProps[1] = surfaceProps[2] = 1.0f;
+	this->pipeline = NULL;
 	this->refCount = 1;
 	this->constructPlugins();
 }
@@ -321,6 +322,8 @@ struct MatStreamData
 	float32 surfaceProps[3];
 };
 
+static uint32 materialRights[2];
+
 Material*
 Material::streamRead(Stream *stream)
 {
@@ -342,8 +345,10 @@ Material::streamRead(Stream *stream)
 		mat->texture = Texture::streamRead(stream);
 	}
 
+	materialRights[0] = 0;
 	mat->streamReadPlugins(stream);
-
+	if(materialRights[0])
+		mat->assertRights(materialRights[0], materialRights[1]);
 	return mat;
 }
 
@@ -390,9 +395,27 @@ Material::streamGetSize(void)
 static void
 readMaterialRights(Stream *stream, int32, void *, int32, int32)
 {
+	stream->read(materialRights, 8);
+//	printf("materialrights: %X %X\n", buffer[0], buffer[1]);
+}
+
+static void
+writeMaterialRights(Stream *stream, int32, void *object, int32, int32)
+{
+	Material *material = (Material*)object;
 	uint32 buffer[2];
-	stream->read(buffer, 8);
-	printf("materialrights: %X %X\n", buffer[0], buffer[1]);
+	buffer[0] = material->pipeline->pluginID;
+	buffer[1] = material->pipeline->pluginData;
+	stream->write(buffer, 8);
+}
+
+static int32
+getSizeMaterialRights(void *object, int32, int32)
+{
+	Material *material = (Material*)object;
+	if(material->pipeline == NULL || material->pipeline->pluginID == 0)
+		return -1;
+	return 8;
 }
 
 void
@@ -400,8 +423,9 @@ RegisterMaterialRightsPlugin(void)
 {
 	Material::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
 	Material::registerPluginStream(ID_RIGHTTORENDER,
-	                               (StreamRead)readMaterialRights,
-	                               NULL, NULL);
+	                               readMaterialRights,
+	                               writeMaterialRights,
+	                               getSizeMaterialRights);
 }
 
 
