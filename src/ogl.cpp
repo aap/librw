@@ -325,5 +325,69 @@ SetAttribPointers(InstanceDataHeader *inst)
 }
 #endif
 
+// Skin
+
+void
+ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
+{
+	uint8 header[4];
+	uint32 vers;
+	Geometry *geometry = (Geometry*)object;
+	assert(FindChunk(stream, ID_STRUCT, NULL, &vers));
+	assert(stream->readU32() == PLATFORM_OGL);
+	stream->read(header, 4);
+	Skin *skin = new Skin;
+	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
+	skin->numBones = header[0];
+
+	// should be 0
+	skin->numUsedBones = header[1];
+	skin->maxIndex = header[2];
+	assert(skin->numUsedBones == 0);
+	assert(skin->maxIndex == 0);
+
+	int32 size = skin->numBones*64 + 15;
+	uint8 *data = new uint8[size];
+	skin->data = data;
+	skin->indices = NULL;
+	skin->weights = NULL;
+	skin->usedBones = NULL;
+
+	uintptr ptr = (uintptr)data + 15;
+	ptr &= ~0xF;
+	data = (uint8*)ptr;
+	skin->inverseMatrices = NULL;
+	if(skin->numBones){
+		skin->inverseMatrices = (float*)data;
+		stream->read(skin->inverseMatrices, skin->numBones*64);
+	}
+}
+
+void
+WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
+{
+	uint8 header[4];
+
+	WriteChunkHeader(stream, ID_STRUCT, len-12);
+	stream->writeU32(PLATFORM_OGL);
+	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
+	header[0] = skin->numBones;
+	header[1] = 0;
+	header[2] = 0;
+	header[3] = 0;
+	stream->write(header, 4);
+	stream->write(skin->inverseMatrices, skin->numBones*64);
+}
+
+int32
+GetSizeNativeSkin(void *object, int32 offset)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
+	if(skin == NULL)
+		return -1;
+	int32 size = 12 + 4 + 4 + skin->numBones*64;
+	return size;
+}
+
 }
 }

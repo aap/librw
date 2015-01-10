@@ -282,8 +282,12 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 
 	if(geometry->instData){
-		assert(geometry->instData->platform == PLATFORM_PS2);
-		Ps2::ReadNativeSkin(stream, len, object, offset);
+		if(geometry->instData->platform == PLATFORM_PS2)
+			Ps2::ReadNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_OGL)
+			Gl::ReadNativeSkin(stream, len, object, offset);
+		else
+			assert(0 && "unsupported native skin platform");
 		return;
 	}
 
@@ -352,8 +356,12 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 
 	if(geometry->instData){
-		assert(geometry->instData->platform == PLATFORM_PS2);
-		Ps2::WriteNativeSkin(stream, len, object, offset);
+		if(geometry->instData->platform == PLATFORM_PS2)
+			Ps2::WriteNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_OGL)
+			Gl::WriteNativeSkin(stream, len, object, offset);
+		else
+			assert(0 && "unsupported native skin platform");
 		return;
 	}
 
@@ -389,8 +397,11 @@ getSizeSkin(void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 
 	if(geometry->instData){
-		assert(geometry->instData->platform == PLATFORM_PS2);
-		return Ps2::GetSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_PS2)
+			return Ps2::GetSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_OGL)
+			return Gl::GetSizeNativeSkin(object, offset);
+		assert(0 && "unsupported native skin platform");
 	}
 
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);

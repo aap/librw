@@ -37,5 +37,11 @@ void Instance(Atomic *atomic);
 void UploadGeo(Geometry *geo);
 void SetAttribPointers(InstanceDataHeader *inst);
 
+// Skin plugin
+
+void ReadNativeSkin(Stream *stream, int32, void *object, int32 offset);
+void WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
+int32 GetSizeNativeSkin(void *object, int32 offset);
+
 }
 }
