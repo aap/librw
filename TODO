@@ -14,22 +14,20 @@ Clump & related:
 		texcoord
 	- implement plugins:
 		Clump
-			Collision
+			R* Collision
 		Frame
 			HAnim
 		Atomic
-			Right To Render
-			(Particles)
-			Pipeline Set
+			((Particles))
+			R* Pipeline Set
 		Geometry
 			-Native Data
-			(Morph)
+			((Morph))
 			-Skin
-			2dfx
+			R* 2dfx
 		Material
-			Right To Render
-			Reflection mat
-			Specular Mat
+			R* Reflection mat
+			R* Specular Mat
 			UV Anim
 		Texture
 			(Sky Mipmap Val)

@@ -27,6 +27,7 @@ struct Frame : PluginBase<Frame>, Object
 
 	// temporary
 	int32 matflag;
+	bool dirty;
 
 	Frame(void);
 	Frame(Frame *f);
@@ -35,6 +36,7 @@ struct Frame : PluginBase<Frame>, Object
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
 	int32 count(void);
+	void updateLTM(void);
 };
 
 struct Image

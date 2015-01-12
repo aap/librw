@@ -15,6 +15,7 @@ namespace Rw {
 
 Frame::Frame(void)
 {
+	this->parent = NULL;
 	this->child = NULL;
 	this->next = NULL;
 	this->root = NULL;
@@ -24,6 +25,7 @@ Frame::Frame(void)
 	this->matrix[5] = 1.0f;
 	this->matrix[10] = 1.0f;
 	this->matrix[15] = 1.0f;
+	this->dirty = true;
 	constructPlugins();
 }
 
@@ -96,6 +98,33 @@ Frame::count(void)
 	int32 count = 1;
 	this->forAllChildren(countCB, (void*)&count);
 	return count;
+}
+
+void
+Frame::updateLTM(void)
+{
+	if(!this->dirty)
+		return;
+	Frame *parent = (Frame*)this->parent;
+	if(parent){
+		parent->updateLTM();
+#define L(i,j) this->ltm[i*4+j]
+#define A(i,j) parent->ltm[i*4+j]
+#define B(i,j) this->matrix[i*4+j]
+		for(int i = 0; i < 4; i++)
+			for(int j = 0; j < 4; j++)
+				L(i,j) = A(0,j)*B(i,0)
+				       + A(1,j)*B(i,1)
+				       + A(2,j)*B(i,2)
+				       + A(3,j)*B(i,3);
+#undef L
+#undef A
+#undef B
+		this->dirty = false;
+	}else{
+		memcpy(this->ltm, this->matrix, 16*4);
+		this->dirty = false;
+	}
 }
 
 static Frame*
@@ -323,9 +352,9 @@ Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 		f->matrix[13] = buf.pos[1];
 		f->matrix[14] = buf.pos[2];
 		f->matrix[15] = 1.0f;
+		f->matflag = buf.matflag;
 		if(buf.parent >= 0)
 			frameList[buf.parent]->addChild(f);
-		f->matflag = buf.matflag;
 	}
 	for(int32 i = 0; i < numFrames; i++)
 		frameList[i]->streamReadPlugins(stream);
@@ -447,12 +476,7 @@ Atomic::streamGetSize(void)
 static void
 readAtomicRights(Stream *stream, int32, void *, int32, int32)
 {
-//	uint32 version;
-//stream->seek(-4);
-//version = stream->readU32();
 	stream->read(atomicRights, 8);
-//	printf("atomicrights: %s %X %X %X\n", DebugFile, LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
-//	printf("atomicrights: %X %X %X\n", LibraryIDUnpackVersion(version), buffer[0], buffer[1]);
 }
 
 static void
