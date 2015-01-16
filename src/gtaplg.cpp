@@ -22,6 +22,8 @@ namespace Rw {
 
 // Node Name
 
+int32 NodeNameOffset;
+
 static void*
 createNodeName(void *object, int32 offset, int32)
 {
@@ -35,7 +37,7 @@ copyNodeName(void *dst, void *src, int32 offset, int32)
 {
 	char *dstname = PLUGINOFFSET(char, dst, offset);
 	char *srcname = PLUGINOFFSET(char, src, offset);
-	strncpy(dstname, srcname, 17);
+	strncpy(dstname, srcname, 23);
 	return dst;
 }
 
@@ -61,7 +63,7 @@ writeNodeName(Stream *stream, int32 len, void *object, int32 offset, int32)
 }
 
 static int32
-getSizeNodeName(void *object, int32 offset)
+getSizeNodeName(void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
 	int32 len = strlen(name);
@@ -72,13 +74,14 @@ getSizeNodeName(void *object, int32 offset)
 void
 RegisterNodeNamePlugin(void)
 {
-	Frame::registerPlugin(18, ID_NODENAME,
-	                      (Constructor)createNodeName,
-	                      (Destructor)destroyNodeName,
-	                      (CopyConstructor)copyNodeName);
-	Frame::registerPluginStream(0x253f2fe, (StreamRead)readNodeName,
-	                            (StreamWrite)writeNodeName,
-	                            (StreamGetSize)getSizeNodeName);
+	NodeNameOffset = Frame::registerPlugin(24, ID_NODENAME,
+	                                       createNodeName,
+	                                       destroyNodeName,
+	                                       copyNodeName);
+	Frame::registerPluginStream(ID_NODENAME,
+	                            readNodeName,
+	                            writeNodeName,
+	                            getSizeNodeName);
 }
 
 //
@@ -86,6 +89,8 @@ RegisterNodeNamePlugin(void)
 //
 
 // Breakable Model
+
+int32 BreakableOffset;
 
 static void*
 createBreakableModel(void *object, int32 offset, int32)
@@ -175,17 +180,19 @@ getSizeBreakableModel(void *object, int32 offset, int32)
 void
 RegisterBreakableModelPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(Breakable*), ID_BREAKABLE,
-	                         createBreakableModel,
-	                         destroyBreakableModel, NULL);
+	BreakableOffset = Geometry::registerPlugin(sizeof(Breakable*),
+	                                           ID_BREAKABLE,
+	                                           createBreakableModel,
+	                                           destroyBreakableModel, NULL);
 	Geometry::registerPluginStream(ID_BREAKABLE,
-	                               (StreamRead)readBreakableModel,
-	                               (StreamWrite)writeBreakableModel,
-	                               (StreamGetSize)getSizeBreakableModel);
+	                               readBreakableModel,
+	                               writeBreakableModel,
+	                               getSizeBreakableModel);
 }
 
 // Extra colors
 
+int32 ExtraVertColorOffset;
 
 static void*
 createExtraVertColors(void *object, int32 offset, int32)
@@ -253,13 +260,14 @@ getSizeExtraVertColors(void *object, int32 offset, int32)
 void
 RegisterExtraVertColorPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(ExtraVertColors), ID_EXTRAVERTCOLORS,
-	                         createExtraVertColors,
-	                         destroyExtraVertColors, NULL);
+	ExtraVertColorOffset = Geometry::registerPlugin(sizeof(ExtraVertColors),
+	                                                ID_EXTRAVERTCOLORS,
+	                                                createExtraVertColors,
+	                                                destroyExtraVertColors, NULL);
 	Geometry::registerPluginStream(ID_EXTRAVERTCOLORS,
-	                               (StreamRead)readExtraVertColors,
-	                               (StreamWrite)writeExtraVertColors,
-	                               (StreamGetSize)getSizeExtraVertColors);
+	                               readExtraVertColors,
+	                               writeExtraVertColors,
+	                               getSizeExtraVertColors);
 }
 
 }

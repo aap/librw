@@ -7,6 +7,7 @@ enum
 	ID_NODENAME        = 0x253f2fe
 };
 
+extern int32 NodeNameOffset;
 void RegisterNodeNamePlugin(void);
 
 struct Breakable
@@ -26,6 +27,7 @@ struct Breakable
 	float32 (*surfaceProps)[3];
 };
 
+extern int32 BreakableOffset;
 void RegisterBreakableModelPlugin(void);
 
 struct ExtraVertColors
@@ -35,6 +37,7 @@ struct ExtraVertColors
 	float balance;
 };
 
+extern int32 ExtraVertColorOffset;
 void RegisterExtraVertColorPlugin(void);
 
 }
