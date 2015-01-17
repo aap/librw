@@ -1,6 +1,6 @@
 namespace Rw {
 
-// TODO: mostly 
+// TODO: mostly a stub right now
 struct Pipeline
 {
 	uint32 pluginID;
@@ -37,7 +37,39 @@ struct Frame : PluginBase<Frame>, Object
 	Frame *forAllChildren(Callback cb, void *data);
 	int32 count(void);
 	void updateLTM(void);
+	void setDirty(void);
 };
+
+struct HAnimNodeInfo
+{
+	int32 id;
+	int32 index;
+	int32 flags;
+	Frame *frame;
+};
+
+struct HAnimHierarchy
+{
+	int32 flags;
+	int32 numNodes;
+	float *matrices;
+	float *matricesUnaligned;
+	HAnimNodeInfo *nodeInfo;
+	Frame *parentFrame;
+	HAnimHierarchy *parentHierarchy;	// mostly unused
+
+	// temporary
+	int32 maxInterpKeyFrameSize;
+};
+
+struct HAnimData
+{
+	int32 id;
+	HAnimHierarchy *hierarchy;
+};
+
+extern int32 HAnimOffset;
+void RegisterHAnimPlugin(void);
 
 struct Image
 {

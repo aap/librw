@@ -15,8 +15,6 @@ Clump & related:
 	- implement plugins:
 		Clump
 			R* Collision
-		Frame
-			HAnim
 		Atomic
 			((Particles))
 			R* Pipeline Set

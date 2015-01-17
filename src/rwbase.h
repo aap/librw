@@ -110,6 +110,7 @@ enum PluginID
 	ID_UVANIMDICT    = 0x2B,
 
 	ID_SKIN          = 0x116,
+	ID_HANIMPLUGIN   = 0x11E,
 	ID_MATFX         = 0x120,
 	ID_PDS           = 0x131,
 	ID_ADC           = 0x134,

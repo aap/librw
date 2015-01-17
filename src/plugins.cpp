@@ -2,9 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-
-//#include <iostream>
-//#include <fstream>
 #include <new>
 
 #include "rwbase.h"
@@ -16,6 +13,128 @@
 using namespace std;
 
 namespace Rw {
+
+//
+// HAnim
+//
+
+int32 HAnimOffset;
+
+static void*
+createHAnim(void *object, int32 offset, int32 size)
+{
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	hanim->id = -1;
+	hanim->hierarchy = NULL;
+	return object;
+}
+
+static void*
+destroyHAnim(void *object, int32 offset, int32 size)
+{
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	if(hanim->hierarchy){
+		HAnimHierarchy *hier = hanim->hierarchy;
+		delete[] (uint8*)hier->matricesUnaligned;
+		delete[] hier->nodeInfo;
+		delete hier;
+	}
+	hanim->id = -1;
+	hanim->hierarchy = NULL;
+	return object;
+}
+
+static void*
+copyHAnim(void *dst, void *src, int32 offset, int32 size)
+{
+	HAnimData *dsthanim = PLUGINOFFSET(HAnimData, dst, offset);
+	HAnimData *srchanim = PLUGINOFFSET(HAnimData, src, offset);
+	dsthanim->id = srchanim->id;
+	// TODO
+	dsthanim->hierarchy = NULL;
+	return dst;
+}
+
+static void
+readHAnim(Stream *stream, int32 len, void *object, int32 offset, int32)
+{
+	int32 cnst, numNodes;
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	cnst = stream->readI32();
+	if(cnst != 256){
+		printf("hanim const was not 256\n");
+		return;
+	}
+	hanim->id = stream->readI32();
+	numNodes = stream->readI32();
+	if(numNodes != 0){
+		HAnimHierarchy *hier = new HAnimHierarchy;
+		hanim->hierarchy = hier;
+		hier->numNodes = numNodes;
+		hier->flags = stream->readI32();
+		hier->maxInterpKeyFrameSize = stream->readI32();
+		hier->parentFrame = (Frame*)object;
+		hier->parentHierarchy = hier;
+		if(hier->flags & 2)
+			hier->matrices = hier->matricesUnaligned = NULL;
+		else{
+			hier->matricesUnaligned =
+			  (float*) new uint8[hier->numNodes*64 + 15];
+			hier->matrices =
+			  (float*)((uintptr)hier->matricesUnaligned & ~0xF);
+		}
+		hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
+		for(int32 i = 0; i < hier->numNodes; i++){
+			hier->nodeInfo[i].id = stream->readI32();
+			hier->nodeInfo[i].index = stream->readI32();
+			hier->nodeInfo[i].flags = stream->readI32();
+			hier->nodeInfo[i].frame = NULL;
+		}
+	}
+}
+
+static void
+writeHAnim(Stream *stream, int32 len, void *object, int32 offset, int32)
+{
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	stream->writeI32(256);
+	stream->writeI32(hanim->id);
+	if(hanim->hierarchy == NULL){
+		stream->writeI32(0);
+		return;
+	}
+	HAnimHierarchy *hier = hanim->hierarchy;
+	stream->writeI32(hier->numNodes);
+	stream->writeI32(hier->flags);
+	stream->writeI32(hier->maxInterpKeyFrameSize);
+	for(int32 i = 0; i < hier->numNodes; i++){
+		stream->writeI32(hier->nodeInfo[i].id);
+		stream->writeI32(hier->nodeInfo[i].index);
+		stream->writeI32(hier->nodeInfo[i].flags);
+	}
+}
+
+static int32
+getSizeHAnim(void *object, int32 offset, int32)
+{
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	if(hanim->hierarchy)
+		return 12 + 8 + hanim->hierarchy->numNodes*12;
+	return 12;
+}
+
+void
+RegisterHAnimPlugin(void)
+{
+	HAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIMPLUGIN,
+	                                    createHAnim,
+	                                    destroyHAnim, copyHAnim);
+	Frame::registerPluginStream(ID_HANIMPLUGIN,
+	                            readHAnim,
+	                            writeHAnim,
+	                            getSizeHAnim);
+}
+
 
 //
 // Geometry
@@ -207,7 +326,9 @@ RegisterNativeDataPlugin(void)
 	                               (StreamGetSize)getSizeNativeData);
 }
 
+//
 // Skin
+//
 
 SkinGlobals_ SkinGlobals = { 0, NULL };
 
@@ -442,7 +563,11 @@ RegisterSkinPlugin(void)
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 
-// Atomic MatFX
+//
+// MatFX
+//
+
+// Atomic
 
 static void*
 createAtomicMatFX(void *object, int32 offset, int32)
@@ -463,10 +588,7 @@ readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 flag;
 	uint32 version;
-//stream->seek(-4);
-//version = stream->readU32();
 	stream->read(&flag, 4);
-//printf("atomicMatFX: %X %X\n", LibraryIDUnpackVersion(version), flag);
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)
 		((Atomic*)object)->pipeline = MatFXGlobals.pipeline;
@@ -488,7 +610,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 	return flag ? 4 : -1;
 }
 
-// Material MatFX
+// Material
 
 MatFXGlobals_ MatFXGlobals = { 0, 0, NULL };
 

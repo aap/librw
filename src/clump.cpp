@@ -108,6 +108,7 @@ Frame::updateLTM(void)
 	Frame *parent = (Frame*)this->parent;
 	if(parent){
 		parent->updateLTM();
+// TODO: replace with platform optimized code
 #define L(i,j) this->ltm[i*4+j]
 #define A(i,j) parent->ltm[i*4+j]
 #define B(i,j) this->matrix[i*4+j]
@@ -125,6 +126,21 @@ Frame::updateLTM(void)
 		memcpy(this->ltm, this->matrix, 16*4);
 		this->dirty = false;
 	}
+}
+
+static Frame*
+dirtyCB(Frame *f, void *)
+{
+	f->dirty = true;
+	f->forAllChildren(dirtyCB, NULL);
+	return f;
+}
+
+void
+Frame::setDirty(void)
+{
+	this->dirty = true;
+	this->forAllChildren(dirtyCB, NULL);
 }
 
 static Frame*

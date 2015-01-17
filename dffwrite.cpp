@@ -21,6 +21,7 @@ main(int argc, char *argv[])
 	Rw::RegisterMaterialRightsPlugin();
 	Rw::RegisterMatFXPlugin();
 	Rw::RegisterAtomicRightsPlugin();
+	Rw::RegisterHAnimPlugin();
 	Rw::RegisterNodeNamePlugin();
 	Rw::RegisterBreakableModelPlugin();
 	Rw::RegisterExtraVertColorPlugin();
