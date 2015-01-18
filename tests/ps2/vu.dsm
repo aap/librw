@@ -1,0 +1,57 @@
+.data
+.global MyDmaPacket
+.global vuMat
+.global vuOffset
+.global vuGIFtag
+.global vuMatcolor
+.global vuSurfProps
+.global mpgCall
+.global geometryCall
+
+.align 4
+
+MyDmaPacket:
+DMAcnt *
+.EndDmaData
+
+mpgCall:
+DMAcall *, 0 ;vuProg
+.EndDmaData
+
+DMAcnt *
+	UNPACK 4, 4, V4_32, 0x3d0, *
+lightDir:
+	.float 0.5, -0.5, -0.70710, 0.0
+	.EndUnpack
+
+	UNPACK 4, 4, V4_32, 0x3f0, *
+vuMat:
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.EndUnpack
+
+	UNPACK 4, 4, V4_32, 0x3f9, *
+vuOffset:
+	.float 0.0, 0.0, 0.0, 0.0
+vuGIFtag:
+	.int 0x00008000, 0x2005C000, 0x0000000041, 0x00000000
+vuMatcolor:
+	.float 1.0, 1.0, 1.0, 0.5
+vuSurfProps:
+	.float 1.0, 1.0, 1.0, 1.0
+;	.float 160, 160, 160, 0	; some ambient light
+	.float 20, 20, 20, 0	; some ambient light
+;	.float 0, 0, 0, 0
+	.EndUnpack
+.EndDmaData
+
+geometryCall:
+DMAcall *, 0 ;vuGeometry
+	BASE 0
+	OFFSET 0x0
+.EndDmaData
+
+DMAend
+

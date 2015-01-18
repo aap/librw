@@ -18,9 +18,11 @@ $(LIB): $(OBJ)
 	ar scr $@ $(OBJ)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
+	@mkdir -p $(@D)
 	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $< > $@
 
 clean:
