@@ -18,8 +18,9 @@ main(int argc, char *argv[])
 
 //	Rw::Version = 0x33002;
 
-	Rw::RegisterMaterialRightsPlugin();
+	Rw::RegisterEnvSpecPlugin();
 	Rw::RegisterMatFXPlugin();
+	Rw::RegisterMaterialRightsPlugin();
 	Rw::RegisterAtomicRightsPlugin();
 	Rw::RegisterHAnimPlugin();
 	Rw::RegisterNodeNamePlugin();

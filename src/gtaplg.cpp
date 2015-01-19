@@ -263,11 +263,181 @@ RegisterExtraVertColorPlugin(void)
 	ExtraVertColorOffset = Geometry::registerPlugin(sizeof(ExtraVertColors),
 	                                                ID_EXTRAVERTCOLORS,
 	                                                createExtraVertColors,
-	                                                destroyExtraVertColors, NULL);
+	                                                destroyExtraVertColors,
+	                                                NULL);
 	Geometry::registerPluginStream(ID_EXTRAVERTCOLORS,
 	                               readExtraVertColors,
 	                               writeExtraVertColors,
 	                               getSizeExtraVertColors);
+}
+
+// Environment mat
+
+int32 EnvMatOffset;
+
+static void*
+createEnvMat(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(EnvMat*, object, offset) = NULL;
+	return object;
+}
+
+static void*
+destroyEnvMat(void *object, int32 offset, int32)
+{
+	EnvMat **envmat = PLUGINOFFSET(EnvMat*, object, offset);
+	delete *envmat;
+	*envmat = NULL;
+	return object;
+}
+
+static void*
+copyEnvMat(void *dst, void *src, int32 offset, int32)
+{
+	EnvMat *srcenv = *PLUGINOFFSET(EnvMat*, src, offset);
+	if(srcenv == NULL)
+		return dst;
+	EnvMat *dstenv = new EnvMat;
+	dstenv->scaleX = srcenv->scaleX;
+	dstenv->scaleY = srcenv->scaleY;
+	dstenv->transScaleX = srcenv->transScaleX;
+	dstenv->transScaleY = srcenv->transScaleY;
+	dstenv->shininess = srcenv->shininess;
+	dstenv->texture = NULL;
+	*PLUGINOFFSET(EnvMat*, dst, offset) = dstenv;
+	return dst;
+}
+
+struct EnvStream {
+	float scaleX, scaleY;
+	float transScaleX, transScaleY;
+	float shininess;
+	int32 zero;
+};
+
+static void
+readEnvMat(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	EnvStream buf;
+	EnvMat *env = new EnvMat;
+	*PLUGINOFFSET(EnvMat*, object, offset) = env;
+	stream->read(&buf, sizeof(buf));
+	env->scaleX = (int8)(buf.scaleX*8.0f);
+	env->scaleY = (int8)(buf.scaleY*8.0f);
+	env->transScaleX = (int8)(buf.transScaleX*8.0f);
+	env->transScaleY = (int8)(buf.transScaleY*8.0f);
+	env->shininess = (int8)(buf.shininess*255.0f);
+	env->texture = NULL;
+}
+
+static void
+writeEnvMat(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	EnvStream buf;
+	EnvMat *env = *PLUGINOFFSET(EnvMat*, object, offset);
+	buf.scaleX = env->scaleX/8.0f;
+	buf.scaleY = env->scaleY/8.0f;
+	buf.transScaleX = env->transScaleX/8.0f;
+	buf.transScaleY = env->transScaleY/8.0f;
+	buf.shininess = env->shininess/8.0f;
+	buf.zero = 0;
+	stream->write(&buf, sizeof(buf));
+}
+
+static int32
+getSizeEnvMat(void *object, int32 offset, int32)
+{
+	EnvMat *env = *PLUGINOFFSET(EnvMat*, object, offset);
+	return env ? sizeof(EnvStream) : -1;
+}
+
+// Specular mat
+
+int32 SpecMatOffset;
+
+static void*
+createSpecMat(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(SpecMat*, object, offset) = NULL;
+	return object;
+}
+
+static void*
+destroySpecMat(void *object, int32 offset, int32)
+{
+	SpecMat **specmat = PLUGINOFFSET(SpecMat*, object, offset);
+	if((*specmat)->texture)
+		(*specmat)->texture->decRef();
+	delete *specmat;
+	*specmat = NULL;
+	return object;
+}
+
+static void*
+copySpecMat(void *dst, void *src, int32 offset, int32)
+{
+	SpecMat *srcspec = *PLUGINOFFSET(SpecMat*, src, offset);
+	if(srcspec == NULL)
+		return dst;
+	SpecMat *dstspec = new SpecMat;
+	*PLUGINOFFSET(SpecMat*, dst, offset) = dstspec;
+	dstspec->specularity = srcspec->specularity;
+	dstspec->texture = srcspec->texture;
+	dstspec->texture->refCount++;
+	return dst;
+}
+
+struct SpecStream {
+	float specularity;
+	char texname[24];
+};
+
+static void
+readSpecMat(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	SpecStream buf;
+	SpecMat *spec = new SpecMat;
+	*PLUGINOFFSET(SpecMat*, object, offset) = spec;
+	stream->read(&buf, sizeof(buf));
+	spec->specularity = buf.specularity;
+	spec->texture = new Texture;
+	strncpy(spec->texture->name, buf.texname, 24);
+}
+
+static void
+writeSpecMat(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	SpecStream buf;
+	SpecMat *spec = *PLUGINOFFSET(SpecMat*, object, offset);
+	buf.specularity = spec->specularity;
+	strncpy(buf.texname, spec->texture->name, 24);
+	stream->write(&buf, sizeof(buf));
+}
+
+static int32
+getSizeSpecMat(void *object, int32 offset, int32)
+{
+	SpecMat *spec = *PLUGINOFFSET(SpecMat*, object, offset);
+	return spec ? sizeof(SpecStream) : -1;
+}
+
+void
+RegisterEnvSpecPlugin(void)
+{
+	SpecMatOffset = Material::registerPlugin(sizeof(SpecMat*), ID_SPECMAT,
+	                                         createSpecMat,
+                                                 destroySpecMat,
+                                                 copySpecMat);
+	Material::registerPluginStream(ID_SPECMAT, readSpecMat,
+                                                   writeSpecMat,
+                                                   getSizeSpecMat);
+	EnvMatOffset = Material::registerPlugin(sizeof(EnvMat*), ID_ENVMAT,
+	                                        createEnvMat,
+                                                destroyEnvMat,
+                                                copyEnvMat);
+	Material::registerPluginStream(ID_ENVMAT, readEnvMat,
+                                                  writeEnvMat,
+                                                  getSizeEnvMat);
 }
 
 }

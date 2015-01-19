@@ -24,12 +24,11 @@ Clump & related:
 			-Skin
 			R* 2dfx
 		Material
-			R* Reflection mat
-			R* Specular Mat
 			UV Anim
 		Texture
 			(Sky Mipmap Val)
 
+- PDS Pipelines (at least dummies)
 
 - UV Anim Dict
 
