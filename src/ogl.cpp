@@ -107,7 +107,7 @@ GetSizeNativeData(void *object, int32, int32)
 }
 
 static void
-packattrib(uint8 *dst, float32 *src, AttribDesc *a)
+packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 {
 	int8 *i8dst;
 	uint16 *u16dst;
@@ -123,7 +123,7 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a)
 		i8dst = (int8*)dst;
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
-				i8dst[i] = src[i];
+				i8dst[i] = src[i]*scale;
 			else if(src[i] > 0.0f)
 				i8dst[i] = src[i]*127.0f;
 			else
@@ -134,7 +134,7 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a)
 	case 2: // ubyte
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
-				dst[i] = src[i];
+				dst[i] = src[i]*scale;
 			else
 				dst[i] = src[i]*255.0f;
 		}
@@ -144,7 +144,7 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a)
 		i16dst = (int16*)dst;
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
-				i16dst[i] = src[i];
+				i16dst[i] = src[i]*scale;
 			else if(src[i] > 0.0f)
 				i16dst[i] = src[i]*32767.0f;
 			else
@@ -156,7 +156,7 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a)
 		u16dst = (uint16*)dst;
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
-				u16dst[i] = src[i];
+				u16dst[i] = src[i]*scale;
 			else
 				u16dst[i] = src[i]*65535.0f;
 		}
@@ -245,7 +245,7 @@ Instance(Atomic *atomic)
 		p = header->data + a->offset;
 		float32 *texcoord = geo->texCoords[0];
 		for(int32 i = 0; i < geo->numVertices; i++){
-			packattrib(p, texcoord, a);
+			packattrib(p, texcoord, a, 512.0f);
 			texcoord += 2;
 			p += a->stride;
 		}

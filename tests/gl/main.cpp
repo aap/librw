@@ -31,7 +31,7 @@ renderAtomic(Rw::Atomic *atomic)
 	glUniformMatrix4fv(glGetUniformLocation(program, "worldMat"),
 	                   1, GL_FALSE, frm->ltm);
 
-	glVertexAttrib4f(3, 1.0f, 1.0f, 1.0f, 1.0f);
+	glVertexAttrib4f(3, 0.0f, 0.0f, 0.0f, 1.0f);
 	if(inst->vbo == 0 && inst->ibo == 0)
 		Gl::UploadGeo(geo);
 	glBindBuffer(GL_ARRAY_BUFFER, inst->vbo);
@@ -41,6 +41,14 @@ renderAtomic(Rw::Atomic *atomic)
 	uint64 offset = 0;
 	for(uint32 i = 0; i < meshHeader->numMeshes; i++){
 		Mesh *mesh = &meshHeader->mesh[i];
+		float color[4];
+		uint8 *col = mesh->material->color;
+		color[0] = col[0] / 255.0f;
+		color[1] = col[1] / 255.0f;
+		color[2] = col[2] / 255.0f;
+		color[3] = col[3] / 255.0f;
+		glUniform4fv(glGetUniformLocation(program, "matColor"),
+			     1, color);
 		Texture *tex = mesh->material->texture;
 		if(tex){
 			Rw::Gl::Raster *raster = (Rw::Gl::Raster*)tex->raster;
@@ -98,12 +106,17 @@ init(void)
 {
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_ALPHA_TEST);
+	glAlphaFunc(GL_GEQUAL, 0.5f);
 	const char *shadersrc =
 		"#version 120\n"
 		"#ifdef VERTEX\n"
 		"uniform mat4 projMat;"
 		"uniform mat4 viewMat;"
 		"uniform mat4 worldMat;"
+		"uniform vec4 matColor;"
 		"attribute vec3 in_vertex;"
 		"attribute vec2 in_texCoord;"
 		"attribute vec3 in_normal;"
@@ -111,12 +124,13 @@ init(void)
 		"varying vec4 v_color;"
 		"varying vec2 v_texCoord;"
 		"vec3 lightdir = vec3(0.5, -0.5, -0.70710);"
+		"vec4 amblight = vec4(20, 20, 20, 0)/255;"
 		"void main()"
 		"{"
 		"	gl_Position = projMat * viewMat * worldMat * vec4(in_vertex, 1.0);"
 		"	vec3 n = mat3(worldMat) * in_normal;"
 		"	float l = max(0.0, dot(n, -lightdir));"
-		"	v_color = in_color*l;"
+		"	v_color = (in_color+vec4(l,l,l,0)+amblight)*matColor;"
 		"	v_texCoord = in_texCoord;"
 		"}\n"
 		"#endif\n"
