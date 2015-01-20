@@ -45,7 +45,7 @@ int32 GetSizeNativeSkin(void *object, int32 offset);
 
 // Raster
 
-struct Raster : Rw::Raster
+struct Texture : Rw::Texture
 {
 	void upload(void);
 	void bind(int n);

@@ -30,6 +30,147 @@ writeUInt8(uint8 tmp, ostream &rw)
 }
 
 //
+// TexDictionary
+//
+
+TexDictionary *CurrentTexDictionary;
+
+TexDictionary::TexDictionary(void)
+{
+	this->first = NULL;
+}
+
+void
+TexDictionary::add(Texture *tex)
+{
+	tex->next = this->first;
+	this->first = tex;
+}
+
+Texture*
+TexDictionary::find(const char *name)
+{
+	for(Texture *tex = this->first; tex; tex = tex->next)
+		if(strncmp(tex->name, name, 32) == 0)
+			return tex;
+	return NULL;
+}
+
+//
+// Texture
+//
+
+Texture::Texture(void)
+{
+	memset(this->name, 0, 32);
+	memset(this->mask, 0, 32);
+	this->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
+	this->raster = NULL;
+	this->refCount = 1;
+	this->next = NULL;
+	this->constructPlugins();
+}
+
+Texture::~Texture(void)
+{
+	this->destructPlugins();
+}
+
+void
+Texture::decRef(void)
+{
+	this->refCount--;
+	if(this->refCount)
+		delete this;
+}
+
+// TODO: do this properly, pretty ugly right now
+Texture*
+Texture::read(const char *name, const char *mask)
+{
+	(void)mask;
+	Raster *raster = NULL;
+	Texture *tex;
+
+	if((tex = CurrentTexDictionary->find(name)))
+		return tex;
+	tex = new Texture;
+	strncpy(tex->name, name, 32);
+	strncpy(tex->mask, mask, 32);
+	char *n = (char*)malloc(strlen(name) + 5);
+	strcpy(n, name);
+	strcat(n, ".tga");
+	Image *img = readTGA(n);
+	free(n);
+	if(img){
+		raster = Raster::createFromImage(img);
+		delete img;
+	}
+	tex->raster = raster;
+	CurrentTexDictionary->add(tex);
+	return tex;
+}
+
+Texture*
+Texture::streamRead(Stream *stream)
+{
+	uint32 length;
+	char name[32], mask[32];
+	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	uint32 filterAddressing = stream->readU16(); 
+	// TODO: what is this? (mipmap? i think)
+	stream->seek(2);
+
+	assert(FindChunk(stream, ID_STRING, &length, NULL));
+	stream->read(name, length);
+
+	assert(FindChunk(stream, ID_STRING, &length, NULL));
+	stream->read(mask, length);
+
+	Texture *tex = Texture::read(name, mask);
+	tex->refCount++;
+	tex->filterAddressing = filterAddressing;
+
+	tex->streamReadPlugins(stream);
+
+	return tex;
+}
+
+bool
+Texture::streamWrite(Stream *stream)
+{
+	int size;
+	WriteChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
+	WriteChunkHeader(stream, ID_STRUCT, 4);
+	stream->writeU32(this->filterAddressing);
+
+	// TODO: length can't be > 32
+	size = strlen(this->name)+4 & ~3;
+	WriteChunkHeader(stream, ID_STRING, size);
+	stream->write(this->name, size);
+
+	size = strlen(this->mask)+4 & ~3;
+	WriteChunkHeader(stream, ID_STRING, size);
+	stream->write(this->mask, size);
+
+	this->streamWritePlugins(stream);
+	return true;
+}
+
+uint32
+Texture::streamGetSize(void)
+{
+	uint32 size = 0;
+	int strsize;
+	size += 12 + 4;
+	size += 12 + 12;
+	size += strlen(this->name)+4 & ~3;
+	size += strlen(this->mask)+4 & ~3;
+	size += 12 + this->streamGetPluginSize();
+	return size;
+}
+
+//
 // Image
 //
 
@@ -350,24 +491,6 @@ Raster::createFromImage(Image *image)
 		memcpy(raster->palette, image->palette, size*4);
 	}
 	return raster;
-}
-
-// TODO: do this properly, only an ugly hack right now
-Raster*
-Raster::read(const char *name, const char *mask)
-{
-	(void)mask;
-	char *n = (char*)malloc(strlen(name) + 5);
-	strcpy(n, name);
-	strcat(n, ".tga");
-	Image *img = readTGA(n);
-	free(n);
-	if(img){
-		Raster *raster = Raster::createFromImage(img);
-		delete img;
-		return raster;
-	}
-	return NULL;
 }
 
 }

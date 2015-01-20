@@ -49,14 +49,10 @@ renderAtomic(Rw::Atomic *atomic)
 		color[3] = col[3] / 255.0f;
 		glUniform4fv(glGetUniformLocation(program, "matColor"),
 			     1, color);
-		Texture *tex = mesh->material->texture;
-		if(tex){
-			Rw::Gl::Raster *raster = (Rw::Gl::Raster*)tex->raster;
-			if(raster)
-				raster->bind(0);
-			else
-				glBindTexture(GL_TEXTURE_2D, 0);
-		}else
+		Rw::Gl::Texture *tex =(Rw::Gl::Texture*)mesh->material->texture;
+		if(tex)
+			tex->bind(0);
+		else
 			glBindTexture(GL_TEXTURE_2D, 0);
 		glDrawElements(prim[meshHeader->flags], mesh->numIndices,
 		               GL_UNSIGNED_SHORT, (void*)offset);
@@ -73,6 +69,7 @@ renderAtomic(Rw::Atomic *atomic)
 void
 render(void)
 {
+	static Mat4 worldMat(1.0f);
 	glUseProgram(program);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -81,6 +78,8 @@ render(void)
 	                   1, GL_FALSE, camera->projMat.cr);
 	glUniformMatrix4fv(glGetUniformLocation(program, "viewMat"),
 	                   1, GL_FALSE, camera->viewMat.cr);
+	glUniformMatrix4fv(glGetUniformLocation(program, "worldMat"),
+	                   1, GL_FALSE, worldMat.cr);
 
 	glVertexAttrib3f(2, -0.5f, 0.5f, 0.70710f);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -181,6 +180,7 @@ init(void)
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
 	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
 
+	Rw::CurrentTexDictionary = new Rw::TexDictionary;
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");

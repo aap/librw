@@ -432,42 +432,69 @@ RegisterNativeRaster(void)
 }
 
 void
-Raster::upload(void)
+Texture::upload(void)
 {
 	GLuint id;
 	glGenTextures(1, &id);
 	glBindTexture(GL_TEXTURE_2D, id);
-	if(this->palette){
+	Raster *r = this->raster;
+	if(r->palette){
 		printf("can't upload paletted raster\n");
 		return;
 	}
-	switch(this->format & 0xF00){
-	case C8888:
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexImage2D(GL_TEXTURE_2D, 0, 4, this->width, this->height,
-		             0, GL_RGBA, GL_UNSIGNED_BYTE, this->texels);
+
+	static GLenum filter[] = {
+		0, GL_NEAREST, GL_LINEAR,
+		   GL_NEAREST_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_NEAREST,
+		   GL_NEAREST_MIPMAP_LINEAR,  GL_LINEAR_MIPMAP_LINEAR
+	};
+	static GLenum filternomip[] = {
+		0, GL_NEAREST, GL_LINEAR,
+		   GL_NEAREST, GL_LINEAR,
+		   GL_NEAREST, GL_LINEAR
+	};
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+		filternomip[this->filterAddressing & 0xFF]);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+		filternomip[this->filterAddressing & 0xFF]);
+
+	static GLenum wrap[] = {
+		0, GL_REPEAT, GL_MIRRORED_REPEAT,
+		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER
+	};
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+		wrap[(this->filterAddressing >> 8) & 0xF]);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+		wrap[(this->filterAddressing >> 12) & 0xF]);
+
+	switch(r->format & 0xF00){
+	case Raster::C8888:
+		glTexImage2D(GL_TEXTURE_2D, 0, 4, r->width, r->height,
+		             0, GL_RGBA, GL_UNSIGNED_BYTE, r->texels);
 		break;
 	default:
-		printf("unsupported raster format: %x\n", this->format);
+		printf("unsupported raster format: %x\n", r->format);
 		break;
 	}
 	glBindTexture(GL_TEXTURE_2D, 0);
-	GlRaster *glr = PLUGINOFFSET(GlRaster, this, NativeRasterOffset);
+	GlRaster *glr = PLUGINOFFSET(GlRaster, r, NativeRasterOffset);
 	glr->id = id;
 }
 
 void
-Raster::bind(int n)
+Texture::bind(int n)
 {
-	GlRaster *raster = PLUGINOFFSET(GlRaster, this, NativeRasterOffset);
-	if(raster->id == 0)
-		this->upload();
+	Raster *r = this->raster;
+	GlRaster *glr = PLUGINOFFSET(GlRaster, r, NativeRasterOffset);
 	glActiveTexture(GL_TEXTURE0+n);
-	glBindTexture(GL_TEXTURE_2D, raster->id);
+	if(r){
+		if(glr->id == 0)
+			this->upload();
+		glBindTexture(GL_TEXTURE_2D, glr->id);
+	}else
+		glBindTexture(GL_TEXTURE_2D, 0);
 	glActiveTexture(GL_TEXTURE0);
+
 }
 #endif
 

@@ -107,7 +107,6 @@ struct Raster : PluginBase<Raster>
 	~Raster(void);
 
 	static Raster *createFromImage(Image *image);
-	static Raster *read(const char *name, const char *mask);
 
 	enum Format {
 		DEFAULT = 0,
@@ -137,12 +136,16 @@ struct Texture : PluginBase<Texture>
 	Raster *raster;
 	int32 refCount;
 
+	// temporary - pointer to next tex in dictionary
+	Texture *next;
+
 	Texture(void);
 	~Texture(void);
 	void decRef(void);
 	static Texture *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
+	static Texture *read(const char *name, const char *mask);
 
 	enum FilterMode {
 		NEAREST = 1,
@@ -389,5 +392,16 @@ private:
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
+
+struct TexDictionary
+{
+	Texture *first;
+
+	TexDictionary(void);
+	void add(Texture *tex);
+	Texture *find(const char *name);
+};
+
+extern TexDictionary *CurrentTexDictionary;
 
 }
