@@ -86,16 +86,55 @@ struct Image
 	void free(void);
 	void setPixels(uint8 *pixels);
 	void setPalette(uint8 *palette);
+
+	static void setSearchPath(const char*);
+	static void printSearchPath(void);
+	static char *getFilename(const char*);
 };
 Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
 
-// TODO: raster, link into texdict
+struct Raster : PluginBase<Raster>
+{
+	int32 type;	// hardly used
+	int32 width, height, depth;
+	int32 stride;
+	int32 format;
+	uint8 *texels;
+	uint8 *palette;
+
+	Raster(void);
+	~Raster(void);
+
+	static Raster *createFromImage(Image *image);
+	static Raster *read(const char *name, const char *mask);
+
+	enum Format {
+		DEFAULT = 0,
+		C1555   = 0x100,
+		C565    = 0x200,
+		C4444   = 0x300,
+		LUM8    = 0x400,
+		C8888   = 0x500,
+		C888    = 0x600,
+		D16     = 0x700,
+		D24     = 0x800,
+		D32     = 0x900,
+		C555    = 0xa00,
+		AUTOMIPMAP = 0x1000,
+		PAL8       = 0x2000,
+		PAL4       = 0x4000,
+		MIPMAP     = 0x8000
+	};
+};
+
+// TODO: link into texdict
 struct Texture : PluginBase<Texture>
 {
 	char name[32];
 	char mask[32];
 	uint32 filterAddressing;
+	Raster *raster;
 	int32 refCount;
 
 	Texture(void);

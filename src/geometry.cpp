@@ -49,6 +49,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	this->numMaterials = 0;
 	this->materialList = NULL;
 	this->meshHeader = NULL;
+	this->instData = NULL;
 	this->refCount = 1;
 
 	this->constructPlugins();
@@ -438,6 +439,7 @@ Texture::Texture(void)
 	memset(this->name, 0, 32);
 	memset(this->mask, 0, 32);
 	this->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
+	this->raster = NULL;
 	this->refCount = 1;
 	this->constructPlugins();
 }
@@ -462,6 +464,7 @@ Texture::streamRead(Stream *stream)
 	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
 	Texture *tex = new Texture;
 	tex->filterAddressing = stream->readU16();
+	// TODO: what is this? (mipmap? i think)
 	stream->seek(2);
 
 	assert(FindChunk(stream, ID_STRING, &length, NULL));
@@ -469,6 +472,10 @@ Texture::streamRead(Stream *stream)
 
 	assert(FindChunk(stream, ID_STRING, &length, NULL));
 	stream->read(tex->mask, length);
+
+	tex->raster = Raster::read(tex->name, tex->mask);
+	if(tex->raster == NULL)
+		printf("didn't find texture %s\n", tex->name);
 
 	tex->streamReadPlugins(stream);
 
@@ -483,17 +490,12 @@ Texture::streamWrite(Stream *stream)
 	WriteChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeU32(this->filterAddressing);
 
-	// TODO: 4 char string -> 8 bytes
 	// TODO: length can't be > 32
-	size = strlen(this->name)+3 & ~3;
-	if(size < 4)
-		size = 4;
+	size = strlen(this->name)+4 & ~3;
 	WriteChunkHeader(stream, ID_STRING, size);
 	stream->write(this->name, size);
 
-	size = strlen(this->mask)+3 & ~3;
-	if(size < 4)
-		size = 4;
+	size = strlen(this->mask)+4 & ~3;
 	WriteChunkHeader(stream, ID_STRING, size);
 	stream->write(this->mask, size);
 
@@ -508,11 +510,8 @@ Texture::streamGetSize(void)
 	int strsize;
 	size += 12 + 4;
 	size += 12 + 12;
-	// TODO: see above
-	strsize = strlen(this->name)+3 & ~3;
-	size += strsize < 4 ? 4 : strsize;
-	strsize = strlen(this->mask)+3 & ~3;
-	size += strsize < 4 ? 4 : strsize;
+	size += strlen(this->name)+4 & ~3;
+	size += strlen(this->mask)+4 & ~3;
 	size += 12 + this->streamGetPluginSize();
 	return size;
 }

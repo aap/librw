@@ -389,5 +389,87 @@ GetSizeNativeSkin(void *object, int32 offset)
 	return size;
 }
 
+// Raster
+
+int32 NativeRasterOffset;
+
+#ifdef RW_OPENGL
+struct GlRaster {
+	GLuint id;
+};
+
+static void*
+createNativeRaster(void *object, int32 offset, int32)
+{
+	GlRaster *raster = PLUGINOFFSET(GlRaster, object, offset);
+	raster->id = 0;
+	return object;
+}
+
+static void*
+destroyNativeRaster(void *object, int32 offset, int32)
+{
+	// TODO:
+	return object;
+}
+
+static void*
+copyNativeRaster(void *dst, void *, int32 offset, int32)
+{
+	GlRaster *raster = PLUGINOFFSET(GlRaster, dst, offset);
+	raster->id = 0;
+	return dst;
+}
+
+void
+RegisterNativeRaster(void)
+{
+	NativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
+	                                            0x12340001, 
+                                                    createNativeRaster,
+                                                    destroyNativeRaster,
+                                                    copyNativeRaster);
+}
+
+void
+Raster::upload(void)
+{
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+	if(this->palette){
+		printf("can't upload paletted raster\n");
+		return;
+	}
+	switch(this->format & 0xF00){
+	case C8888:
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexImage2D(GL_TEXTURE_2D, 0, 4, this->width, this->height,
+		             0, GL_RGBA, GL_UNSIGNED_BYTE, this->texels);
+		break;
+	default:
+		printf("unsupported raster format: %x\n", this->format);
+		break;
+	}
+	glBindTexture(GL_TEXTURE_2D, 0);
+	GlRaster *glr = PLUGINOFFSET(GlRaster, this, NativeRasterOffset);
+	glr->id = id;
+}
+
+void
+Raster::bind(int n)
+{
+	GlRaster *raster = PLUGINOFFSET(GlRaster, this, NativeRasterOffset);
+	if(raster->id == 0)
+		this->upload();
+	glActiveTexture(GL_TEXTURE0+n);
+	glBindTexture(GL_TEXTURE_2D, raster->id);
+	glActiveTexture(GL_TEXTURE0);
+}
+#endif
+
 }
 }

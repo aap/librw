@@ -21,7 +21,7 @@ namespace Rw {
 int32 HAnimOffset;
 
 static void*
-createHAnim(void *object, int32 offset, int32 size)
+createHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	hanim->id = -1;
@@ -30,7 +30,7 @@ createHAnim(void *object, int32 offset, int32 size)
 }
 
 static void*
-destroyHAnim(void *object, int32 offset, int32 size)
+destroyHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	if(hanim->hierarchy){
@@ -45,7 +45,7 @@ destroyHAnim(void *object, int32 offset, int32 size)
 }
 
 static void*
-copyHAnim(void *dst, void *src, int32 offset, int32 size)
+copyHAnim(void *dst, void *src, int32 offset, int32)
 {
 	HAnimData *dsthanim = PLUGINOFFSET(HAnimData, dst, offset);
 	HAnimData *srchanim = PLUGINOFFSET(HAnimData, src, offset);
@@ -56,7 +56,7 @@ copyHAnim(void *dst, void *src, int32 offset, int32 size)
 }
 
 static void
-readHAnim(Stream *stream, int32 len, void *object, int32 offset, int32)
+readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 cnst, numNodes;
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
@@ -94,7 +94,7 @@ readHAnim(Stream *stream, int32 len, void *object, int32 offset, int32)
 }
 
 static void
-writeHAnim(Stream *stream, int32 len, void *object, int32 offset, int32)
+writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	stream->writeI32(256);
@@ -587,7 +587,6 @@ static void
 readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 flag;
-	uint32 version;
 	stream->read(&flag, 4);
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)

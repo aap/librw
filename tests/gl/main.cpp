@@ -41,6 +41,15 @@ renderAtomic(Rw::Atomic *atomic)
 	uint64 offset = 0;
 	for(uint32 i = 0; i < meshHeader->numMeshes; i++){
 		Mesh *mesh = &meshHeader->mesh[i];
+		Texture *tex = mesh->material->texture;
+		if(tex){
+			Rw::Gl::Raster *raster = (Rw::Gl::Raster*)tex->raster;
+			if(raster)
+				raster->bind(0);
+			else
+				glBindTexture(GL_TEXTURE_2D, 0);
+		}else
+			glBindTexture(GL_TEXTURE_2D, 0);
 		glDrawElements(prim[meshHeader->flags], mesh->numIndices,
 		               GL_UNSIGNED_SHORT, (void*)offset);
 		offset += mesh->numIndices*2;
@@ -96,10 +105,11 @@ init(void)
 		"uniform mat4 viewMat;"
 		"uniform mat4 worldMat;"
 		"attribute vec3 in_vertex;"
-		"attribute vec3 in_texColor;"
+		"attribute vec2 in_texCoord;"
 		"attribute vec3 in_normal;"
 		"attribute vec4 in_color;"
 		"varying vec4 v_color;"
+		"varying vec2 v_texCoord;"
 		"vec3 lightdir = vec3(0.5, -0.5, -0.70710);"
 		"void main()"
 		"{"
@@ -107,13 +117,17 @@ init(void)
 		"	vec3 n = mat3(worldMat) * in_normal;"
 		"	float l = max(0.0, dot(n, -lightdir));"
 		"	v_color = in_color*l;"
+		"	v_texCoord = in_texCoord;"
 		"}\n"
 		"#endif\n"
 		"#ifdef FRAGMENT\n"
+		"uniform sampler2D u_texture0;"
 		"varying vec4 v_color;"
+		"varying vec2 v_texCoord;"
 		"void main()"
 		"{"
-		"	gl_FragColor = v_color;"
+		"	vec4 c0 = texture2D(u_texture0, v_texCoord/512.0f);"
+		"	gl_FragColor = v_color*c0;"
 		"}\n"
 		"#endif\n";
 	const char *srcarr[] = { "#define VERTEX", shadersrc };
@@ -153,6 +167,10 @@ init(void)
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
 	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
 
+//	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+//	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
+	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+	Rw::Gl::RegisterNativeRaster();
 	Rw::RegisterMaterialRightsPlugin();
 	Rw::RegisterMatFXPlugin();
 	Rw::RegisterAtomicRightsPlugin();
@@ -167,9 +185,6 @@ init(void)
 	Rw::RegisterMeshPlugin();
 
 	Rw::StreamFile in;
-//	in.open("player-vc-ogl.dff", "rb");
-//	in.open("player-iii.dff", "rb");
-//	in.open("admiral-ogl.dff", "rb");
 	in.open(filename, "rb");
 	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
 	clump = Rw::Clump::streamRead(&in);

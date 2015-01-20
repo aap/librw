@@ -58,9 +58,12 @@ main(int argc, char *argv[])
 	in.close();
 	delete[] data;
 
+	Rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
+
 //	Rw::Image *tga = Rw::readTGA("b.tga");
-//	assert(tga != NULL);
-//	Rw::writeTGA(tga, "out.tga");
+	Rw::Image *tga = Rw::readTGA("player.tga");
+	assert(tga != NULL);
+	Rw::writeTGA(tga, "out.tga");
 
 //	for(Rw::int32 i = 0; i < c->numAtomics; i++)
 //		Rw::Gl::Instance(c->atomicList[i]);

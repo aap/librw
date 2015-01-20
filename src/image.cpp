@@ -29,6 +29,9 @@ writeUInt8(uint8 tmp, ostream &rw)
         return sizeof(uint8);
 }
 
+//
+// Image
+//
 
 Image::Image(int32 width, int32 height, int32 depth)
 {
@@ -84,6 +87,71 @@ Image::setPalette(uint8 *palette)
 	this->flags |= 2;
 }
 
+static char *searchPaths = NULL;
+int numSearchPaths = 0;
+
+void
+Image::setSearchPath(const char *path)
+{
+	char *p, *end;
+	::free(searchPaths);
+	numSearchPaths = 0;
+	if(path)
+		searchPaths = p = strdup(path);
+	else{
+		searchPaths = NULL;
+		return;
+	}
+	while(p && *p){
+		end = strchr(p, ';');
+		if(end)
+			*end++ = '\0';
+		numSearchPaths++;
+		p = end;
+	}
+}
+
+void
+Image::printSearchPath(void)
+{
+	char *p = searchPaths;
+	for(int i = 0; i < numSearchPaths; i++){
+		printf("%s\n", p);
+		p += strlen(p) + 1;
+	}
+}
+
+char*
+Image::getFilename(const char *name)
+{
+	FILE *f;
+	char *s, *p = searchPaths;
+	int len = strlen(name)+1;
+	if(numSearchPaths == 0){
+		f = fopen(name, "r");
+		if(f){
+			fclose(f);
+			printf("found %s\n", name);
+			return strdup(name);
+		}
+		return NULL;
+	}else
+		for(int i = 0; i < numSearchPaths; i++){
+			s = (char*)malloc(strlen(p)+len);
+			strcpy(s, p);
+			strcat(s, name);
+			f = fopen(s, "r");
+			if(f){
+				fclose(f);
+				printf("found %s\n", name);
+				return s;
+			}
+			::free(s);
+			p += strlen(p) + 1;
+		}
+	return NULL;
+}
+
 //
 // TGA I/O
 //
@@ -106,13 +174,18 @@ struct __attribute__((__packed__)) TGAHeader
 //#pragma pack(push)
 
 Image*
-readTGA(const char *filename)
+readTGA(const char *afilename)
 {
 	TGAHeader header;
 	Image *image;
+	char *filename;
 	int depth = 0, palDepth = 0;
 	// TODO: open from image path
+	filename = Image::getFilename(afilename);
+	if(filename == NULL)
+		return NULL;
 	ifstream file(filename, ios::binary);
+	free(filename);
 	file.read((char*)&header, sizeof(header));
 
 	assert(header.imageType == 1 || header.imageType == 2);
@@ -223,6 +296,78 @@ writeTGA(Image *image, const char *filename)
 		pixels += image->stride;
 	}
 	file.close();
+}
+
+//
+// Raster
+//
+
+Raster::Raster(void)
+{
+	this->type = 0;
+	this->width = this->height = this->depth = this->stride = 0;
+	this->format = 0;
+	this->texels = this->palette = NULL;
+	this->constructPlugins();
+}
+
+Raster::~Raster(void)
+{
+	this->destructPlugins();
+	delete[] this->texels;
+	delete[] this->palette;
+}
+
+Raster*
+Raster::createFromImage(Image *image)
+{
+	Raster *raster = new Raster;
+	raster->type = 4;
+	raster->width = image->width;
+	raster->stride = image->stride;
+	raster->height = image->height;
+	raster->depth = image->depth;
+	raster->texels = raster->palette = NULL;
+	if(raster->depth == 32)
+		raster->format = Raster::C8888;
+	else if(raster->depth == 24)
+		raster->format = Raster::C888;
+	else if(raster->depth == 16)
+		raster->format = Raster::C1555;
+	else if(raster->depth == 8)
+		raster->format = Raster::PAL8 | Raster::C8888;
+	else if(raster->depth == 4)
+		raster->format = Raster::PAL4 | Raster::C8888;
+	else{
+		delete raster;
+		return NULL;
+	}
+	raster->texels = new uint8[raster->stride*raster->height];
+	memcpy(raster->texels, image->pixels, raster->stride*raster->height);
+	if(image->palette){
+		int size = raster->depth == 4 ? 16 : 256;
+		raster->palette = new uint8[size*4];
+		memcpy(raster->palette, image->palette, size*4);
+	}
+	return raster;
+}
+
+// TODO: do this properly, only an ugly hack right now
+Raster*
+Raster::read(const char *name, const char *mask)
+{
+	(void)mask;
+	char *n = (char*)malloc(strlen(name) + 5);
+	strcpy(n, name);
+	strcat(n, ".tga");
+	Image *img = readTGA(n);
+	free(n);
+	if(img){
+		Raster *raster = Raster::createFromImage(img);
+		delete img;
+		return raster;
+	}
+	return NULL;
 }
 
 }
