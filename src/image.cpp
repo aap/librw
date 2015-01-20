@@ -297,8 +297,10 @@ Image::getFilename(const char *name)
 // TGA I/O
 //
 
-//#pragma pack(push)
-//#pragma pack(1)
+#ifndef RW_PS2
+#pragma pack(push)
+#pragma pack(1)
+#endif
 struct __attribute__((__packed__)) TGAHeader
 {
 	int8  IDlen;
@@ -312,7 +314,9 @@ struct __attribute__((__packed__)) TGAHeader
 	uint8 depth;
 	uint8 descriptor;
 };
-//#pragma pack(push)
+#ifndef RW_PS2
+#pragma pack(push)
+#endif
 
 Image*
 readTGA(const char *afilename)

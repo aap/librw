@@ -6,13 +6,15 @@ RWDIR=$(HOME)/src/librw
 LDLIBS=-static -lglfw3 -lglew32 -lopengl32 -lgdi32
 CFLAGS=-g -I$(RWDIR) -Wall -Wextra -DGLEW_STATIC
 
-rwtest: $(OBJ) $(RWDIR)/librw.a
+rwtest: $(OBJ) $(RWDIR)/librw-opengl.a
 	$(CXX) $^ $(LDLIBS) -o $@
 
 $(BUILDDIR)/%.o: %.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/%.d: %.cpp
+	@mkdir -p $(@D)
 	$(CXX) -MM -MT '$(patsubst %.cpp,$(BUILDDIR)%.o,$<)' $(CFLAGS) $< > $@
 
 dep: $(DEP)

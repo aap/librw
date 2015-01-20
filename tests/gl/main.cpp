@@ -183,7 +183,9 @@ init(void)
 	Rw::CurrentTexDictionary = new Rw::TexDictionary;
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
-	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+	Rw::Image::setSearchPath(
+	"/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+	//"D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
 	Rw::Gl::RegisterNativeRaster();
 	Rw::RegisterMaterialRightsPlugin();
 	Rw::RegisterMatFXPlugin();
@@ -199,7 +201,8 @@ init(void)
 	Rw::RegisterMeshPlugin();
 
 	Rw::StreamFile in;
-	in.open(filename, "rb");
+	if(in.open(filename, "rb") == NULL)
+		printf("couldn't open file\n");
 	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
 	clump = Rw::Clump::streamRead(&in);
 	assert(clump);

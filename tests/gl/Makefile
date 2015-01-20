@@ -10,9 +10,11 @@ rwtest: $(OBJ) $(RWDIR)/librw-opengl.a /usr/local/lib/libglfw3.a
 	$(CXX) $^ $(LDLIBS) -o $@
 
 $(BUILDDIR)/%.o: %.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(BUILDDIR)/%.d: %.cpp
+	@mkdir -p $(@D)
 	$(CXX) -MM -MT '$(patsubst %.cpp,$(BUILDDIR)%.o,$<)' $(CFLAGS) $< > $@
 
 clean:
