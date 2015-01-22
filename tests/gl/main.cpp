@@ -32,6 +32,7 @@ renderAtomic(Rw::Atomic *atomic)
 	                   1, GL_FALSE, frm->ltm);
 
 	glVertexAttrib4f(3, 0.0f, 0.0f, 0.0f, 1.0f);
+	glVertexAttrib3f(2, 0.0f, 0.0f, 0.0f);
 	if(inst->vbo == 0 && inst->ibo == 0)
 		Gl::UploadGeo(geo);
 	glBindBuffer(GL_ARRAY_BUFFER, inst->vbo);
@@ -139,7 +140,7 @@ init(void)
 		"varying vec2 v_texCoord;"
 		"void main()"
 		"{"
-		"	vec4 c0 = texture2D(u_texture0, v_texCoord/512.0f);"
+		"	vec4 c0 = texture2D(u_texture0, v_texCoord/512.0);"
 		"	gl_FragColor = v_color*c0;"
 		"}\n"
 		"#endif\n";
@@ -184,7 +185,7 @@ init(void)
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 //	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 	Rw::Image::setSearchPath(
-	"/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+	"/home/aap/gamedata/ps2/gta3/MODELS/gta3_archive/txd_extracted/;//home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 	//"D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
 	Rw::Gl::RegisterNativeRaster();
 	Rw::RegisterMaterialRightsPlugin();

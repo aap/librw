@@ -268,10 +268,10 @@ Instance(Atomic *atomic)
 		uint8 *color = geo->colors;
 		float32 f[4];
 		for(int32 i = 0; i < geo->numVertices; i++){
-			f[0] = color[0];
-			f[1] = color[1];
-			f[2] = color[2];
-			f[3] = color[3];
+			f[0] = color[0]/255.0f;
+			f[1] = color[1]/255.0f;
+			f[2] = color[2]/255.0f;
+			f[3] = color[3]/255.0f;
 			packattrib(p, f, a);
 			color += 4;
 			p += a->stride;
