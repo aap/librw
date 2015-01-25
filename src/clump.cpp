@@ -11,7 +11,7 @@
 
 using namespace std;
 
-namespace Rw {
+namespace rw {
 
 Frame::Frame(void)
 {
@@ -196,7 +196,7 @@ Clump::streamRead(Stream *stream)
 	uint32 length, version;
 	int32 buf[3];
 	Clump *clump;
-	assert(FindChunk(stream, ID_STRUCT, &length, &version));
+	assert(findChunk(stream, ID_STRUCT, &length, &version));
 	clump = new Clump;
 	stream->read(buf, length);
 	clump->numAtomics = buf[0];
@@ -215,14 +215,14 @@ Clump::streamRead(Stream *stream)
 
 	// Geometry list
 	int32 numGeometries = 0;
-	assert(FindChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	numGeometries = stream->readI32();
 	Geometry **geometryList = 0;
 	if(numGeometries)
 		geometryList = new Geometry*[numGeometries];
 	for(int32 i = 0; i < numGeometries; i++){
-		assert(FindChunk(stream, ID_GEOMETRY, NULL, NULL));
+		assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
 		geometryList[i] = Geometry::streamRead(stream);
 	}
 
@@ -230,7 +230,7 @@ Clump::streamRead(Stream *stream)
 	if(clump->numAtomics)
 		clump->atomicList = new Atomic*[clump->numAtomics];
 	for(int32 i = 0; i < clump->numAtomics; i++){
-		assert(FindChunk(stream, ID_ATOMIC, NULL, NULL));
+		assert(findChunk(stream, ID_ATOMIC, NULL, NULL));
 		clump->atomicList[i] = Atomic::streamReadClump(stream,
 			frameList, geometryList);
 		clump->atomicList[i]->clump = clump;
@@ -241,9 +241,9 @@ Clump::streamRead(Stream *stream)
 		clump->lightList = new Light*[clump->numLights];
 	for(int32 i = 0; i < clump->numLights; i++){
 		int32 frm;
-		assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 		frm = stream->readI32();
-		assert(FindChunk(stream, ID_LIGHT, NULL, NULL));
+		assert(findChunk(stream, ID_LIGHT, NULL, NULL));
 		clump->lightList[i] = Light::streamRead(stream);
 		clump->lightList[i]->frame = frameList[frm];
 		clump->lightList[i]->clump = clump;
@@ -259,10 +259,10 @@ bool
 Clump::streamWrite(Stream *stream)
 {
 	int size = this->streamGetSize();
-	WriteChunkHeader(stream, ID_CLUMP, size);
+	writeChunkHeader(stream, ID_CLUMP, size);
 	int buf[3] = { this->numAtomics, this->numLights, this->numCameras };
-	size = Version >= 0x33000 ? 12 : 4;
-	WriteChunkHeader(stream, ID_STRUCT, size);
+	size = version >= 0x33000 ? 12 : 4;
+	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
 
 	int32 numFrames = ((Frame*)this->parent)->count();
@@ -274,8 +274,8 @@ Clump::streamWrite(Stream *stream)
 	size = 12+4;
 	for(int32 i = 0; i < this->numAtomics; i++)
 		size += 12 + this->atomicList[i]->geometry->streamGetSize();
-	WriteChunkHeader(stream, ID_GEOMETRYLIST, size);
-	WriteChunkHeader(stream, ID_STRUCT, 4);
+	writeChunkHeader(stream, ID_GEOMETRYLIST, size);
+	writeChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeI32(this->numAtomics);	// same as numGeometries
 	for(int32 i = 0; i < this->numAtomics; i++)
 		this->atomicList[i]->geometry->streamWrite(stream);
@@ -288,7 +288,7 @@ Clump::streamWrite(Stream *stream)
 		int frm = findPointer((void*)l->frame, (void**)flist,numFrames);
 		if(frm < 0)
 			return false;
-		WriteChunkHeader(stream, ID_STRUCT, 4);
+		writeChunkHeader(stream, ID_STRUCT, 4);
 		stream->writeI32(frm);
 		l->streamWrite(stream);
 	}
@@ -313,7 +313,7 @@ Clump::streamGetSize(void)
 	uint32 size = 0;
 	size += 12;	// Struct
 	size += 4;	// numAtomics
-	if(Version >= 0x33000)
+	if(version >= 0x33000)
 		size += 8;	// numLights, numCameras
 
 	// frame list
@@ -344,8 +344,8 @@ Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 {
 	FrameStreamData buf;
 	int32 numFrames = 0;
-	assert(FindChunk(stream, ID_FRAMELIST, NULL, NULL));
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_FRAMELIST, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	numFrames = stream->readI32();
 	Frame **frameList = new Frame*[numFrames];
 	for(int32 i = 0; i < numFrames; i++){
@@ -389,8 +389,8 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 	for(int32 i = 0; i < numFrames; i++)
 		size += 12 + frameList[i]->streamGetPluginSize();
 
-	WriteChunkHeader(stream, ID_FRAMELIST, size);
-	WriteChunkHeader(stream, ID_STRUCT, structsize);
+	writeChunkHeader(stream, ID_FRAMELIST, size);
+	writeChunkHeader(stream, ID_STRUCT, structsize);
 	stream->writeU32(numFrames);
 	for(int32 i = 0; i < numFrames; i++){
 		Frame *f = frameList[i];
@@ -445,7 +445,7 @@ Atomic::streamReadClump(Stream *stream,
                         Frame **frameList, Geometry **geometryList)
 {
 	int32 buf[4];
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	stream->read(buf, 16);
 	Atomic *atomic = new Atomic;
 	atomic->frame = frameList[buf[0]];
@@ -465,8 +465,8 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 	Clump *c = this->clump;
 	if(c == NULL)
 		return false;
-	WriteChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
-	WriteChunkHeader(stream, ID_STRUCT, 16);
+	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, 16);
 	buf[0] = findPointer((void*)this->frame, (void**)frameList, numFrames);
 
 // TODO
@@ -515,7 +515,7 @@ getSizeAtomicRights(void *object, int32, int32)
 }
 
 void
-RegisterAtomicRightsPlugin(void)
+registerAtomicRightsPlugin(void)
 {
 	Atomic::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
 	Atomic::registerPluginStream(ID_RIGHTTORENDER,
@@ -559,7 +559,7 @@ Light*
 Light::streamRead(Stream *stream)
 {
 	LightChunkData buf;
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	Light *light = new Light;
 	stream->read(&buf, sizeof(LightChunkData));
 	light->radius = buf.radius;
@@ -579,8 +579,8 @@ bool
 Light::streamWrite(Stream *stream)
 {
 	LightChunkData buf;
-	WriteChunkHeader(stream, ID_LIGHT, this->streamGetSize());
-	WriteChunkHeader(stream, ID_STRUCT, sizeof(LightChunkData));
+	writeChunkHeader(stream, ID_LIGHT, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, sizeof(LightChunkData));
 	buf.radius = this->radius;
 	buf.red   = this->color[0];
 	buf.green = this->color[1];

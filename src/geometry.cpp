@@ -11,7 +11,7 @@
 
 using namespace std;
 
-namespace Rw {
+namespace rw {
 
 Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 {
@@ -103,7 +103,7 @@ Geometry::streamRead(Stream *stream)
 {
 	uint32 version;
 	GeoStreamData buf;
-	assert(FindChunk(stream, ID_STRUCT, NULL, &version));
+	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
 	Geometry *geo = new Geometry(buf.numVertices,
 	                             buf.numTriangles, buf.flags);
@@ -132,13 +132,13 @@ Geometry::streamRead(Stream *stream)
 			stream->read(m->normals, 3*geo->numVertices*4);
 	}
 
-	assert(FindChunk(stream, ID_MATLIST, NULL, NULL));
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_MATLIST, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	geo->numMaterials = stream->readI32();
 	geo->materialList = new Material*[geo->numMaterials];
 	stream->seek(geo->numMaterials*4);	// unused (-1)
 	for(int32 i = 0; i < geo->numMaterials; i++){
-		assert(FindChunk(stream, ID_MATERIAL, NULL, NULL));
+		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
 		geo->materialList[i] = Material::streamRead(stream);
 	}
 
@@ -152,7 +152,7 @@ geoStructSize(Geometry *geo)
 {
 	uint32 size = 0;
 	size += sizeof(GeoStreamData);
-	if(Version < 0x34000)
+	if(version < 0x34000)
 		size += 12;	// surface properties
 	if(!(geo->geoflags & Geometry::NATIVE)){
 		if(geo->geoflags&geo->PRELIT)
@@ -181,15 +181,15 @@ Geometry::streamWrite(Stream *stream)
 	uint32 size;
 	static float32 fbuf[3] = { 1.0f, 1.0f, 1.0f };
 
-	WriteChunkHeader(stream, ID_GEOMETRY, this->streamGetSize());
-	WriteChunkHeader(stream, ID_STRUCT, geoStructSize(this));
+	writeChunkHeader(stream, ID_GEOMETRY, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, geoStructSize(this));
 
 	buf.flags = this->geoflags | this->numTexCoordSets << 16;
 	buf.numTriangles = this->numTriangles;
 	buf.numVertices = this->numVertices;
 	buf.numMorphTargets = this->numMorphTargets;
 	stream->write(&buf, sizeof(buf));
-	if(Version < 0x34000)
+	if(version < 0x34000)
 		stream->write(fbuf, sizeof(fbuf));
 
 	if(!(this->geoflags & NATIVE)){
@@ -222,8 +222,8 @@ Geometry::streamWrite(Stream *stream)
 	size = 12 + 4;
 	for(int32 i = 0; i < this->numMaterials; i++)
 		size += 4 + 12 + this->materialList[i]->streamGetSize();
-	WriteChunkHeader(stream, ID_MATLIST, size);
-	WriteChunkHeader(stream, ID_STRUCT, 4 + this->numMaterials*4);
+	writeChunkHeader(stream, ID_MATLIST, size);
+	writeChunkHeader(stream, ID_STRUCT, 4 + this->numMaterials*4);
 	stream->writeI32(this->numMaterials);
 	for(int32 i = 0; i < this->numMaterials; i++)
 		stream->writeI32(-1);
@@ -330,7 +330,7 @@ Material::streamRead(Stream *stream)
 {
 	uint32 length;
 	MatStreamData buf;
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	stream->read(&buf, sizeof(buf));
 	Material *mat = new Material;
 	mat->color[0] = buf.color[0];
@@ -342,7 +342,7 @@ Material::streamRead(Stream *stream)
 	mat->surfaceProps[2] = buf.surfaceProps[2];
 
 	if(buf.textured){
-		assert(FindChunk(stream, ID_TEXTURE, &length, NULL));
+		assert(findChunk(stream, ID_TEXTURE, &length, NULL));
 		mat->texture = Texture::streamRead(stream);
 	}
 
@@ -358,8 +358,8 @@ Material::streamWrite(Stream *stream)
 {
 	MatStreamData buf;
 
-	WriteChunkHeader(stream, ID_MATERIAL, this->streamGetSize());
-	WriteChunkHeader(stream, ID_STRUCT, sizeof(MatStreamData));
+	writeChunkHeader(stream, ID_MATERIAL, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, sizeof(MatStreamData));
 
 	buf.color[0] = this->color[0];
 	buf.color[1] = this->color[1];
@@ -420,7 +420,7 @@ getSizeMaterialRights(void *object, int32, int32)
 }
 
 void
-RegisterMaterialRightsPlugin(void)
+registerMaterialRightsPlugin(void)
 {
 	Material::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
 	Material::registerPluginStream(ID_RIGHTTORENDER,

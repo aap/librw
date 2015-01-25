@@ -1,5 +1,5 @@
-namespace Rw {
-namespace Ps2 {
+namespace rw {
+namespace ps2 {
 
 struct InstanceData
 {
@@ -13,17 +13,17 @@ struct InstanceData
 	Material *material;
 };
 
-struct InstanceDataHeader : Rw::InstanceDataHeader
+struct InstanceDataHeader : rw::InstanceDataHeader
 {
 	uint32 numMeshes;
 	InstanceData *instanceMeshes;
 };
 
-void *DestroyNativeData(void *object, int32, int32);
-void ReadNativeData(Stream *stream, int32 len, void *object, int32, int32);
-void WriteNativeData(Stream *stream, int32 len, void *object, int32, int32);
-int32 GetSizeNativeData(void *object, int32, int32);
-void RegisterNativeDataPlugin(void);
+void *destroyNativeData(void *object, int32, int32);
+void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+int32 getSizeNativeData(void *object, int32, int32);
+void registerNativeDataPlugin(void);
 
 void walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size));
 void sizedebug(InstanceData *inst);
@@ -34,9 +34,9 @@ void unfixDmaOffsets(InstanceData *inst);
 
 // Skin plugin
 
-void ReadNativeSkin(Stream *stream, int32, void *object, int32 offset);
-void WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
-int32 GetSizeNativeSkin(void *object, int32 offset);
+void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
+void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
+int32 getSizeNativeSkin(void *object, int32 offset);
 
 // ADC plugin
 
@@ -48,7 +48,7 @@ struct ADCData
 	uint32 adcFormatted;
 };
 
-void RegisterADCPlugin(void);
+void registerADCPlugin(void);
 
 }
 }

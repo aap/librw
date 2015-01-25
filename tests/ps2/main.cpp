@@ -1,6 +1,13 @@
+//#include <cstdio>
+//#include <cstring>
+//#define _USE_MATH_DEFINES
+//#include <cmath>
+//#include <cassert>
 #include <fstream>
 
-#include <stdio.h>
+#include <rw.h>
+#include <src/gtaplg.h>
+
 #include "ps2.h"
 #include "dma.h"
 #include "gif.h"
@@ -8,9 +15,6 @@
 
 #include "math.h"
 #include "mesh.h"
-
-#include <rw.h>
-#include <src/gtaplg.h>
 
 using namespace std;
 
@@ -26,21 +30,21 @@ extern uint32 geometryCall[];
 extern uint32 defaultPipe[];
 extern uint32 skinPipe[];
 
-Rw::Clump *clump;
+rw::Clump *clump;
 
 void
-drawAtomic(Rw::Atomic *atomic)
+drawAtomic(rw::Atomic *atomic)
 {
-	Rw::Geometry *geo = atomic->geometry;
+	rw::Geometry *geo = atomic->geometry;
 	assert(geo->instData != NULL);
-	Rw::Ps2::InstanceDataHeader *instData =
-	  (Rw::Ps2::InstanceDataHeader*)geo->instData;
+	rw::ps2::InstanceDataHeader *instData =
+	  (rw::ps2::InstanceDataHeader*)geo->instData;
 
 	atomic->frame->updateLTM();
 	matMult(vuMat, atomic->frame->ltm);
 	for(int i = 0; i < instData->numMeshes; i++){
 		if(instData->instanceMeshes[i].arePointersFixed == 0)
-			Rw::Ps2::fixDmaOffsets(&instData->instanceMeshes[i]);
+			rw::ps2::fixDmaOffsets(&instData->instanceMeshes[i]);
 		geometryCall[1] = (uint32)instData->instanceMeshes[i].data;
 
 		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC,0,2);
@@ -49,9 +53,9 @@ drawAtomic(Rw::Atomic *atomic)
 		vuMatcolor[1] = 1.0f;
 		vuMatcolor[2] = 1.0f;
 		vuMatcolor[3] = 0.5f;
-		Rw::Skin *skin =
-		  *PLUGINOFFSET(Rw::Skin*, geo, Rw::SkinGlobals.offset);
-		if(Rw::SkinGlobals.offset && skin){
+		rw::Skin *skin =
+		  *PLUGINOFFSET(rw::Skin*, geo, rw::skinGlobals.offset);
+		if(rw::skinGlobals.offset && skin){
 			geometryCall[3] = 0x020000DC;
 			mpgCall[1] = (uint32)skinPipe;
 		}else{
@@ -90,7 +94,7 @@ draw(void)
 
 	for(int i = 0; i < clump->numAtomics; i++){
 		char *name = PLUGINOFFSET(char, clump->atomicList[i]->frame,
-		                          Rw::NodeNameOffset);
+		                          gta::nodeNameOffset);
 		if(strstr(name, "_dam") || strstr(name, "_vlo"))
 			continue;
 		matCopy(m, vuMat);
@@ -119,19 +123,19 @@ main()
 	gsInit();
 	printf("hallo\n");
 
-	Rw::RegisterMaterialRightsPlugin();
-	Rw::RegisterMatFXPlugin();
-	Rw::RegisterAtomicRightsPlugin();
-	Rw::RegisterNodeNamePlugin();
-	Rw::RegisterBreakableModelPlugin();
-	Rw::RegisterExtraVertColorPlugin();
-	Rw::Ps2::RegisterADCPlugin();
-	Rw::RegisterSkinPlugin();
-	Rw::RegisterNativeDataPlugin();
-//      Rw::Ps2::RegisterNativeDataPlugin();
-	Rw::RegisterMeshPlugin();
+	rw::registerMaterialRightsPlugin();
+	rw::registerMatFXPlugin();
+	rw::registerAtomicRightsPlugin();
+	gta::registerNodeNamePlugin();
+	gta::registerBreakableModelPlugin();
+	gta::registerExtraVertColorPlugin();
+	rw::ps2::registerADCPlugin();
+	rw::registerSkinPlugin();
+	rw::registerNativeDataPlugin();
+//      rw::ps2::registerNativeDataPlugin();
+	rw::registerMeshPlugin();
 
-//	Rw::StreamFile in;
+//	rw::StreamFile in;
 //	in.open("host:player-vc-ps2.dff", "rb");
 
 //	FILE *cf = fopen("host:player-vc-ps2.dff", "rb");
@@ -139,25 +143,25 @@ main()
 //	FILE *cf = fopen("host:admiral-ps2.dff", "rb");
 	assert(cf != NULL);
 	fseek(cf, 0, SEEK_END);
-	Rw::uint32 len = ftell(cf);
+	rw::uint32 len = ftell(cf);
 	fseek(cf, 0, SEEK_SET);
-	Rw::uint8 *data = new Rw::uint8[len];
+	rw::uint8 *data = new rw::uint8[len];
 	fread(data, len, 1, cf);
 	fclose(cf);
-	Rw::StreamMemory in;
+	rw::StreamMemory in;
 	in.open(data, len);
 
 	printf("opened file\n");
-	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
+	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
 	printf("found chunk\n");
-	clump = Rw::Clump::streamRead(&in);
+	clump = rw::Clump::streamRead(&in);
 	printf("read file\n");
 	in.close();
 	printf("closed file\n");
 	delete[] data;
 
-	data = new Rw::uint8[256*1024];
-	Rw::StreamMemory out;
+	data = new rw::uint8[256*1024];
+	rw::StreamMemory out;
 	out.open(data, 0, 256*1024);
 	clump->streamWrite(&out);
 //	cf = fopen("host:out-ps2.dff", "wb");
@@ -167,7 +171,7 @@ main()
 	out.close();
 	delete[] data;
 
-//	Rw::StreamFile out;
+//	rw::StreamFile out;
 //	out.open("host:out-ps2.dff", "wb");
 //	c->streamWrite(&out);
 //	out.close();
@@ -178,9 +182,9 @@ main()
 	vuOffset[1] = 2048.0f;
 
 	for(int i = 0; i < clump->numAtomics; i++){
-		Rw::Atomic *a = clump->atomicList[i];
+		rw::Atomic *a = clump->atomicList[i];
 		char *name = 
-		  PLUGINOFFSET(char, a->frame, Rw::NodeNameOffset);
+		  PLUGINOFFSET(char, a->frame, gta::nodeNameOffset);
 		printf("%s\n", name);
 	}
 

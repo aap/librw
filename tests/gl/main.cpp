@@ -9,21 +9,21 @@ Camera *camera;
 GLint program;
 GLuint vbo;
 
-Rw::Clump *clump;
+rw::Clump *clump;
 
 char *filename;
 
 void
-renderAtomic(Rw::Atomic *atomic)
+renderAtomic(rw::Atomic *atomic)
 {
-	using namespace Rw;
+	using namespace rw;
 	static GLenum prim[] = {
 		GL_TRIANGLES, GL_TRIANGLE_STRIP
 	};
 	Geometry *geo = atomic->geometry;
 	if(!(geo->geoflags & Geometry::NATIVE))
-		Gl::Instance(atomic);
-	Gl::InstanceDataHeader *inst = (Gl::InstanceDataHeader*)geo->instData;
+		gl::instance(atomic);
+	gl::InstanceDataHeader *inst = (gl::InstanceDataHeader*)geo->instData;
 	MeshHeader *meshHeader = geo->meshHeader;
 
 	Frame *frm = atomic->frame;
@@ -34,10 +34,10 @@ renderAtomic(Rw::Atomic *atomic)
 	glVertexAttrib4f(3, 0.0f, 0.0f, 0.0f, 1.0f);
 	glVertexAttrib3f(2, 0.0f, 0.0f, 0.0f);
 	if(inst->vbo == 0 && inst->ibo == 0)
-		Gl::UploadGeo(geo);
+		gl::uploadGeo(geo);
 	glBindBuffer(GL_ARRAY_BUFFER, inst->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, inst->ibo);
-	Gl::SetAttribPointers(inst);
+	gl::setAttribPointers(inst);
 
 	uint64 offset = 0;
 	for(uint32 i = 0; i < meshHeader->numMeshes; i++){
@@ -50,7 +50,7 @@ renderAtomic(Rw::Atomic *atomic)
 		color[3] = col[3] / 255.0f;
 		glUniform4fv(glGetUniformLocation(program, "matColor"),
 			     1, color);
-		Rw::Gl::Texture *tex =(Rw::Gl::Texture*)mesh->material->texture;
+		rw::gl::Texture *tex =(rw::gl::Texture*)mesh->material->texture;
 		if(tex)
 			tex->bind(0);
 		else
@@ -92,9 +92,9 @@ render(void)
 	glDisableVertexAttribArray(0);
 	glDisableVertexAttribArray(3);
 
-	for(Rw::uint32 i = 0; i < clump->numAtomics; i++){
+	for(rw::uint32 i = 0; i < clump->numAtomics; i++){
 		char *name = PLUGINOFFSET(char, clump->atomicList[i]->frame,
-		                          Rw::NodeNameOffset);
+		                          gta::nodeNameOffset);
 		if(strstr(name, "_dam") || strstr(name, "_vlo"))
 			continue;
 		renderAtomic(clump->atomicList[i]);
@@ -145,12 +145,12 @@ init(void)
 		"}\n"
 		"#endif\n";
 	const char *srcarr[] = { "#define VERTEX", shadersrc };
-	GLint vertshader = gl::compileShader(srcarr, 2, GL_VERTEX_SHADER);
+	GLint vertshader = rw::gl::compileShader(srcarr, 2, GL_VERTEX_SHADER);
 	assert(vertshader != 0);
 	srcarr[0] = "#define FRAGMENT";
-	GLint fragshader = gl::compileShader(srcarr, 2, GL_FRAGMENT_SHADER);
+	GLint fragshader = rw::gl::compileShader(srcarr, 2, GL_FRAGMENT_SHADER);
 	assert(fragshader != 0);
-	program = gl::linkProgram(vertshader, fragshader);
+	program = rw::gl::linkProgram(vertshader, fragshader);
 	assert(program != 0);
 
 	GLfloat vertarray[] = {
@@ -181,31 +181,31 @@ init(void)
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
 	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
 
-	Rw::CurrentTexDictionary = new Rw::TexDictionary;
-//	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
-//	Rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
-	Rw::Image::setSearchPath(
+	rw::currentTexDictionary = new rw::TexDictionary;
+//	rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
+//	rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
+	rw::Image::setSearchPath(
 	"/home/aap/gamedata/ps2/gta3/MODELS/gta3_archive/txd_extracted/;//home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 	//"D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
-	Rw::Gl::RegisterNativeRaster();
-	Rw::RegisterMaterialRightsPlugin();
-	Rw::RegisterMatFXPlugin();
-	Rw::RegisterAtomicRightsPlugin();
-	Rw::RegisterHAnimPlugin();
-	Rw::RegisterNodeNamePlugin();
-	Rw::RegisterBreakableModelPlugin();
-	Rw::RegisterExtraVertColorPlugin();
-	Rw::Ps2::RegisterADCPlugin();
-	Rw::RegisterSkinPlugin();
-	Rw::RegisterNativeDataPlugin();
-//      Rw::Ps2::RegisterNativeDataPlugin();
-	Rw::RegisterMeshPlugin();
+	rw::gl::registerNativeRaster();
+	rw::registerMaterialRightsPlugin();
+	rw::registerMatFXPlugin();
+	rw::registerAtomicRightsPlugin();
+	rw::registerHAnimPlugin();
+	gta::registerNodeNamePlugin();
+	gta::registerBreakableModelPlugin();
+	gta::registerExtraVertColorPlugin();
+	rw::ps2::registerADCPlugin();
+	rw::registerSkinPlugin();
+	rw::registerNativeDataPlugin();
+//      rw::ps2::registerNativeDataPlugin();
+	rw::registerMeshPlugin();
 
-	Rw::StreamFile in;
+	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL)
 		printf("couldn't open file\n");
-	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
-	clump = Rw::Clump::streamRead(&in);
+	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
+	clump = rw::Clump::streamRead(&in);
 	assert(clump);
 	in.close();
 }

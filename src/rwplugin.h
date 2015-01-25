@@ -1,4 +1,4 @@
-namespace Rw {
+namespace rw {
 
 #define PLUGINOFFSET(type, base, offset) \
 	((type*)((char*)(base) + (offset)))
@@ -85,11 +85,11 @@ template <typename T> void
 PluginBase<T>::streamReadPlugins(Stream *stream)
 {
 	int32 length;
-	Rw::ChunkHeaderInfo header;
-	if(!Rw::FindChunk(stream, Rw::ID_EXTENSION, (uint32*)&length, NULL))
+	ChunkHeaderInfo header;
+	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, NULL))
 		return;
 	while(length > 0){
-		Rw::ReadChunkHeaderInfo(stream, &header);
+		readChunkHeaderInfo(stream, &header);
 		length -= 12;
 		for(Plugin *p = this->s_plugins; p; p = p->next)
 			if(p->id == header.type){
@@ -107,12 +107,12 @@ template <typename T> void
 PluginBase<T>::streamWritePlugins(Stream *stream)
 {
 	int size = this->streamGetPluginSize();
-	Rw::WriteChunkHeader(stream, Rw::ID_EXTENSION, size);
+	writeChunkHeader(stream, ID_EXTENSION, size);
 	for(Plugin *p = this->s_plugins; p; p = p->next){
 		if(p->getSize == NULL ||
 		   (size = p->getSize(this, p->offset, p->size)) < 0)
 			continue;
-		Rw::WriteChunkHeader(stream, p->id, size);
+		writeChunkHeader(stream, p->id, size);
 		p->write(stream, size, this, p->offset, p->size);
 	}
 }

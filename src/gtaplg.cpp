@@ -2,9 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-
-//#include <iostream>
-//#include <fstream>
 #include <new>
 
 #include "rwbase.h"
@@ -14,7 +11,7 @@
 
 using namespace std;
 
-namespace Rw {
+namespace gta {
 
 //
 // Frame
@@ -22,7 +19,7 @@ namespace Rw {
 
 // Node Name
 
-int32 NodeNameOffset;
+int32 nodeNameOffset;
 
 static void*
 createNodeName(void *object, int32 offset, int32)
@@ -72,9 +69,9 @@ getSizeNodeName(void *object, int32 offset, int32)
 
 
 void
-RegisterNodeNamePlugin(void)
+registerNodeNamePlugin(void)
 {
-	NodeNameOffset = Frame::registerPlugin(24, ID_NODENAME,
+	nodeNameOffset = Frame::registerPlugin(24, ID_NODENAME,
 	                                       createNodeName,
 	                                       destroyNodeName,
 	                                       copyNodeName);
@@ -90,7 +87,7 @@ RegisterNodeNamePlugin(void)
 
 // Breakable Model
 
-int32 BreakableOffset;
+int32 breakableOffset;
 
 static void*
 createBreakableModel(void *object, int32 offset, int32)
@@ -178,9 +175,9 @@ getSizeBreakableModel(void *object, int32 offset, int32)
 }
 
 void
-RegisterBreakableModelPlugin(void)
+registerBreakableModelPlugin(void)
 {
-	BreakableOffset = Geometry::registerPlugin(sizeof(Breakable*),
+	breakableOffset = Geometry::registerPlugin(sizeof(Breakable*),
 	                                           ID_BREAKABLE,
 	                                           createBreakableModel,
 	                                           destroyBreakableModel, NULL);
@@ -192,7 +189,7 @@ RegisterBreakableModelPlugin(void)
 
 // Extra colors
 
-int32 ExtraVertColorOffset;
+int32 extraVertColorOffset;
 
 static void*
 createExtraVertColors(void *object, int32 offset, int32)
@@ -258,9 +255,9 @@ getSizeExtraVertColors(void *object, int32 offset, int32)
 }
 
 void
-RegisterExtraVertColorPlugin(void)
+registerExtraVertColorPlugin(void)
 {
-	ExtraVertColorOffset = Geometry::registerPlugin(sizeof(ExtraVertColors),
+	extraVertColorOffset = Geometry::registerPlugin(sizeof(ExtraVertColors),
 	                                                ID_EXTRAVERTCOLORS,
 	                                                createExtraVertColors,
 	                                                destroyExtraVertColors,
@@ -273,7 +270,7 @@ RegisterExtraVertColorPlugin(void)
 
 // Environment mat
 
-int32 EnvMatOffset;
+int32 envMatOffset;
 
 static void*
 createEnvMat(void *object, int32 offset, int32)
@@ -353,7 +350,7 @@ getSizeEnvMat(void *object, int32 offset, int32)
 
 // Specular mat
 
-int32 SpecMatOffset;
+int32 specMatOffset;
 
 static void*
 createSpecMat(void *object, int32 offset, int32)
@@ -422,16 +419,16 @@ getSizeSpecMat(void *object, int32 offset, int32)
 }
 
 void
-RegisterEnvSpecPlugin(void)
+registerEnvSpecPlugin(void)
 {
-	SpecMatOffset = Material::registerPlugin(sizeof(SpecMat*), ID_SPECMAT,
+	specMatOffset = Material::registerPlugin(sizeof(SpecMat*), ID_SPECMAT,
 	                                         createSpecMat,
                                                  destroySpecMat,
                                                  copySpecMat);
 	Material::registerPluginStream(ID_SPECMAT, readSpecMat,
                                                    writeSpecMat,
                                                    getSizeSpecMat);
-	EnvMatOffset = Material::registerPlugin(sizeof(EnvMat*), ID_ENVMAT,
+	envMatOffset = Material::registerPlugin(sizeof(EnvMat*), ID_ENVMAT,
 	                                        createEnvMat,
                                                 destroyEnvMat,
                                                 copyEnvMat);

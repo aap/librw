@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-
 #include <new>
 
 #include "rw.h"
@@ -13,66 +12,66 @@ using namespace std;
 int
 main(int argc, char *argv[])
 {
-//	Rw::Version = 0x31000;
-//	Rw::Build = 0;
+//	rw::version = 0x31000;
+//	rw::build = 0;
 
-//	Rw::Version = 0x33002;
+//	rw::version = 0x33002;
 
-	Rw::RegisterEnvSpecPlugin();
-	Rw::RegisterMatFXPlugin();
-	Rw::RegisterMaterialRightsPlugin();
-	Rw::RegisterAtomicRightsPlugin();
-	Rw::RegisterHAnimPlugin();
-	Rw::RegisterNodeNamePlugin();
-	Rw::RegisterBreakableModelPlugin();
-	Rw::RegisterExtraVertColorPlugin();
-	Rw::Ps2::RegisterADCPlugin();
-	Rw::RegisterSkinPlugin();
-	Rw::RegisterNativeDataPlugin();
-//	Rw::Ps2::RegisterNativeDataPlugin();
-	Rw::RegisterMeshPlugin();
+	gta::registerEnvSpecPlugin();
+	rw::registerMatFXPlugin();
+	rw::registerMaterialRightsPlugin();
+	rw::registerAtomicRightsPlugin();
+	rw::registerHAnimPlugin();
+	gta::registerNodeNamePlugin();
+	gta::registerBreakableModelPlugin();
+	gta::registerExtraVertColorPlugin();
+	rw::ps2::registerADCPlugin();
+	rw::registerSkinPlugin();
+	rw::registerNativeDataPlugin();
+//	rw::ps2::registerNativeDataPlugin();
+	rw::registerMeshPlugin();
 
-	Rw::Clump *c;
+	rw::Clump *c;
 
 //	ifstream in(argv[1], ios::binary);
 
-//	Rw::StreamFile in;
+//	rw::StreamFile in;
 //	in.open(argv[1], "rb");
 
 	FILE *cf = fopen(argv[1], "rb");
 	assert(cf != NULL);
 	fseek(cf, 0, SEEK_END);
-	Rw::uint32 len = ftell(cf);
+	rw::uint32 len = ftell(cf);
 	fseek(cf, 0, SEEK_SET);
-	Rw::uint8 *data = new Rw::uint8[len];
+	rw::uint8 *data = new rw::uint8[len];
 	fread(data, len, 1, cf);
 	fclose(cf);
-	Rw::StreamMemory in;
+	rw::StreamMemory in;
 	in.open(data, len);
 
-	Rw::FindChunk(&in, Rw::ID_CLUMP, NULL, NULL);
-	Rw::DebugFile = argv[1];
-	c = Rw::Clump::streamRead(&in);
+	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
+	rw::debugFile = argv[1];
+	c = rw::Clump::streamRead(&in);
 	assert(c != NULL);
 
 	in.close();
 	delete[] data;
 
-	Rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
+	rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 
-//	Rw::Image *tga = Rw::readTGA("b.tga");
-	Rw::Image *tga = Rw::readTGA("player.tga");
+//	rw::Image *tga = rw::readTGA("b.tga");
+	rw::Image *tga = rw::readTGA("player.tga");
 	assert(tga != NULL);
-	Rw::writeTGA(tga, "out.tga");
+	rw::writeTGA(tga, "out.tga");
 
-//	for(Rw::int32 i = 0; i < c->numAtomics; i++)
-//		Rw::Gl::Instance(c->atomicList[i]);
+//	for(rw::int32 i = 0; i < c->numAtomics; i++)
+//		rw::Gl::Instance(c->atomicList[i]);
 
 //	ofstream out(argv[2], ios::binary);
-//	Rw::StreamFile out;
+//	rw::StreamFile out;
 //	out.open(argv[2], "wb");
-	data = new Rw::uint8[256*1024];
-	Rw::StreamMemory out;
+	data = new rw::uint8[256*1024];
+	rw::StreamMemory out;
 	out.open(data, 0, 256*1024);
 	c->streamWrite(&out);
 

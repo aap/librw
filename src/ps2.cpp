@@ -12,11 +12,11 @@
 
 using namespace std;
 
-namespace Rw {
-namespace Ps2 {
+namespace rw {
+namespace ps2 {
 
 void*
-DestroyNativeData(void *object, int32, int32)
+destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_PS2);
@@ -29,10 +29,10 @@ DestroyNativeData(void *object, int32, int32)
 }
 
 void
-ReadNativeData(Stream *stream, int32, void *object, int32, int32)
+readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	assert(stream->readU32() == PLATFORM_PS2);
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
@@ -58,10 +58,10 @@ ReadNativeData(Stream *stream, int32, void *object, int32, int32)
 }
 
 void
-WriteNativeData(Stream *stream, int32 len, void *object, int32, int32)
+writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	WriteChunkHeader(stream, ID_STRUCT, len-12);
+	writeChunkHeader(stream, ID_STRUCT, len-12);
 	assert(geometry->instData->platform == PLATFORM_PS2);
 	stream->writeU32(PLATFORM_PS2);
 	assert(geometry->instData != NULL);
@@ -79,7 +79,7 @@ WriteNativeData(Stream *stream, int32 len, void *object, int32, int32)
 }
 
 int32
-GetSizeNativeData(void *object, int32, int32)
+getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	int32 size = 16;
@@ -95,14 +95,14 @@ GetSizeNativeData(void *object, int32, int32)
 }
 
 void
-RegisterNativeDataPlugin(void)
+registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, DestroyNativeData, NULL);
+	                         NULL, destroyNativeData, NULL);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
-	                               (StreamRead)ReadNativeData,
-	                               (StreamWrite)WriteNativeData,
-	                               (StreamGetSize)GetSizeNativeData);
+	                               readNativeData,
+	                               writeNativeData,
+	                               getSizeNativeData);
 }
 
 #ifdef RW_PS2
@@ -184,12 +184,12 @@ unfixDmaOffsets(InstanceData *inst)
 // Skin
 
 void
-ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
+readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
 	uint8 header[4];
 	uint32 vers;
 	Geometry *geometry = (Geometry*)object;
-	assert(FindChunk(stream, ID_STRUCT, NULL, &vers));
+	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
 	assert(stream->readU32() == PLATFORM_PS2);
 	stream->read(header, 4);
 	Skin *skin = new Skin;
@@ -230,14 +230,14 @@ ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
 }
 
 void
-WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
+writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	uint8 header[4];
 
-	WriteChunkHeader(stream, ID_STRUCT, len-12);
+	writeChunkHeader(stream, ID_STRUCT, len-12);
 	stream->writeU32(PLATFORM_PS2);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	bool oldFormat = Version < 0x34003;
+	bool oldFormat = version < 0x34003;
 	header[0] = skin->numBones;
 	header[1] = skin->numUsedBones;
 	header[2] = skin->maxIndex;
@@ -258,14 +258,14 @@ WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 }
 
 int32
-GetSizeNativeSkin(void *object, int32 offset)
+getSizeNativeSkin(void *object, int32 offset)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin == NULL)
 		return -1;
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	// not sure which version introduced the new format
-	if(Version >= 0x34003)
+	if(version >= 0x34003)
 		size += skin->numUsedBones + 16 + 12;
 	return size;
 }
@@ -304,7 +304,7 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 static void
 writeADC(Stream *stream, int32, void *, int32, int32)
 {
-	WriteChunkHeader(stream, ID_ADC, 4);
+	writeChunkHeader(stream, ID_ADC, 4);
 	stream->writeI32(0);
 }
 
@@ -316,14 +316,14 @@ getSizeADC(void *object, int32 offset, int32)
 }
 
 void
-RegisterADCPlugin(void)
+registerADCPlugin(void)
 {
 	Geometry::registerPlugin(sizeof(ADCData), ID_ADC,
 	                         createADC, NULL, copyADC);
 	Geometry::registerPluginStream(ID_ADC,
-	                               (StreamRead)readADC,
-	                               (StreamWrite)writeADC,
-	                               (StreamGetSize)getSizeADC);
+	                               readADC,
+	                               writeADC,
+	                               getSizeADC);
 }
 
 

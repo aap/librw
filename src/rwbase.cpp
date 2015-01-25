@@ -10,11 +10,11 @@
 
 using namespace std;
 
-namespace Rw {
+namespace rw {
 
-int Version = 0x36003;
-int Build = 0xFFFF;
-char *DebugFile = NULL;
+int version = 0x36003;
+int build = 0xFFFF;
+char *debugFile = NULL;
 
 int32
 Stream::writeI8(int8 val)
@@ -249,19 +249,19 @@ StreamFile::eof(void)
 }
 
 bool
-WriteChunkHeader(Stream *s, int32 type, int32 size)
+writeChunkHeader(Stream *s, int32 type, int32 size)
 {
 	struct {
 		int32 type, size;
 		uint32 id;
-	} buf = { type, size, LibraryIDPack(Version, Build) };
+	} buf = { type, size, libraryIDPack(version, build) };
 //printf("- write chunk %x @ %x\n", buf.type, s->tell());
 	s->write(&buf, 12);
 	return true;
 }
 
 bool
-ReadChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
+readChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
 {
 	struct {
 		int32 type, size;
@@ -273,16 +273,16 @@ ReadChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
 	assert(header != NULL);
 	header->type = buf.type;
 	header->length = buf.size;
-	header->version = LibraryIDUnpackVersion(buf.id);
-	header->build = LibraryIDUnpackBuild(buf.id);
+	header->version = libraryIDUnpackVersion(buf.id);
+	header->build = libraryIDUnpackBuild(buf.id);
 	return true;
 }
 
 bool
-FindChunk(Stream *s, uint32 type, uint32 *length, uint32 *version)
+findChunk(Stream *s, uint32 type, uint32 *length, uint32 *version)
 {
 	ChunkHeaderInfo header;
-	while(ReadChunkHeaderInfo(s, &header)){
+	while(readChunkHeaderInfo(s, &header)){
 		if(header.type == ID_NAOBJECT)
 			return false;
 		if(header.type == type){

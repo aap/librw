@@ -1,5 +1,5 @@
-namespace Rw {
-namespace Gl {
+namespace rw {
+namespace gl {
 
 struct AttribDesc
 {
@@ -14,7 +14,7 @@ struct AttribDesc
 	uint32 offset;
 };
 
-struct InstanceDataHeader : Rw::InstanceDataHeader
+struct InstanceDataHeader : rw::InstanceDataHeader
 {
 	int32 numAttribs;
 	AttribDesc *attribs;
@@ -26,33 +26,33 @@ struct InstanceDataHeader : Rw::InstanceDataHeader
 	uint32 ibo;
 };
 
-void *DestroyNativeData(void *object, int32, int32);
-void ReadNativeData(Stream *stream, int32 len, void *object, int32, int32);
-void WriteNativeData(Stream *stream, int32 len, void *object, int32, int32);
-int32 GetSizeNativeData(void *object, int32, int32);
+void *destroyNativeData(void *object, int32, int32);
+void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+int32 getSizeNativeData(void *object, int32, int32);
 
-void Instance(Atomic *atomic);
+void instance(Atomic *atomic);
 
 // only RW_OPENGL
-void UploadGeo(Geometry *geo);
-void SetAttribPointers(InstanceDataHeader *inst);
+void uploadGeo(Geometry *geo);
+void setAttribPointers(InstanceDataHeader *inst);
 
 // Skin plugin
 
-void ReadNativeSkin(Stream *stream, int32, void *object, int32 offset);
-void WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
-int32 GetSizeNativeSkin(void *object, int32 offset);
+void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
+void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
+int32 getSizeNativeSkin(void *object, int32 offset);
 
 // Raster
 
-struct Texture : Rw::Texture
+struct Texture : rw::Texture
 {
 	void upload(void);
 	void bind(int n);
 };
 
-extern int32 NativeRasterOffset;
-void RegisterNativeRaster(void);
+extern int32 nativeRasterOffset;
+void registerNativeRaster(void);
 
 }
 }

@@ -12,7 +12,7 @@
 
 using namespace std;
 
-namespace Rw {
+namespace rw {
 
 uint8
 readUInt8(istream &rw)
@@ -33,7 +33,7 @@ writeUInt8(uint8 tmp, ostream &rw)
 // TexDictionary
 //
 
-TexDictionary *CurrentTexDictionary;
+TexDictionary *currentTexDictionary;
 
 TexDictionary::TexDictionary(void)
 {
@@ -92,7 +92,7 @@ Texture::read(const char *name, const char *mask)
 	Raster *raster = NULL;
 	Texture *tex;
 
-	if((tex = CurrentTexDictionary->find(name)))
+	if((tex = currentTexDictionary->find(name)))
 		return tex;
 	tex = new Texture;
 	strncpy(tex->name, name, 32);
@@ -107,7 +107,7 @@ Texture::read(const char *name, const char *mask)
 		delete img;
 	}
 	tex->raster = raster;
-	CurrentTexDictionary->add(tex);
+	currentTexDictionary->add(tex);
 	return tex;
 }
 
@@ -116,15 +116,15 @@ Texture::streamRead(Stream *stream)
 {
 	uint32 length;
 	char name[32], mask[32];
-	assert(FindChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	uint32 filterAddressing = stream->readU16(); 
 	// TODO: what is this? (mipmap? i think)
 	stream->seek(2);
 
-	assert(FindChunk(stream, ID_STRING, &length, NULL));
+	assert(findChunk(stream, ID_STRING, &length, NULL));
 	stream->read(name, length);
 
-	assert(FindChunk(stream, ID_STRING, &length, NULL));
+	assert(findChunk(stream, ID_STRING, &length, NULL));
 	stream->read(mask, length);
 
 	Texture *tex = Texture::read(name, mask);
@@ -140,17 +140,17 @@ bool
 Texture::streamWrite(Stream *stream)
 {
 	int size;
-	WriteChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
-	WriteChunkHeader(stream, ID_STRUCT, 4);
+	writeChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeU32(this->filterAddressing);
 
 	// TODO: length can't be > 32
 	size = strlen(this->name)+4 & ~3;
-	WriteChunkHeader(stream, ID_STRING, size);
+	writeChunkHeader(stream, ID_STRING, size);
 	stream->write(this->name, size);
 
 	size = strlen(this->mask)+4 & ~3;
-	WriteChunkHeader(stream, ID_STRING, size);
+	writeChunkHeader(stream, ID_STRING, size);
 	stream->write(this->mask, size);
 
 	this->streamWritePlugins(stream);

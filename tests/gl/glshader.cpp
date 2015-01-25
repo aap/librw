@@ -1,5 +1,6 @@
 #include "rwtest.h"
 
+namespace rw {
 namespace gl {
 
 GLint
@@ -58,4 +59,5 @@ compileShader(const char **src, int count, int type)
 	return shader;
 }
 
+}
 }

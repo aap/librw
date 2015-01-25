@@ -1,4 +1,4 @@
-namespace Rw {
+namespace rw {
 
 // TODO: mostly a stub right now
 struct Pipeline
@@ -68,8 +68,8 @@ struct HAnimData
 	HAnimHierarchy *hierarchy;
 };
 
-extern int32 HAnimOffset;
-void RegisterHAnimPlugin(void);
+extern int32 hAnimOffset;
+void registerHAnimPlugin(void);
 
 struct Image
 {
@@ -180,7 +180,7 @@ struct Material : PluginBase<Material>
 	uint32 streamGetSize(void);
 };
 
-void RegisterMaterialRightsPlugin(void);
+void registerMaterialRightsPlugin(void);
 
 struct MatFX
 {
@@ -229,14 +229,14 @@ struct MatFX
 	int32 getEffectIndex(uint32 type);
 };
 
-struct MatFXGlobals_
+struct MatFXGlobals
 {
 	int32 atomicOffset;
 	int32 materialOffset;
 	Pipeline *pipeline;
 };
-extern MatFXGlobals_ MatFXGlobals;
-void RegisterMatFXPlugin(void);
+extern MatFXGlobals matFXGlobals;
+void registerMatFXPlugin(void);
 
 struct Mesh
 {
@@ -312,8 +312,8 @@ struct Geometry : PluginBase<Geometry>, Object
 	};
 };
 
-void RegisterMeshPlugin(void);
-void RegisterNativeDataPlugin(void);
+void registerMeshPlugin(void);
+void registerNativeDataPlugin(void);
 
 struct Skin
 {
@@ -327,13 +327,13 @@ struct Skin
 	uint8 *data;	// only used by delete
 };
 
-struct SkinGlobals_
+struct SkinGlobals
 {
 	int32 offset;
 	Pipeline *pipeline;
 };
-extern SkinGlobals_ SkinGlobals;
-void RegisterSkinPlugin(void);
+extern SkinGlobals skinGlobals;
+void registerSkinPlugin(void);
 
 struct Clump;
 
@@ -370,7 +370,7 @@ struct Atomic : PluginBase<Atomic>, Object
 	uint32 streamGetSize(void);
 };
 
-void RegisterAtomicRightsPlugin(void);
+void registerAtomicRightsPlugin(void);
 
 struct Clump : PluginBase<Clump>, Object
 {
@@ -402,6 +402,6 @@ struct TexDictionary
 	Texture *find(const char *name);
 };
 
-extern TexDictionary *CurrentTexDictionary;
+extern TexDictionary *currentTexDictionary;
 
 }

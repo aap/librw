@@ -16,8 +16,8 @@
 
 using namespace std;
 
-namespace Rw {
-namespace Gl {
+namespace rw {
+namespace gl {
 
 // VC
 //   8733 0 0 0 3
@@ -54,7 +54,7 @@ printAttribInfo(AttribDesc *attribs, int n)
 */
 
 void*
-DestroyNativeData(void *object, int32, int32)
+destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
@@ -67,7 +67,7 @@ DestroyNativeData(void *object, int32, int32)
 }
 
 void
-ReadNativeData(Stream *stream, int32, void *object, int32, int32)
+readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	InstanceDataHeader *header = new InstanceDataHeader;
@@ -85,7 +85,7 @@ ReadNativeData(Stream *stream, int32, void *object, int32, int32)
 }
 
 void
-WriteNativeData(Stream *stream, int32, void *object, int32, int32)
+writeNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
@@ -97,7 +97,7 @@ WriteNativeData(Stream *stream, int32, void *object, int32, int32)
 }
 
 int32
-GetSizeNativeData(void *object, int32, int32)
+getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
@@ -166,7 +166,7 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 
 // TODO: make pipeline dependent (skin data, night colors)
 void
-Instance(Atomic *atomic)
+instance(Atomic *atomic)
 {
 	Geometry *geo = atomic->geometry;
 	InstanceDataHeader *header = new InstanceDataHeader;
@@ -283,7 +283,7 @@ Instance(Atomic *atomic)
 
 #ifdef RW_OPENGL
 void
-UploadGeo(Geometry *geo)
+uploadGeo(Geometry *geo)
 {
 	InstanceDataHeader *inst = (InstanceDataHeader*)geo->instData;
 	MeshHeader *meshHeader = geo->meshHeader;
@@ -308,7 +308,7 @@ UploadGeo(Geometry *geo)
 }
 
 void
-SetAttribPointers(InstanceDataHeader *inst)
+setAttribPointers(InstanceDataHeader *inst)
 {
 	static GLenum attribType[] = {
 		GL_FLOAT,
@@ -328,12 +328,12 @@ SetAttribPointers(InstanceDataHeader *inst)
 // Skin
 
 void
-ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
+readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
 	uint8 header[4];
 	uint32 vers;
 	Geometry *geometry = (Geometry*)object;
-	assert(FindChunk(stream, ID_STRUCT, NULL, &vers));
+	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
 	assert(stream->readU32() == PLATFORM_OGL);
 	stream->read(header, 4);
 	Skin *skin = new Skin;
@@ -364,11 +364,11 @@ ReadNativeSkin(Stream *stream, int32, void *object, int32 offset)
 }
 
 void
-WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
+writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	uint8 header[4];
 
-	WriteChunkHeader(stream, ID_STRUCT, len-12);
+	writeChunkHeader(stream, ID_STRUCT, len-12);
 	stream->writeU32(PLATFORM_OGL);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	header[0] = skin->numBones;
@@ -380,7 +380,7 @@ WriteNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 }
 
 int32
-GetSizeNativeSkin(void *object, int32 offset)
+getSizeNativeSkin(void *object, int32 offset)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin == NULL)
@@ -391,7 +391,7 @@ GetSizeNativeSkin(void *object, int32 offset)
 
 // Raster
 
-int32 NativeRasterOffset;
+int32 nativeRasterOffset;
 
 #ifdef RW_OPENGL
 struct GlRaster {
@@ -422,9 +422,9 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 }
 
 void
-RegisterNativeRaster(void)
+registerNativeRaster(void)
 {
-	NativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
+	nativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
 	                                            0x12340001, 
                                                     createNativeRaster,
                                                     destroyNativeRaster,
@@ -477,7 +477,7 @@ Texture::upload(void)
 		break;
 	}
 	glBindTexture(GL_TEXTURE_2D, 0);
-	GlRaster *glr = PLUGINOFFSET(GlRaster, r, NativeRasterOffset);
+	GlRaster *glr = PLUGINOFFSET(GlRaster, r, nativeRasterOffset);
 	glr->id = id;
 }
 
@@ -485,7 +485,7 @@ void
 Texture::bind(int n)
 {
 	Raster *r = this->raster;
-	GlRaster *glr = PLUGINOFFSET(GlRaster, r, NativeRasterOffset);
+	GlRaster *glr = PLUGINOFFSET(GlRaster, r, nativeRasterOffset);
 	glActiveTexture(GL_TEXTURE0+n);
 	if(r){
 		if(glr->id == 0)

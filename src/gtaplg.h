@@ -1,4 +1,5 @@
-namespace Rw {
+namespace gta {
+using namespace rw;
 
 enum
 {
@@ -11,8 +12,8 @@ enum
 
 // Node name
 
-extern int32 NodeNameOffset;
-void RegisterNodeNamePlugin(void);
+extern int32 nodeNameOffset;
+void registerNodeNamePlugin(void);
 
 // Breakable model
 
@@ -33,8 +34,8 @@ struct Breakable
 	float32 (*surfaceProps)[3];
 };
 
-extern int32 BreakableOffset;
-void RegisterBreakableModelPlugin(void);
+extern int32 breakableOffset;
+void registerBreakableModelPlugin(void);
 
 // Extra vert colors
 
@@ -45,8 +46,8 @@ struct ExtraVertColors
 	float balance;
 };
 
-extern int32 ExtraVertColorOffset;
-void RegisterExtraVertColorPlugin(void);
+extern int32 extraVertColorOffset;
+void registerExtraVertColorPlugin(void);
 
 // Environment mat
 
@@ -58,7 +59,7 @@ struct EnvMat
 	Texture *texture;
 };
 
-extern int32 EnvMatOffset;
+extern int32 envMatOffset;
 
 // Specular mat
 
@@ -68,8 +69,8 @@ struct SpecMat
 	Texture *texture;
 };
 
-extern int32 SpecMatOffset;
+extern int32 specMatOffset;
 
-void RegisterEnvSpecPlugin(void);
+void registerEnvSpecPlugin(void);
 
 }

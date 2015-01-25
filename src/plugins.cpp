@@ -12,13 +12,13 @@
 
 using namespace std;
 
-namespace Rw {
+namespace rw {
 
 //
 // HAnim
 //
 
-int32 HAnimOffset;
+int32 hAnimOffset;
 
 static void*
 createHAnim(void *object, int32 offset, int32)
@@ -124,9 +124,9 @@ getSizeHAnim(void *object, int32 offset, int32)
 }
 
 void
-RegisterHAnimPlugin(void)
+registerHAnimPlugin(void)
 {
-	HAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIMPLUGIN,
+	hAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIMPLUGIN,
 	                                    createHAnim,
 	                                    destroyHAnim, copyHAnim);
 	Frame::registerPluginStream(ID_HANIMPLUGIN,
@@ -238,14 +238,11 @@ getSizeMesh(void *object, int32)
 	return size;
 }
 
-
 void
-RegisterMeshPlugin(void)
+registerMeshPlugin(void)
 {
 	Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
-	Geometry::registerPluginStream(0x50E, (StreamRead)readMesh,
-	                               (StreamWrite)writeMesh,
-	                               (StreamGetSize)getSizeMesh);
+	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
 }
 
 // Native Data
@@ -257,9 +254,9 @@ destroyNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData == NULL)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		return Ps2::DestroyNativeData(object, offset, size);
+		return ps2::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_OGL)
-		return Gl::DestroyNativeData(object, offset, size);
+		return gl::destroyNativeData(object, offset, size);
 	return object;
 }
 
@@ -272,19 +269,19 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 	// ugly hack to find out platform
 	stream->seek(-4);
 	libid = stream->readU32();
-	ReadChunkHeaderInfo(stream, &header);
+	readChunkHeaderInfo(stream, &header);
 	if(header.type == ID_STRUCT && 
-	   LibraryIDPack(header.version, header.build) == libid){
+	   libraryIDPack(header.version, header.build) == libid){
 		// must be PS2 or Xbox
 		platform = stream->readU32();
 		stream->seek(-16);
 		if(platform == PLATFORM_PS2)
-			Ps2::ReadNativeData(stream, len, object, o, s);
+			ps2::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
 			stream->seek(len);
 	}else{
 		stream->seek(-12);
-		Gl::ReadNativeData(stream, len, object, o, s);
+		gl::readNativeData(stream, len, object, o, s);
 	}
 }
 
@@ -295,9 +292,9 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 	if(geometry->instData == NULL)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		Ps2::WriteNativeData(stream, len, object, o, s);
+		ps2::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
-		Gl::WriteNativeData(stream, len, object, o, s);
+		gl::writeNativeData(stream, len, object, o, s);
 }
 
 static int32
@@ -307,30 +304,30 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData == NULL)
 		return -1;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		return Ps2::GetSizeNativeData(object, offset, size);
+		return ps2::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return -1;
 	else if(geometry->instData->platform == PLATFORM_OGL)
-		return Gl::GetSizeNativeData(object, offset, size);
+		return gl::getSizeNativeData(object, offset, size);
 	return -1;
 }
 
 void
-RegisterNativeDataPlugin(void)
+registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
 	                         NULL, destroyNativeData, NULL);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
-	                               (StreamRead)readNativeData,
-	                               (StreamWrite)writeNativeData,
-	                               (StreamGetSize)getSizeNativeData);
+	                               readNativeData,
+	                               writeNativeData,
+	                               getSizeNativeData);
 }
 
 //
 // Skin
 //
 
-SkinGlobals_ SkinGlobals = { 0, NULL };
+SkinGlobals skinGlobals = { 0, NULL };
 
 static void*
 createSkin(void *object, int32 offset, int32)
@@ -406,9 +403,9 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
-			Ps2::ReadNativeSkin(stream, len, object, offset);
+			ps2::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
-			Gl::ReadNativeSkin(stream, len, object, offset);
+			gl::readNativeSkin(stream, len, object, offset);
 		else
 			assert(0 && "unsupported native skin platform");
 		return;
@@ -480,16 +477,16 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
-			Ps2::WriteNativeSkin(stream, len, object, offset);
+			ps2::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
-			Gl::WriteNativeSkin(stream, len, object, offset);
+			gl::writeNativeSkin(stream, len, object, offset);
 		else
 			assert(0 && "unsupported native skin platform");
 		return;
 	}
 
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	bool oldFormat = Version < 0x34003;
+	bool oldFormat = version < 0x34003;
 	header[0] = skin->numBones;
 	header[1] = skin->numUsedBones;
 	header[2] = skin->maxIndex;
@@ -521,9 +518,9 @@ getSizeSkin(void *object, int32 offset, int32)
 
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
-			return Ps2::GetSizeNativeSkin(object, offset);
+			return ps2::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_OGL)
-			return Gl::GetSizeNativeSkin(object, offset);
+			return gl::getSizeNativeSkin(object, offset);
 		assert(0 && "unsupported native skin platform");
 	}
 
@@ -534,7 +531,7 @@ getSizeSkin(void *object, int32 offset, int32)
 	int32 size = 4 + geometry->numVertices*(16+4) +
 	             skin->numBones*64;
 	// not sure which version introduced the new format
-	if(Version < 0x34003)
+	if(version < 0x34003)
 		size += skin->numBones*4;
 	else
 		size += skin->numUsedBones + 12;
@@ -544,22 +541,23 @@ getSizeSkin(void *object, int32 offset, int32)
 static void
 skinRights(void *object, int32, int32, uint32 data)
 {
-	((Atomic*)object)->pipeline = SkinGlobals.pipeline;
+	((Atomic*)object)->pipeline = skinGlobals.pipeline;
 }
 
 void
-RegisterSkinPlugin(void)
+registerSkinPlugin(void)
 {
-	SkinGlobals.pipeline = new Pipeline;
-	SkinGlobals.pipeline->pluginID = ID_SKIN;
-	SkinGlobals.pipeline->pluginData = 1;
+	skinGlobals.pipeline = new Pipeline;
+	skinGlobals.pipeline->pluginID = ID_SKIN;
+	skinGlobals.pipeline->pluginData = 1;
 
-	SkinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
-			createSkin, destroySkin, copySkin);
+	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
+	                                              createSkin,
+	                                              destroySkin,
+	                                              copySkin);
 	Geometry::registerPluginStream(ID_SKIN,
 	                               readSkin, writeSkin, getSizeSkin);
-	Atomic::registerPlugin(0, ID_SKIN,
-			NULL, NULL, NULL);
+	Atomic::registerPlugin(0, ID_SKIN, NULL, NULL, NULL);
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 
@@ -590,7 +588,7 @@ readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	stream->read(&flag, 4);
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)
-		((Atomic*)object)->pipeline = MatFXGlobals.pipeline;
+		((Atomic*)object)->pipeline = matFXGlobals.pipeline;
 }
 
 static void
@@ -611,7 +609,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 
 // Material
 
-MatFXGlobals_ MatFXGlobals = { 0, 0, NULL };
+MatFXGlobals matFXGlobals = { 0, 0, NULL };
 
 // TODO: Frames and Matrices?
 static void
@@ -745,12 +743,12 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			coefficient = stream->readF32();
 			bumpedTex = tex = NULL;
 			if(stream->readI32()){
-				assert(FindChunk(stream, ID_TEXTURE,
+				assert(findChunk(stream, ID_TEXTURE,
 				       NULL, NULL));
 				bumpedTex = Texture::streamRead(stream);
 			}
 			if(stream->readI32()){
-				assert(FindChunk(stream, ID_TEXTURE,
+				assert(findChunk(stream, ID_TEXTURE,
 				       NULL, NULL));
 				tex = Texture::streamRead(stream);
 			}
@@ -766,7 +764,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			fbAlpha = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
-				assert(FindChunk(stream, ID_TEXTURE,
+				assert(findChunk(stream, ID_TEXTURE,
 				       NULL, NULL));
 				tex = Texture::streamRead(stream);
 			}
@@ -782,7 +780,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			dstBlend = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
-				assert(FindChunk(stream, ID_TEXTURE,
+				assert(findChunk(stream, ID_TEXTURE,
 				       NULL, NULL));
 				tex = Texture::streamRead(stream);
 			}
@@ -872,13 +870,13 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 }
 
 void
-RegisterMatFXPlugin(void)
+registerMatFXPlugin(void)
 {
-	MatFXGlobals.pipeline = new Pipeline;
-	MatFXGlobals.pipeline->pluginID = ID_MATFX;
-	MatFXGlobals.pipeline->pluginData = 0;
+	matFXGlobals.pipeline = new Pipeline;
+	matFXGlobals.pipeline->pluginID = ID_MATFX;
+	matFXGlobals.pipeline->pluginData = 0;
 
-	MatFXGlobals.atomicOffset =
+	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
 	                       createAtomicMatFX, NULL, copyAtomicMatFX);
 	Atomic::registerPluginStream(ID_MATFX,
@@ -886,7 +884,7 @@ RegisterMatFXPlugin(void)
 	                             writeAtomicMatFX,
 	                             getSizeAtomicMatFX);
 
-	MatFXGlobals.materialOffset =
+	matFXGlobals.materialOffset =
 	Material::registerPlugin(sizeof(MatFX*), ID_MATFX,
 	                         createMaterialMatFX, destroyMaterialMatFX,
 	                         copyMaterialMatFX);

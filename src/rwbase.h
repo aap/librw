@@ -1,4 +1,4 @@
-namespace Rw {
+namespace rw {
 
 typedef char int8;
 typedef short int16;
@@ -118,12 +118,12 @@ enum PluginID
 	ID_NATIVEDATA    = 0x510,
 };
 
-extern int Version;
-extern int Build;
-extern char *DebugFile;
+extern int version;
+extern int build;
+extern char *debugFile;
 
 inline uint32
-LibraryIDPack(int version, int build)
+libraryIDPack(int version, int build)
 {
 	// TODO: check version in if statement
 	if(build){
@@ -135,7 +135,7 @@ LibraryIDPack(int version, int build)
 }
 
 inline int
-LibraryIDUnpackVersion(uint32 libid)
+libraryIDUnpackVersion(uint32 libid)
 {
 	if(libid & 0xFFFF0000)
 		return (libid>>14 & 0x3FF00) |
@@ -146,7 +146,7 @@ LibraryIDUnpackVersion(uint32 libid)
 }
 
 inline int
-LibraryIDUnpackBuild(uint32 libid)
+libraryIDUnpackBuild(uint32 libid)
 {
 	if(libid & 0xFFFF0000)
 		return libid & 0xFFFF;
@@ -162,9 +162,9 @@ struct ChunkHeaderInfo
 };
 
 // TODO?: make these methods of ChunkHeaderInfo?
-bool WriteChunkHeader(Stream *s, int32 type, int32 size);
-bool ReadChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header);
-bool FindChunk(Stream *s, uint32 type, uint32 *length, uint32 *version);
+bool writeChunkHeader(Stream *s, int32 type, int32 size);
+bool readChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header);
+bool findChunk(Stream *s, uint32 type, uint32 *length, uint32 *version);
 
 int32 findPointer(void *p, void **list, int32 num);
 }
