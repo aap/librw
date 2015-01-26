@@ -75,7 +75,7 @@ Texture::read(const char *name, const char *mask)
 	Raster *raster = NULL;
 	Texture *tex;
 
-	if((tex = currentTexDictionary->find(name)))
+	if(currentTexDictionary && (tex = currentTexDictionary->find(name)))
 		return tex;
 	tex = new Texture;
 	strncpy(tex->name, name, 32);
@@ -90,7 +90,8 @@ Texture::read(const char *name, const char *mask)
 		delete img;
 	}
 	tex->raster = raster;
-	currentTexDictionary->add(tex);
+	if(currentTexDictionary)
+		currentTexDictionary->add(tex);
 	return tex;
 }
 

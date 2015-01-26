@@ -187,9 +187,11 @@ init(void)
 	rw::Image::setSearchPath(
 	"/home/aap/gamedata/ps2/gta3/MODELS/gta3_archive/txd_extracted/;//home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 	//"D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
+
 	rw::gl::registerNativeRaster();
-	rw::registerMaterialRightsPlugin();
+	gta::registerEnvSpecPlugin();
 	rw::registerMatFXPlugin();
+	rw::registerMaterialRightsPlugin();
 	rw::registerAtomicRightsPlugin();
 	rw::registerHAnimPlugin();
 	gta::registerNodeNamePlugin();

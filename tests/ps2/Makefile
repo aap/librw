@@ -1,13 +1,13 @@
 CC=ee-gcc
 CXX=ee-g++
 AS=ee-g++
-LD=ee-g++ -v
+LD=ee-g++
 DVPAS=ee-dvp-as
 
 LINK=-T$(PS2SDK)/ee/startup/linkfile
 LIBPATH=-L$(PS2SDK)/ee/lib
-INCPATH=-I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I$(HOME)/src/librw
-LIBS=$(HOME)/src/librw/librw-ps2.a -lc -lc -lkernel -lmf # g++ throws one -lc away, why? (unless -nostdlib)
+INCPATH=-I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I../..
+LIBS=../../librw-ps2.a -lc -lc -lkernel -lmf # g++ throws one -lc away, why? (unless -nostdlib)
 
 CFLAGS = -c -Wall -nostdlib -fno-common -DPS2_EE $(INCPATH)
 ASFLAGS = -c -xassembler-with-cpp

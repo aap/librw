@@ -1,9 +1,8 @@
-//#include <cstdio>
-//#include <cstring>
-//#define _USE_MATH_DEFINES
-//#include <cmath>
-//#include <cassert>
-#include <fstream>
+#include <cstdio>
+#include <cstring>
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <cassert>
 
 #include <rw.h>
 #include <src/gtaplg.h>
@@ -121,18 +120,19 @@ main()
 	gsCurState->clearcol = 0x80404040;
 
 	gsInit();
-	printf("hallo\n");
 
-	rw::registerMaterialRightsPlugin();
+	gta::registerEnvSpecPlugin();
 	rw::registerMatFXPlugin();
+	rw::registerMaterialRightsPlugin();
 	rw::registerAtomicRightsPlugin();
+	rw::registerHAnimPlugin();
 	gta::registerNodeNamePlugin();
 	gta::registerBreakableModelPlugin();
 	gta::registerExtraVertColorPlugin();
 	rw::ps2::registerADCPlugin();
 	rw::registerSkinPlugin();
 	rw::registerNativeDataPlugin();
-//      rw::ps2::registerNativeDataPlugin();
+//	rw::ps2::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 
 //	rw::StreamFile in;
