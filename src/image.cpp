@@ -2,9 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-
-#include <iostream>
-#include <fstream>
+#include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -13,21 +11,6 @@
 using namespace std;
 
 namespace rw {
-
-uint8
-readUInt8(istream &rw)
-{
-	uint8 tmp;
-	rw.read((char*)&tmp, sizeof(uint8));
-	return tmp;
-}
-
-uint32
-writeUInt8(uint8 tmp, ostream &rw)
-{
-        rw.write((char*)&tmp, sizeof(uint8));
-        return sizeof(uint8);
-}
 
 //
 // TexDictionary
@@ -161,7 +144,6 @@ uint32
 Texture::streamGetSize(void)
 {
 	uint32 size = 0;
-	int strsize;
 	size += 12 + 4;
 	size += 12 + 12;
 	size += strlen(this->name)+4 & ~3;
@@ -325,16 +307,16 @@ readTGA(const char *afilename)
 	Image *image;
 	char *filename;
 	int depth = 0, palDepth = 0;
-	// TODO: open from image path
 	filename = Image::getFilename(afilename);
 	if(filename == NULL)
 		return NULL;
-	ifstream file(filename, ios::binary);
+	StreamFile file;
+	assert(file.open(filename, "rb") != NULL);
 	free(filename);
-	file.read((char*)&header, sizeof(header));
+	file.read(&header, sizeof(header));
 
 	assert(header.imageType == 1 || header.imageType == 2);
-	file.seekg(header.IDlen, ios::cur);
+	file.seek(header.IDlen);
 	if(header.colorMapType){
 		assert(header.colorMapOrigin == 0);
 		depth = (header.colorMapLength <= 16) ? 4 : 8;
@@ -354,12 +336,12 @@ readTGA(const char *afilename)
 		color = (uint8(*)[4])palette;
 		int i;
 		for(i = 0; i < header.colorMapLength; i++){
-			color[i][2] = readUInt8(file);
-			color[i][1] = readUInt8(file);
-			color[i][0] = readUInt8(file);
+			color[i][2] = file.readU8();
+			color[i][1] = file.readU8();
+			color[i][0] = file.readU8();
 			color[i][3] = 0xFF;
 			if(palDepth == 32)
-				color[i][3] = readUInt8(file);
+				color[i][3] = file.readU8();
 		}
 		for(; i < maxlen; i++){
 			color[i][0] = color[i][1] = color[i][2] = 0;
@@ -374,14 +356,14 @@ readTGA(const char *afilename)
 		uint8 *line = pixels;
 		for(int x = 0; x < image->width; x++){
 			if(palette)
-				*line++ = readUInt8(file);
+				*line++ = file.readU8();
 			else{
-				line[2] = readUInt8(file);
-				line[1] = readUInt8(file);
-				line[0] = readUInt8(file);
+				line[2] = file.readU8();
+				line[1] = file.readU8();
+				line[0] = file.readU8();
 				line += 3;
 				if(depth == 32)
-					*line++ = readUInt8(file);
+					*line++ = file.readU8();
 			}
 		}
 		pixels += (header.descriptor&0x20) ?
@@ -396,8 +378,8 @@ void
 writeTGA(Image *image, const char *filename)
 {
 	TGAHeader header;
-	// TODO: open from image path
-	ofstream file(filename, ios::binary);
+	StreamFile file;
+	assert(file.open(filename, "wb"));
 	header.IDlen = 0;
 	header.imageType = image->palette != NULL ? 1 : 2;
 	header.colorMapType = image->palette != NULL;
@@ -411,31 +393,31 @@ writeTGA(Image *image, const char *filename)
 	header.height = image->height;
 	header.depth = image->depth == 4 ? 8 : image->depth;
 	header.descriptor = 0x20 | (image->depth == 32 ? 8 : 0);
-	file.write((char*)&header, sizeof(header));
+	file.write(&header, sizeof(header));
 
 	uint8 *pixels = image->pixels;
 	uint8 *palette = header.colorMapType ? image->palette : NULL;
 	uint8 (*color)[4] = (uint8(*)[4])palette;;
 	if(palette)
 		for(int i = 0; i < header.colorMapLength; i++){
-			writeUInt8(color[i][2], file);
-			writeUInt8(color[i][1], file);
-			writeUInt8(color[i][0], file);
-			writeUInt8(color[i][3], file);
+			file.writeU8(color[i][2]);
+			file.writeU8(color[i][1]);
+			file.writeU8(color[i][0]);
+			file.writeU8(color[i][3]);
 		}
 
 	for(int y = 0; y < image->height; y++){
 		uint8 *line = pixels;
 		for(int x = 0; x < image->width; x++){
 			if(palette)
-				writeUInt8(*line++, file);
+				file.writeU8(*line++);
 			else{
-				writeUInt8(line[2], file);
-				writeUInt8(line[1], file);
-				writeUInt8(line[0], file);
+				file.writeU8(line[2]);
+				file.writeU8(line[1]);
+				file.writeU8(line[0]);
 				line += 3;
 				if(image->depth == 32)
-					writeUInt8(*line++, file);
+					file.writeU8(*line++);
 			}
 		}
 		pixels += image->stride;

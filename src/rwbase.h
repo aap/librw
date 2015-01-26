@@ -53,7 +53,7 @@ public:
 	void close(void);
 	uint32 write(const void *data, uint32 length);
 	uint32 read(void *data, uint32 length);
-	void seek(int32 offset, int32 whence);
+	void seek(int32 offset, int32 whence = 1);
 	uint32 tell(void);
 	bool eof(void);
 	StreamMemory *open(uint8 *data, uint32 length, uint32 capacity = 0);
@@ -71,7 +71,7 @@ public:
 	void close(void);
 	uint32 write(const void *data, uint32 length);
 	uint32 read(void *data, uint32 length);
-	void seek(int32 offset, int32 whence);
+	void seek(int32 offset, int32 whence = 1);
 	uint32 tell(void);
 	bool eof(void);
 	StreamFile *open(const char *path, const char *mode);

@@ -222,7 +222,7 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 }
 
 static int32
-getSizeMesh(void *object, int32)
+getSizeMesh(void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
 	if(geo->meshHeader == NULL)
