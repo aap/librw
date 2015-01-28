@@ -13,12 +13,14 @@
 #include "gs.h"
 
 #include "math.h"
-#include "mesh.h"
 
 using namespace std;
 
+Matrix projMat, viewMat, worldMat;
+
 extern uint32 MyDmaPacket[];
 extern Matrix vuMat;
+extern Matrix vuLightMat;
 extern float  vuOffset[];
 extern uint64 vuGIFtag[];
 extern float  vuMatcolor[];
@@ -38,22 +40,27 @@ drawAtomic(rw::Atomic *atomic)
 	assert(geo->instData != NULL);
 	rw::ps2::InstanceDataHeader *instData =
 	  (rw::ps2::InstanceDataHeader*)geo->instData;
+	rw::MeshHeader *meshHeader = geo->meshHeader;
+	rw::Mesh *mesh;
+	uint8 *color;
 
 	atomic->frame->updateLTM();
+	matCopy(vuLightMat, atomic->frame->ltm);
 	matMult(vuMat, atomic->frame->ltm);
+	rw::Skin *skin = *PLUGINOFFSET(rw::Skin*, geo, rw::skinGlobals.offset);
 	for(int i = 0; i < instData->numMeshes; i++){
 		if(instData->instanceMeshes[i].arePointersFixed == 0)
 			rw::ps2::fixDmaOffsets(&instData->instanceMeshes[i]);
 		geometryCall[1] = (uint32)instData->instanceMeshes[i].data;
+		mesh = &meshHeader->mesh[i];
+		color = mesh->material->color;
 
 		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC,0,2);
 		vuGIFtag[1] = 0x41;
-		vuMatcolor[0] = 1.0f;
-		vuMatcolor[1] = 1.0f;
-		vuMatcolor[2] = 1.0f;
-		vuMatcolor[3] = 0.5f;
-		rw::Skin *skin =
-		  *PLUGINOFFSET(rw::Skin*, geo, rw::skinGlobals.offset);
+		vuMatcolor[0] = color[0]/255.0f;
+		vuMatcolor[1] = color[1]/255.0f;
+		vuMatcolor[2] = color[2]/255.0f;
+		vuMatcolor[3] = color[3]/2.0f/255.0f;
 		if(rw::skinGlobals.offset && skin){
 			geometryCall[3] = 0x020000DC;
 			mpgCall[1] = (uint32)skinPipe;
@@ -79,17 +86,16 @@ draw(void)
 
 	gsClear();
 
-	matMakeIdentity(mathModelViewMat);
-	matTranslate(mathModelViewMat, 0.0f, 0.0f, -34.0f);
-//	matTranslate(mathModelViewMat, 0.0f, 0.0f, -10.0f);
-//	matTranslate(mathModelViewMat, 0.0f, 0.0f, -8.0f);
-	matRotateX(mathModelViewMat, rot);
-	matRotateY(mathModelViewMat, rot);
-	matRotateZ(mathModelViewMat, rot);
-	matInverse(mathNormalMat, mathModelViewMat);
+	matMakeIdentity(viewMat);
+//	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
+//	matTranslate(viewMat, 0.0f, 0.0f, -10.0f);
+	matTranslate(viewMat, 0.0f, 0.0f, -8.0f);
+	matRotateX(viewMat, rot);
+	matRotateY(viewMat, rot);
+	matRotateZ(viewMat, rot);
 
-	matCopy(vuMat, mathProjectionMat);
-	matMult(vuMat, mathModelViewMat);
+	matCopy(vuMat, projMat);
+	matMult(vuMat, viewMat);
 
 	for(int i = 0; i < clump->numAtomics; i++){
 		char *name = PLUGINOFFSET(char, clump->atomicList[i]->frame,
@@ -138,8 +144,8 @@ main()
 //	rw::StreamFile in;
 //	in.open("host:player-vc-ps2.dff", "rb");
 
-//	FILE *cf = fopen("host:player-vc-ps2.dff", "rb");
-	FILE *cf = fopen("host:od_newscafe_dy-ps2.dff", "rb");
+	FILE *cf = fopen("host:player-vc-ps2.dff", "rb");
+//	FILE *cf = fopen("host:od_newscafe_dy-ps2.dff", "rb");
 //	FILE *cf = fopen("host:admiral-ps2.dff", "rb");
 	assert(cf != NULL);
 	fseek(cf, 0, SEEK_END);
@@ -194,7 +200,7 @@ main()
 //	matPerspective(mathProjectionMat, 60.0f, (float)gss.width/gss.dh,
 //	matPerspective(mathProjectionMat, 60.0f, 4.0/3.0, 1.0f, 100.0f);
 //	matPerspective(mathProjectionMat, 60.0f, 16.0/9.0, 1.0f, 100.0f);
-	matPerspective2(mathProjectionMat, 60.0f, 4.0/3.0, gss.width,gss.height,
+	matPerspective2(projMat, 60.0f, 4.0/3.0, gss.width,gss.height,
 	                1.0f, 100.0f, 16777216, 1);
 
 	for(;;){

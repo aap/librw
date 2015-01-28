@@ -3,9 +3,9 @@
 #include <math.h>
 #include "math.h"
 
-Matrix mathModelViewMat;
-Matrix mathNormalMat;
-Matrix mathProjectionMat;
+//Matrix mathModelViewMat;
+//Matrix mathNormalMat;
+//Matrix mathProjectionMat;
 
 void
 matDump(Matrix m)

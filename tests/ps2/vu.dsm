@@ -1,5 +1,6 @@
 .data
 .global MyDmaPacket
+.global vuLightMat
 .global vuMat
 .global vuOffset
 .global vuGIFtag
@@ -20,6 +21,11 @@ DMAcall *, 0 ;vuProg
 
 DMAcnt *
 	UNPACK 4, 4, V4_32, 0x3d0, *
+vuLightMat:
+	.float 1.0, 0.0, 0.0, 0.0
+	.float 0.0, 1.0, 0.0, 0.0
+	.float 0.0, 0.0, 1.0, 0.0
+	.float 0.0, 0.0, 0.0, 1.0
 lightDir:
 	.float 0.5, -0.5, -0.70710, 0.0
 	.EndUnpack

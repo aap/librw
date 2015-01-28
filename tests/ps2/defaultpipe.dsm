@@ -10,7 +10,8 @@
 .equ outSize, ((vertexTop-outBuf1-2)/2)
 .equ outBuf2, (outBuf1+outSize)
 
-.equ lightDir,		0x3d0
+.equ lightMat,		0x3d0
+.equ lightDir,		0x3d4
 .equ matrix, 		0x3f0
 .equ screenOffset, 	0x3f9
 .equ gifTag, 		0x3fa
@@ -40,6 +41,9 @@ Cnt:
 	NOP	SQ VF01, 0(VI12)
 	NOP	ISW.x VI05, 0(VI12)
 	NOP	IADDIU VI03, VI12, 1		; output pointer
+	NOP	LQ VF18, lightMat(VI00)
+	NOP	LQ VF19, lightMat+1(VI00)
+	NOP	LQ VF20, lightMat+2(VI00)
 
 Loop:
 	NOP	LQI VF01, (VI02++)	; vertex
@@ -47,7 +51,7 @@ Loop:
 	NOP	LQI VF02, (VI02++)	; color
 	NOP	LQI VF03, (VI02++)	; normal
 
-	MULAw.xyzw ACC, VF31, VF00w	NOP
+	MULAw.xyzw ACC, VF31, VF00w	NOP	; transform vertex
 	MADDAx.xyzw ACC, VF28, VF01x	NOP
 	MADDAy.xyzw ACC, VF29, VF01y	NOP
 	MADDz.xyzw VF01, VF30, VF01z	NOP
@@ -61,15 +65,15 @@ Loop:
 	NOP	NOP
 	NOP	NOP
 	SUB.w VF01, VF01, VF01	NOP
-	NOP	SQ VF03, -1(VI02)	; store scaled normal
-	NOP	NOP
-	NOP	NOP
+	MULAx.xyz ACC, VF18, VF03x	NOP	; transform normal
+	MADDAy.xyz ACC, VF19, VF03y	NOP
+	MADDz.xyz VF03, VF20, VF03z	NOP
 	ADD.xy VF01, VF01, VF25	NOP
 	NOP	NOP
 	NOP	NOP
 	FTOI0 VF02, VF02	NOP
 	FTOI4 VF01, VF01	NOP
-	NOP	NOP
+	NOP	SQ VF03, -1(VI02)	; store normal
 	NOP	IADDI VI01, VI01, -1
 	NOP	SQI VF02, (VI03++)	; color
 	NOP	SQI VF01, (VI03++)	; vertex

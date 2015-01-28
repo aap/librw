@@ -14,7 +14,7 @@ ASFLAGS = -c -xassembler-with-cpp
 LDFLAGS = -mno-crt0 $(LIBPATH)
 OUT=test
 
-C_SRC=main.cpp gs.cpp dma.cpp math.cpp mesh.cpp
+C_SRC=main.cpp gs.cpp dma.cpp math.cpp
 #S_SRC=crt0.s low.s
 HEADER=dma.h  ee_regs.h  gif.h  gs.h  mips_regs.h  ps2.h math.h mesh.h
 OBJ=$(C_SRC:.cpp=.o) $(S_SRC:.s=.o) vu.o defaultpipe.o skinpipe.o
