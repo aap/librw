@@ -8,6 +8,12 @@
 #include "rwplugin.h"
 #include "rwobjects.h"
 
+#ifdef __linux__
+#define PACKED_STRUCT __attribute__((__packed__))
+#else
+#define PACKED_STRUCT
+#endif
+
 using namespace std;
 
 namespace rw {
@@ -284,7 +290,7 @@ Image::getFilename(const char *name)
 #pragma pack(push)
 #pragma pack(1)
 #endif
-struct __attribute__((__packed__)) TGAHeader
+struct PACKED_STRUCT TGAHeader
 {
 	int8  IDlen;
 	int8  colorMapType;
