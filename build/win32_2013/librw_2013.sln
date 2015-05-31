@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "librw", "librw_2013.vcxproj", "{44700D30-55D1-4D17-917C-5BF474F322C4}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "librw_2013", "librw_2013.vcxproj", "{44700D30-55D1-4D17-917C-5BF474F322C4}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dffwrite", "..\..\various\dffwrite\dffwrite_2013.vcxproj", "{FD03F2BD-125B-4D3C-809D-420D8DABEB5B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{44700D30-55D1-4D17-917C-5BF474F322C4}.Debug|Win32.Build.0 = Debug|Win32
 		{44700D30-55D1-4D17-917C-5BF474F322C4}.Release|Win32.ActiveCfg = Release|Win32
 		{44700D30-55D1-4D17-917C-5BF474F322C4}.Release|Win32.Build.0 = Release|Win32
+		{FD03F2BD-125B-4D3C-809D-420D8DABEB5B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{FD03F2BD-125B-4D3C-809D-420D8DABEB5B}.Debug|Win32.Build.0 = Debug|Win32
+		{FD03F2BD-125B-4D3C-809D-420D8DABEB5B}.Release|Win32.ActiveCfg = Release|Win32
+		{FD03F2BD-125B-4D3C-809D-420D8DABEB5B}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
