@@ -111,7 +111,6 @@ init(void)
 	glEnable(GL_ALPHA_TEST);
 	glAlphaFunc(GL_GEQUAL, 0.5f);
 	const char *shadersrc =
-		"#version 120\n"
 		"#ifdef VERTEX\n"
 		"uniform mat4 projMat;"
 		"uniform mat4 viewMat;"
@@ -144,11 +143,12 @@ init(void)
 		"	gl_FragColor = v_color*c0;"
 		"}\n"
 		"#endif\n";
-	const char *srcarr[] = { "#define VERTEX", shadersrc };
-	GLint vertshader = rw::gl::compileShader(srcarr, 2, GL_VERTEX_SHADER);
+	const char *srcarr[] = { "#version 120\n",
+		"#define VERTEX\n", shadersrc };
+	GLint vertshader = rw::gl::compileShader(srcarr, 3, GL_VERTEX_SHADER);
 	assert(vertshader != 0);
-	srcarr[0] = "#define FRAGMENT";
-	GLint fragshader = rw::gl::compileShader(srcarr, 2, GL_FRAGMENT_SHADER);
+	srcarr[1] = "#define FRAGMENT\n";
+	GLint fragshader = rw::gl::compileShader(srcarr, 3, GL_FRAGMENT_SHADER);
 	assert(fragshader != 0);
 	program = rw::gl::linkProgram(vertshader, fragshader);
 	assert(program != 0);
