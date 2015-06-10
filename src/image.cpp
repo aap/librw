@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
+#include <stdint.h>
+
 #include <new>
 
 #include "rwbase.h"
