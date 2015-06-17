@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
+#include <stdint.h>
 #include <new>
 
 #include "rw.h"
@@ -59,10 +60,12 @@ main(int argc, char *argv[])
 
 	rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 
+/*
 //	rw::Image *tga = rw::readTGA("b.tga");
 	rw::Image *tga = rw::readTGA("player.tga");
 	assert(tga != NULL);
 	rw::writeTGA(tga, "out.tga");
+*/
 
 //	for(rw::int32 i = 0; i < c->numAtomics; i++)
 //		rw::Gl::Instance(c->atomicList[i]);

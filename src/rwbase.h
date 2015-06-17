@@ -15,7 +15,6 @@ typedef float float32;
 typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
-typedef uint64 uintptr;
 
 class Stream
 {
