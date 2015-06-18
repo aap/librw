@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <stdint.h>
 #include <new>
 
 #include "rw.h"
@@ -33,8 +32,6 @@ main(int argc, char *argv[])
 	rw::registerMeshPlugin();
 
 	rw::Clump *c;
-
-//	ifstream in(argv[1], ios::binary);
 
 //	rw::StreamFile in;
 //	in.open(argv[1], "rb");

@@ -48,19 +48,23 @@ drawAtomic(rw::Atomic *atomic)
 	matCopy(vuLightMat, atomic->frame->ltm);
 	matMult(vuMat, atomic->frame->ltm);
 	rw::Skin *skin = *PLUGINOFFSET(rw::Skin*, geo, rw::skinGlobals.offset);
-	for(int i = 0; i < instData->numMeshes; i++){
+	for(uint i = 0; i < instData->numMeshes; i++){
 		if(instData->instanceMeshes[i].arePointersFixed == 0)
 			rw::ps2::fixDmaOffsets(&instData->instanceMeshes[i]);
 		geometryCall[1] = (uint32)instData->instanceMeshes[i].data;
 		mesh = &meshHeader->mesh[i];
 		color = mesh->material->color;
 
-		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC,0,2);
-		vuGIFtag[1] = 0x41;
+		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC|0x10,0,3);
+		vuGIFtag[1] = 0x412;
 		vuMatcolor[0] = color[0]/255.0f;
 		vuMatcolor[1] = color[1]/255.0f;
 		vuMatcolor[2] = color[2]/255.0f;
 		vuMatcolor[3] = color[3]/2.0f/255.0f;
+		// only when modulating textures actually
+		vuMatcolor[0] /= 2.0f;
+		vuMatcolor[1] /= 2.0f;
+		vuMatcolor[2] /= 2.0f;
 		if(rw::skinGlobals.offset && skin){
 			geometryCall[3] = 0x020000DC;
 			mpgCall[1] = (uint32)skinPipe;
@@ -112,6 +116,60 @@ draw(void)
 		rot -= 2*M_PI;
 }
 
+GIF_DECLARE_PACKET(gifDmaBuf2, 256)
+
+uint32
+uploadTGA(rw::Image *tga)
+{
+	GsState *g = gsCurState;
+	uint32 destAddr = g->currentMemPtr;
+	uint32 size = tga->width*tga->height*4;
+	g->currentMemPtr += size;
+
+	printf("image @ %x\n", destAddr);
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, 4, 1, 0, 0, 0, 1, 0x0e);
+	GIF_DATA_AD(gifDmaBuf2, GS_BITBLTBUF,
+	            MAKE_GS_BITBLTBUF(0, 0, 0,
+	                              destAddr/4/64, tga->width/64, PSMCT32));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXPOS,
+	            MAKE_GS_TRXPOS(0, 0, 0, 0, 0));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXREG,
+	            MAKE_GS_TRXREG(tga->width, tga->height));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXDIR, 0);
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, size/0x10, 1, 0, 0, 2, 0, 0);
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	FlushCache(0);
+	SET_REG32(D2_QWC,  MAKE_DN_QWC(size/0x10));
+	SET_REG32(D2_MADR, MAKE_DN_MADR(tga->pixels, 0));
+	SET_REG32(D2_CHCR, MAKE_DN_CHCR(1, 0, 0, 0, 0, 1));
+	DMA_WAIT(D2_CHCR);
+
+	int logw = 0, logh = 0;
+	int s;
+	for(s = 1; s < tga->width; s *= 2)
+		logw++;
+	for(s = 1; s < tga->height; s *= 2)
+		logh++;
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, 3, 1, 0, 0, 0, 1, 0x0e);
+	GIF_DATA_AD(gifDmaBuf2, GS_TEXFLUSH, 1);
+	GIF_DATA_AD(gifDmaBuf2, GS_TEX0_1,
+	            MAKE_GS_TEX0(destAddr/4/64, tga->width/64, PSMCT32,
+	                         logw, logh, 0, 0, 0, 0, 0, 0, 0));
+	GIF_DATA_AD(gifDmaBuf2, GS_TEX1_1,
+	            MAKE_GS_TEX1(0, 0, 1, 1, 0, 0, 0));
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	return destAddr;
+}
+
 int
 main()
 {
@@ -141,29 +199,15 @@ main()
 //	rw::ps2::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 
-//	rw::StreamFile in;
-//	in.open("host:player-vc-ps2.dff", "rb");
-
-	FILE *cf = fopen("host:player-vc-ps2.dff", "rb");
-//	FILE *cf = fopen("host:od_newscafe_dy-ps2.dff", "rb");
-//	FILE *cf = fopen("host:admiral-ps2.dff", "rb");
-	assert(cf != NULL);
-	fseek(cf, 0, SEEK_END);
-	rw::uint32 len = ftell(cf);
-	fseek(cf, 0, SEEK_SET);
-	rw::uint8 *data = new rw::uint8[len];
-	fread(data, len, 1, cf);
-	fclose(cf);
+	rw::uint32 len;
+	rw::uint8 *data = rw::getFileContents("host:player-vc-ps2.dff", &len);
+//	rw::uint8 *data = rw::getFileContents("host:od_newscafe_dy-ps2.dff", &len);
+//	rw::uint8 *data = rw::getFileContents("host:admiral-ps2.dff", &len);
 	rw::StreamMemory in;
 	in.open(data, len);
-
-	printf("opened file\n");
 	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
-	printf("found chunk\n");
 	clump = rw::Clump::streamRead(&in);
-	printf("read file\n");
 	in.close();
-	printf("closed file\n");
 	delete[] data;
 
 	data = new rw::uint8[256*1024];
@@ -177,12 +221,15 @@ main()
 	out.close();
 	delete[] data;
 
-//	rw::StreamFile out;
-//	out.open("host:out-ps2.dff", "wb");
-//	c->streamWrite(&out);
-//	out.close();
-//
-//	printf("wrote file\n");
+	rw::Image *tga = rw::readTGA("host:player_.tga");
+	printf("read tga\n");
+
+	uint32 destAddr = uploadTGA(tga);
+/*
+	rw::writeTGA(tga, "host:out.tga");
+	printf("wrote tga\n");
+*/
+
 
 	vuOffset[0] = 2048.0f;
 	vuOffset[1] = 2048.0f;

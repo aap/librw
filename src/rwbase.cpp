@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <stdint.h>
 
 #include <new>
 
@@ -309,6 +308,20 @@ findPointer(void *p, void **list, int32 num)
 	return -1;
 found:
 	return i;
+}
+
+uint8*
+getFileContents(char *name, uint32 *len)
+{
+        FILE *cf = fopen(name, "rb");
+        assert(cf != NULL);
+        fseek(cf, 0, SEEK_END);
+        *len = ftell(cf);
+        fseek(cf, 0, SEEK_SET);
+        uint8 *data = new uint8[*len];
+        fread(data, *len, 1, cf);
+        fclose(cf);
+        return data;
 }
 
 }

@@ -2,19 +2,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <stdint.h>
 
 #include <new>
 
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwobjects.h"
-
-#ifdef __linux__
-#define PACKED_STRUCT __attribute__((__packed__))
-#else
-#define PACKED_STRUCT
-#endif
 
 using namespace std;
 
@@ -291,6 +284,9 @@ Image::getFilename(const char *name)
 #ifndef RW_PS2
 #pragma pack(push)
 #pragma pack(1)
+#define PACKED_STRUCT
+#else
+#define PACKED_STRUCT __attribute__((__packed__))
 #endif
 struct PACKED_STRUCT TGAHeader
 {
@@ -319,9 +315,12 @@ readTGA(const char *afilename)
 	filename = Image::getFilename(afilename);
 	if(filename == NULL)
 		return NULL;
-	StreamFile file;
-	assert(file.open(filename, "rb") != NULL);
+	uint32 length;
+	uint8 *data = getFileContents(filename, &length);
+	assert(data != NULL);
 	free(filename);
+	StreamMemory file;
+	file.open(data, length);
 	file.read(&header, sizeof(header));
 
 	assert(header.imageType == 1 || header.imageType == 2);
@@ -380,6 +379,7 @@ readTGA(const char *afilename)
 	}
 
 	file.close();
+	delete[] data;
 	return image;
 }
 

@@ -47,36 +47,37 @@ Cnt:
 
 Loop:
 	NOP	LQI VF01, (VI02++)	; vertex
-	NOP	LQI VF02, (VI02++)	; UV - skip
-	NOP	LQI VF02, (VI02++)	; color
-	NOP	LQI VF03, (VI02++)	; normal
+	NOP	LQI VF02, (VI02++)	; UV
+	NOP	LQI VF03, (VI02++)	; color
+	NOP	LQI VF04, (VI02++)	; normal
 	NOP	IADDIU VI02, VI02, 1	; skip weights
 
-	MULAw.xyzw ACC, VF31, VF00w	NOP
+	MULAw.xyzw ACC, VF31, VF00w	NOP	; transform vertex
 	MADDAx.xyzw ACC, VF28, VF01x	NOP
 	MADDAy.xyzw ACC, VF29, VF01y	NOP
 	MADDz.xyzw VF01, VF30, VF01z	NOP
-	ITOF0 VF02, VF02	NOP
-	ITOF0[I] VF03, VF03	LOI 0.0078125	; - normal scale
+	ITOF0 VF03, VF03	NOP
+	ITOF0[I] VF04, VF04	LOI 0.0078125	; - normal scale
 	NOP	NOP
 	NOP	DIV Q, VF00w, VF01w
 	NOP	WAITQ
 	MULq	VF01, VF01, Q	NOP	; perspective division
-	MULi VF03, VF03, I	NOP	; scale normal
-	NOP	NOP
+	MULi VF04, VF04, I	NOP	; scale normal
+	NOP	MR32.z VF02, VF00
 	NOP	NOP
 	SUB.w VF01, VF01, VF01	NOP
-	MULAx.xyz ACC, VF18, VF03x	NOP	; transform normal
-	MADDAy.xyz ACC, VF19, VF03y	NOP
-	MADDz.xyz VF03, VF20, VF03z	NOP
+	MULAx.xyz ACC, VF18, VF04x	NOP	; transform normal
+	MADDAy.xyz ACC, VF19, VF04y	NOP
+	MADDz.xyz VF04, VF20, VF04z	NOP
 	ADD.xy VF01, VF01, VF25	NOP
+	MULq VF02, VF02, Q	NOP
 	NOP	NOP
-	NOP	NOP
-	FTOI0 VF02, VF02	NOP
+	FTOI0 VF03, VF03	NOP
 	FTOI4 VF01, VF01	NOP
-	NOP	SQ VF03, -2(VI02)	; store normal
+	NOP	SQ VF04, -2(VI02)	; store normal
 	NOP	IADDI VI01, VI01, -1
-	NOP	SQI VF02, (VI03++)	; color
+	NOP	SQI VF02, (VI03++)	; STQ
+	NOP	SQI VF03, (VI03++)	; color
 	NOP	SQI VF01, (VI03++)	; vertex
 	NOP	IBNE VI01, VI00, Loop
 	NOP	NOP

@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
-#include <stdint.h>
 
 #include <new>
 
@@ -347,7 +346,7 @@ static int32
 getSizeEnvMat(void *object, int32 offset, int32)
 {
 	EnvMat *env = *PLUGINOFFSET(EnvMat*, object, offset);
-	return env ? sizeof(EnvStream) : -1;
+	return env ? (int)sizeof(EnvStream) : -1;
 }
 
 // Specular mat
@@ -417,7 +416,7 @@ static int32
 getSizeSpecMat(void *object, int32 offset, int32)
 {
 	SpecMat *spec = *PLUGINOFFSET(SpecMat*, object, offset);
-	return spec ? sizeof(SpecStream) : -1;
+	return spec ? (int)sizeof(SpecStream) : -1;
 }
 
 void

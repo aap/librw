@@ -42,7 +42,7 @@ vuMat:
 vuOffset:
 	.float 0.0, 0.0, 0.0, 0.0
 vuGIFtag:
-	.int 0x00008000, 0x2005C000, 0x0000000041, 0x00000000
+	.int 0x00008000, 0x3005C000, 0x0000000412, 0x00000000
 vuMatcolor:
 	.float 1.0, 1.0, 1.0, 0.5
 vuSurfProps:

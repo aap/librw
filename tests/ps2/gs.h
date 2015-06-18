@@ -200,7 +200,7 @@ void drawrect(uint16 x1, uint16 y1, uint16 x2, uint16 y2, uint32 col);
 	 BIT64(CPSM, 51) | \
 	 BIT64(CSM,  55) | \
 	 BIT64(CSA,  56) | \
-	 BIT64(CSD,  61))
+	 BIT64(CLD,  61))
 
 #define MAKE_GS_CLAMP(WMS,WMT,MINU,MAXU,MINV,MAXV) \
 	(BIT64(WMS,  0) | \
