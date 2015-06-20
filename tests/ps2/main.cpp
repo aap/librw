@@ -33,6 +33,58 @@ extern uint32 skinPipe[];
 
 rw::Clump *clump;
 
+GIF_DECLARE_PACKET(gifDmaBuf2, 256)
+
+uint32
+uploadRaster(rw::Raster *ras)
+{
+	GsState *g = gsCurState;
+	uint32 destAddr = g->currentMemPtr;
+	uint32 size = ras->width*ras->height*4;
+	g->currentMemPtr += size;
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, 4, 1, 0, 0, 0, 1, 0x0e);
+	GIF_DATA_AD(gifDmaBuf2, GS_BITBLTBUF,
+	            MAKE_GS_BITBLTBUF(0, 0, 0,
+	                              destAddr/4/64, ras->width/64, PSMCT32));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXPOS,
+	            MAKE_GS_TRXPOS(0, 0, 0, 0, 0));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXREG,
+	            MAKE_GS_TRXREG(ras->width, ras->height));
+	GIF_DATA_AD(gifDmaBuf2, GS_TRXDIR, 0);
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, size/0x10, 1, 0, 0, 2, 0, 0);
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	FlushCache(0);
+	SET_REG32(D2_QWC,  MAKE_DN_QWC(size/0x10));
+	SET_REG32(D2_MADR, MAKE_DN_MADR(ras->texels, 0));
+	SET_REG32(D2_CHCR, MAKE_DN_CHCR(1, 0, 0, 0, 0, 1));
+	DMA_WAIT(D2_CHCR);
+
+	int logw = 0, logh = 0;
+	int s;
+	for(s = 1; s < ras->width; s *= 2)
+		logw++;
+	for(s = 1; s < ras->height; s *= 2)
+		logh++;
+
+	GIF_BEGIN_PACKET(gifDmaBuf2);
+	GIF_TAG(gifDmaBuf2, 3, 1, 0, 0, 0, 1, 0x0e);
+	GIF_DATA_AD(gifDmaBuf2, GS_TEXFLUSH, 1);
+	GIF_DATA_AD(gifDmaBuf2, GS_TEX0_1,
+	            MAKE_GS_TEX0(destAddr/4/64, ras->width/64, PSMCT32,
+	                         logw, logh, 0, 0, 0, 0, 0, 0, 0));
+	GIF_DATA_AD(gifDmaBuf2, GS_TEX1_1,
+	            MAKE_GS_TEX1(0, 0, 1, 1, 0, 0, 0));
+	GIF_SEND_PACKET(gifDmaBuf2);
+
+	return destAddr;
+}
+
 void
 drawAtomic(rw::Atomic *atomic)
 {
@@ -55,16 +107,21 @@ drawAtomic(rw::Atomic *atomic)
 		mesh = &meshHeader->mesh[i];
 		color = mesh->material->color;
 
-		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC|0x10,0,3);
-		vuGIFtag[1] = 0x412;
+		uint32 oldPtr = gsCurState->currentMemPtr;
 		vuMatcolor[0] = color[0]/255.0f;
 		vuMatcolor[1] = color[1]/255.0f;
 		vuMatcolor[2] = color[2]/255.0f;
 		vuMatcolor[3] = color[3]/2.0f/255.0f;
-		// only when modulating textures actually
-		vuMatcolor[0] /= 2.0f;
-		vuMatcolor[1] /= 2.0f;
-		vuMatcolor[2] /= 2.0f;
+		uint32 tex = 0;
+		if(mesh->material->texture && mesh->material->texture->raster){
+			vuMatcolor[0] /= 2.0f;
+			vuMatcolor[1] /= 2.0f;
+			vuMatcolor[2] /= 2.0f;
+			tex = 0x10;
+			uploadRaster(mesh->material->texture->raster);
+		}
+		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC|tex,0,3);
+		vuGIFtag[1] = 0x412;
 		if(rw::skinGlobals.offset && skin){
 			geometryCall[3] = 0x020000DC;
 			mpgCall[1] = (uint32)skinPipe;
@@ -78,8 +135,8 @@ drawAtomic(rw::Atomic *atomic)
 		FlushCache(0);
 		SET_REG32(D1_CHCR, MAKE_DN_CHCR(1, 1, 0, 1, 0, 1));
 		DMA_WAIT(D1_CHCR);
+		gsCurState->currentMemPtr = oldPtr;
 	}
-
 }
 
 void
@@ -91,9 +148,9 @@ draw(void)
 	gsClear();
 
 	matMakeIdentity(viewMat);
-//	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
+	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
 //	matTranslate(viewMat, 0.0f, 0.0f, -10.0f);
-	matTranslate(viewMat, 0.0f, 0.0f, -8.0f);
+//	matTranslate(viewMat, 0.0f, 0.0f, -8.0f);
 	matRotateX(viewMat, rot);
 	matRotateY(viewMat, rot);
 	matRotateZ(viewMat, rot);
@@ -114,60 +171,6 @@ draw(void)
 	rot += 0.01f;
 	if(rot > 2*M_PI)
 		rot -= 2*M_PI;
-}
-
-GIF_DECLARE_PACKET(gifDmaBuf2, 256)
-
-uint32
-uploadTGA(rw::Image *tga)
-{
-	GsState *g = gsCurState;
-	uint32 destAddr = g->currentMemPtr;
-	uint32 size = tga->width*tga->height*4;
-	g->currentMemPtr += size;
-
-	printf("image @ %x\n", destAddr);
-
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, 4, 1, 0, 0, 0, 1, 0x0e);
-	GIF_DATA_AD(gifDmaBuf2, GS_BITBLTBUF,
-	            MAKE_GS_BITBLTBUF(0, 0, 0,
-	                              destAddr/4/64, tga->width/64, PSMCT32));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXPOS,
-	            MAKE_GS_TRXPOS(0, 0, 0, 0, 0));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXREG,
-	            MAKE_GS_TRXREG(tga->width, tga->height));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXDIR, 0);
-	GIF_SEND_PACKET(gifDmaBuf2);
-
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, size/0x10, 1, 0, 0, 2, 0, 0);
-	GIF_SEND_PACKET(gifDmaBuf2);
-
-	FlushCache(0);
-	SET_REG32(D2_QWC,  MAKE_DN_QWC(size/0x10));
-	SET_REG32(D2_MADR, MAKE_DN_MADR(tga->pixels, 0));
-	SET_REG32(D2_CHCR, MAKE_DN_CHCR(1, 0, 0, 0, 0, 1));
-	DMA_WAIT(D2_CHCR);
-
-	int logw = 0, logh = 0;
-	int s;
-	for(s = 1; s < tga->width; s *= 2)
-		logw++;
-	for(s = 1; s < tga->height; s *= 2)
-		logh++;
-
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, 3, 1, 0, 0, 0, 1, 0x0e);
-	GIF_DATA_AD(gifDmaBuf2, GS_TEXFLUSH, 1);
-	GIF_DATA_AD(gifDmaBuf2, GS_TEX0_1,
-	            MAKE_GS_TEX0(destAddr/4/64, tga->width/64, PSMCT32,
-	                         logw, logh, 0, 0, 0, 0, 0, 0, 0));
-	GIF_DATA_AD(gifDmaBuf2, GS_TEX1_1,
-	            MAKE_GS_TEX1(0, 0, 1, 1, 0, 0, 0));
-	GIF_SEND_PACKET(gifDmaBuf2);
-
-	return destAddr;
 }
 
 int
@@ -200,8 +203,8 @@ main()
 	rw::registerMeshPlugin();
 
 	rw::uint32 len;
-	rw::uint8 *data = rw::getFileContents("host:player-vc-ps2.dff", &len);
-//	rw::uint8 *data = rw::getFileContents("host:od_newscafe_dy-ps2.dff", &len);
+//	rw::uint8 *data = rw::getFileContents("host:player-vc-ps2.dff", &len);
+	rw::uint8 *data = rw::getFileContents("host:od_newscafe_dy-ps2.dff", &len);
 //	rw::uint8 *data = rw::getFileContents("host:admiral-ps2.dff", &len);
 	rw::StreamMemory in;
 	in.open(data, len);
@@ -220,15 +223,6 @@ main()
 //	fclose(cf);
 	out.close();
 	delete[] data;
-
-	rw::Image *tga = rw::readTGA("host:player_.tga");
-	printf("read tga\n");
-
-	uint32 destAddr = uploadTGA(tga);
-/*
-	rw::writeTGA(tga, "host:out.tga");
-	printf("wrote tga\n");
-*/
 
 
 	vuOffset[0] = 2048.0f;
