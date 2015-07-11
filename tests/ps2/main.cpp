@@ -27,43 +27,51 @@ extern float  vuMatcolor[];
 extern float  vuSurfProps[];
 extern uint32 vuGeometry[];
 extern uint32 mpgCall[];
+extern uint32 textureCall[];
 extern uint32 geometryCall[];
 extern uint32 defaultPipe[];
 extern uint32 skinPipe[];
 
 rw::Clump *clump;
 
-GIF_DECLARE_PACKET(gifDmaBuf2, 256)
+uint64 __attribute__((aligned (16))) rasterPacket[16];
 
-uint32
+void
 uploadRaster(rw::Raster *ras)
 {
 	GsState *g = gsCurState;
+	uint64 *dp;
+	uint32 *wp;
 	uint32 destAddr = g->currentMemPtr;
 	uint32 size = ras->width*ras->height*4;
 	g->currentMemPtr += size;
 
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, 4, 1, 0, 0, 0, 1, 0x0e);
-	GIF_DATA_AD(gifDmaBuf2, GS_BITBLTBUF,
-	            MAKE_GS_BITBLTBUF(0, 0, 0,
-	                              destAddr/4/64, ras->width/64, PSMCT32));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXPOS,
-	            MAKE_GS_TRXPOS(0, 0, 0, 0, 0));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXREG,
-	            MAKE_GS_TRXREG(ras->width, ras->height));
-	GIF_DATA_AD(gifDmaBuf2, GS_TRXDIR, 0);
-	GIF_SEND_PACKET(gifDmaBuf2);
+	// set up transfer
+	wp = (uint32*)rasterPacket;
+	*wp++ = 0x10000000 | 6;	// DMAcnt; 6 qw
+	*wp++ = 0;
+	*wp++ = 0;
+	*wp++ = 0x50000000 | 6; // DIRECT; 6 qw
+	dp = (uint64*)wp;
+	*dp++ = MAKE_GIF_TAG(4, 1, 0, 0, 0, 1);
+	*dp++ = 0x0e;
+	*dp++ = MAKE_GS_BITBLTBUF(0,0,0,destAddr/4/64, ras->width/64, PSMCT32);
+	*dp++ = GS_BITBLTBUF;
+	*dp++ = MAKE_GS_TRXPOS(0, 0, 0, 0, 0);
+	*dp++ = GS_TRXPOS;
+	*dp++ = MAKE_GS_TRXREG(ras->width, ras->height);
+	*dp++ = GS_TRXREG;
+	*dp++ = 0;
+	*dp++ = GS_TRXDIR;
+	*dp++ = MAKE_GIF_TAG(size/0x10, 1, 0, 0, 2, 0);
+	*dp++ = 0;
 
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, size/0x10, 1, 0, 0, 2, 0, 0);
-	GIF_SEND_PACKET(gifDmaBuf2);
-
-	FlushCache(0);
-	SET_REG32(D2_QWC,  MAKE_DN_QWC(size/0x10));
-	SET_REG32(D2_MADR, MAKE_DN_MADR(ras->texels, 0));
-	SET_REG32(D2_CHCR, MAKE_DN_CHCR(1, 0, 0, 0, 0, 1));
-	DMA_WAIT(D2_CHCR);
+	// the data
+	wp = (uint32*)dp;
+	*wp++ = 0x30000000 | size/0x10;	// DMAref
+	*wp++ = (uint32)ras->texels;
+	*wp++ = 0;
+	*wp++ = 0x50000000 | size/0x10;
 
 	int logw = 0, logh = 0;
 	int s;
@@ -72,17 +80,33 @@ uploadRaster(rw::Raster *ras)
 	for(s = 1; s < ras->height; s *= 2)
 		logh++;
 
-	GIF_BEGIN_PACKET(gifDmaBuf2);
-	GIF_TAG(gifDmaBuf2, 3, 1, 0, 0, 0, 1, 0x0e);
-	GIF_DATA_AD(gifDmaBuf2, GS_TEXFLUSH, 1);
-	GIF_DATA_AD(gifDmaBuf2, GS_TEX0_1,
-	            MAKE_GS_TEX0(destAddr/4/64, ras->width/64, PSMCT32,
-	                         logw, logh, 0, 0, 0, 0, 0, 0, 0));
-	GIF_DATA_AD(gifDmaBuf2, GS_TEX1_1,
-	            MAKE_GS_TEX1(0, 0, 1, 1, 0, 0, 0));
-	GIF_SEND_PACKET(gifDmaBuf2);
+	// set texturing registers
+	*wp++ = 0x60000000 | 4;	// DMAret; 4 qw
+	*wp++ = 0;
+	*wp++ = 0;
+	*wp++ = 0x50000000 | 4; // DIRECT; 4 qw
+	dp = (uint64*)wp;
+	*dp++ = MAKE_GIF_TAG(3, 1, 0, 0, 0, 1);
+	*dp++ = 0x0e;
+	*dp++ = 1;
+	*dp++ = GS_TEXFLUSH;
+	*dp++ = MAKE_GS_TEX0(destAddr/4/64, ras->width/64, PSMCT32,
+	                     logw, logh, 0, 0, 0, 0, 0, 0, 0);
+	*dp++ = GS_TEX0_1;
+	*dp++ = MAKE_GS_TEX1(0, 0, 1, 1, 0, 0, 0);
+	*dp++ = GS_TEX1_1;
+}
 
-	return destAddr;
+void
+dumpRasterPacket(int n)
+{
+	int i;
+	uint32 *p = (uint32*)rasterPacket;
+	for(i = 0; i < n; i++){
+		printf("%p %p %p %p\n", p[0], p[1], p[2], p[3]);
+		p += 4;
+	}
+	printf("\n");
 }
 
 void
@@ -119,7 +143,13 @@ drawAtomic(rw::Atomic *atomic)
 			vuMatcolor[2] /= 2.0f;
 			tex = 0x10;
 			uploadRaster(mesh->material->texture->raster);
+		}else{
+			rasterPacket[0] = 0x60000000;
+			rasterPacket[1] = 0x00000000;
+			rasterPacket[2] = 0x00000000;
+			rasterPacket[3] = 0x00000000;
 		}
+		textureCall[1] = (uint32)rasterPacket;
 		vuGIFtag[0] = MAKE_GIF_TAG(0,1,1,0xC|tex,0,3);
 		vuGIFtag[1] = 0x412;
 		if(rw::skinGlobals.offset && skin){
@@ -151,6 +181,7 @@ draw(void)
 	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
 //	matTranslate(viewMat, 0.0f, 0.0f, -10.0f);
 //	matTranslate(viewMat, 0.0f, 0.0f, -8.0f);
+//	matTranslate(viewMat, 0.0f, 0.0f, -4.0f);
 	matRotateX(viewMat, rot);
 	matRotateY(viewMat, rot);
 	matRotateZ(viewMat, rot);
@@ -246,7 +277,7 @@ main()
 
 	for(;;){
 		draw();
-		gsFlip();
+		gsFlip(0);
 	}
 
 	return 0;

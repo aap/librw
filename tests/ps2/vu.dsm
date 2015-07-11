@@ -7,6 +7,7 @@
 .global vuMatcolor
 .global vuSurfProps
 .global mpgCall
+.global textureCall
 .global geometryCall
 
 .align 4
@@ -48,9 +49,14 @@ vuMatcolor:
 vuSurfProps:
 	.float 1.0, 1.0, 1.0, 1.0
 ;	.float 160, 160, 160, 0	; some ambient light
-	.float 20, 20, 20, 0	; some ambient light
+	.float 80, 80, 80, 0
+;	.float 20, 20, 20, 0
 ;	.float 0, 0, 0, 0
 	.EndUnpack
+.EndDmaData
+
+textureCall:
+DMAcall *, 0
 .EndDmaData
 
 geometryCall:

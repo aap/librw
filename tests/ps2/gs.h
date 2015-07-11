@@ -47,7 +47,7 @@ void gsInit(void);
 void gsUpdateContext(void);
 void gsSelectVisibleFb(int n);
 void gsSelectActiveFb(int n);
-void gsFlip(void);
+void gsFlip(int synch);
 void gsClear(void);
 void gsNormalizedToScreen(float *v1, uint32 *v2);
 

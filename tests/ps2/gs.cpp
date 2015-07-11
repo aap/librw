@@ -174,12 +174,13 @@ gsPollVsynch(void)
 }
 
 void
-gsFlip(void)
+gsFlip(int synch)
 {
 	struct GsState *g = gsCurState;
 	g->activeFb = (g->activeFb+1) & 1;
 	g->visibleFb = (g->visibleFb+1) & 1;
-	gsPollVsynch();
+	if(synch)
+		gsPollVsynch();
 	gsSelectActiveFb(g->activeFb);
 	gsSelectVisibleFb(g->visibleFb);
 }
