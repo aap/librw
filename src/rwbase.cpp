@@ -12,8 +12,17 @@ using namespace std;
 
 namespace rw {
 
+int platformIdx[10] = { 0, -1, 1, -1, 2, 3, -1, -1, 4, 5 };
+
 int version = 0x36003;
 int build = 0xFFFF;
+#ifdef RW_PS2
+	int platform = PLATFORM_PS2;
+#elseif RW_OPENGL
+	int platform = PLATFORM_OPENGL;
+#else
+	int platform = PLATFORM_NULL;
+#endif
 char *debugFile = NULL;
 
 int32
@@ -219,14 +228,12 @@ StreamFile::close(void)
 uint32
 StreamFile::write(const void *data, uint32 length)
 {
-//printf("write %d bytes @ %x\n", length, this->tell());
 	return fwrite(data, length, 1, this->file);
 }
 
 uint32
 StreamFile::read(void *data, uint32 length)
 {
-//printf("read %d bytes @ %x\n", length, this->tell());
 	return fread(data, length, 1, this->file);
 }
 
@@ -255,7 +262,6 @@ writeChunkHeader(Stream *s, int32 type, int32 size)
 		int32 type, size;
 		uint32 id;
 	} buf = { type, size, libraryIDPack(version, build) };
-//printf("- write chunk %x @ %x\n", buf.type, s->tell());
 	s->write(&buf, 12);
 	return true;
 }
@@ -290,7 +296,6 @@ findChunk(Stream *s, uint32 type, uint32 *length, uint32 *version)
 				*length = header.length;
 			if(version)
 				*version = header.version;
-//printf("- chunk %x @ %x\n", header.type, s->tell()-12);
 			return true;
 		}
 		s->seek(header.length);

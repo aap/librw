@@ -4,11 +4,11 @@ OBJ = $(patsubst %.cpp, $(BUILDDIR)/%.o, $(SRC))
 DEP = $(patsubst %.cpp, $(BUILDDIR)/%.d, $(SRC))
 RWDIR=$(HOME)/src/librw
 
-#LDLIBS=-pthread -lX11 -lXrandr -lXi -lXxf86vm -lGL -lGLEW -lm
-#STATICLIBS= $(RWDIR)/librw-opengl.a /usr/local/lib/libglfw3.a
+LDLIBS=-pthread -lX11 -lXrandr -lXi -lXxf86vm -lGL -lGLEW -lm
+STATICLIBS= $(RWDIR)/librw-opengl.a /usr/local/lib/libglfw3.a
 
-LDLIBS=-pthread -lGL -lGLEW -lglfw
-STATICLIBS=$(RWDIR)/librw-opengl.a
+#LDLIBS=-pthread -lGL -lGLEW -lglfw
+#STATICLIBS=$(RWDIR)/librw-opengl.a
 
 CFLAGS=-g -I$(RWDIR) -Wall -Wextra
 

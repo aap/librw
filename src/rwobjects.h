@@ -1,12 +1,5 @@
 namespace rw {
 
-// TODO: mostly a stub right now
-struct Pipeline
-{
-	uint32 pluginID;
-	uint32 pluginData;
-};
-
 struct Object
 {
 	uint8 type;
@@ -233,7 +226,7 @@ struct MatFXGlobals
 {
 	int32 atomicOffset;
 	int32 materialOffset;
-	Pipeline *pipeline;
+	Pipeline *pipelines[NUM_PLATFORMS];
 };
 extern MatFXGlobals matFXGlobals;
 void registerMatFXPlugin(void);
@@ -330,7 +323,7 @@ struct Skin
 struct SkinGlobals
 {
 	int32 offset;
-	Pipeline *pipeline;
+	Pipeline *pipelines[NUM_PLATFORMS];
 };
 extern SkinGlobals skinGlobals;
 void registerSkinPlugin(void);

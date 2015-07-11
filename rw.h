@@ -1,5 +1,6 @@
 #include "src/rwbase.h"
 #include "src/rwplugin.h"
+#include "src/rwpipeline.h"
 #include "src/rwobjects.h"
 #include "src/rwps2.h"
 #include "src/rwogl.h"

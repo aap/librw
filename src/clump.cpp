@@ -7,6 +7,7 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
+#include "rwpipeline.h"
 #include "rwobjects.h"
 
 using namespace std;

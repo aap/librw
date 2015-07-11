@@ -7,6 +7,7 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
+#include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
 #include "rwogl.h"
@@ -540,17 +541,20 @@ getSizeSkin(void *object, int32 offset, int32)
 }
 
 static void
-skinRights(void *object, int32, int32, uint32 data)
+skinRights(void *object, int32, int32, uint32)
 {
-	((Atomic*)object)->pipeline = skinGlobals.pipeline;
+	((Atomic*)object)->pipeline = skinGlobals.pipelines[platformIdx[platform]];
 }
 
 void
 registerSkinPlugin(void)
 {
-	skinGlobals.pipeline = new Pipeline;
-	skinGlobals.pipeline->pluginID = ID_SKIN;
-	skinGlobals.pipeline->pluginData = 1;
+	Pipeline *defpipe = new Pipeline(PLATFORM_NULL);
+	defpipe->pluginID = ID_SKIN;
+	defpipe->pluginData = 1;
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		skinGlobals.pipelines[i] = defpipe;
+
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,
@@ -589,7 +593,8 @@ readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	stream->read(&flag, 4);
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)
-		((Atomic*)object)->pipeline = matFXGlobals.pipeline;
+		((Atomic*)object)->pipeline =
+			matFXGlobals.pipelines[platformIdx[rw::platform]];
 }
 
 static void
@@ -873,9 +878,11 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 void
 registerMatFXPlugin(void)
 {
-	matFXGlobals.pipeline = new Pipeline;
-	matFXGlobals.pipeline->pluginID = ID_MATFX;
-	matFXGlobals.pipeline->pluginData = 0;
+	Pipeline *defpipe = new Pipeline(PLATFORM_NULL);
+	defpipe->pluginID = ID_MATFX;
+	defpipe->pluginData = 0;
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		matFXGlobals.pipelines[i] = defpipe;
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,

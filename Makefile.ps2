@@ -7,7 +7,7 @@ BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
 BUILDDIR=build-$(BUILD)
 SRCDIR=src
 SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
-                                         geometry.cpp plugins.cpp\
+                                         geometry.cpp plugins.cpp pipeline.cpp\
                                          ps2.cpp ogl.cpp\
                                          image.cpp gtaplg.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))

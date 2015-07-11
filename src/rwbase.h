@@ -32,6 +32,8 @@ typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
 
+#define nelem(A) (sizeof(A) / sizeof A[0])
+
 class Stream
 {
 public:
@@ -93,12 +95,20 @@ public:
 
 enum Platform
 {
+	PLATFORM_NULL = 0,
+	// D3D7
 	PLATFORM_OGL  = 2,
+	// MAC
 	PLATFORM_PS2  = 4,
 	PLATFORM_XBOX = 5,
+	// GAMECUBE
+	// SOFTRAS
 	PLATFORM_D3D8 = 8,
-	PLATFORM_D3D9 = 9
+	PLATFORM_D3D9 = 9,
+	NUM_PLATFORMS = 6
 };
+
+extern int platformIdx[10];
 
 enum PluginID
 {
@@ -134,6 +144,7 @@ enum PluginID
 
 extern int version;
 extern int build;
+extern int platform;
 extern char *debugFile;
 
 inline uint32

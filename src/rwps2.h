@@ -19,6 +19,10 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	InstanceData *instanceMeshes;
 };
 
+enum {
+	VU_Lights	= 0x3d0
+};
+
 void *destroyNativeData(void *object, int32, int32);
 void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
 void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
@@ -31,6 +35,27 @@ void sizedebug(InstanceData *inst);
 // only RW_PS2
 void fixDmaOffsets(InstanceData *inst);
 void unfixDmaOffsets(InstanceData *inst);
+//
+
+struct Pipeline : rw::Pipeline
+{
+	uint32 vifOffset;
+	uint32 inputStride;
+	uint32 triStripCount, triListCount;
+
+	static uint32 getVertCount(uint32 top, uint32 inAttribs,
+	                           uint32 outAttribs, uint32 outBufs) {
+		return (top-outBufs)/(inAttribs*2+outAttribs*outBufs);
+	}
+
+	Pipeline(uint32 platform);
+	void setTriBufferSizes(uint32 inputStride,
+	                       uint32 stripCount, uint32 listCount);
+};
+
+Pipeline *makeDefaultPipeline(void);
+Pipeline *makeSkinPipeline(void);
+void dumpPipeline(rw::Pipeline *pipe);
 
 // Skin plugin
 

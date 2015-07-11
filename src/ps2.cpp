@@ -7,6 +7,7 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
+#include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
 
@@ -146,6 +147,7 @@ fixDmaOffsets(InstanceData *inst)
 void
 unfixDmaOffsets(InstanceData *inst)
 {
+	(void)inst;
 #ifdef RW_PS2
 	if(inst->arePointersFixed != 2)
 		return;
@@ -179,6 +181,129 @@ unfixDmaOffsets(InstanceData *inst)
 		}
 	}
 #endif
+}
+
+// Pipeline
+
+enum PS2Attribs {
+	AT_V2_32	= 0x64000000,
+	AT_V2_16	= 0x65000000,
+	AT_V2_8		= 0x66000000,
+	AT_V3_32	= 0x68000000,
+	AT_V3_16	= 0x69000000,
+	AT_V3_8		= 0x6A000000,
+	AT_V4_32	= 0x6C000000,
+	AT_V4_16	= 0x6D000000,
+	AT_V4_8		= 0x6E000000,
+	AT_UNSGN	= 0x00004000,
+
+	AT_RW		= 0x6
+};
+
+enum PS2AttibTypes {
+	AT_XYZ		= 0,
+	AT_UV		= 1,
+	AT_UV2		= 2,
+	AT_RGBA		= 3,
+	AT_NORMAL	= 4
+};
+
+PipeAttribute attribXYZ = { 
+	"XYZ",
+	AT_V3_32
+};
+
+PipeAttribute attribUV = {
+	"UV",
+	AT_V2_32
+};
+
+PipeAttribute attribUV2 = {
+	"UV2",
+	AT_V4_32
+};
+
+PipeAttribute attribRGBA = {
+	"RGBA",
+	AT_V4_8 | AT_UNSGN
+};
+
+PipeAttribute attribNormal = {
+	"Normal",
+	AT_V3_8		// RW has V4_8 but uses V3_8, wtf?
+};
+
+PipeAttribute attribWeights = {
+	"Weights",
+	AT_V4_32 | AT_RW
+};
+
+Pipeline::Pipeline(uint32 platform)
+ : rw::Pipeline(platform) { }
+
+void
+Pipeline::setTriBufferSizes(uint32 inputStride,
+                            uint32 stripCount, uint32 listCount)
+{
+	this->inputStride = inputStride;
+	this->triListCount = listCount/12*12;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		a = this->attribs[i];
+		if(a && a->attrib & AT_RW)
+			goto brokenout;
+	}
+	this->triStripCount = stripCount/4*4;
+	return;
+brokenout:
+	this->triStripCount = (stripCount-2)/4*4+2;
+}
+
+Pipeline*
+makeDefaultPipeline(void)
+{
+	Pipeline *pipe = new Pipeline(PLATFORM_PS2);
+	pipe->attribs[AT_XYZ] = &attribXYZ;
+	pipe->attribs[AT_UV] = &attribUV;
+	pipe->attribs[AT_RGBA] = &attribRGBA;
+	pipe->attribs[AT_NORMAL] = &attribNormal;
+	uint32 vertCount = Pipeline::getVertCount(VU_Lights, 4, 3, 2);
+	pipe->setTriBufferSizes(4, vertCount, vertCount/3);
+	pipe->vifOffset = pipe->inputStride*vertCount;
+	return pipe;
+}
+
+Pipeline*
+makeSkinPipeline(void)
+{
+	Pipeline *pipe = new Pipeline(PLATFORM_PS2);
+	pipe->attribs[AT_XYZ] = &attribXYZ;
+	pipe->attribs[AT_UV] = &attribUV;
+	pipe->attribs[AT_RGBA] = &attribRGBA;
+	pipe->attribs[AT_NORMAL] = &attribNormal;
+	pipe->attribs[AT_NORMAL+1] = &attribWeights;
+	uint32 vertCount = Pipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
+	pipe->setTriBufferSizes(5, vertCount, vertCount/3);
+	pipe->vifOffset = pipe->inputStride*vertCount;
+	return pipe;
+}
+
+void
+dumpPipeline(rw::Pipeline *rwpipe)
+{
+	if(rwpipe->platform != PLATFORM_PS2)
+		return;
+	Pipeline *pipe = (Pipeline*)rwpipe;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(pipe->attribs); i++){
+		a = pipe->attribs[i];
+		if(a)
+			printf("%d %s: %x\n", i, a->name, a->attrib);
+	}
+	printf("stride: %x\n", pipe->inputStride);
+	printf("triSCount: %x\n", pipe->triStripCount);
+	printf("triLCount: %x\n", pipe->triListCount);
+	printf("vifOffset: %x\n", pipe->vifOffset);
 }
 
 // Skin

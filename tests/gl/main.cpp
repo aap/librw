@@ -42,15 +42,16 @@ renderAtomic(rw::Atomic *atomic)
 	uint64 offset = 0;
 	for(uint32 i = 0; i < meshHeader->numMeshes; i++){
 		Mesh *mesh = &meshHeader->mesh[i];
+		Material *mat = mesh->material;
 		float color[4];
-		uint8 *col = mesh->material->color;
+		uint8 *col = mat->color;
 		color[0] = col[0] / 255.0f;
 		color[1] = col[1] / 255.0f;
 		color[2] = col[2] / 255.0f;
 		color[3] = col[3] / 255.0f;
 		glUniform4fv(glGetUniformLocation(program, "matColor"),
 			     1, color);
-		rw::gl::Texture *tex =(rw::gl::Texture*)mesh->material->texture;
+		rw::gl::Texture *tex =(rw::gl::Texture*)mat->texture;
 		if(tex)
 			tex->bind(0);
 		else
