@@ -29,6 +29,7 @@ void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 
+void printDMA(InstanceData *inst);
 void walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size));
 void sizedebug(InstanceData *inst);
 
@@ -49,12 +50,16 @@ struct Pipeline : rw::Pipeline
 	}
 
 	Pipeline(uint32 platform);
+	virtual void instance(Atomic *atomic);
+	virtual void uninstance(Atomic *atomic);
+//	virtual void render(Atomic *atomic);
 	void setTriBufferSizes(uint32 inputStride,
 	                       uint32 stripCount, uint32 listCount);
 };
 
 Pipeline *makeDefaultPipeline(void);
 Pipeline *makeSkinPipeline(void);
+Pipeline *makeMatFXPipeline(void);
 void dumpPipeline(rw::Pipeline *pipe);
 
 // Skin plugin

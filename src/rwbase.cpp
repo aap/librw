@@ -18,7 +18,7 @@ int version = 0x36003;
 int build = 0xFFFF;
 #ifdef RW_PS2
 	int platform = PLATFORM_PS2;
-#elseif RW_OPENGL
+#elif RW_OPENGL
 	int platform = PLATFORM_OPENGL;
 #else
 	int platform = PLATFORM_NULL;

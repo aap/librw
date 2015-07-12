@@ -109,10 +109,18 @@ dumpRasterPacket(int n)
 	printf("\n");
 }
 
+rw::Pipeline *defpipe;
+
 void
 drawAtomic(rw::Atomic *atomic)
 {
 	rw::Geometry *geo = atomic->geometry;
+	if(!(geo->geoflags & rw::Geometry::NATIVE)){
+		if(atomic->pipeline)
+			atomic->pipeline->instance(atomic);
+		else
+			defpipe->instance(atomic);
+	}
 	assert(geo->instData != NULL);
 	rw::ps2::InstanceDataHeader *instData =
 	  (rw::ps2::InstanceDataHeader*)geo->instData;
@@ -178,10 +186,10 @@ draw(void)
 	gsClear();
 
 	matMakeIdentity(viewMat);
-	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
+//	matTranslate(viewMat, 0.0f, 0.0f, -34.0f);
 //	matTranslate(viewMat, 0.0f, 0.0f, -10.0f);
 //	matTranslate(viewMat, 0.0f, 0.0f, -8.0f);
-//	matTranslate(viewMat, 0.0f, 0.0f, -4.0f);
+	matTranslate(viewMat, 0.0f, 0.0f, -4.0f);
 	matRotateX(viewMat, rot);
 	matRotateY(viewMat, rot);
 	matRotateZ(viewMat, rot);
@@ -199,7 +207,7 @@ draw(void)
 		matCopy(vuMat, m);
 	}
 
-	rot += 0.01f;
+	rot += 0.001f;
 	if(rot > 2*M_PI)
 		rot -= 2*M_PI;
 }
@@ -233,9 +241,14 @@ main()
 //	rw::ps2::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 
+	defpipe = rw::ps2::makeDefaultPipeline();
+
+	printf("platform: %d\n", rw::platform);
+
 	rw::uint32 len;
 //	rw::uint8 *data = rw::getFileContents("host:player-vc-ps2.dff", &len);
-	rw::uint8 *data = rw::getFileContents("host:od_newscafe_dy-ps2.dff", &len);
+	rw::uint8 *data = rw::getFileContents("host:player_pc.dff", &len);
+//	rw::uint8 *data = rw::getFileContents("host:od_newscafe_dy-ps2.dff", &len);
 //	rw::uint8 *data = rw::getFileContents("host:admiral-ps2.dff", &len);
 	rw::StreamMemory in;
 	in.open(data, len);

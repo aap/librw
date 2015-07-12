@@ -103,7 +103,7 @@ Texture::streamRead(Stream *stream)
 	uint32 length;
 	char name[32], mask[32];
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	uint32 filterAddressing = stream->readU16(); 
+	uint32 filterAddressing = stream->readU16();
 	// TODO: what is this? (mipmap? i think)
 	stream->seek(2);
 
@@ -282,6 +282,7 @@ Image::getFilename(const char *name)
 // TGA I/O
 //
 
+// TODO: fuck pakced structs
 #ifndef RW_PS2
 #pragma pack(push)
 #pragma pack(1)

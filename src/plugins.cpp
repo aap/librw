@@ -554,7 +554,8 @@ registerSkinPlugin(void)
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
-
+	skinGlobals.pipelines[platformIdx[PLATFORM_PS2]] =
+		ps2::makeSkinPipeline();
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,
@@ -883,6 +884,8 @@ registerMatFXPlugin(void)
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		matFXGlobals.pipelines[i] = defpipe;
+	matFXGlobals.pipelines[platformIdx[PLATFORM_PS2]] =
+		ps2::makeMatFXPipeline();
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
