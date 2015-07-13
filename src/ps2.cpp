@@ -460,7 +460,6 @@ instanceMat(Pipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
-				// TODO: instance
 				switch(i){
 				case 0:
 					p = instanceXYZ(p, g, m, idx, nverts);
@@ -497,8 +496,6 @@ instanceMat(Pipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 */
 }
 
-#undef QWC
-
 void
 Pipeline::instance(Atomic *atomic)
 {
@@ -519,6 +516,31 @@ Pipeline::instance(Atomic *atomic)
 	geometry->geoflags |= Geometry::NATIVE;
 }
 
+void
+printVertCounts(InstanceData *inst, int flag)
+{
+	uint32 *d = (uint32*)inst->data;
+	int stride;
+	if(inst->arePointersFixed){
+		d += 4;
+		while(d[3]&0x60000000){	// skip UNPACKs
+			stride = d[2]&0xFF;
+			d += 4 + 4*QWC(attribSize(d[3])*((d[3]>>16)&0xFF));
+		}
+		if(d[2] == 0)
+			printf("ITOP %x %d (%d)\n", *d, stride, flag);
+	}else{
+		while((*d&0x70000000) == 0x30000000){
+			stride = d[2]&0xFF;
+			d += 8;
+		}
+		if((*d&0x70000000) == 0x10000000){
+			d += (*d&0xFFFF)*4;
+			printf("ITOP %x %d (%d)\n", *d, stride, flag);
+		}
+	}
+}
+
 // Only a dummy right now
 void
 Pipeline::uninstance(Atomic *atomic)
@@ -530,17 +552,19 @@ Pipeline::uninstance(Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geometry->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
-		printf("numIndices: %d\n", mesh->numIndices);
-		printDMA(instance);
+//		printf("numIndices: %d\n", mesh->numIndices);
+//		printDMA(instance);
+		printVertCounts(instance, geometry->meshHeader->flags);
 	}
 }
 
+#undef QWC
+
 void
-Pipeline::setTriBufferSizes(uint32 inputStride,
-                            uint32 stripCount, uint32 listCount)
+Pipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
 {
 	this->inputStride = inputStride;
-	this->triListCount = listCount/12*12;
+	this->triListCount = stripCount/12*12;
 	PipeAttribute *a;
 	for(uint i = 0; i < nelem(this->attribs); i++){
 		a = this->attribs[i];
@@ -562,7 +586,7 @@ makeDefaultPipeline(void)
 	pipe->attribs[AT_RGBA] = &attribRGBA;
 	pipe->attribs[AT_NORMAL] = &attribNormal;
 	uint32 vertCount = Pipeline::getVertCount(VU_Lights, 4, 3, 2);
-	pipe->setTriBufferSizes(4, vertCount, vertCount/3);
+	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	return pipe;
 }
@@ -579,7 +603,7 @@ makeSkinPipeline(void)
 	pipe->attribs[AT_NORMAL] = &attribNormal;
 	pipe->attribs[AT_NORMAL+1] = &attribWeights;
 	uint32 vertCount = Pipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
-	pipe->setTriBufferSizes(5, vertCount, vertCount/3);
+	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	return pipe;
 }
@@ -594,10 +618,8 @@ makeMatFXPipeline(void)
 	pipe->attribs[AT_UV] = &attribUV;
 	pipe->attribs[AT_RGBA] = &attribRGBA;
 	pipe->attribs[AT_NORMAL] = &attribNormal;
-// TODO: not correct
-	uint32 vertCount = Pipeline::getVertCount(VU_Lights, 4, 3, 2);
-	pipe->setTriBufferSizes(4, vertCount, vertCount/3);
-pipe->triStripCount = 0x38;
+	uint32 vertCount = Pipeline::getVertCount(0x3C5, 4, 3, 3);
+	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	return pipe;
 }

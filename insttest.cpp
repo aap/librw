@@ -30,7 +30,7 @@ main(int argc, char *argv[])
 	rw::platform = rw::PLATFORM_PS2;
 
 	rw::Pipeline *defpipe = rw::ps2::makeDefaultPipeline();
-	rw::Pipeline *skinpipe = rw::ps2::makeSkinPipeline();
+//	rw::Pipeline *skinpipe = rw::ps2::makeSkinPipeline();
 //	rw::ps2::dumpPipeline(defpipe);
 //	rw::ps2::dumpPipeline(skinpipe);
 
@@ -62,6 +62,7 @@ main(int argc, char *argv[])
 	c = Clump::streamRead(&in);
 	assert(c != NULL);
 
+	printf("%s\n", argv[arg]);
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		if(a->pipeline){
@@ -82,6 +83,7 @@ main(int argc, char *argv[])
 		}
 	}
 
+/*
 	data = new rw::uint8[256*1024];
 	rw::StreamMemory out;
 	out.open(data, 0, 256*1024);
@@ -93,6 +95,7 @@ main(int argc, char *argv[])
 	fclose(cf);
 	out.close();
 	delete[] data;
+*/
 
 	delete c;
 

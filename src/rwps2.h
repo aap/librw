@@ -53,8 +53,7 @@ struct Pipeline : rw::Pipeline
 	virtual void instance(Atomic *atomic);
 	virtual void uninstance(Atomic *atomic);
 //	virtual void render(Atomic *atomic);
-	void setTriBufferSizes(uint32 inputStride,
-	                       uint32 stripCount, uint32 listCount);
+	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
 };
 
 Pipeline *makeDefaultPipeline(void);
