@@ -23,16 +23,19 @@ main(int argc, char *argv[])
 	gta::registerBreakableModelPlugin();
 	gta::registerExtraVertColorPlugin();
 	rw::ps2::registerADCPlugin();
+	rw::ps2::registerPDSPlugin();
 	rw::registerSkinPlugin();
 	rw::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 
 	rw::platform = rw::PLATFORM_PS2;
 
-	rw::Pipeline *defpipe = rw::ps2::makeDefaultPipeline();
-//	rw::Pipeline *skinpipe = rw::ps2::makeSkinPipeline();
-//	rw::ps2::dumpPipeline(defpipe);
-//	rw::ps2::dumpPipeline(skinpipe);
+	rw::ps2::ObjPipeline *defpipe = rw::ps2::makeDefaultPipeline();
+	rw::ps2::ObjPipeline *skinpipe = rw::ps2::makeSkinPipeline();
+	rw::ps2::ObjPipeline *matfxpipe = rw::ps2::makeMatFXPipeline();
+//	rw::ps2::defaultMatPipe->dump();
+//	skinpipe->groupPipeline->dump();
+//	matfxpipe->groupPipeline->dump();
 
 	int uninstance = 0;
 	int arg = 1;
@@ -62,7 +65,19 @@ main(int argc, char *argv[])
 	c = Clump::streamRead(&in);
 	assert(c != NULL);
 
-	printf("%s\n", argv[arg]);
+//	printf("%s\n", argv[arg]);
+
+	for(int32 i = 0; i < c->numAtomics; i++){
+		Atomic *a = c->atomicList[i];
+		Pipeline *ap = a->pipeline;
+		Geometry *g = a->geometry;
+		for(int32 j = 0; j < g->numMaterials; j++){
+			Pipeline *mp = g->materialList[j]->pipeline;
+			if(ap && mp)
+				printf("%s %x %x\n", argv[arg], ap->pluginData, mp->pluginData);
+		}
+	}
+
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		if(a->pipeline){
@@ -83,7 +98,6 @@ main(int argc, char *argv[])
 		}
 	}
 
-/*
 	data = new rw::uint8[256*1024];
 	rw::StreamMemory out;
 	out.open(data, 0, 256*1024);
@@ -95,7 +109,6 @@ main(int argc, char *argv[])
 	fclose(cf);
 	out.close();
 	delete[] data;
-*/
 
 	delete c;
 

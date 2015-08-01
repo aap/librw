@@ -16,6 +16,9 @@ using namespace std;
 namespace rw {
 namespace ps2 {
 
+ObjPipeline *defaultObjPipe;
+MatPipeline *defaultMatPipe;
+
 void*
 destroyNativeData(void *object, int32, int32)
 {
@@ -237,8 +240,46 @@ PipeAttribute attribWeights = {
 	AT_V4_32 | AT_RW
 };
 
-Pipeline::Pipeline(uint32 platform)
- : rw::Pipeline(platform) { }
+MatPipeline::MatPipeline(uint32 platform)
+ : rw::Pipeline(platform)
+{
+	for(int i = 0; i < 10; i++)
+		this->attribs[i] = NULL;
+}
+
+void
+MatPipeline::dump(void)
+{
+	if(this->platform != PLATFORM_PS2)
+		return;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		a = this->attribs[i];
+		if(a)
+			printf("%d %s: %x\n", i, a->name, a->attrib);
+	}
+	printf("stride: %x\n", this->inputStride);
+	printf("triSCount: %x\n", this->triStripCount);
+	printf("triLCount: %x\n", this->triListCount);
+	printf("vifOffset: %x\n", this->vifOffset);
+}
+
+void
+MatPipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
+{
+	this->inputStride = inputStride;
+	this->triListCount = stripCount/12*12;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		a = this->attribs[i];
+		if(a && a->attrib & AT_RW)
+			goto brokenout;
+	}
+	this->triStripCount = stripCount/4*4;
+	return;
+brokenout:
+	this->triStripCount = (stripCount-2)/4*4+2;
+}
 
 static uint32
 attribSize(uint32 unpack)
@@ -250,7 +291,7 @@ attribSize(uint32 unpack)
 #define QWC(x) (((x)+0xF)>>4)
 
 static uint32
-getBatchSize(Pipeline *pipe, uint32 vertCount)
+getBatchSize(MatPipeline *pipe, uint32 vertCount)
 {
 	PipeAttribute *a;
 	uint32 size = 1;
@@ -345,7 +386,7 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 uint32 markcnt = 0xf790;
 
 static void
-instanceMat(Pipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
+instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 {
 	PipeAttribute *a;
 	uint32 numAttribs = 0;
@@ -367,7 +408,7 @@ instanceMat(Pipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 		}
 		batchVertCount = pipe->triStripCount;
 		lastBatchVertCount = totalVerts%pipe->triStripCount;
-	}else{	// trilist
+	}else{				// trilist
 		numBatches = (m->numIndices+pipe->triListCount-1) /
 			pipe->triListCount;
 		totalVerts = m->numIndices;
@@ -488,18 +529,17 @@ instanceMat(Pipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 			*p++ = 0x06000000;	// MSKPATH3; SA: FLUSH
 		}
 	}
-
-/*
-	FILE *f = fopen("out.bin", "w");
-	fwrite(inst->data, inst->dataSize, 1, f);
-	fclose(f);
-*/
 }
 
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::Pipeline(platform), groupPipeline(NULL) { }
+
 void
-Pipeline::instance(Atomic *atomic)
+ObjPipeline::instance(Atomic *atomic)
 {
 	Geometry *geometry = atomic->geometry;
+	if(geometry->geoflags & Geometry::NATIVE)
+		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_PS2;
@@ -509,8 +549,14 @@ Pipeline::instance(Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geometry->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
-		// TODO: should depend on material pipeline
-		instanceMat(this, geometry, instance, mesh);
+
+		MatPipeline *m;
+		m = this->groupPipeline ?
+			m = this->groupPipeline :
+			(MatPipeline*)mesh->material->pipeline;
+		if(m == NULL)
+			m = defaultMatPipe;
+		instanceMat(m, geometry, instance, mesh);
 //printf("\n");
 	}
 	geometry->geoflags |= Geometry::NATIVE;
@@ -543,7 +589,7 @@ printVertCounts(InstanceData *inst, int flag)
 
 // Only a dummy right now
 void
-Pipeline::uninstance(Atomic *atomic)
+ObjPipeline::uninstance(Atomic *atomic)
 {
 	Geometry *geometry = atomic->geometry;
 	assert(geometry->instData->platform == PLATFORM_PS2);
@@ -560,41 +606,32 @@ Pipeline::uninstance(Atomic *atomic)
 
 #undef QWC
 
-void
-Pipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
-{
-	this->inputStride = inputStride;
-	this->triListCount = stripCount/12*12;
-	PipeAttribute *a;
-	for(uint i = 0; i < nelem(this->attribs); i++){
-		a = this->attribs[i];
-		if(a && a->attrib & AT_RW)
-			goto brokenout;
-	}
-	this->triStripCount = stripCount/4*4;
-	return;
-brokenout:
-	this->triStripCount = (stripCount-2)/4*4+2;
-}
-
-Pipeline*
+ObjPipeline*
 makeDefaultPipeline(void)
 {
-	Pipeline *pipe = new Pipeline(PLATFORM_PS2);
-	pipe->attribs[AT_XYZ] = &attribXYZ;
-	pipe->attribs[AT_UV] = &attribUV;
-	pipe->attribs[AT_RGBA] = &attribRGBA;
-	pipe->attribs[AT_NORMAL] = &attribNormal;
-	uint32 vertCount = Pipeline::getVertCount(VU_Lights, 4, 3, 2);
-	pipe->setTriBufferSizes(4, vertCount);
-	pipe->vifOffset = pipe->inputStride*vertCount;
-	return pipe;
+	if(defaultMatPipe == NULL){
+		MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+		pipe->attribs[AT_XYZ] = &attribXYZ;
+		pipe->attribs[AT_UV] = &attribUV;
+		pipe->attribs[AT_RGBA] = &attribRGBA;
+		pipe->attribs[AT_NORMAL] = &attribNormal;
+		uint32 vertCount = MatPipeline::getVertCount(VU_Lights,4,3,2);
+		pipe->setTriBufferSizes(4, vertCount);
+		pipe->vifOffset = pipe->inputStride*vertCount;
+		defaultMatPipe = pipe;
+	}
+
+	if(defaultObjPipe == NULL){
+		ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+		defaultObjPipe = opipe;
+	}
+	return defaultObjPipe;
 }
 
-Pipeline*
+ObjPipeline*
 makeSkinPipeline(void)
 {
-	Pipeline *pipe = new Pipeline(PLATFORM_PS2);
+	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -602,44 +639,36 @@ makeSkinPipeline(void)
 	pipe->attribs[AT_RGBA] = &attribRGBA;
 	pipe->attribs[AT_NORMAL] = &attribNormal;
 	pipe->attribs[AT_NORMAL+1] = &attribWeights;
-	uint32 vertCount = Pipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
+	uint32 vertCount = MatPipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
 	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	return pipe;
+
+	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe->pluginID = ID_SKIN;
+	opipe->pluginData = 1;
+	opipe->groupPipeline = pipe;
+	return opipe;
 }
 
-Pipeline*
+ObjPipeline*
 makeMatFXPipeline(void)
 {
-	Pipeline *pipe = new Pipeline(PLATFORM_PS2);
+	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
 	pipe->attribs[AT_UV] = &attribUV;
 	pipe->attribs[AT_RGBA] = &attribRGBA;
 	pipe->attribs[AT_NORMAL] = &attribNormal;
-	uint32 vertCount = Pipeline::getVertCount(0x3C5, 4, 3, 3);
+	uint32 vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	return pipe;
-}
 
-void
-dumpPipeline(rw::Pipeline *rwpipe)
-{
-	if(rwpipe->platform != PLATFORM_PS2)
-		return;
-	Pipeline *pipe = (Pipeline*)rwpipe;
-	PipeAttribute *a;
-	for(uint i = 0; i < nelem(pipe->attribs); i++){
-		a = pipe->attribs[i];
-		if(a)
-			printf("%d %s: %x\n", i, a->name, a->attrib);
-	}
-	printf("stride: %x\n", pipe->inputStride);
-	printf("triSCount: %x\n", pipe->triStripCount);
-	printf("triLCount: %x\n", pipe->triListCount);
-	printf("vifOffset: %x\n", pipe->vifOffset);
+	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe->pluginID = ID_MATFX;
+	opipe->pluginData = 0;
+	opipe->groupPipeline = pipe;
+	return opipe;
 }
 
 // Skin
@@ -731,6 +760,7 @@ getSizeNativeSkin(void *object, int32 offset)
 	return size;
 }
 
+
 // ADC
 
 static void*
@@ -785,6 +815,39 @@ registerADCPlugin(void)
 	                               readADC,
 	                               writeADC,
 	                               getSizeADC);
+}
+
+
+// PDS plugin
+
+static void
+atomicPDSRights(void *object, int32, int32, uint32 data)
+{
+	Atomic *a = (Atomic*)object;
+	// TODO: lookup pipeline by data
+	a->pipeline = new Pipeline(PLATFORM_PS2);
+	a->pipeline->pluginID = ID_PDS;
+	a->pipeline->pluginData = data;
+}
+
+static void
+materialPDSRights(void *object, int32, int32, uint32 data)
+{
+	Material *m = (Material*)object;
+	// TODO: lookup pipeline by data
+	m->pipeline = new Pipeline(PLATFORM_PS2);
+	m->pipeline->pluginID = ID_PDS;
+	m->pipeline->pluginData = data;
+}
+
+void
+registerPDSPlugin(void)
+{
+	Atomic::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
+	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
+
+	Material::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
+	Material::setStreamRightsCallback(ID_PDS, materialPDSRights);
 }
 
 

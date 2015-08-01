@@ -398,7 +398,7 @@ static void
 readMaterialRights(Stream *stream, int32, void *, int32, int32)
 {
 	stream->read(materialRights, 8);
-//	printf("materialrights: %X %X\n", buffer[0], buffer[1]);
+//	printf("materialrights: %X %X\n", materialRights[0], materialRights[1]);
 }
 
 static void

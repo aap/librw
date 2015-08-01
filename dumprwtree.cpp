@@ -64,8 +64,8 @@ const char *toolkitchunks1[] = {
 
 const char *RSchunks[] = { "Unused 1", "Unused 2", "Unused 3",
 	"Pipeline Set", "Unused 5", "Unused 6", "Specular Material",
-	"Unused 8", "2dfx", "Night Vertex Colors", "Collision Model",
-	"Unused 12", "Reflection Material", "Mesh Extension", "Frame",
+	"Unused 8", "2dfx", "Extra Colors", "Collision Model",
+	"Unused 12", "Environment Material", "Breakable", "Node Name",
 	"Unused 16"
 };
 

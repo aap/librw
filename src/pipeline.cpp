@@ -20,8 +20,6 @@ Pipeline::Pipeline(uint32 platform)
 	this->pluginID = 0;
 	this->pluginData = 0;
 	this->platform = platform;
-	for(int i = 0; i < 10; i++)
-		this->attribs[i] = NULL;
 }
 
 Pipeline::Pipeline(Pipeline *)
@@ -30,6 +28,11 @@ Pipeline::Pipeline(Pipeline *)
 }
 
 Pipeline::~Pipeline(void)
+{
+}
+
+void
+Pipeline::dump(void)
 {
 }
 

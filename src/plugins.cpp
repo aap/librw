@@ -592,6 +592,7 @@ readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 flag;
 	stream->read(&flag, 4);
+//	printf("matfx: %d\n", flag);
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)
 		((Atomic*)object)->pipeline =
@@ -609,9 +610,10 @@ writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 static int32
 getSizeAtomicMatFX(void *object, int32 offset, int32)
 {
-	int32 flag;
+/*	int32 flag;
 	flag = *PLUGINOFFSET(int32, object, offset);
-	return flag ? 4 : -1;
+	return flag ? 4 : -1; */
+	return 4;
 }
 
 // Material

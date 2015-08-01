@@ -38,27 +38,43 @@ void fixDmaOffsets(InstanceData *inst);
 void unfixDmaOffsets(InstanceData *inst);
 //
 
-struct Pipeline : rw::Pipeline
+class MatPipeline : public rw::Pipeline
 {
+public:
 	uint32 vifOffset;
 	uint32 inputStride;
 	uint32 triStripCount, triListCount;
+	PipeAttribute *attribs[10];
 
 	static uint32 getVertCount(uint32 top, uint32 inAttribs,
 	                           uint32 outAttribs, uint32 outBufs) {
 		return (top-outBufs)/(inAttribs*2+outAttribs*outBufs);
 	}
 
-	Pipeline(uint32 platform);
-	virtual void instance(Atomic *atomic);
-	virtual void uninstance(Atomic *atomic);
-//	virtual void render(Atomic *atomic);
+	MatPipeline(uint32 platform);
+	virtual void dump(void);
+//	virtual void instance(Atomic *atomic);
+//	virtual void uninstance(Atomic *atomic);
+///	virtual void render(Atomic *atomic);
 	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
 };
 
-Pipeline *makeDefaultPipeline(void);
-Pipeline *makeSkinPipeline(void);
-Pipeline *makeMatFXPipeline(void);
+class ObjPipeline : public rw::Pipeline
+{
+public:
+	MatPipeline *groupPipeline;
+
+	ObjPipeline(uint32 platform);
+	virtual void instance(Atomic *atomic);
+	virtual void uninstance(Atomic *atomic);
+};
+
+extern ObjPipeline *defaultObjPipe;
+extern MatPipeline *defaultMatPipe;
+
+ObjPipeline *makeDefaultPipeline(void);
+ObjPipeline *makeSkinPipeline(void);
+ObjPipeline *makeMatFXPipeline(void);
 void dumpPipeline(rw::Pipeline *pipe);
 
 // Skin plugin
@@ -78,6 +94,22 @@ struct ADCData
 };
 
 void registerADCPlugin(void);
+
+// PDS plugin
+
+// IDs used by SA
+//    n   atomic   material
+//  1892  53f20080 53f20081	// ?
+//     1  53f20080 53f2008d	// triad_buddha01.dff
+// 56430  53f20082 53f20083	// world
+//    39  53f20082 53f2008f	// reflective world
+//  6941  53f20084 53f20085	// vehicles
+//  3423  53f20084 53f20087	// vehicles
+//  4640  53f20084 53f2008b	// vehicles
+//   418  53f20088 53f20089	// peds
+
+
+void registerPDSPlugin(void);
 
 }
 }
