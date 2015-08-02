@@ -19,7 +19,12 @@ public:
 	Pipeline(Pipeline *p);
 	~Pipeline(void);
 	virtual void dump(void);
-	// TODO: this is bad, maybe split obj and mat pipelines?
+};
+
+class ObjPipeline : public Pipeline
+{
+public:
+	ObjPipeline(uint32 platform) : Pipeline(platform) {}
 	virtual void instance(Atomic *atomic);
 	virtual void uninstance(Atomic *atomic);
 	virtual void render(Atomic *atomic);

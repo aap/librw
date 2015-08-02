@@ -549,7 +549,7 @@ skinRights(void *object, int32, int32, uint32)
 void
 registerSkinPlugin(void)
 {
-	Pipeline *defpipe = new Pipeline(PLATFORM_NULL);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	defpipe->pluginID = ID_SKIN;
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
@@ -881,7 +881,7 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 void
 registerMatFXPlugin(void)
 {
-	Pipeline *defpipe = new Pipeline(PLATFORM_NULL);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	defpipe->pluginID = ID_MATFX;
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)

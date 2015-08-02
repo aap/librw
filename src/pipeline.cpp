@@ -37,19 +37,19 @@ Pipeline::dump(void)
 }
 
 void
-Pipeline::instance(Atomic *atomic)
+ObjPipeline::instance(Atomic*)
 {
 	fprintf(stderr, "This pipeline can't instance\n");
 }
 
 void
-Pipeline::uninstance(Atomic *atomic)
+ObjPipeline::uninstance(Atomic*)
 {
 	fprintf(stderr, "This pipeline can't uninstance\n");
 }
 
 void
-Pipeline::render(Atomic *atomic)
+ObjPipeline::render(Atomic*)
 {
 	fprintf(stderr, "This pipeline can't render\n");
 }

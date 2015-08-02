@@ -226,7 +226,7 @@ struct MatFXGlobals
 {
 	int32 atomicOffset;
 	int32 materialOffset;
-	Pipeline *pipelines[NUM_PLATFORMS];
+	ObjPipeline *pipelines[NUM_PLATFORMS];
 };
 extern MatFXGlobals matFXGlobals;
 void registerMatFXPlugin(void);
@@ -323,7 +323,7 @@ struct Skin
 struct SkinGlobals
 {
 	int32 offset;
-	Pipeline *pipelines[NUM_PLATFORMS];
+	ObjPipeline *pipelines[NUM_PLATFORMS];
 };
 extern SkinGlobals skinGlobals;
 void registerSkinPlugin(void);
@@ -351,7 +351,7 @@ struct Atomic : PluginBase<Atomic>, Object
 	Frame *frame;
 	Geometry *geometry;
 	Clump *clump;
-	Pipeline *pipeline;
+	ObjPipeline *pipeline;
 
 	Atomic(void);
 	Atomic(Atomic *a);

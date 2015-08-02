@@ -45,6 +45,7 @@ public:
 	uint32 inputStride;
 	uint32 triStripCount, triListCount;
 	PipeAttribute *attribs[10];
+	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
 
 	static uint32 getVertCount(uint32 top, uint32 inAttribs,
 	                           uint32 outAttribs, uint32 outBufs) {
@@ -53,13 +54,11 @@ public:
 
 	MatPipeline(uint32 platform);
 	virtual void dump(void);
-//	virtual void instance(Atomic *atomic);
-//	virtual void uninstance(Atomic *atomic);
-///	virtual void render(Atomic *atomic);
 	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
+	void instance(Geometry *g, InstanceData *inst, Mesh *m);
 };
 
-class ObjPipeline : public rw::Pipeline
+class ObjPipeline : public rw::ObjPipeline
 {
 public:
 	MatPipeline *groupPipeline;

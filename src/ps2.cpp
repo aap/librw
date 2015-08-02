@@ -240,47 +240,6 @@ PipeAttribute attribWeights = {
 	AT_V4_32 | AT_RW
 };
 
-MatPipeline::MatPipeline(uint32 platform)
- : rw::Pipeline(platform)
-{
-	for(int i = 0; i < 10; i++)
-		this->attribs[i] = NULL;
-}
-
-void
-MatPipeline::dump(void)
-{
-	if(this->platform != PLATFORM_PS2)
-		return;
-	PipeAttribute *a;
-	for(uint i = 0; i < nelem(this->attribs); i++){
-		a = this->attribs[i];
-		if(a)
-			printf("%d %s: %x\n", i, a->name, a->attrib);
-	}
-	printf("stride: %x\n", this->inputStride);
-	printf("triSCount: %x\n", this->triStripCount);
-	printf("triLCount: %x\n", this->triListCount);
-	printf("vifOffset: %x\n", this->vifOffset);
-}
-
-void
-MatPipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
-{
-	this->inputStride = inputStride;
-	this->triListCount = stripCount/12*12;
-	PipeAttribute *a;
-	for(uint i = 0; i < nelem(this->attribs); i++){
-		a = this->attribs[i];
-		if(a && a->attrib & AT_RW)
-			goto brokenout;
-	}
-	this->triStripCount = stripCount/4*4;
-	return;
-brokenout:
-	this->triStripCount = (stripCount-2)/4*4+2;
-}
-
 static uint32
 attribSize(uint32 unpack)
 {
@@ -383,16 +342,57 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 	return (uint32*)p;
 }
 
+MatPipeline::MatPipeline(uint32 platform)
+ : rw::Pipeline(platform), instanceCB(NULL)
+{
+	for(int i = 0; i < 10; i++)
+		this->attribs[i] = NULL;
+}
+
+void
+MatPipeline::dump(void)
+{
+	if(this->platform != PLATFORM_PS2)
+		return;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		a = this->attribs[i];
+		if(a)
+			printf("%d %s: %x\n", i, a->name, a->attrib);
+	}
+	printf("stride: %x\n", this->inputStride);
+	printf("triSCount: %x\n", this->triStripCount);
+	printf("triLCount: %x\n", this->triListCount);
+	printf("vifOffset: %x\n", this->vifOffset);
+}
+
+void
+MatPipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
+{
+	this->inputStride = inputStride;
+	this->triListCount = stripCount/12*12;
+	PipeAttribute *a;
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		a = this->attribs[i];
+		if(a && a->attrib & AT_RW)
+			goto brokenout;
+	}
+	this->triStripCount = stripCount/4*4;
+	return;
+brokenout:
+	this->triStripCount = (stripCount-2)/4*4+2;
+}
+
 uint32 markcnt = 0xf790;
 
-static void
-instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
+void
+MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 {
 	PipeAttribute *a;
 	uint32 numAttribs = 0;
 	uint32 numBrokenAttribs = 0;
-	for(uint i = 0; i < nelem(pipe->attribs); i++)
-		if(a = pipe->attribs[i])
+	for(uint i = 0; i < nelem(this->attribs); i++)
+		if(a = this->attribs[i])
 			if(a->attrib & AT_RW)
 				numBrokenAttribs++;
 			else
@@ -401,23 +401,23 @@ instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 	uint32 totalVerts = 0;
 	uint32 batchVertCount, lastBatchVertCount;
 	if(g->meshHeader->flags == 1){	// tristrip
-		for(uint i = 0; i < m->numIndices; i += pipe->triStripCount-2){
+		for(uint i = 0; i < m->numIndices; i += this->triStripCount-2){
 			numBatches++;
-			totalVerts += m->numIndices-i < pipe->triStripCount ?
-				m->numIndices-i : pipe->triStripCount;
+			totalVerts += m->numIndices-i < this->triStripCount ?
+				m->numIndices-i : this->triStripCount;
 		}
-		batchVertCount = pipe->triStripCount;
-		lastBatchVertCount = totalVerts%pipe->triStripCount;
+		batchVertCount = this->triStripCount;
+		lastBatchVertCount = totalVerts%this->triStripCount;
 	}else{				// trilist
-		numBatches = (m->numIndices+pipe->triListCount-1) /
-			pipe->triListCount;
+		numBatches = (m->numIndices+this->triListCount-1) /
+			this->triListCount;
 		totalVerts = m->numIndices;
-		batchVertCount = pipe->triListCount;
-		lastBatchVertCount = totalVerts%pipe->triListCount;
+		batchVertCount = this->triListCount;
+		lastBatchVertCount = totalVerts%this->triListCount;
 	}
 
-	uint32 batchSize = getBatchSize(pipe, batchVertCount);
-	uint32 lastBatchSize = getBatchSize(pipe, lastBatchVertCount);
+	uint32 batchSize = getBatchSize(this, batchVertCount);
+	uint32 lastBatchSize = getBatchSize(this, lastBatchVertCount);
 	uint32 size = 0;
 	if(numBrokenAttribs == 0)
 		size = 1 + batchSize*(numBatches-1) + lastBatchSize;
@@ -426,27 +426,25 @@ instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 		       (1+batchSize)*(numBatches-1) + 1+lastBatchSize;
 
 	/* figure out size and addresses of broken out sections */
-	uint32 attribPos[nelem(pipe->attribs)];
+	uint32 attribPos[nelem(this->attribs)];
 	uint32 size2 = 0;
-	for(uint i = 0; i < nelem(pipe->attribs); i++)
-		if((a = pipe->attribs[i]) && a->attrib & AT_RW){
+	for(uint i = 0; i < nelem(this->attribs); i++)
+		if((a = this->attribs[i]) && a->attrib & AT_RW){
 			attribPos[i] = size2 + size;
 			size2 += QWC(m->numIndices*attribSize(a->attrib));
 		}
-
-/*
-	printf("attribs: %d %d\n", numAttribs, numBrokenAttribs);
-	printf("numIndices: %d\n", m->numIndices);
-	printf("%d %d, %x %x\n", numBatches, totalVerts,
-	    batchVertCount, lastBatchVertCount);
-	printf("%x %x\n", batchSize, lastBatchSize);
-	printf("size: %x, %x\n", size, size2);
-*/
 
 	inst->dataSize = (size+size2)<<4;
 	inst->arePointersFixed = numBrokenAttribs == 0;
 	// TODO: force alignment
 	inst->data = new uint8[inst->dataSize];
+
+	/* make array of addresses of broken out sections */
+	uint8 *datap[nelem(this->attribs)];
+	uint8 **dp = datap;
+	for(uint i = 0; i < nelem(this->attribs); i++)
+		if((a = this->attribs[i]) && a->attrib & AT_RW)
+			*dp++ = inst->data + attribPos[i]*0x10;
 
 	uint32 idx = 0;
 	uint32 *p = (uint32*)inst->data;
@@ -465,13 +463,13 @@ instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 			bsize = lastBatchSize;
 			nverts = lastBatchVertCount;
 		}
-		for(uint i = 0; i < nelem(pipe->attribs); i++)
-			if((a = pipe->attribs[i]) && a->attrib & AT_RW){
+		for(uint i = 0; i < nelem(this->attribs); i++)
+			if((a = this->attribs[i]) && a->attrib & AT_RW){
 				uint32 atsz = attribSize(a->attrib);
 				*p++ = 0x30000000 | QWC(nverts*atsz);
 				*p++ = attribPos[i];
 				*p++ = 0x01000100 |
-					pipe->inputStride;	// STCYCL
+					this->inputStride;	// STCYCL
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
@@ -492,12 +490,12 @@ instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 			*p++ = 0x0;
 		}
 
-		for(uint i = 0; i < nelem(pipe->attribs); i++)
-			if((a = pipe->attribs[i]) && (a->attrib & AT_RW) == 0){
+		for(uint i = 0; i < nelem(this->attribs); i++)
+			if((a = this->attribs[i]) && (a->attrib & AT_RW) == 0){
 				*p++ = 0x07000000 | markcnt++; // MARK (SA: NOP)
 				*p++ = 0x05000000;		// STMOD
 				*p++ = 0x01000100 |
-					pipe->inputStride;	// STCYCL
+					this->inputStride;	// STCYCL
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
@@ -529,10 +527,14 @@ instanceMat(MatPipeline *pipe, Geometry *g, InstanceData *inst, Mesh *m)
 			*p++ = 0x06000000;	// MSKPATH3; SA: FLUSH
 		}
 	}
+
+	if(instanceCB)
+		instanceCB(this, g, m, datap, numBrokenAttribs);
 }
 
+
 ObjPipeline::ObjPipeline(uint32 platform)
- : rw::Pipeline(platform), groupPipeline(NULL) { }
+ : rw::ObjPipeline(platform), groupPipeline(NULL) { }
 
 void
 ObjPipeline::instance(Atomic *atomic)
@@ -552,12 +554,11 @@ ObjPipeline::instance(Atomic *atomic)
 
 		MatPipeline *m;
 		m = this->groupPipeline ?
-			m = this->groupPipeline :
+			this->groupPipeline :
 			(MatPipeline*)mesh->material->pipeline;
 		if(m == NULL)
 			m = defaultMatPipe;
-		instanceMat(m, geometry, instance, mesh);
-//printf("\n");
+		m->instance(geometry, instance, mesh);
 	}
 	geometry->geoflags |= Geometry::NATIVE;
 }
@@ -628,6 +629,8 @@ makeDefaultPipeline(void)
 	return defaultObjPipe;
 }
 
+static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
+
 ObjPipeline*
 makeSkinPipeline(void)
 {
@@ -642,6 +645,7 @@ makeSkinPipeline(void)
 	uint32 vertCount = MatPipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
 	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->instanceCB = skinInstanceCB;
 
 	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_SKIN;
@@ -760,6 +764,36 @@ getSizeNativeSkin(void *object, int32 offset)
 	return size;
 }
 
+static void
+skinInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data, int32 n)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	if(skin == NULL || n < 1)
+		return;
+	float *weights = (float*)data[0];
+	uint32 *indices = (uint32*)data[0];
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		*weights++ = skin->weights[j*4+0];
+		*indices &= ~0x3FF;
+		*indices++ |= skin->indices[j*4+0] && skin->weights[j*4+0] ?
+				(skin->indices[j*4+0]+1) << 2 : 0;
+		*weights++ = skin->weights[j*4+1];
+		*indices &= ~0x3FF;
+		*indices++ |= skin->indices[j*4+1] && skin->weights[j*4+1] ?
+				(skin->indices[j*4+1]+1) << 2 : 0;
+		*weights++ = skin->weights[j*4+2];
+		*indices &= ~0x3FF;
+		*indices++ |= skin->indices[j*4+2] && skin->weights[j*4+2] ?
+				(skin->indices[j*4+2]+1) << 2 : 0;
+		*weights++ = skin->weights[j*4+3];
+		*indices &= ~0x3FF;
+		*indices++ |= skin->indices[j*4+3] && skin->weights[j*4+3] ?
+				(skin->indices[j*4+3]+1) << 2 : 0;
+	}
+}
+
 
 // ADC
 
@@ -825,7 +859,7 @@ atomicPDSRights(void *object, int32, int32, uint32 data)
 {
 	Atomic *a = (Atomic*)object;
 	// TODO: lookup pipeline by data
-	a->pipeline = new Pipeline(PLATFORM_PS2);
+	a->pipeline = new ObjPipeline(PLATFORM_PS2);
 	a->pipeline->pluginID = ID_PDS;
 	a->pipeline->pluginData = data;
 }
