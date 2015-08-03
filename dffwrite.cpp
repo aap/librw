@@ -31,6 +31,7 @@ main(int argc, char *argv[])
 	rw::registerNativeDataPlugin();
 //	rw::ps2::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
+	rw::Atomic::init();
 
 	rw::Clump *c;
 

@@ -361,7 +361,12 @@ struct Atomic : PluginBase<Atomic>, Object
 	bool streamWriteClump(Stream *stream,
 		Frame **frameList, int32 numFrames);
 	uint32 streamGetSize(void);
+	ObjPipeline *getPipeline(void);
+
+	static void init(void);
 };
+
+extern ObjPipeline *defaultPipelines[NUM_PLATFORMS];
 
 void registerAtomicRightsPlugin(void);
 

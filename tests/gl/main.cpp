@@ -21,8 +21,7 @@ renderAtomic(rw::Atomic *atomic)
 		GL_TRIANGLES, GL_TRIANGLE_STRIP
 	};
 	Geometry *geo = atomic->geometry;
-	if(!(geo->geoflags & Geometry::NATIVE))
-		gl::instance(atomic);
+	atomic->getPipeline()->instance(atomic);
 	gl::InstanceDataHeader *inst = (gl::InstanceDataHeader*)geo->instData;
 	MeshHeader *meshHeader = geo->meshHeader;
 
@@ -199,10 +198,14 @@ init(void)
 	gta::registerBreakableModelPlugin();
 	gta::registerExtraVertColorPlugin();
 	rw::ps2::registerADCPlugin();
+	rw::ps2::registerPDSPlugin();
 	rw::registerSkinPlugin();
 	rw::registerNativeDataPlugin();
 //      rw::ps2::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
+	rw::Atomic::init();
+
+	printf("platform: %d\n", rw::platform);
 
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL)

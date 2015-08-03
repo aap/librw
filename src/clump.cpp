@@ -9,6 +9,8 @@
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwps2.h"
+#include "rwogl.h"
 
 using namespace std;
 
@@ -486,6 +488,28 @@ uint32
 Atomic::streamGetSize(void)
 {
 	return 12 + 16 + 12 + this->streamGetPluginSize();
+}
+
+ObjPipeline *defaultPipelines[NUM_PLATFORMS];
+
+ObjPipeline*
+Atomic::getPipeline(void)
+{
+	return this->pipeline ?
+		this->pipeline :
+		defaultPipelines[platformIdx[platform]];
+}
+
+void
+Atomic::init(void)
+{
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		defaultPipelines[i] = defpipe;
+	defaultPipelines[platformIdx[PLATFORM_PS2]] =
+		ps2::makeDefaultPipeline();
+	defaultPipelines[platformIdx[PLATFORM_OGL]] =
+		gl::makeDefaultPipeline();
 }
 
 // Atomic Rights plugin

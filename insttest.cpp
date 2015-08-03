@@ -27,15 +27,9 @@ main(int argc, char *argv[])
 	rw::registerSkinPlugin();
 	rw::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
+	rw::Atomic::init();
 
 	rw::platform = rw::PLATFORM_PS2;
-
-	rw::ps2::ObjPipeline *defpipe = rw::ps2::makeDefaultPipeline();
-	rw::ps2::ObjPipeline *skinpipe = rw::ps2::makeSkinPipeline();
-	rw::ps2::ObjPipeline *matfxpipe = rw::ps2::makeMatFXPipeline();
-//	rw::ps2::defaultMatPipe->dump();
-//	skinpipe->groupPipeline->dump();
-//	matfxpipe->groupPipeline->dump();
 
 	int uninstance = 0;
 	int arg = 1;
@@ -67,6 +61,13 @@ main(int argc, char *argv[])
 
 //	printf("%s\n", argv[arg]);
 
+// only opengl:
+	for(int32 i = 0; i < c->numAtomics; i++){
+		Atomic *a = c->atomicList[i];
+		gl::printPipeinfo(a);
+	}
+	return 0;
+
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		Pipeline *ap = a->pipeline;
@@ -80,22 +81,11 @@ main(int argc, char *argv[])
 
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
-		if(a->pipeline){
-			printf("has pipeline %x %x %x\n",
-				a->pipeline->pluginID,
-				a->pipeline->pluginData,
-				a->pipeline->platform);
-			if(uninstance)
-				a->pipeline->uninstance(a);
-			else
-				a->pipeline->instance(a);
-		}else{
-			printf("default pipeline\n");
-			if(uninstance)
-				defpipe->uninstance(a);
-			else
-				defpipe->instance(a);
-		}
+		ObjPipeline *p = a->getPipeline();
+		if(uninstance)
+			p->uninstance(a);
+		else
+			p->instance(a);
 	}
 
 	data = new rw::uint8[256*1024];

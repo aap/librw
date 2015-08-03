@@ -32,6 +32,21 @@ void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
 
 void instance(Atomic *atomic);
+void printPipeinfo(Atomic *a);
+
+class ObjPipeline : public rw::ObjPipeline
+{
+public:
+	uint32 numCustomAttribs;
+	uint32 customAttribSize;
+
+	ObjPipeline(uint32 platform);
+	virtual void instance(Atomic *atomic);
+};
+
+ObjPipeline *makeDefaultPipeline(void);
+ObjPipeline *makeSkinPipeline(void);
+ObjPipeline *makeMatFXPipeline(void);
 
 // only RW_OPENGL
 void uploadGeo(Geometry *geo);

@@ -31,7 +31,7 @@ namespace gl {
 //    457 5 2 0 4
 
 // SA
-//  20303 0 0 0 3	vertices:  3 float
+//  20303 0 0 0 3	vertices:  3 floats
 //     53 1 0 0 2	texCoords: 2 floats
 //  20043 1 3 0 2	texCoords: 2 shorts
 //   6954 2 1 1 3	normal:    3 bytes normalized
@@ -83,6 +83,22 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = new uint8[header->dataSize];
 	stream->read(header->data, header->dataSize);
+}
+
+void
+printPipeinfo(Atomic *a)
+{
+	Geometry *g = a->geometry;
+	if(g->instData == NULL || g->instData->platform != PLATFORM_OGL)
+		return;
+	int32 plgid = 0;
+	if(a->pipeline)
+		plgid = a->pipeline->pluginID;
+	printf("%s %x: ", debugFile, plgid);
+	InstanceDataHeader *h = (InstanceDataHeader*)g->instData;
+	for(int i = 0; i < h->numAttribs; i++)
+		printf("%x(%x) ", h->attribs[i].index, h->attribs[i].type);
+	printf("\n");
 }
 
 void
@@ -165,11 +181,16 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 	}
 }
 
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform), numCustomAttribs(0), customAttribSize(0) { }
+
 // TODO: make pipeline dependent (skin data, night colors)
 void
-instance(Atomic *atomic)
+ObjPipeline::instance(Atomic *atomic)
 {
 	Geometry *geo = atomic->geometry;
+	if(geo->geoflags & Geometry::NATIVE)
+		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_OGL;
@@ -182,6 +203,8 @@ instance(Atomic *atomic)
 		header->numAttribs++;
 	int32 offset = 0;
 	header->attribs = new AttribDesc[header->numAttribs];
+
+	printf("...instancing\n");
 
 	AttribDesc *a = header->attribs;
 	// Vertices
@@ -225,20 +248,17 @@ instance(Atomic *atomic)
 	}
 	// TODO: skin, extra colors; what to do with multiple coords?
 
-	a = header->attribs;
-	for(int32 i = 0; i < header->numAttribs; i++)
-		a[i].stride = offset;
-
 	header->dataSize = offset*geo->numVertices;
 	header->data = new uint8[header->dataSize];
-	memset(header->data, 0xFF, header->dataSize);
+//	memset(header->data, 0xFF, header->dataSize);
 
+	a = header->attribs;
 	uint8 *p = header->data + a->offset;
 	float32 *vert = geo->morphTargets->vertices;
 	for(int32 i = 0; i < geo->numVertices; i++){
 		packattrib(p, vert, a);
 		vert += 3;
-		p += a->stride;
+		p += offset;
 	}
 	a++;
 
@@ -248,7 +268,7 @@ instance(Atomic *atomic)
 		for(int32 i = 0; i < geo->numVertices; i++){
 			packattrib(p, texcoord, a, 512.0f);
 			texcoord += 2;
-			p += a->stride;
+			p += offset;
 		}
 		a++;
 	}
@@ -259,7 +279,7 @@ instance(Atomic *atomic)
 		for(int32 i = 0; i < geo->numVertices; i++){
 			packattrib(p, norm, a);
 			norm += 3;
-			p += a->stride;
+			p += offset;
 		}
 		a++;
 	}
@@ -275,11 +295,41 @@ instance(Atomic *atomic)
 			f[3] = color[3]/255.0f;
 			packattrib(p, f, a);
 			color += 4;
-			p += a->stride;
+			p += offset;
 		}
 		a++;
 	}
+
+	a = header->attribs;
+	for(int32 i = 0; i < header->numAttribs; i++)
+		a[i].stride = offset;
+
 	geo->geoflags |= Geometry::NATIVE;
+}
+
+ObjPipeline*
+makeDefaultPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	return pipe;
+}
+
+ObjPipeline*
+makeSkinPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	pipe->pluginID = ID_SKIN;
+	pipe->pluginData = 1;
+	return pipe;
+}
+
+ObjPipeline*
+makeMatFXPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	pipe->pluginID = ID_MATFX;
+	pipe->pluginData = 0;
+	return pipe;
 }
 
 #ifdef RW_OPENGL

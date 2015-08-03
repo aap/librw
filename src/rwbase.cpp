@@ -19,7 +19,7 @@ int build = 0xFFFF;
 #ifdef RW_PS2
 	int platform = PLATFORM_PS2;
 #elif RW_OPENGL
-	int platform = PLATFORM_OPENGL;
+	int platform = PLATFORM_OGL;
 #else
 	int platform = PLATFORM_NULL;
 #endif
