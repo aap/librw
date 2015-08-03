@@ -106,8 +106,7 @@ writeNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
-	InstanceDataHeader *header =
-		(InstanceDataHeader*)geometry->instData;
+	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	stream->writeU32(header->numAttribs);
 	stream->write(header->attribs, header->numAttribs*sizeof(AttribDesc));
 	stream->write(header->data, header->dataSize);
@@ -118,8 +117,7 @@ getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData->platform == PLATFORM_OGL);
-	InstanceDataHeader *header =
-		(InstanceDataHeader*)geometry->instData;
+	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	return 4 + header->numAttribs*sizeof(AttribDesc) + header->dataSize;
 }
 
@@ -141,10 +139,8 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
 				i8dst[i] = src[i]*scale;
-			else if(src[i] > 0.0f)
-				i8dst[i] = src[i]*127.0f;
 			else
-				i8dst[i] = src[i]*128.0f;
+				i8dst[i] = src[i]*127.0f;
 		}
 		break;
 
@@ -162,10 +158,8 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 		for(int i = 0; i < a->size; i++){
 			if(!a->normalized)
 				i16dst[i] = src[i]*scale;
-			else if(src[i] > 0.0f)
-				i16dst[i] = src[i]*32767.0f;
 			else
-				i16dst[i] = src[i]*32768.0f;
+				i16dst[i] = src[i]*32767.0f;
 		}
 		break;
 
@@ -182,9 +176,8 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 }
 
 ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform), numCustomAttribs(0), customAttribSize(0) { }
+ : rw::ObjPipeline(platform), numCustomAttribs(0), instanceCB(NULL) { }
 
-// TODO: make pipeline dependent (skin data, night colors)
 void
 ObjPipeline::instance(Atomic *atomic)
 {
@@ -196,15 +189,14 @@ ObjPipeline::instance(Atomic *atomic)
 	header->platform = PLATFORM_OGL;
 	header->vbo = 0;
 	header->ibo = 0;
-	header->numAttribs = 1 + (geo->numTexCoordSets > 0);
+	header->numAttribs =
+		this->numCustomAttribs + 1 + (geo->numTexCoordSets > 0);
 	if(geo->geoflags & Geometry::PRELIT)
 		header->numAttribs++;
 	if(geo->geoflags & Geometry::NORMALS)
 		header->numAttribs++;
 	int32 offset = 0;
 	header->attribs = new AttribDesc[header->numAttribs];
-
-	printf("...instancing\n");
 
 	AttribDesc *a = header->attribs;
 	// Vertices
@@ -215,6 +207,7 @@ ObjPipeline::instance(Atomic *atomic)
 	a->offset = offset;
 	offset += 12;
 	a++;
+	int32 firstCustom = 1;
 
 	// texCoords, only one set here
 	if(geo->numTexCoordSets){
@@ -225,6 +218,7 @@ ObjPipeline::instance(Atomic *atomic)
 		a->offset = offset;
 		offset += 4;
 		a++;
+		firstCustom++;
 	}
 
 	if(geo->geoflags & Geometry::NORMALS){
@@ -235,6 +229,7 @@ ObjPipeline::instance(Atomic *atomic)
 		a->offset = offset;
 		offset += 4;
 		a++;
+		firstCustom++;
 	}
 
 	if(geo->geoflags & Geometry::PRELIT){
@@ -245,20 +240,26 @@ ObjPipeline::instance(Atomic *atomic)
 		a->offset = offset;
 		offset += 4;
 		a++;
+		firstCustom++;
 	}
-	// TODO: skin, extra colors; what to do with multiple coords?
 
-	header->dataSize = offset*geo->numVertices;
-	header->data = new uint8[header->dataSize];
-//	memset(header->data, 0xFF, header->dataSize);
+	if(this->instanceCB)
+		offset += this->instanceCB(geo, firstCustom, offset);
+	else{
+		header->dataSize = offset*geo->numVertices;
+		header->data = new uint8[header->dataSize];
+	}
 
 	a = header->attribs;
+	for(int32 i = 0; i < header->numAttribs; i++)
+		a[i].stride = offset;
+
 	uint8 *p = header->data + a->offset;
 	float32 *vert = geo->morphTargets->vertices;
 	for(int32 i = 0; i < geo->numVertices; i++){
 		packattrib(p, vert, a);
 		vert += 3;
-		p += offset;
+		p += a->stride;
 	}
 	a++;
 
@@ -268,7 +269,7 @@ ObjPipeline::instance(Atomic *atomic)
 		for(int32 i = 0; i < geo->numVertices; i++){
 			packattrib(p, texcoord, a, 512.0f);
 			texcoord += 2;
-			p += offset;
+			p += a->stride;
 		}
 		a++;
 	}
@@ -279,7 +280,7 @@ ObjPipeline::instance(Atomic *atomic)
 		for(int32 i = 0; i < geo->numVertices; i++){
 			packattrib(p, norm, a);
 			norm += 3;
-			p += offset;
+			p += a->stride;
 		}
 		a++;
 	}
@@ -295,15 +296,10 @@ ObjPipeline::instance(Atomic *atomic)
 			f[3] = color[3]/255.0f;
 			packattrib(p, f, a);
 			color += 4;
-			p += offset;
+			p += a->stride;
 		}
 		a++;
 	}
-
-	a = header->attribs;
-	for(int32 i = 0; i < header->numAttribs; i++)
-		a[i].stride = offset;
-
 	geo->geoflags |= Geometry::NATIVE;
 }
 
@@ -311,24 +307,6 @@ ObjPipeline*
 makeDefaultPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
-	return pipe;
-}
-
-ObjPipeline*
-makeSkinPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
-	pipe->pluginID = ID_SKIN;
-	pipe->pluginData = 1;
-	return pipe;
-}
-
-ObjPipeline*
-makeMatFXPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
-	pipe->pluginID = ID_MATFX;
-	pipe->pluginData = 0;
 	return pipe;
 }
 
@@ -438,6 +416,74 @@ getSizeNativeSkin(void *object, int32 offset)
 		return -1;
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	return size;
+}
+
+uint32
+skinInstanceCB(Geometry *g, int32 i, uint32 offset)
+{
+	InstanceDataHeader *header = (InstanceDataHeader*)g->instData;
+	AttribDesc *a = &header->attribs[i];
+	// weights
+	a->index = 4;
+	a->type = 2;	/* but also short o_O */
+	a->normalized = 1;
+	a->size = 4;
+	a->offset = offset;
+	offset += 4;
+	a++;
+
+	// indices
+	a->index = 5;
+	a->type = 2;
+	a->normalized = 0;
+	a->size = 4;
+	a->offset = offset;
+	offset += 4;
+
+	header->dataSize = offset*g->numVertices;
+	header->data = new uint8[header->dataSize];
+
+        Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+        if(skin == NULL)
+                return 8;
+
+	a = &header->attribs[i];
+	uint8 *wgt = header->data + a[0].offset;
+	uint8 *idx = header->data + a[1].offset;
+	uint8 *indices = skin->indices;
+	float32 *weights = skin->weights;
+	for(int32 i = 0; i < g->numVertices; i++){
+		packattrib(wgt, weights, a);
+		weights += 4;
+		wgt += offset;
+		idx[0] = *indices++;
+		idx[1] = *indices++;
+		idx[2] = *indices++;
+		idx[3] = *indices++;
+		idx += offset;
+	}
+
+	return 8;
+}
+
+ObjPipeline*
+makeSkinPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	pipe->pluginID = ID_SKIN;
+	pipe->pluginData = 1;
+	pipe->numCustomAttribs = 2;
+	pipe->instanceCB = skinInstanceCB;
+	return pipe;
+}
+
+ObjPipeline*
+makeMatFXPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	pipe->pluginID = ID_MATFX;
+	pipe->pluginData = 0;
+	return pipe;
 }
 
 // Raster

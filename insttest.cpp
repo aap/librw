@@ -29,7 +29,8 @@ main(int argc, char *argv[])
 	rw::registerMeshPlugin();
 	rw::Atomic::init();
 
-	rw::platform = rw::PLATFORM_PS2;
+//	rw::platform = rw::PLATFORM_PS2;
+	rw::platform = rw::PLATFORM_OGL;
 
 	int uninstance = 0;
 	int arg = 1;
@@ -62,12 +63,15 @@ main(int argc, char *argv[])
 //	printf("%s\n", argv[arg]);
 
 // only opengl:
+/*
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		gl::printPipeinfo(a);
 	}
 	return 0;
+*/
 
+/*
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		Pipeline *ap = a->pipeline;
@@ -78,6 +82,7 @@ main(int argc, char *argv[])
 				printf("%s %x %x\n", argv[arg], ap->pluginData, mp->pluginData);
 		}
 	}
+*/
 
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];

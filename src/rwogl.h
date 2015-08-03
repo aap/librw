@@ -38,15 +38,13 @@ class ObjPipeline : public rw::ObjPipeline
 {
 public:
 	uint32 numCustomAttribs;
-	uint32 customAttribSize;
+	uint32 (*instanceCB)(Geometry *g, int32 i, uint32 offset);
 
 	ObjPipeline(uint32 platform);
 	virtual void instance(Atomic *atomic);
 };
 
 ObjPipeline *makeDefaultPipeline(void);
-ObjPipeline *makeSkinPipeline(void);
-ObjPipeline *makeMatFXPipeline(void);
 
 // only RW_OPENGL
 void uploadGeo(Geometry *geo);
@@ -57,6 +55,10 @@ void setAttribPointers(InstanceDataHeader *inst);
 void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
+
+ObjPipeline *makeSkinPipeline(void);
+
+ObjPipeline *makeMatFXPipeline(void);
 
 // Raster
 
