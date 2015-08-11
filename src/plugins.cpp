@@ -60,7 +60,7 @@ copyHAnim(void *dst, void *src, int32 offset, int32)
 static void
 readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
-	int32 cnst, numNodes;
+	int32 ver, numNodes;
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	ver = stream->readI32();
 	if(ver != 0x100){
@@ -120,8 +120,11 @@ static int32
 getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
+	if(version >= 0x34000 && hanim->id == -1 && hanim->hierarchy == NULL)
+		return -1;
 	if(hanim->hierarchy)
 		return 12 + 8 + hanim->hierarchy->numNodes*12;
+	// TODO: version correct?
 	return 12;
 }
 

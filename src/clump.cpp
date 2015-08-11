@@ -409,7 +409,8 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 		buf.pos[0] = f->matrix[12];
 		buf.pos[1] = f->matrix[13];
 		buf.pos[2] = f->matrix[14];
-		buf.parent = findPointer((void*)f, (void**)frameList,numFrames);
+		buf.parent = findPointer((void*)f->parent, (void**)frameList,
+		                         numFrames);
 		buf.matflag = f->matflag;
 		stream->write(&buf, sizeof(buf));
 	}
