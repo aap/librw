@@ -62,9 +62,9 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 cnst, numNodes;
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
-	cnst = stream->readI32();
-	if(cnst != 256){
-		printf("hanim const was not 256\n");
+	ver = stream->readI32();
+	if(ver != 0x100){
+		fprintf(stderr, "hanim ver was not 0x100\n");
 		return;
 	}
 	hanim->id = stream->readI32();
@@ -362,38 +362,13 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	dstskin->numBones = srcskin->numBones;
 	dstskin->numUsedBones = srcskin->numUsedBones;
 	dstskin->maxIndex = srcskin->maxIndex;
-	uint32 size = srcskin->numUsedBones +
-	              srcskin->numBones*64 +
-	              geometry->numVertices*(16+4) + 15;
-	uint8 *data = new uint8[size];
-	dstskin->data = data;
-	memcpy(dstskin->data, srcskin->data, size);
 
-	dstskin->usedBones = NULL;
-	if(srcskin->usedBones){
-		dstskin->usedBones = data;
-		data += dstskin->numUsedBones;
-	}
-
-	uintptr ptr = (uintptr)data + 15;
-	ptr &= ~0xF;
-	data = (uint8*)ptr;
-	dstskin->inverseMatrices = NULL;
-	if(srcskin->inverseMatrices){
-		dstskin->inverseMatrices = (float*)data;
-		data += 64*dstskin->numBones;
-	}
-
-	dstskin->indices = NULL;
-	if(srcskin->indices){
-		dstskin->indices = data;
-		data += 4*geometry->numVertices;
-	}
-
-	dstskin->weights = NULL;
-	if(srcskin->weights)
-		dstskin->weights = (float*)data;
-
+	dstskin->allocateData(geometry->numVertices);
+	memcpy(dstskin->usedBones, srcskin->usedBones, srcskin->numUsedBones);
+	memcpy(dstskin->inverseMatrices, srcskin->inverseMatrices,
+	       srcskin->numBones*64);
+	memcpy(dstskin->indices, srcskin->indices, geometry->numVertices*4);
+	memcpy(dstskin->weights, srcskin->weights, geometry->numVertices*16);
 	return dst;
 }
 
@@ -422,37 +397,9 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	skin->numUsedBones = header[1];
 	skin->maxIndex = header[2];
 
+	// probably rw::version >= 0x34000
 	bool oldFormat = skin->numUsedBones == 0;
-	uint32 size = skin->numUsedBones +
-	              skin->numBones*64 +
-	              geometry->numVertices*(16+4) + 15;
-	uint8 *data = new uint8[size];
-	skin->data = data;
-
-	skin->usedBones = NULL;
-	if(skin->numUsedBones){
-		skin->usedBones = data;
-		data += skin->numUsedBones;
-	}
-
-	uintptr ptr = (uintptr)data + 15;
-	ptr &= ~0xF;
-	data = (uint8*)ptr;
-	skin->inverseMatrices = NULL;
-	if(skin->numBones){
-		skin->inverseMatrices = (float*)data;
-		data += 64*skin->numBones;
-	}
-
-	skin->indices = NULL;
-	if(geometry->numVertices){
-		skin->indices = data;
-		data += 4*geometry->numVertices;
-	}
-
-	skin->weights = NULL;
-	if(geometry->numVertices)
-		skin->weights = (float*)data;
+	skin->allocateData(geometry->numVertices);
 
 	if(skin->usedBones)
 		stream->read(skin->usedBones, skin->numUsedBones);
@@ -569,6 +516,55 @@ registerSkinPlugin(void)
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 
+void
+Skin::allocateData(int32 numVerts)
+{
+	uint32 size = this->numUsedBones +
+	              this->numBones*64 +
+	              numVerts*(16+4) + 15;
+	this->data = new uint8[size];
+	uint8 *data = this->data;
+
+	this->usedBones = NULL;
+	if(this->numUsedBones){
+		this->usedBones = data;
+		data += this->numUsedBones;
+	}
+
+	uintptr ptr = (uintptr)data + 15;
+	ptr &= ~0xF;
+	data = (uint8*)ptr;
+	this->inverseMatrices = NULL;
+	if(this->numBones){
+		this->inverseMatrices = (float*)data;
+		data += 64*this->numBones;
+	}
+
+	this->indices = NULL;
+	if(numVerts){
+		this->indices = data;
+		data += 4*numVerts;
+	}
+
+	this->weights = NULL;
+	if(numVerts)
+		this->weights = (float*)data;
+
+}
+
+void
+Skin::allocateVertexData(int32 numVerts)
+{
+	uint8 *usedBones = this->usedBones;
+	float *invMats = this->inverseMatrices;
+	uint8 *data = this->data;
+
+	this->allocateData(numVerts);
+	memcpy(this->usedBones, usedBones, this->numUsedBones);
+	memcpy(this->inverseMatrices, invMats, this->numBones*64);
+	delete[] data;
+}
+
 //
 // MatFX
 //
@@ -612,6 +608,7 @@ writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 static int32
 getSizeAtomicMatFX(void *object, int32 offset, int32)
 {
+	// TODO: version dependent
 /*	int32 flag;
 	flag = *PLUGINOFFSET(int32, object, offset);
 	return flag ? 4 : -1; */

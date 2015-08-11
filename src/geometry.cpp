@@ -270,6 +270,79 @@ Geometry::addMorphTargets(int32 n)
 	this->numMorphTargets += n;
 }
 
+void
+Geometry::allocateData(void)
+{
+	if(this->geoflags & PRELIT)
+		this->colors = new uint8[4*this->numVertices];
+	if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
+		for(int32 i = 0; i < this->numTexCoordSets; i++)
+			this->texCoords[i] =
+				new float32[2*this->numVertices];
+	MorphTarget *m = this->morphTargets;
+	m->vertices = new float32[3*this->numVertices];
+	if(this->geoflags & NORMALS)
+		m->normals = new float32[3*this->numVertices];
+	// TODO: morph targets (who cares anyway?)
+}
+
+static int
+isDegenerate(uint16 *idx)
+{
+	// TODO: maybe check position instead of index?
+	return idx[0] == idx[1] ||
+	       idx[0] == idx[2] ||
+	       idx[1] == idx[2];
+}
+
+void
+Geometry::generateTriangles(void)
+{
+	MeshHeader *header = this->meshHeader;
+	assert(header != NULL);
+
+	this->numTriangles = 0;
+	Mesh *m = header->mesh;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		if(header->flags == 1){	// tristrip
+			for(uint32 j = 0; j < m->numIndices-2; j++){
+				if(!isDegenerate(&m->indices[j]))
+					this->numTriangles++;
+			}
+		}else
+			this->numTriangles += m->numIndices/3;
+		m++;
+	}
+
+	delete[] this->triangles;
+	this->triangles = new uint16[4*this->numTriangles];
+	printf("%d %p\n", this->numTriangles, this->triangles);
+
+	uint16 *f = this->triangles;
+	m = header->mesh;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		int32 matid = findPointer((void*)m->material,
+		                          (void**)this->materialList,
+		                          this->numMaterials);
+		if(header->flags == 1)	// tristrip
+			for(uint32 j = 0; j < m->numIndices-2; j++){
+				if(isDegenerate(&m->indices[j]))
+					continue;
+				*f++ = m->indices[j+1 + (j%2)];
+				*f++ = m->indices[j+0];
+				*f++ = matid;
+				*f++ = m->indices[j+2 - (j%2)];
+			}
+		else
+			for(uint32 j = 0; j < m->numIndices-2; j+=3){
+				*f++ = m->indices[j+1];
+				*f++ = m->indices[j+0];
+				*f++ = matid;
+				*f++ = m->indices[j+2];
+			}
+		m++;
+	}
+}
 
 //
 // Material

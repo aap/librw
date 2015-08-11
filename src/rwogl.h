@@ -39,9 +39,11 @@ class ObjPipeline : public rw::ObjPipeline
 public:
 	uint32 numCustomAttribs;
 	uint32 (*instanceCB)(Geometry *g, int32 i, uint32 offset);
+	void (*uninstanceCB)(Geometry *g);
 
 	ObjPipeline(uint32 platform);
 	virtual void instance(Atomic *atomic);
+	virtual void uninstance(Atomic *atomic);
 };
 
 ObjPipeline *makeDefaultPipeline(void);

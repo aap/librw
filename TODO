@@ -15,20 +15,24 @@ Clump & related:
 	- implement plugins:
 		Clump
 			R* Collision
+			Animation (old III dffs)
 		Atomic
 			((Particles))
 			R* Pipeline Set
+			Skin (old III dffs)
 		Geometry
-			-Native Data
 			((Morph))
-			-Skin
 			R* 2dfx
 		Material
 			UV Anim
 		Texture
 			(Sky Mipmap Val)
 
-- PDS Pipelines (at least dummies)
+- PDS Pipelines
+
+- ADC
+
+- uninstance geometry
 
 - UV Anim Dict
 

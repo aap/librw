@@ -176,7 +176,8 @@ packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale=1.0f)
 }
 
 ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform), numCustomAttribs(0), instanceCB(NULL) { }
+ : rw::ObjPipeline(platform), numCustomAttribs(0),
+   instanceCB(NULL), uninstanceCB(NULL) { }
 
 void
 ObjPipeline::instance(Atomic *atomic)
@@ -286,6 +287,7 @@ ObjPipeline::instance(Atomic *atomic)
 	}
 
 	if(geo->geoflags & Geometry::PRELIT){
+		// TODO: this seems too complicated
 		p = header->data + a->offset;
 		uint8 *color = geo->colors;
 		float32 f[4];
@@ -301,6 +303,132 @@ ObjPipeline::instance(Atomic *atomic)
 		a++;
 	}
 	geo->geoflags |= Geometry::NATIVE;
+}
+
+static void
+unpackattrib(float *dst, uint8 *src, AttribDesc *a, float32 scale=1.0f)
+{
+	int8 *i8src;
+	uint16 *u16src;
+	int16 *i16src;
+
+	switch(a->type){
+	case 0:	// float
+		memcpy(dst, src, a->size*4);
+		break;
+
+	// TODO: maybe have loop inside if?
+	case 1: // byte
+		i8src = (int8*)src;
+		for(int i = 0; i < a->size; i++){
+			if(!a->normalized)
+				dst[i] = i8src[i]/scale;
+			else
+				dst[i] = i8src[i]/127.0f;
+		}
+		break;
+
+	case 2: // ubyte
+		for(int i = 0; i < a->size; i++){
+			if(!a->normalized)
+				dst[i] = src[i]/scale;
+			else
+				dst[i] = src[i]/255.0f;
+		}
+		break;
+
+	case 3: // short
+		i16src = (int16*)src;
+		for(int i = 0; i < a->size; i++){
+			if(!a->normalized)
+				dst[i] = i16src[i]/scale;
+			else
+				dst[i] = i16src[i]/32767.0f;
+		}
+		break;
+
+	case 4: // ushort
+		u16src = (uint16*)src;
+		for(int i = 0; i < a->size; i++){
+			if(!a->normalized)
+				dst[i] = u16src[i]/scale;
+			else
+				dst[i] = u16src[i]/65435.0f;
+		}
+		break;
+	}
+}
+
+void
+ObjPipeline::uninstance(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	geo->geoflags &= ~Geometry::NATIVE;
+	geo->allocateData();
+
+	uint8 *p;
+	float32 *texcoord = geo->texCoords[0];
+	uint8 *color = geo->colors;
+	float32 *vert = geo->morphTargets->vertices;
+	float32 *norm = geo->morphTargets->normals;
+	float32 f[4];
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	for(int i = 0; i < header->numAttribs; i++){
+		AttribDesc *a = &header->attribs[i];
+		p = header->data + a->offset;
+
+		switch(a->index){
+		case 0:		// Vertices
+			for(int32 i = 0; i < geo->numVertices; i++){
+				unpackattrib(vert, p, a);
+				vert += 3;
+				p += a->stride;
+			}
+			break;
+
+		case 1:		// texCoords
+			for(int32 i = 0; i < geo->numVertices; i++){
+				unpackattrib(texcoord, p, a, 512.0f);
+				texcoord += 2;
+				p += a->stride;
+			}
+			break;
+
+		case 2:		// normals
+			for(int32 i = 0; i < geo->numVertices; i++){
+				unpackattrib(norm, p, a);
+				norm += 3;
+				p += a->stride;
+			}
+			break;
+
+		case 3:		// colors
+			for(int32 i = 0; i < geo->numVertices; i++){
+				// TODO: this seems too complicated
+				unpackattrib(f, p, a);
+				color[0] = f[0]*255.0f;
+				color[1] = f[1]*255.0f;
+				color[2] = f[2]*255.0f;
+				color[3] = f[3]*255.0f;
+				color += 4;
+				p += a->stride;
+			}
+			break;
+		}
+	}
+
+	if(this->uninstanceCB)
+		uninstanceCB(geo);
+
+	geo->generateTriangles();
+
+	delete header->attribs;
+	delete header->data;
+	delete header;
+	geo->instData = NULL;
 }
 
 ObjPipeline*
@@ -466,6 +594,46 @@ skinInstanceCB(Geometry *g, int32 i, uint32 offset)
 	return 8;
 }
 
+void
+skinUninstanceCB(Geometry *geo)
+{
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+
+        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+        if(skin == NULL)
+		return;
+
+	skin->allocateVertexData(geo->numVertices);
+
+	uint8 *p;
+	float *weights = skin->weights;
+	uint8 *indices = skin->indices;
+	for(int i = 0; i < header->numAttribs; i++){
+		AttribDesc *a = &header->attribs[i];
+		p = header->data + a->offset;
+
+		switch(a->index){
+		case 4:		// weights
+			for(int32 i = 0; i < geo->numVertices; i++){
+				unpackattrib(weights, p, a);
+				weights += 4;
+				p += a->stride;
+			}
+			break;
+
+		case 5:		// indices
+			for(int32 i = 0; i < geo->numVertices; i++){
+				*indices++ = p[0];
+				*indices++ = p[1];
+				*indices++ = p[2];
+				*indices++ = p[3];
+				p += a->stride;
+			}
+			break;
+		}
+	}
+}
+
 ObjPipeline*
 makeSkinPipeline(void)
 {
@@ -474,6 +642,7 @@ makeSkinPipeline(void)
 	pipe->pluginData = 1;
 	pipe->numCustomAttribs = 2;
 	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = skinUninstanceCB;
 	return pipe;
 }
 

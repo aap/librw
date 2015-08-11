@@ -289,6 +289,8 @@ struct Geometry : PluginBase<Geometry>, Object
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	void addMorphTargets(int32 n);
+	void allocateData(void);
+	void generateTriangles(void);
 
 	enum Flags
 	{
@@ -318,6 +320,9 @@ struct Skin
 	uint8 *indices;
 	float *weights;
 	uint8 *data;	// only used by delete
+
+	void allocateData(int32 numVerts);
+	void allocateVertexData(int32 numVerts);
 };
 
 struct SkinGlobals

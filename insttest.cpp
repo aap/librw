@@ -62,15 +62,6 @@ main(int argc, char *argv[])
 
 //	printf("%s\n", argv[arg]);
 
-// only opengl:
-/*
-	for(int32 i = 0; i < c->numAtomics; i++){
-		Atomic *a = c->atomicList[i];
-		gl::printPipeinfo(a);
-	}
-	return 0;
-*/
-
 /*
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
@@ -93,9 +84,9 @@ main(int argc, char *argv[])
 			p->instance(a);
 	}
 
-	data = new rw::uint8[256*1024];
+	data = new rw::uint8[512*1024];
 	rw::StreamMemory out;
-	out.open(data, 0, 256*1024);
+	out.open(data, 0, 512*1024);
 	c->streamWrite(&out);
 
 	FILE *cf = fopen("out.dff", "wb");
