@@ -4,3 +4,4 @@
 #include "src/rwobjects.h"
 #include "src/rwps2.h"
 #include "src/rwogl.h"
+#include "src/rwxbox.h"

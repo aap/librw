@@ -205,7 +205,7 @@ Clump::streamRead(Stream *stream)
 	clump->numAtomics = buf[0];
 	clump->numLights = 0;
 	clump->numCameras = 0;
-	if(version >= 0x33000){
+	if(version > 0x33000){
 		clump->numLights = buf[1];
 		clump->numCameras = buf[2];
 	}
@@ -264,7 +264,7 @@ Clump::streamWrite(Stream *stream)
 	int size = this->streamGetSize();
 	writeChunkHeader(stream, ID_CLUMP, size);
 	int buf[3] = { this->numAtomics, this->numLights, this->numCameras };
-	size = version >= 0x33000 ? 12 : 4;
+	size = version > 0x33000 ? 12 : 4;
 	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
 
@@ -316,7 +316,7 @@ Clump::streamGetSize(void)
 	uint32 size = 0;
 	size += 12;	// Struct
 	size += 4;	// numAtomics
-	if(version >= 0x33000)
+	if(version > 0x33000)
 		size += 8;	// numLights, numCameras
 
 	// frame list

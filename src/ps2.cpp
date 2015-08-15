@@ -23,6 +23,7 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
+	assert(geometry->instData != NULL);
 	assert(geometry->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++)
@@ -66,9 +67,9 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
+	assert(geometry->instData != NULL);
 	assert(geometry->instData->platform == PLATFORM_PS2);
 	stream->writeU32(PLATFORM_PS2);
-	assert(geometry->instData != NULL);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
@@ -87,8 +88,8 @@ getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	int32 size = 16;
-	assert(geometry->instData->platform == PLATFORM_PS2);
 	assert(geometry->instData != NULL);
+	assert(geometry->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
@@ -593,8 +594,8 @@ void
 ObjPipeline::uninstance(Atomic *atomic)
 {
 	Geometry *geometry = atomic->geometry;
-	assert(geometry->instData->platform == PLATFORM_PS2);
 	assert(geometry->instData != NULL);
+	assert(geometry->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geometry->meshHeader->mesh[i];

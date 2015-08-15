@@ -320,6 +320,7 @@ struct Skin
 	uint8 *indices;
 	float *weights;
 	uint8 *data;	// only used by delete
+	void *platformData; // a place to store platform specific stuff
 
 	void allocateData(int32 numVerts);
 	void allocateVertexData(int32 numVerts);

@@ -8,11 +8,11 @@ BUILDDIR=build-$(BUILD)
 SRCDIR=src
 SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
                                          geometry.cpp plugins.cpp pipeline.cpp\
-                                         ps2.cpp ogl.cpp\
+                                         ps2.cpp ogl.cpp xbox.cpp\
                                          image.cpp gtaplg.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
-CFLAGS=-Wall -g $(BUILDDEF) #-Wno-parentheses #-Wconversion
+CFLAGS=-Wall -g $(BUILDDEF) -Wno-parentheses #-Wconversion
 INCPATH=-I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
 LIB=librw-$(BUILD).a
 

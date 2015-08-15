@@ -10,6 +10,7 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
+#include "rwxbox.h"
 #include "rwogl.h"
 
 using namespace std;
@@ -283,7 +284,11 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		if(platform == PLATFORM_PS2)
 			ps2::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
+			xbox::readNativeData(stream, len, object, o, s);
+		else{
+			fprintf(stderr, "unknown platform %d\n", platform);
 			stream->seek(len);
+		}
 	}else{
 		stream->seek(-12);
 		gl::readNativeData(stream, len, object, o, s);
@@ -298,6 +303,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		ps2::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_XBOX)
+		xbox::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		gl::writeNativeData(stream, len, object, o, s);
 }
@@ -311,7 +318,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
-		return -1;
+		return xbox::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		return gl::getSizeNativeData(object, offset, size);
 	return -1;
@@ -366,6 +373,7 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	dstskin->numUsedBones = srcskin->numUsedBones;
 	dstskin->maxIndex = srcskin->maxIndex;
 
+	assert(0 && "can't copy skin yet");
 	dstskin->allocateData(geometry->numVertices);
 	memcpy(dstskin->usedBones, srcskin->usedBones, srcskin->numUsedBones);
 	memcpy(dstskin->inverseMatrices, srcskin->inverseMatrices,
@@ -382,8 +390,11 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 
 	if(geometry->instData){
+		// TODO: function pointers
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::readNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_XBOX)
+			xbox::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
 			gl::readNativeSkin(stream, len, object, offset);
 		else
@@ -415,8 +426,8 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 			stream->seek(4);	// skip 0xdeaddead
 		stream->read(&skin->inverseMatrices[i*16], 64);
 	}
-	// TODO: find out what this is (related to skin splitting)
-	// always 0 in GTA files
+
+	// no split skins in GTA
 	if(!oldFormat)
 		stream->seek(12);
 }
@@ -430,6 +441,8 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::writeNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_XBOX)
+			xbox::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
 			gl::writeNativeSkin(stream, len, object, offset);
 		else
@@ -457,6 +470,8 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 			stream->writeU32(0xdeaddead);
 		stream->write(&skin->inverseMatrices[i*16], 64);
 	}
+
+	// no split skins in GTA
 	if(!oldFormat){
 		uint32 buffer[3] = { 0, 0, 0};
 		stream->write(buffer, 12);
@@ -471,6 +486,8 @@ getSizeSkin(void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			return ps2::getSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_XBOX)
+			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_OGL)
 			return gl::getSizeNativeSkin(object, offset);
 		assert(0 && "unsupported native skin platform");
@@ -553,6 +570,7 @@ Skin::allocateData(int32 numVerts)
 	if(numVerts)
 		this->weights = (float*)data;
 
+	this->platformData = NULL;
 }
 
 void
@@ -611,10 +629,9 @@ writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 static int32
 getSizeAtomicMatFX(void *object, int32 offset, int32)
 {
-	// TODO: version dependent
-/*	int32 flag;
-	flag = *PLUGINOFFSET(int32, object, offset);
-	return flag ? 4 : -1; */
+	int32 flag = *PLUGINOFFSET(int32, object, offset);
+	// TODO: not sure which version
+	return flag && rw::version < 0x35000 ? 4 : -1;
 	return 4;
 }
 

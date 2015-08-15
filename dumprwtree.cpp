@@ -77,6 +77,8 @@ getChunkName(uint32 id)
 		return "Bin Mesh PLG";
 	case 0x510:
 		return "Native Data PLG";
+	case 0x511:
+		return "Vertex Format PLG";
 	case 0xF21E:
 		return "ZModeler Lock";
 	}

@@ -140,6 +140,7 @@ enum PluginID
 	ID_ADC           = 0x134,
 	ID_MESH          = 0x50E,
 	ID_NATIVEDATA    = 0x510,
+	ID_VERTEXFMT     = 0x511,
 };
 
 extern int version;

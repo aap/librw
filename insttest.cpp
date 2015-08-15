@@ -25,6 +25,7 @@ main(int argc, char *argv[])
 	rw::ps2::registerADCPlugin();
 	rw::ps2::registerPDSPlugin();
 	rw::registerSkinPlugin();
+	rw::xbox::registerVertexFormatPlugin();
 	rw::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 	rw::Atomic::init();
