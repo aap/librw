@@ -16,6 +16,7 @@ main(int argc, char *argv[])
 //	rw::build = 0;
 
 //	rw::version = 0x33002;
+//	rw::version = 0x30200;
 
 	gta::registerEnvSpecPlugin();
 	rw::registerMatFXPlugin();

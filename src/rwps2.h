@@ -86,7 +86,10 @@ int32 getSizeNativeSkin(void *object, int32 offset);
 
 // Each element in adcBits corresponds to an index in Mesh->indices,
 // this assumes the Mesh indices are ADC formatted.
-// For some reason ADCData->numBits != Mesh->numIndices
+// ADCData->numBits != Mesh->numIndices. ADCData->numBits is probably
+// equal to Mesh->numIndices before the Mesh gets ADC formatted.
+//
+// Can't convert between ADC-formatted and non-ADC-formatted yet :(
 
 struct ADCData
 {

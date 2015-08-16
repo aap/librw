@@ -800,6 +800,86 @@ skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
 
 // TODO: look at PC SA rccam.dff bloodrb.dff, Xbox csbigbear.dff
 
+static void
+rotateface(int f[])
+{
+	int tmp;
+	while(f[0] > f[1] || f[0] > f[2]){
+		tmp = f[0];
+		f[0] = f[1];
+		f[1] = f[2];
+		f[2] = tmp;
+	}
+
+/*
+	if(f[0] > f[1]){
+		tmp = f[0];
+		f[0] = f[1];
+		f[1] = tmp;
+	}
+	if(f[0] > f[2]){
+		tmp = f[0];
+		f[0] = f[2];
+		f[2] = tmp;
+	}
+	if(f[1] > f[2]){
+		tmp = f[1];
+		f[1] = f[2];
+		f[2] = tmp;
+	}
+*/
+}
+
+static int
+validFace(Geometry *g, uint16 *f, int j, int m)
+{
+	int f1[3], f2[3];
+	f1[0] = f[j+0 + (j%2)];
+	f1[1] = f[j+1 - (j%2)];
+	f1[2] = f[j+2];
+//printf("-> %d %d %d\n", f1[0], f1[1], f1[2]);
+	rotateface(f1);
+	uint16 *fs = g->triangles;
+	for(int i = 0; i < g->numTriangles; i++, fs += 4){
+		if(fs[2] != m)
+			continue;
+		f2[0] = fs[1];
+		f2[1] = fs[0];
+		f2[2] = fs[3];
+//printf("<- %d %d %d\n", f2[0], f2[1], f2[2]);
+		rotateface(f2);
+		if(f1[0] == f2[0] &&
+		   f1[1] == f2[1] &&
+		   f1[2] == f2[2])
+			return 1;
+	}
+	return 0;
+}
+
+static int
+isdegenerate(uint16 *f)
+{
+	return f[0] == f[1] ||
+	       f[0] == f[2] ||
+	       f[1] == f[2];
+}
+
+static int
+debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
+{
+	int n = 0;
+	for(int i = 0; i < mh->numMeshes; i++){
+		uint16 *idx = mh->mesh[i].indices;
+		for(int j = 0; j < mh->mesh[i].numIndices-2; j++){
+			if(!validFace(g, idx, j, i) && !isdegenerate(idx+j)){
+				n++;
+//				printf("> %d %d %d %d\n", i, idx[j+0], idx[j+1], idx[j+2]);
+			}
+		}
+	}
+	return n;
+}
+
 static void*
 createADC(void *object, int32 offset, int32)
 {
@@ -847,18 +927,21 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 	adc->adcBits = new int8[size];
 	stream->read(adc->adcBits, size);
 
+/*
 	Geometry *geometry = (Geometry*)object;
 	int ones = 0, zeroes = 0;
 	for(int i = 0; i < adc->numBits; i++)
-		if(adc->adcBits[i] == 0)
-			zeroes++;
-		else if(adc->adcBits[i] == 1)
+		if(adc->adcBits[i])
 			ones++;
 		else
-			fprintf(stderr, "what the fuck man\n");
-	printf("%X %X %X\n", adc->numBits, zeroes, ones);
+			zeroes++;
 	MeshHeader *meshHeader = geometry->meshHeader;
-	printf("%X\n", meshHeader->totalIndices);
+	int n = debugadc(geometry, meshHeader, adc);
+	printf("%X %X | %X %X %X\n",
+		meshHeader->totalIndices,
+		meshHeader->totalIndices + n,
+		adc->numBits, zeroes, ones);
+*/
 }
 
 static void

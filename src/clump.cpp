@@ -216,17 +216,19 @@ Clump::streamRead(Stream *stream)
 	clump->frameListStreamRead(stream, &frameList, &numFrames);
 	clump->parent = (void*)frameList[0];
 
-	// Geometry list
-	int32 numGeometries = 0;
-	assert(findChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	numGeometries = stream->readI32();
 	Geometry **geometryList = 0;
-	if(numGeometries)
-		geometryList = new Geometry*[numGeometries];
-	for(int32 i = 0; i < numGeometries; i++){
-		assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
-		geometryList[i] = Geometry::streamRead(stream);
+	if(version >= 0x30400){
+		// Geometry list
+		int32 numGeometries = 0;
+		assert(findChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
+		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+		numGeometries = stream->readI32();
+		if(numGeometries)
+			geometryList = new Geometry*[numGeometries];
+		for(int32 i = 0; i < numGeometries; i++){
+			assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
+			geometryList[i] = Geometry::streamRead(stream);
+		}
 	}
 
 	// Atomics
@@ -274,14 +276,17 @@ Clump::streamWrite(Stream *stream)
 
 	this->frameListStreamWrite(stream, flist, numFrames);
 
-	size = 12+4;
-	for(int32 i = 0; i < this->numAtomics; i++)
-		size += 12 + this->atomicList[i]->geometry->streamGetSize();
-	writeChunkHeader(stream, ID_GEOMETRYLIST, size);
-	writeChunkHeader(stream, ID_STRUCT, 4);
-	stream->writeI32(this->numAtomics);	// same as numGeometries
-	for(int32 i = 0; i < this->numAtomics; i++)
-		this->atomicList[i]->geometry->streamWrite(stream);
+	if(rw::version >= 0x30400){
+		size = 12+4;
+		for(int32 i = 0; i < this->numAtomics; i++)
+			size += 12 +
+			        this->atomicList[i]->geometry->streamGetSize();
+		writeChunkHeader(stream, ID_GEOMETRYLIST, size);
+		writeChunkHeader(stream, ID_STRUCT, 4);
+		stream->writeI32(this->numAtomics);	// same as numGeometries
+		for(int32 i = 0; i < this->numAtomics; i++)
+			this->atomicList[i]->geometry->streamWrite(stream);
+	}
 
 	for(int32 i = 0; i < this->numAtomics; i++)
 		this->atomicList[i]->streamWriteClump(stream, flist, numFrames);
@@ -324,10 +329,13 @@ Clump::streamGetSize(void)
 	size += 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
 	sizeCB((Frame*)this->parent, (void*)&size);
 
-	// geometry list
-	size += 12 + 12 + 4;
-	for(int32 i = 0; i < this->numAtomics; i++)
-		size += 12 + this->atomicList[i]->geometry->streamGetSize();
+	if(rw::version >= 0x30400){
+		// geometry list
+		size += 12 + 12 + 4;
+		for(int32 i = 0; i < this->numAtomics; i++)
+			size += 12 +
+			        this->atomicList[i]->geometry->streamGetSize();
+	}
 
 	// atomics
 	for(int32 i = 0; i < this->numAtomics; i++)
@@ -449,11 +457,16 @@ Atomic::streamReadClump(Stream *stream,
                         Frame **frameList, Geometry **geometryList)
 {
 	int32 buf[4];
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	stream->read(buf, 16);
+	uint32 version;
+	assert(findChunk(stream, ID_STRUCT, NULL, &version));
+	stream->read(buf, version < 0x30400 ? 12 : 16);
 	Atomic *atomic = new Atomic;
 	atomic->frame = frameList[buf[0]];
-	atomic->geometry = geometryList[buf[1]];
+	if(version < 0x30400){
+		assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
+		atomic->geometry = Geometry::streamRead(stream);
+	}else
+		atomic->geometry = geometryList[buf[1]];
 
 	atomicRights[0] = 0;
 	atomic->streamReadPlugins(stream);
@@ -470,17 +483,22 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 	if(c == NULL)
 		return false;
 	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, 16);
+	writeChunkHeader(stream, ID_STRUCT, rw::version < 0x30400 ? 12 : 16);
 	buf[0] = findPointer((void*)this->frame, (void**)frameList, numFrames);
 
-// TODO
-	for(buf[1] = 0; buf[1] < c->numAtomics; buf[1]++)
-		if(c->atomicList[buf[1]]->geometry == this->geometry)
-			goto foundgeo;
-	return false;
-foundgeo:
+	if(version < 0x30400){
+		stream->write(buf, sizeof(int[3]));
+		this->geometry->streamWrite(stream);
+	}else{
+		// TODO
+		for(buf[1] = 0; buf[1] < c->numAtomics; buf[1]++)
+			if(c->atomicList[buf[1]]->geometry == this->geometry)
+				goto foundgeo;
+		return false;
+	foundgeo:
+		stream->write(buf, sizeof(buf));
+	}
 
-	stream->write(buf, sizeof(buf));
 	this->streamWritePlugins(stream);
 	return true;
 }
@@ -488,7 +506,12 @@ foundgeo:
 uint32
 Atomic::streamGetSize(void)
 {
-	return 12 + 16 + 12 + this->streamGetPluginSize();
+	uint32 size = 12 + 12 + 12 + this->streamGetPluginSize();
+	if(rw::version < 0x30400)
+		size += 12 + this->geometry->streamGetSize();
+	else
+		size += 4;
+	return size;
 }
 
 ObjPipeline *defaultPipelines[NUM_PLATFORMS];

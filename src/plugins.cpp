@@ -159,7 +159,6 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	geo->meshHeader->flags = buf[0];
 	geo->meshHeader->numMeshes = buf[1];
 	geo->meshHeader->totalIndices = buf[2];
-printf("total: %X\n", geo->meshHeader->totalIndices);
 	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;

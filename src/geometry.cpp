@@ -24,7 +24,6 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	this->numTriangles = numTris;
 	this->numVertices = numVerts;
 	this->numMorphTargets = 1;
-printf("geometry: %X %X\n", this->numTriangles, this->numVertices);
 
 	this->colors = NULL;
 	for(int32 i = 0; i < this->numTexCoordSets; i++)
@@ -317,7 +316,6 @@ Geometry::generateTriangles(void)
 
 	delete[] this->triangles;
 	this->triangles = new uint16[4*this->numTriangles];
-	printf("%d %p\n", this->numTriangles, this->triangles);
 
 	uint16 *f = this->triangles;
 	m = header->mesh;
@@ -395,7 +393,6 @@ struct MatStreamData
 	uint8 color[4];
 	int32 unused;
 	int32 textured;
-	float32 surfaceProps[3];
 };
 
 static uint32 materialRights[2];
@@ -403,18 +400,26 @@ static uint32 materialRights[2];
 Material*
 Material::streamRead(Stream *stream)
 {
-	uint32 length;
+	uint32 length, version;
 	MatStreamData buf;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
 	Material *mat = new Material;
 	mat->color[0] = buf.color[0];
 	mat->color[1] = buf.color[1];
 	mat->color[2] = buf.color[2];
 	mat->color[3] = buf.color[3];
-	mat->surfaceProps[0] = buf.surfaceProps[0];
-	mat->surfaceProps[1] = buf.surfaceProps[1];
-	mat->surfaceProps[2] = buf.surfaceProps[2];
+	if(version < 0x30400){
+		mat->surfaceProps[0] = 1.0f;
+		mat->surfaceProps[1] = 1.0f;
+		mat->surfaceProps[2] = 1.0f;
+	}else{
+		float32 surfaceProps[3];
+		stream->read(surfaceProps, sizeof(surfaceProps));
+		mat->surfaceProps[0] = surfaceProps[0];
+		mat->surfaceProps[1] = surfaceProps[1];
+		mat->surfaceProps[2] = surfaceProps[2];
+	}
 
 	if(buf.textured){
 		assert(findChunk(stream, ID_TEXTURE, &length, NULL));
@@ -434,19 +439,25 @@ Material::streamWrite(Stream *stream)
 	MatStreamData buf;
 
 	writeChunkHeader(stream, ID_MATERIAL, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, sizeof(MatStreamData));
+	writeChunkHeader(stream, ID_STRUCT, sizeof(MatStreamData)
+		+ (rw::version >= 0x30400 ? 12 : 0));
 
 	buf.color[0] = this->color[0];
 	buf.color[1] = this->color[1];
 	buf.color[2] = this->color[2];
 	buf.color[3] = this->color[3];
-	buf.surfaceProps[0] = this->surfaceProps[0];
-	buf.surfaceProps[1] = this->surfaceProps[1];
-	buf.surfaceProps[2] = this->surfaceProps[2];
 	buf.flags = 0;
 	buf.unused = 0;
 	buf.textured = this->texture != NULL;
 	stream->write(&buf, sizeof(buf));
+
+	if(rw::version >= 0x30400){
+		float32 surfaceProps[3];
+		surfaceProps[0] = this->surfaceProps[0];
+		surfaceProps[1] = this->surfaceProps[1];
+		surfaceProps[2] = this->surfaceProps[2];
+		stream->write(surfaceProps, sizeof(surfaceProps));
+	}
 
 	if(this->texture)
 		this->texture->streamWrite(stream);
@@ -460,6 +471,8 @@ Material::streamGetSize(void)
 {
 	uint32 size = 0;
 	size += 12 + sizeof(MatStreamData);
+	if(rw::version >= 0x30400)
+		size += 12;
 	if(this->texture)
 		size += 12 + this->texture->streamGetSize();
 	size += 12 + this->streamGetPluginSize();
