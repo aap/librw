@@ -24,6 +24,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	this->numTriangles = numTris;
 	this->numVertices = numVerts;
 	this->numMorphTargets = 1;
+printf("geometry: %X %X\n", this->numTriangles, this->numVertices);
 
 	this->colors = NULL;
 	for(int32 i = 0; i < this->numTexCoordSets; i++)

@@ -14,19 +14,19 @@ Clump & related:
 		texcoord
 	- implement plugins:
 		Clump
-			R* Collision
+			R* Collision	0x253F2FA
 			Animation (old III dffs)
 		Atomic
-			((Particles))
-			R* Pipeline Set
+			((Particles))	0x118
+			R* Pipeline Set	0x253F2F3
 			Skin (old III dffs)
 		Geometry
-			((Morph))
-			R* 2dfx
+			((Morph))	0x105
+			R* 2dfx		0x253F2F8
 		Material
-			UV Anim
+			UV Anim		0x135
 		Texture
-			(Sky Mipmap Val)
+			(Sky Mipmap Val)	0x110
 
 - PDS Pipelines
 

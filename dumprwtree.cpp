@@ -131,7 +131,8 @@ main(int argc, char *argv[])
 
 	ChunkHeaderInfo header;
 	readChunkHeaderInfo(&s, &header);
-	readchunk(&s, &header, 0);
+	if(argc == 2)
+		readchunk(&s, &header, 0);
 
 	printf("%x %x %x\n", header.version, header.build,
 		libraryIDPack(header.version, header.build));

@@ -239,6 +239,7 @@ static void
 readVertexFmt(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	uint32 fmt = stream->readU32();
+	printf("vertexfmt: %X\n", fmt);
 	*PLUGINOFFSET(uint32, object, offset) = fmt;
 	// TODO: create and attach "vertex shader"
 }

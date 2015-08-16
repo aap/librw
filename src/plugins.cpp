@@ -159,6 +159,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	geo->meshHeader->flags = buf[0];
 	geo->meshHeader->numMeshes = buf[1];
 	geo->meshHeader->totalIndices = buf[2];
+printf("total: %X\n", geo->meshHeader->totalIndices);
 	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
@@ -339,7 +340,7 @@ registerNativeDataPlugin(void)
 // Skin
 //
 
-SkinGlobals skinGlobals = { 0, NULL };
+SkinGlobals skinGlobals = { 0, { NULL } };
 
 static void*
 createSkin(void *object, int32 offset, int32)
@@ -637,7 +638,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 
 // Material
 
-MatFXGlobals matFXGlobals = { 0, 0, NULL };
+MatFXGlobals matFXGlobals = { 0, 0, { NULL } };
 
 // TODO: Frames and Matrices?
 static void

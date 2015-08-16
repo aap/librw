@@ -766,7 +766,7 @@ getSizeNativeSkin(void *object, int32 offset)
 }
 
 static void
-skinInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data, int32 n)
+skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
 	if(skin == NULL || n < 1)
@@ -798,6 +798,8 @@ skinInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data, int32 n)
 
 // ADC
 
+// TODO: look at PC SA rccam.dff bloodrb.dff, Xbox csbigbear.dff
+
 static void*
 createADC(void *object, int32 offset, int32)
 {
@@ -812,40 +814,85 @@ copyADC(void *dst, void *src, int32 offset, int32)
 	ADCData *dstadc = PLUGINOFFSET(ADCData, dst, offset);
 	ADCData *srcadc = PLUGINOFFSET(ADCData, src, offset);
 	dstadc->adcFormatted = srcadc->adcFormatted;
+	if(!dstadc->adcFormatted)
+		return dst;
+	dstadc->numBits = srcadc->numBits;
+	int32 size = dstadc->numBits+3 & ~3;
+	dstadc->adcBits = new int8[size];
+	memcpy(dstadc->adcBits, srcadc->adcBits, size);
 	return dst;
 }
 
-// TODO: look at PC SA rccam.dff bloodrb.dff
+static void*
+destroyADC(void *object, int32 offset, int32)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
+	if(adc->adcFormatted)
+		delete[] adc->adcBits;
+	return object;
+}
 
 static void
 readADC(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
-	stream->seek(12);
-	uint32 x = stream->readU32();
-	assert(x == 0);
+	assert(findChunk(stream, ID_ADC, NULL, NULL));
+	adc->numBits = stream->readI32();
+	if(adc->numBits == 0){
+		adc->adcFormatted = 0;
+		return;
+	}
 	adc->adcFormatted = 1;
+	int32 size = adc->numBits+3 & ~3;
+	adc->adcBits = new int8[size];
+	stream->read(adc->adcBits, size);
+
+	Geometry *geometry = (Geometry*)object;
+	int ones = 0, zeroes = 0;
+	for(int i = 0; i < adc->numBits; i++)
+		if(adc->adcBits[i] == 0)
+			zeroes++;
+		else if(adc->adcBits[i] == 1)
+			ones++;
+		else
+			fprintf(stderr, "what the fuck man\n");
+	printf("%X %X %X\n", adc->numBits, zeroes, ones);
+	MeshHeader *meshHeader = geometry->meshHeader;
+	printf("%X\n", meshHeader->totalIndices);
 }
 
 static void
-writeADC(Stream *stream, int32, void *, int32, int32)
+writeADC(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
-	writeChunkHeader(stream, ID_ADC, 4);
-	stream->writeI32(0);
+	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
+	Geometry *geometry = (Geometry*)object;
+	writeChunkHeader(stream, ID_ADC, len-12);
+	if(geometry->geoflags & Geometry::NATIVE){
+		stream->writeI32(0);
+		return;
+	}
+	stream->writeI32(adc->numBits);
+	int32 size = adc->numBits+3 & ~3;
+	stream->write(adc->adcBits, size);
 }
 
 static int32
 getSizeADC(void *object, int32 offset, int32)
 {
+	Geometry *geometry = (Geometry*)object;
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
-	return adc->adcFormatted ? 16 : -1;
+	if(!adc->adcFormatted)
+		return -1;
+	if(geometry->geoflags & Geometry::NATIVE)
+		return 16;
+	return 16 + (adc->numBits+3 & ~3);
 }
 
 void
 registerADCPlugin(void)
 {
 	Geometry::registerPlugin(sizeof(ADCData), ID_ADC,
-	                         createADC, NULL, copyADC);
+	                         createADC, destroyADC, copyADC);
 	Geometry::registerPluginStream(ID_ADC,
 	                               readADC,
 	                               writeADC,

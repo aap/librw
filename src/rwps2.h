@@ -84,12 +84,15 @@ int32 getSizeNativeSkin(void *object, int32 offset);
 
 // ADC plugin
 
-// The plugin is a little crippled due to lack of documentation
+// Each element in adcBits corresponds to an index in Mesh->indices,
+// this assumes the Mesh indices are ADC formatted.
+// For some reason ADCData->numBits != Mesh->numIndices
 
 struct ADCData
 {
-	// only information we can get from GTA DFFs :/
-	uint32 adcFormatted;
+	bool32 adcFormatted;
+	int8 *adcBits;
+	int32 numBits;
 };
 
 void registerADCPlugin(void);
