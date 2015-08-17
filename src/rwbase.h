@@ -151,7 +151,7 @@ extern char *debugFile;
 inline uint32
 libraryIDPack(int version, int build)
 {
-	if(version < 0x32000)
+	if(version <= 0x31000)
 		return version>>8;
 	return (version-0x30000 & 0x3FF00) << 14 | (version&0x3F) << 16 |
 	       (build & 0xFFFF);

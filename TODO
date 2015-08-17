@@ -16,25 +16,32 @@ Clump & related:
 		Clump
 			R* Collision	0x253F2FA
 			Animation (old III dffs)
+		Frame
+			Animation (old III dffs)
 		Atomic
 			((Particles))	0x118
-			R* Pipeline Set	0x253F2F3
+			R* Pipeline	0x253F2F3
 			Skin (old III dffs)
 		Geometry
 			((Morph))	0x105
 			R* 2dfx		0x253F2F8
+			R* mystery xbox plugin	0x253F2F2
 		Material
 			UV Anim		0x135
 		Texture
 			(Sky Mipmap Val)	0x110
 
+UV Anim Dict
+
+Texture Dictionary
+
+.anm/.ska
+
+- properly implement Skin plugin
+
 - PDS Pipelines
 
 - ADC
 
-- uninstance geometry
-
-- UV Anim Dict
-
-- Texture Dictionary
+- uninstance geometry (PS2, Xbox; OpenGL done)
 

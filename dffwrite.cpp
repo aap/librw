@@ -24,6 +24,7 @@ main(int argc, char *argv[])
 	rw::registerAtomicRightsPlugin();
 	rw::registerHAnimPlugin();
 	gta::registerNodeNamePlugin();
+	gta::registerExtraNormalsPlugin();
 	gta::registerBreakableModelPlugin();
 	gta::registerExtraVertColorPlugin();
 	rw::ps2::registerADCPlugin();

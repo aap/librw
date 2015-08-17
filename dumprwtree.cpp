@@ -62,7 +62,7 @@ const char *toolkitchunks1[] = {
 	"UV Animation Linear", "UV Animation Parameter"
 };
 
-const char *RSchunks[] = { "Unused 1", "Unused 2", "Unused 3",
+const char *RSchunks[] = { "Unused 1", "Unused 2", "Extra Normals",
 	"Pipeline Set", "Unused 5", "Unused 6", "Specular Material",
 	"Unused 8", "2dfx", "Extra Colors", "Collision Model",
 	"Unused 12", "Environment Material", "Breakable", "Node Name",

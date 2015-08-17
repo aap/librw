@@ -189,6 +189,78 @@ registerBreakableModelPlugin(void)
 	                               getSizeBreakableModel);
 }
 
+// Extra normals
+
+int32 extraNormalsOffset;
+
+static void*
+createExtraNormals(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(float*, object, offset) = NULL;
+	return object;
+}
+
+static void*
+destroyExtraNormals(void *object, int32 offset, int32)
+{
+	float *extranormals = *PLUGINOFFSET(float*, object, offset);
+	delete[] extranormals;
+	*PLUGINOFFSET(float*, object, offset) = NULL;
+	return object;
+}
+
+static void
+readExtraNormals(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	Geometry *geo = (Geometry*)object;
+	float **plgp = PLUGINOFFSET(float*, object, offset);
+	if(*plgp)
+		delete[] *plgp;
+	float *extranormals = *plgp = new float[geo->numVertices*3];
+	stream->read(extranormals, geo->numVertices*3*4);
+
+//	for(int i = 0; i < geo->numVertices; i++){
+//		float *nx = extranormals+i*3;
+//		float *n = geo->morphTargets[0].normals;
+//		float len = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
+//		printf("%f %f %f %f\n", n[0], n[1], n[2], len);
+//		printf("%f %f %f\n", nx[0], nx[1], nx[2]);
+//	}
+}
+
+static void
+writeExtraNormals(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	Geometry *geo = (Geometry*)object;
+	float *extranormals = *PLUGINOFFSET(float*, object, offset);
+	assert(extranormals != NULL);
+	stream->write(extranormals, geo->numVertices*3*4);
+}
+
+static int32
+getSizeExtraNormals(void *object, int32 offset, int32)
+{
+	Geometry *geo = (Geometry*)object;
+	if(*PLUGINOFFSET(float*, object, offset))
+		return geo->numVertices*3*4;
+	return -1;
+}
+
+void
+registerExtraNormalsPlugin(void)
+{
+	extraNormalsOffset = Geometry::registerPlugin(sizeof(void*),
+	                                              ID_EXTRANORMALS,
+	                                              createExtraNormals,
+	                                              destroyExtraNormals,
+	                                              NULL);
+	Geometry::registerPluginStream(ID_EXTRANORMALS,
+	                               readExtraNormals,
+	                               writeExtraNormals,
+	                               getSizeExtraNormals);
+}
+
+
 // Extra colors
 
 int32 extraVertColorOffset;
@@ -228,6 +300,7 @@ readExtraVertColors(Stream *stream, int32, void *object, int32 offset, int32)
 	colordata->dayColors = new uint8[geometry->numVertices*4];
 	colordata->balance = 1.0f;
 	stream->read(colordata->nightColors, geometry->numVertices*4);
+printf("extra colors\n");
 	if(geometry->colors)
 		memcpy(colordata->dayColors, geometry->colors,
 		       geometry->numVertices*4);

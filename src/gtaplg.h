@@ -3,6 +3,7 @@ using namespace rw;
 
 enum
 {
+	ID_EXTRANORMALS    = 0x253f2f2,
 	ID_SPECMAT         = 0x253f2f6,
 	ID_EXTRAVERTCOLORS = 0x253f2f9,
 	ID_ENVMAT          = 0x253f2fc,
@@ -37,7 +38,12 @@ struct Breakable
 extern int32 breakableOffset;
 void registerBreakableModelPlugin(void);
 
-// Extra vert colors
+// Extra normals (only on Xbox)
+
+extern int32 extraNormalsOffset;
+void registerExtraNormalsPlugin(void);
+
+// Extra vert colors (not on Xbox)
 
 struct ExtraVertColors
 {
