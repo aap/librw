@@ -25,7 +25,6 @@ Clump & related:
 		Geometry
 			((Morph))	0x105
 			R* 2dfx		0x253F2F8
-			R* mystery xbox plugin	0x253F2F2
 		Material
 			UV Anim		0x135
 		Texture

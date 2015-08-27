@@ -4,7 +4,7 @@
 #include <cassert>
 #include <new>
 
-#include "rw.h"
+#include "../rw.h"
 
 using namespace std;
 using namespace rw;

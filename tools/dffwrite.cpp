@@ -4,8 +4,8 @@
 #include <cassert>
 #include <new>
 
-#include "rw.h"
-#include "src/gtaplg.h"
+#include "../rw.h"
+#include "../src/gtaplg.h"
 
 using namespace std;
 

@@ -11,6 +11,7 @@ SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
                                          image.cpp gtaplg.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
+INC := -I/usr/local/include
 CFLAGS=-Wall -Wextra -g $(BUILDDEF) -Wno-parentheses #-Wconversion
 LIB=librw-$(BUILD).a
 
@@ -19,11 +20,11 @@ $(LIB): $(OBJ)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INC) -c $< -o $@
 
 $(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
 	@mkdir -p $(@D)
-	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $< > $@
+	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $(INC) $< > $@
 
 clean:
 	rm -f $(BUILDDIR)/*.[od]

@@ -127,8 +127,15 @@ init(void)
 		"void main()"
 		"{"
 		"	gl_Position = projMat * viewMat * worldMat * vec4(in_vertex, 1.0);"
+
+		"	vec3 N = normalize(mat3(viewMat * worldMat) * in_normal);"
+		"	vec3 P = vec3(viewMat * worldMat * vec4(in_vertex, 1.0));"
+		"	vec3 V = normalize(-P);"
+		"	float rim = 1.0 - max(dot(V, N), 0.0);"
+
 		"	vec3 n = mat3(worldMat) * in_normal;"
 		"	float l = max(0.0, dot(n, -lightdir));"
+//		"	l = l*0.4 + rim;"
 		"	v_color = (in_color+vec4(l,l,l,0)+amblight)*matColor;"
 		"	v_texCoord = in_texCoord;"
 		"}\n"
@@ -179,7 +186,8 @@ init(void)
 	camera->setAspectRatio(1.0f*screenWidth/screenHeight);
 	camera->setNearFar(0.1f, 450.0f);
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
-	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
+//	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
+	camera->setPosition(Vec3(0.0f, -1.0f, 3.0f));
 
 	rw::currentTexDictionary = new rw::TexDictionary;
 //	rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
