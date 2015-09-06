@@ -223,7 +223,7 @@ Image::setSearchPath(const char *path)
 	::free(searchPaths);
 	numSearchPaths = 0;
 	if(path)
-		searchPaths = p = strdup(path);
+		searchPaths = p = _strdup(path);
 	else{
 		searchPaths = NULL;
 		return;
@@ -258,7 +258,7 @@ Image::getFilename(const char *name)
 		if(f){
 			fclose(f);
 			printf("found %s\n", name);
-			return strdup(name);
+			return _strdup(name);
 		}
 		return NULL;
 	}else

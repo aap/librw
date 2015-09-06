@@ -13,9 +13,9 @@ typedef void (*RightsCallback)(void *object, int32 offset, int32 size, uint32 da
 
 struct Plugin
 {
-	int offset;
-	int size;
-	uint id;
+	int32 offset;
+	int32 size;
+	uint32 id;
 	Constructor constructor;
 	Destructor destructor;
 	CopyConstructor copy;
@@ -29,8 +29,8 @@ struct Plugin
 template <typename T>
 struct PluginBase
 {
-	static int s_defaultSize;
-	static int s_size;
+	static int32 s_defaultSize;
+	static int32 s_size;
 	static Plugin *s_plugins;
 
 	void constructPlugins(void);
@@ -41,12 +41,12 @@ struct PluginBase
 	int streamGetPluginSize(void);
 	void assertRights(uint32 pluginID, uint32 data);
 
-	static int registerPlugin(int size, uint id,
+	static int registerPlugin(int32 size, uint32 id,
 	                          Constructor, Destructor, CopyConstructor);
-	static int registerPluginStream(uint id,
+	static int registerPluginStream(uint32 id,
 	                                StreamRead, StreamWrite, StreamGetSize);
-	static int setStreamRightsCallback(uint id, RightsCallback cb);
-	static int getPluginOffset(uint id);
+	static int setStreamRightsCallback(uint32 id, RightsCallback cb);
+	static int getPluginOffset(uint32 id);
 	static void *operator new(size_t size);
 	static void operator delete(void *p);
 };
@@ -118,11 +118,11 @@ PluginBase<T>::streamWritePlugins(Stream *stream)
 	}
 }
 
-template <typename T> int
+template <typename T> int32
 PluginBase<T>::streamGetPluginSize(void)
 {
-	int size = 0;
-	int plgsize;
+	int32 size = 0;
+	int32 plgsize;
 	for(Plugin *p = this->s_plugins; p; p = p->next)
 		if(p->getSize &&
 		   (plgsize = p->getSize(this, p->offset, p->size)) >= 0)
@@ -142,8 +142,8 @@ PluginBase<T>::assertRights(uint32 pluginID, uint32 data)
 		}
 }
 
-template <typename T> int
-PluginBase<T>::registerPlugin(int size, uint id,
+template <typename T> int32
+PluginBase<T>::registerPlugin(int32 size, uint32 id,
 	Constructor ctor, Destructor dtor, CopyConstructor cctor)
 {
 	Plugin *p = new Plugin;
@@ -165,8 +165,8 @@ PluginBase<T>::registerPlugin(int size, uint id,
 	return p->offset;
 }
 
-template <typename T> int
-PluginBase<T>::registerPluginStream(uint id,
+template <typename T> int32
+PluginBase<T>::registerPluginStream(uint32 id,
 	StreamRead read, StreamWrite write, StreamGetSize getSize)
 {
 	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
@@ -179,8 +179,8 @@ PluginBase<T>::registerPluginStream(uint id,
 	return -1;
 }
 
-template <typename T> int
-PluginBase<T>::setStreamRightsCallback(uint id, RightsCallback cb)
+template <typename T> int32
+PluginBase<T>::setStreamRightsCallback(uint32 id, RightsCallback cb)
 {
 	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
 		if(p->id == id){
@@ -190,8 +190,8 @@ PluginBase<T>::setStreamRightsCallback(uint id, RightsCallback cb)
 	return -1;
 }
 
-template <typename T> int
-PluginBase<T>::getPluginOffset(uint id)
+template <typename T> int32
+PluginBase<T>::getPluginOffset(uint32 id)
 {
 	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
 		if(p->id == id)

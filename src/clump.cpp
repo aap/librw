@@ -11,6 +11,8 @@
 #include "rwobjects.h"
 #include "rwps2.h"
 #include "rwogl.h"
+#include "rwxbox.h"
+#include "rwd3d9.h"
 
 using namespace std;
 
@@ -534,6 +536,10 @@ Atomic::init(void)
 		ps2::makeDefaultPipeline();
 	defaultPipelines[platformIdx[PLATFORM_OGL]] =
 		gl::makeDefaultPipeline();
+	defaultPipelines[platformIdx[PLATFORM_XBOX]] =
+		xbox::makeDefaultPipeline();
+	defaultPipelines[platformIdx[PLATFORM_D3D9]] =
+		d3d9::makeDefaultPipeline();
 }
 
 // Atomic Rights plugin

@@ -4,8 +4,8 @@
 #include <cassert>
 #include <new>
 
-#include "../rw.h"
-#include "../src/gtaplg.h"
+#include <rw.h>
+#include <src/gtaplg.h>
 
 using namespace std;
 using namespace rw;
@@ -31,13 +31,14 @@ main(int argc, char *argv[])
 	rw::Atomic::init();
 
 //	rw::platform = rw::PLATFORM_PS2;
-	rw::platform = rw::PLATFORM_OGL;
+//	rw::platform = rw::PLATFORM_OGL;
+	rw::platform = rw::PLATFORM_XBOX;
 
 	int uninstance = 0;
 	int arg = 1;
 
 	if(argc < 2){
-		printf("usage: %s [-u] ps2.dff\n", argv[0]);
+		printf("usage: %s [-u] in.dff\n", argv[0]);
 		return 0;
 	}
 
@@ -45,7 +46,7 @@ main(int argc, char *argv[])
 		uninstance++;
 		arg++; 
 		if(argc < 3){
-			printf("usage: %s [-u] ps2.dff\n", argv[0]);
+			printf("usage: %s [-u] in.dff\n", argv[0]);
 			return 0;
 		}
 	}
@@ -85,9 +86,9 @@ main(int argc, char *argv[])
 			p->instance(a);
 	}
 
-	data = new rw::uint8[512*1024];
+	data = new rw::uint8[1024*1024];
 	rw::StreamMemory out;
-	out.open(data, 0, 512*1024);
+	out.open(data, 0, 1024*1024);
 	c->streamWrite(&out);
 
 	FILE *cf = fopen("out.dff", "wb");

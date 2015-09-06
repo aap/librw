@@ -11,6 +11,7 @@
 #include "rwobjects.h"
 #include "rwps2.h"
 #include "rwxbox.h"
+#include "rwd3d9.h"
 #include "rwogl.h"
 
 using namespace std;
@@ -261,6 +262,10 @@ destroyNativeData(void *object, int32 offset, int32 size)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_XBOX)
+		return xbox::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_D3D9)
+		return d3d9::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_OGL)
 		return gl::destroyNativeData(object, offset, size);
 	return object;
@@ -278,13 +283,14 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 	readChunkHeaderInfo(stream, &header);
 	if(header.type == ID_STRUCT && 
 	   libraryIDPack(header.version, header.build) == libid){
-		// must be PS2 or Xbox
 		platform = stream->readU32();
 		stream->seek(-16);
 		if(platform == PLATFORM_PS2)
 			ps2::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
 			xbox::readNativeData(stream, len, object, o, s);
+		else if(platform == PLATFORM_D3D9)
+			d3d9::readNativeData(stream, len, object, o, s);
 		else{
 			fprintf(stderr, "unknown platform %d\n", platform);
 			stream->seek(len);
@@ -305,6 +311,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		ps2::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		xbox::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_D3D9)
+		d3d9::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		gl::writeNativeData(stream, len, object, o, s);
 }
@@ -319,6 +327,8 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 		return ps2::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return xbox::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_D3D9)
+		return d3d9::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		return gl::getSizeNativeData(object, offset, size);
 	return -1;
@@ -408,10 +418,10 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	skin->numBones = header[0];
 
 	// both values unused in/before 33002, used in/after 34003
+	// probably rw::version >= 0x34000
 	skin->numUsedBones = header[1];
 	skin->maxIndex = header[2];
 
-	// probably rw::version >= 0x34000
 	bool oldFormat = skin->numUsedBones == 0;
 	skin->allocateData(geometry->numVertices);
 
@@ -490,6 +500,8 @@ getSizeSkin(void *object, int32 offset, int32)
 			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_OGL)
 			return gl::getSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_D3D9)
+			return -1;
 		assert(0 && "unsupported native skin platform");
 	}
 
@@ -525,6 +537,10 @@ registerSkinPlugin(void)
 		ps2::makeSkinPipeline();
 	skinGlobals.pipelines[platformIdx[PLATFORM_OGL]] =
 		gl::makeSkinPipeline();
+	skinGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
+		xbox::makeSkinPipeline();
+	skinGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
+		d3d9::makeSkinPipeline();
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,
@@ -909,6 +925,10 @@ registerMatFXPlugin(void)
 		ps2::makeMatFXPipeline();
 	matFXGlobals.pipelines[platformIdx[PLATFORM_OGL]] =
 		gl::makeMatFXPipeline();
+	matFXGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
+		xbox::makeMatFXPipeline();
+	matFXGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
+		d3d9::makeMatFXPipeline();
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,

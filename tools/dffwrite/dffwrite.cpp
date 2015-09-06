@@ -4,8 +4,8 @@
 #include <cassert>
 #include <new>
 
-#include "../rw.h"
-#include "../src/gtaplg.h"
+#include <rw.h>
+#include <src/gtaplg.h>
 
 using namespace std;
 
@@ -15,6 +15,7 @@ main(int argc, char *argv[])
 //	rw::version = 0x31000;
 //	rw::build = 0;
 
+//	rw::version = 0x32000;
 //	rw::version = 0x33002;
 //	rw::version = 0x30200;
 
@@ -75,9 +76,9 @@ main(int argc, char *argv[])
 //	ofstream out(argv[2], ios::binary);
 //	rw::StreamFile out;
 //	out.open(argv[2], "wb");
-	data = new rw::uint8[256*1024];
+	data = new rw::uint8[1024*1024];
 	rw::StreamMemory out;
-	out.open(data, 0, 256*1024);
+	out.open(data, 0, 1024*1024);
 	c->streamWrite(&out);
 
 	cf = fopen(argv[2], "wb");

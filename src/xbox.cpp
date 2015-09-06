@@ -16,6 +16,11 @@ using namespace std;
 namespace rw {
 namespace xbox {
 
+enum {
+	D3DPT_TRIANGLELIST    =  5,
+	D3DPT_TRIANGLESTRIP   =  6,
+};
+
 void*
 destroyNativeData(void *object, int32, int32)
 {
@@ -24,6 +29,7 @@ destroyNativeData(void *object, int32, int32)
 	assert(geometry->instData->platform == PLATFORM_XBOX);
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
+	// TODO
 	delete header;
 	return object;
 }
@@ -84,12 +90,11 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	assert(geometry->instData != NULL);
 	assert(geometry->instData->platform == PLATFORM_XBOX);
 	stream->writeU32(PLATFORM_XBOX);
+	assert(rw::version >= 0x35000 && "can't write native Xbox data < 0x35000");
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 
 	// we just fill header->data and write that
 	uint8 *p = header->data+0x18;
-	//uint8 *end = (uint8*)header->begin->indexBuffer;
-	//memset(p, 0xAB, end-p);
 	*(int32*)p = header->size; p += 4;
 	*(uint16*)p = header->serialNumber; p += 2;
 	*(uint16*)p = header->numMeshes; p += 2;
@@ -135,6 +140,124 @@ registerNativeDataPlugin(void)
 	                               readNativeData,
 	                               writeNativeData,
 	                               getSizeNativeData);
+}
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform),
+   instanceCB(NULL), uninstanceCB(NULL) { }
+
+void
+ObjPipeline::instance(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if(geo->geoflags & Geometry::NATIVE)
+		return;
+	geo->geoflags |= Geometry::NATIVE;
+	InstanceDataHeader *header = new InstanceDataHeader;
+	MeshHeader *meshh = geo->meshHeader;
+	geo->instData = header;
+	header->platform = PLATFORM_XBOX;
+
+	header->size = 0x24 + meshh->numMeshes*0x18 + 0x10;
+	Mesh *mesh = meshh->mesh;
+	for(uint32 i = 0; i < meshh->numMeshes; i++)
+		header->size += (mesh++->numIndices*2 + 0xF) & ~0xF;
+	// The 0x18 byte are the resentryheader.
+	// We don't have it but it's used for alignment.
+	header->data = new uint8[header->size + 0x18];
+	header->serialNumber = 0;
+	header->numMeshes = meshh->numMeshes;
+	header->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
+	header->numVertices = geo->numVertices;
+	header->vertexAlpha = 0;
+	// set by the instanceCB
+	header->stride = 0;
+	header->vertexBuffer = NULL;
+
+	InstanceData *inst = new InstanceData[header->numMeshes];
+	header->begin = inst;
+	mesh = meshh->mesh;
+	uint8 *indexbuf = (uint8*)header->data + ((0x18 + 0x24 + header->numMeshes*0x18 + 0xF)&~0xF);
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
+		                          &inst->minVert, (uint32*)&inst->numVertices);
+		inst->numIndices = mesh->numIndices;
+		inst->indexBuffer = indexbuf;
+		memcpy(inst->indexBuffer, mesh->indices, inst->numIndices*sizeof(uint16));
+		indexbuf += (inst->numIndices*2 + 0xF) & ~0xF;
+		inst->material = mesh->material;
+		inst->vertexShader = 0;	// TODO?
+		mesh++;
+		inst++;
+	}
+	header->end = inst;
+
+	this->instanceCB(geo, header);
+}
+
+void
+ObjPipeline::uninstance(Atomic *atomic)
+{
+	assert(0 && "can't uninstance");
+}
+
+int v3dFormatMap[] = {
+	-1, VERT_BYTE3, VERT_SHORT3, VERT_NORMSHORT3, VERT_COMPNORM, VERT_FLOAT3
+};
+
+int v2dFormatMap[] = {
+	-1, VERT_BYTE2, VERT_SHORT2, VERT_NORMSHORT2, VERT_COMPNORM, VERT_FLOAT2
+};
+
+void
+defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	uint32 *vertexFmt = getVertexFmt(geo);
+	if(*vertexFmt == 0)
+		*vertexFmt = makeVertexFmt(geo->geoflags, geo->numTexCoordSets);
+	header->stride = getVertexFmtStride(*vertexFmt);
+	header->vertexBuffer = new uint8[header->stride*header->numVertices];
+	uint32 offset = 0;
+	uint8 *dst = (uint8*)header->vertexBuffer;
+
+	uint32 fmt = *vertexFmt;
+	uint32 sel = fmt & 0xF;
+	instV3d(v3dFormatMap[sel], dst, geo->morphTargets[0].vertices,
+	        header->numVertices, header->stride);
+	dst += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
+
+	sel = (fmt >> 4) & 0xF;
+	if(sel){
+		instV3d(v3dFormatMap[sel], dst, geo->morphTargets[0].normals,
+		        header->numVertices, header->stride);
+		dst += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
+	}
+
+	if(fmt & 0x1000000){
+		header->vertexAlpha = instColor(VERT_ARGB, dst, geo->colors,
+		                                header->numVertices, header->stride);
+		dst += 4;
+	}
+
+	for(int i = 0; i < 4; i++){
+		sel = (fmt >> (i*4 + 8)) & 0xF;
+		if(sel == 0)
+			break;
+		instV2d(v2dFormatMap[sel], dst, geo->texCoords[i],
+		        header->numVertices, header->stride);
+		dst += sel == 4 ? 4 : 2*vertexFormatSizes[sel];
+	}
+
+	if(fmt & 0xE000000)
+		assert(0 && "can't instance tangents or whatever it is");
+}
+
+ObjPipeline*
+makeDefaultPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	pipe->instanceCB = defaultInstanceCB;
+	return pipe;
 }
 
 // Skin plugin
@@ -213,13 +336,86 @@ getSizeNativeSkin(void *object, int32 offset)
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin == NULL)
 		return -1;
-	assert(skin->platformData);
+	if(skin->platformData == NULL)
+		return -1;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;
 	return 12 + 8 + 2*256*4 + 4*4 +
 	        natskin->stride*geometry->numVertices + skin->numBones*64 + 12;
 }
 
+void
+skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	defaultInstanceCB(geo, header);
+}
+
+ObjPipeline*
+makeSkinPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	pipe->instanceCB = skinInstanceCB;
+	pipe->pluginID = ID_SKIN;
+	pipe->pluginData = 1;
+	return pipe;
+}
+
+ObjPipeline*
+makeMatFXPipeline(void)
+{
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	pipe->instanceCB = defaultInstanceCB;
+	pipe->pluginID = ID_MATFX;
+	pipe->pluginData = 0;
+	return pipe;
+}
+
 // Vertex Format Plugin
+
+static int32 vertexFmtOffset;
+
+uint32 vertexFormatSizes[6] = {
+	0, 1, 2, 2, 4, 4
+};
+
+uint32*
+getVertexFmt(Geometry *g)
+{
+	return PLUGINOFFSET(uint32, g, vertexFmtOffset);
+}
+
+uint32
+makeVertexFmt(int32 flags, uint32 numTexSets)
+{
+	if(numTexSets > 4)
+		numTexSets = 4;
+	uint32 fmt = 0x5;	// FLOAT3
+	if(flags & Geometry::NORMALS)
+		fmt |= 0x40;	// NORMPACKED3
+	for(uint32 i = 0; i < numTexSets; i++)
+		fmt |= 0x500 << i*4;	// FLOAT2
+	if(flags & Geometry::PRELIT)
+		fmt |= 0x1000000;	// D3DCOLOR
+	return fmt;
+}
+
+uint32
+getVertexFmtStride(uint32 fmt)
+{
+	uint32 stride = 0;
+	uint32 v = fmt & 0xF;
+	uint32 n = (fmt >> 4) & 0xF;
+	stride += v == 4 ? 4 : 3*vertexFormatSizes[v];
+	stride += n == 4 ? 4 : 3*vertexFormatSizes[n];
+	if(fmt & 0x1000000)
+		stride += 4;
+	for(int i = 0; i < 4; i++){
+		uint32 t = (fmt >> (i*4 + 8)) & 0xF;
+		stride += t == 4 ? 4 : 2*vertexFormatSizes[t];
+	}
+	if(fmt & 0xE000000)
+		stride += 8;
+	return stride;
+}
 
 static void*
 createVertexFmt(void *object, int32 offset, int32)
@@ -239,9 +435,8 @@ static void
 readVertexFmt(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	uint32 fmt = stream->readU32();
-//	printf("vertexfmt: %X\n", fmt);
 	*PLUGINOFFSET(uint32, object, offset) = fmt;
-	// TODO: create and attach "vertex shader"
+	// TODO: ? create and attach "vertex shader"
 }
 
 static void
@@ -253,14 +448,15 @@ writeVertexFmt(Stream *stream, int32, void *object, int32 offset, int32)
 static int32
 getSizeVertexFmt(void*, int32, int32)
 {
-	// TODO: make dependent on platform
+	if(rw::platform != PLATFORM_XBOX)
+		return -1;
 	return 4;
 }
 
 void
 registerVertexFormatPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(uint32), ID_VERTEXFMT,
+	vertexFmtOffset = Geometry::registerPlugin(sizeof(uint32), ID_VERTEXFMT,
 	                         createVertexFmt, NULL, copyVertexFmt);
 	Geometry::registerPluginStream(ID_VERTEXFMT,
 	                               readVertexFmt,

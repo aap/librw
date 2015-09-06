@@ -20,6 +20,8 @@ int build = 0xFFFF;
 	int platform = PLATFORM_PS2;
 #elif RW_OPENGL
 	int platform = PLATFORM_OGL;
+#elif RW_D3D9
+	int platform = PLATFORM_D3D9;
 #else
 	int platform = PLATFORM_NULL;
 #endif

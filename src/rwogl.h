@@ -1,6 +1,8 @@
 namespace rw {
 namespace gl {
 
+// NOTE: This is not really RW OpenGL! It's specific to WarDrum's GTA ports
+
 struct AttribDesc
 {
 	// arguments to glVertexAttribPointer (should use OpenGL types here)
@@ -26,12 +28,19 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	uint32 ibo;
 };
 
+// only RW_OPENGL
+void uploadGeo(Geometry *geo);
+void setAttribPointers(InstanceDataHeader *inst);
+
+void packattrib(uint8 *dst, float32 *src, AttribDesc *a, float32 scale);
+void unpackattrib(float *dst, uint8 *src, AttribDesc *a, float32 scale);
+
 void *destroyNativeData(void *object, int32, int32);
 void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
 void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
+void registerNativeDataPlugin(void);
 
-void instance(Atomic *atomic);
 void printPipeinfo(Atomic *a);
 
 class ObjPipeline : public rw::ObjPipeline
@@ -47,10 +56,6 @@ public:
 };
 
 ObjPipeline *makeDefaultPipeline(void);
-
-// only RW_OPENGL
-void uploadGeo(Geometry *geo);
-void setAttribPointers(InstanceDataHeader *inst);
 
 // Skin plugin
 
