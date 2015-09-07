@@ -35,7 +35,7 @@ createVertexDeclaration(VertexElement *elements)
 	VertexElement *e = (VertexElement*)elements;
 	while(e[n++].stream != 0xFF)
 		;
-	e = new VertexElement[n];
+	e = (VertexElement*)new uint8[n*sizeof(VertexElement)];
 	memcpy(e, elements, n*sizeof(VertexElement));
 	return e;
 #endif
@@ -67,9 +67,14 @@ destroyNativeData(void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData != NULL);
 	assert(geometry->instData->platform == PLATFORM_D3D9);
-	// TODO
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
+	geometry->instData = NULL;
+	deleteObject(header->vertexDeclaration);
+	deleteObject(header->indexBuffer);
+	deleteObject(header->vertexStream[0].vertexBuffer);
+	deleteObject(header->vertexStream[1].vertexBuffer);
+	delete[] header->inst;
 	delete header;
 	return object;
 }

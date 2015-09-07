@@ -245,6 +245,8 @@ struct MeshHeader
 	// RW has uint16 serialNum here
 	uint32 totalIndices;
 	Mesh *mesh;	// RW has a byte offset here
+
+	void allocateIndices(void);
 };
 
 struct MorphTarget

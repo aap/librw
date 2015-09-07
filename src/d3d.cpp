@@ -92,5 +92,18 @@ unlockVertices(void *vertexBuffer)
 #endif
 }
 
+void
+deleteObject(void *object)
+{
+	if(object == NULL)
+		return;
+#ifdef RW_D3D9
+	IUnknown *unk = (IUnknown*)object;
+	unk->Release();
+#else
+	delete[] (uint*)object;
+#endif
+}
+
 }
 }

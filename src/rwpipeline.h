@@ -47,7 +47,10 @@ enum {
 };
 
 void instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
+void uninstV3d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride);
 void instV2d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
+void uninstV2d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride);
 bool32 instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride);
+void uninstColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride);
 
 }

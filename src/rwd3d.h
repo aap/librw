@@ -65,6 +65,7 @@ void unlockIndices(void *indexBuffer);
 void *createVertexBuffer(uint32 length, uint32 fvf, int32 pool);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
+void deleteObject(void *object);
 
 }
 }

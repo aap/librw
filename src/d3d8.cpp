@@ -48,9 +48,16 @@ destroyNativeData(void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	assert(geometry->instData != NULL);
 	assert(geometry->instData->platform == PLATFORM_D3D8);
-	// TODO
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
+	geometry->instData = NULL;
+	InstanceData *inst = header->inst;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		deleteObject(inst->indexBuffer);
+		deleteObject(inst->vertexBuffer);
+		inst++;
+	}
+	delete[] header->inst;
 	delete header;
 	return object;
 }
@@ -244,7 +251,62 @@ ObjPipeline::instance(Atomic *atomic)
 void
 ObjPipeline::uninstance(Atomic *atomic)
 {
-	assert(0 && "can't uninstance");
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	geo->geoflags &= ~Geometry::NATIVE;
+	geo->allocateData();
+	geo->meshHeader->allocateIndices();
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	InstanceData *inst = header->inst;
+	Mesh *mesh = geo->meshHeader->mesh;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
+		if(inst->minVert == 0)
+			memcpy(mesh->indices, indices, inst->numIndices*sizeof(uint16));
+		else
+			for(int32 j = 0; j < inst->numIndices; j++)
+				mesh->indices[j] = indices[j] + inst->minVert;
+		unlockIndices(inst->indexBuffer);
+
+		this->uninstanceCB(geo, inst);
+		mesh++;
+		inst++;
+	}
+	geo->generateTriangles();
+	destroyNativeData(geo, 0, 0);
+}
+
+void
+defaultUninstanceCB(Geometry *geo, InstanceData *inst)
+{
+	uint8 *src = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+	uninstV3d(VERT_FLOAT3, 
+		&geo->morphTargets[0].vertices[3*inst->minVert],
+		src, inst->numVertices, inst->stride);
+	src += 12;
+
+	if(geo->geoflags & Geometry::NORMALS){
+		uninstV3d(VERT_FLOAT3, 
+			&geo->morphTargets[0].normals[3*inst->minVert],
+			src, inst->numVertices, inst->stride);
+		src += 12;
+	}
+
+	inst->vertexAlpha = 0;
+	if(geo->geoflags & Geometry::PRELIT){
+		uninstColor(VERT_ARGB, &geo->colors[4*inst->minVert], src,
+			    inst->numVertices, inst->stride);
+		src += 4;
+	}
+
+	for(int32 i = 0; i < geo->numTexCoordSets; i++){
+		uninstV2d(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
+		  	inst->numVertices, inst->stride);
+		src += 8;
+	}
+	unlockVertices(inst->vertexBuffer);
 }
 
 void
@@ -290,6 +352,7 @@ makeDefaultPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	return pipe;
 }
 
@@ -298,6 +361,7 @@ makeSkinPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;
@@ -308,6 +372,7 @@ makeMatFXPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;

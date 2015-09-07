@@ -164,6 +164,9 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
+	uint16 *p = NULL;
+	if(!(geo->geoflags & Geometry::NATIVE) || hasData)
+		p = new uint16[geo->meshHeader->totalIndices];
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		stream->read(buf, 8);
 		mesh->numIndices = buf[0];
@@ -172,12 +175,14 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 		if(geo->geoflags & Geometry::NATIVE){
 			// OpenGL stores uint16 indices here
 			if(hasData){
-				mesh->indices = new uint16[mesh->numIndices];
+				mesh->indices = p;
+				p += mesh->numIndices;
 				stream->read(mesh->indices,
 				            mesh->numIndices*2);
 			}
 		}else{
-			mesh->indices = new uint16[mesh->numIndices];
+			mesh->indices = p;
+			p += mesh->numIndices;
 			uint16 *ind = mesh->indices;
 			int32 numIndices = mesh->numIndices;
 			for(; numIndices > 0; numIndices -= 256){
@@ -251,6 +256,17 @@ registerMeshPlugin(void)
 {
 	Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
 	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
+}
+
+void
+MeshHeader::allocateIndices(void)
+{
+	uint16 *p = new uint16[this->totalIndices];
+	Mesh *mesh = this->mesh;
+	for(uint32 i = 0; i < this->numMeshes; i++){
+		mesh->indices = p;
+		p += mesh->numIndices;
+	}
 }
 
 // Native Data

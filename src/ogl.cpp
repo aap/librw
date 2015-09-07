@@ -213,6 +213,8 @@ destroyNativeData(void *object, int32, int32)
 	assert(geometry->instData->platform == PLATFORM_OGL);
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
+	geometry->instData = NULL;
+	// TODO: delete ibo and vbo
 	delete[] header->attribs;
 	delete[] header->data;
 	delete header;
@@ -480,10 +482,7 @@ ObjPipeline::uninstance(Atomic *atomic)
 
 	geo->generateTriangles();
 
-	delete header->attribs;
-	delete header->data;
-	delete header;
-	geo->instData = NULL;
+	destroyNativeData(geo, 0, 0);
 }
 
 ObjPipeline*

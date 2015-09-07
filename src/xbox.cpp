@@ -24,7 +24,10 @@ destroyNativeData(void *object, int32, int32)
 	assert(geometry->instData->platform == PLATFORM_XBOX);
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
-	// TODO
+	geometry->instData = NULL;
+	delete[] header->vertexBuffer;
+	delete[] header->begin;
+	delete[] header->data;
 	delete header;
 	return object;
 }

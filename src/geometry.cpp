@@ -72,8 +72,8 @@ Geometry::~Geometry(void)
 	delete[] this->morphTargets;
 
 	if(this->meshHeader){
-		for(uint32 i = 0; i < this->meshHeader->numMeshes; i++)
-			delete[] this->meshHeader->mesh[i].indices;
+		// first mesh holds pointer to all indices
+		delete[] this->meshHeader->mesh[0].indices;
 		delete[] this->meshHeader->mesh;
 		delete this->meshHeader;
 	}

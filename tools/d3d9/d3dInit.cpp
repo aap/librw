@@ -210,12 +210,15 @@ drawAtomic(Atomic *atomic)
 }
 
 rw::Clump *clump;
+void (*renderCB)(rw::Atomic*) = NULL;
 
 void
 initrw(void)
 {
 	rw::currentTexDictionary = new rw::TexDictionary;
-	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
+	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
+	                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
+	                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
 
 	gta::registerEnvSpecPlugin();
 	rw::registerMatFXPlugin();
@@ -233,16 +236,17 @@ initrw(void)
 	rw::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 	rw::Atomic::init();
+
 	rw::d3d::registerNativeRaster();
 
-	rw::platform = rw::PLATFORM_D3D8;
+	rw::platform = rw::PLATFORM_D3D9;
 	rw::d3d::device = Device;
 
-//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
-	char *filename = "out2.dff";
+//	char *filename = "out2.dff";
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL){
 		MessageBox(0, "couldn't open file\n", 0, 0);
@@ -257,6 +261,10 @@ initrw(void)
 		rw::Atomic *a = clump->atomicList[i];
 		a->getPipeline()->instance(a);
 	}
+	if(rw::platform == rw::PLATFORM_D3D8)
+		renderCB = rw::d3d8::drawAtomic;
+	else if(rw::platform == rw::PLATFORM_D3D9)
+		renderCB = rw::d3d9::drawAtomic;
 
 //	rw::StreamFile out;
 //	out.open("out2.dff", "wb");
@@ -329,10 +337,7 @@ Display(float timeDelta)
 		                          gta::nodeNameOffset);
 		if(strstr(name, "_dam") || strstr(name, "_vlo"))
 			continue;
-		if(rw::platform == rw::PLATFORM_D3D9)
-			rw::d3d9::drawAtomic(clump->atomicList[i]);
-		else if(rw::platform == rw::PLATFORM_D3D8)
-			rw::d3d8::drawAtomic(clump->atomicList[i]);
+		renderCB(clump->atomicList[i]);
 	}
 
 	Device->EndScene();
