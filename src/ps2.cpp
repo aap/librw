@@ -689,37 +689,32 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	stream->read(header, 4);
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
-	skin->numBones = header[0];
 
-	// both values unused in/before 33002, used in/after 34003
-	skin->numUsedBones = header[1];
-	skin->maxIndex = header[2];
+	// numUsedBones and numWeights appear in/after 34003 but not in/before 33002
+	// (probably rw::version >= 0x34000)
+	bool oldFormat = header[1] == 0;
 
-	bool oldFormat = skin->numUsedBones == 0;
-	int32 size = skin->numUsedBones + skin->numBones*64 + 15;
-	uint8 *data = new uint8[size];
-	skin->data = data;
-	skin->indices = NULL;
-	skin->weights = NULL;
+	// Use numBones for numUsedBones to allocate data
+	if(oldFormat)
+		skin->init(header[0], header[0], 0);
+	else
+		skin->init(header[0], header[1], 0);
+	skin->numWeights = header[2];
 
-	skin->usedBones = NULL;
-	if(skin->numUsedBones){
-		skin->usedBones = data;
-		data += skin->numUsedBones;
-		stream->read(skin->data, skin->numUsedBones);
-	}
-
-	uintptr ptr = (uintptr)data + 15;
-	ptr &= ~0xF;
-	data = (uint8*)ptr;
-	skin->inverseMatrices = NULL;
-	if(skin->numBones){
-		skin->inverseMatrices = (float*)data;
+	if(!oldFormat)
+		stream->read(skin->usedBones, skin->numUsedBones);
+	if(skin->numBones)
 		stream->read(skin->inverseMatrices, skin->numBones*64);
+
+	// dummy data in case we need to write data in the new format
+	if(oldFormat){
+		skin->numWeights = 4;
+		for(int32 i = 0; i < skin->numUsedBones; i++)
+			skin->usedBones[i] = i;
 	}
 
 	if(!oldFormat)
-		// last 3 ints are probably the same as in generic format
+		// last 3 ints are split data as in the other formats
 		// TODO: what are the other 4?
 		stream->seek(7*4);
 }
@@ -732,15 +727,17 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	stream->writeU32(PLATFORM_PS2);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	bool oldFormat = version < 0x34003;
+	// not sure which version introduced the new format
+	bool oldFormat = version < 0x34000;
 	header[0] = skin->numBones;
-	header[1] = skin->numUsedBones;
-	header[2] = skin->maxIndex;
-	header[3] = 0;
 	if(oldFormat){
 		header[1] = 0;
 		header[2] = 0;
+	}else{
+		header[1] = skin->numUsedBones;
+		header[2] = skin->numWeights;
 	}
+	header[3] = 0;
 	stream->write(header, 4);
 
 	if(!oldFormat)
@@ -760,7 +757,7 @@ getSizeNativeSkin(void *object, int32 offset)
 		return -1;
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	// not sure which version introduced the new format
-	if(version >= 0x34003)
+	if(version >= 0x34000)
 		size += skin->numUsedBones + 16 + 12;
 	return size;
 }

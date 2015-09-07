@@ -362,8 +362,10 @@ static void*
 destroySkin(void *object, int32 offset, int32)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	if(skin)
+	if(skin){
 		delete[] skin->data;
+//		delete[] skin->platformData;
+	}
 	delete skin;
 	return object;
 }
@@ -381,10 +383,10 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	*PLUGINOFFSET(Skin*, dst, offset) = dstskin;
 	dstskin->numBones = srcskin->numBones;
 	dstskin->numUsedBones = srcskin->numUsedBones;
-	dstskin->maxIndex = srcskin->maxIndex;
+	dstskin->numWeights = srcskin->numWeights;
 
 	assert(0 && "can't copy skin yet");
-	dstskin->allocateData(geometry->numVertices);
+	dstskin->init(srcskin->numBones, srcskin->numUsedBones, geometry->numVertices);
 	memcpy(dstskin->usedBones, srcskin->usedBones, srcskin->numUsedBones);
 	memcpy(dstskin->inverseMatrices, srcskin->inverseMatrices,
 	       srcskin->numBones*64);
@@ -412,20 +414,22 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		return;
 	}
 
-	stream->read(header, 4);
+	stream->read(header, 4);	// numBones, numUsedBones, numWeights, unused
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
-	skin->numBones = header[0];
 
-	// both values unused in/before 33002, used in/after 34003
-	// probably rw::version >= 0x34000
-	skin->numUsedBones = header[1];
-	skin->maxIndex = header[2];
+	// numUsedBones and numWeights appear in/after 34003 but not in/before 33002
+	// (probably rw::version >= 0x34000)
+	bool oldFormat = header[1] == 0;
 
-	bool oldFormat = skin->numUsedBones == 0;
-	skin->allocateData(geometry->numVertices);
+	// Use numBones for numUsedBones to allocate data, find out the correct value later
+	if(oldFormat)
+		skin->init(header[0], header[0], geometry->numVertices);
+	else
+		skin->init(header[0], header[1], geometry->numVertices);
+	skin->numWeights = header[2];
 
-	if(skin->usedBones)
+	if(!oldFormat)
 		stream->read(skin->usedBones, skin->numUsedBones);
 	if(skin->indices)
 		stream->read(skin->indices, geometry->numVertices*4);
@@ -435,6 +439,11 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		if(oldFormat)
 			stream->seek(4);	// skip 0xdeaddead
 		stream->read(&skin->inverseMatrices[i*16], 64);
+	}
+
+	if(oldFormat){
+		skin->findNumWeights(geometry->numVertices);
+		skin->findUsedBones(geometry->numVertices);
 	}
 
 	// no split skins in GTA
@@ -461,15 +470,17 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	}
 
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	bool oldFormat = version < 0x34003;
+	// not sure which version introduced the new format
+	bool oldFormat = version < 0x34000;
 	header[0] = skin->numBones;
-	header[1] = skin->numUsedBones;
-	header[2] = skin->maxIndex;
-	header[3] = 0;
 	if(oldFormat){
 		header[1] = 0;
 		header[2] = 0;
+	}else{
+		header[1] = skin->numUsedBones;
+		header[2] = skin->numWeights;
 	}
+	header[3] = 0;
 	stream->write(header, 4);
 	if(!oldFormat)
 		stream->write(skin->usedBones, skin->numUsedBones);
@@ -512,7 +523,7 @@ getSizeSkin(void *object, int32 offset, int32)
 	int32 size = 4 + geometry->numVertices*(16+4) +
 	             skin->numBones*64;
 	// not sure which version introduced the new format
-	if(version < 0x34003)
+	if(version < 0x34000)
 		size += skin->numBones*4;
 	else
 		size += skin->numUsedBones + 12;
@@ -522,7 +533,7 @@ getSizeSkin(void *object, int32 offset, int32)
 static void
 skinRights(void *object, int32, int32, uint32)
 {
-	((Atomic*)object)->pipeline = skinGlobals.pipelines[platformIdx[platform]];
+	((Atomic*)object)->pipeline = skinGlobals.pipelines[platformIdx[rw::platform]];
 }
 
 void
@@ -553,53 +564,78 @@ registerSkinPlugin(void)
 }
 
 void
-Skin::allocateData(int32 numVerts)
+Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 {
+	this->numBones = numBones;
+	this->numUsedBones = numUsedBones;
 	uint32 size = this->numUsedBones +
 	              this->numBones*64 +
-	              numVerts*(16+4) + 15;
+	              numVertices*(16+4) + 0xF;
 	this->data = new uint8[size];
-	uint8 *data = this->data;
+	uint8 *p = this->data;
 
 	this->usedBones = NULL;
 	if(this->numUsedBones){
-		this->usedBones = data;
-		data += this->numUsedBones;
+		this->usedBones = p;
+		p += this->numUsedBones;
 	}
 
-	uintptr ptr = (uintptr)data + 15;
-	ptr &= ~0xF;
-	data = (uint8*)ptr;
+	p = (uint8*)(((uintptr)p + 0xF) & ~0xF);
 	this->inverseMatrices = NULL;
 	if(this->numBones){
-		this->inverseMatrices = (float*)data;
-		data += 64*this->numBones;
+		this->inverseMatrices = (float*)p;
+		p += 64*this->numBones;
 	}
 
 	this->indices = NULL;
-	if(numVerts){
-		this->indices = data;
-		data += 4*numVerts;
+	if(numVertices){
+		this->indices = p;
+		p += 4*numVertices;
 	}
 
 	this->weights = NULL;
-	if(numVerts)
-		this->weights = (float*)data;
+	if(numVertices)
+		this->weights = (float*)p;
 
 	this->platformData = NULL;
 }
 
 void
-Skin::allocateVertexData(int32 numVerts)
+Skin::findNumWeights(int32 numVertices)
 {
-	uint8 *usedBones = this->usedBones;
-	float *invMats = this->inverseMatrices;
-	uint8 *data = this->data;
+	this->numWeights = 1;
+	float *w = this->weights;
+	while(numVertices--){
+		while(w[this->numWeights] != 0.0f){
+			this->numWeights++;
+			if(this->numWeights == 4)
+				return;
+		}
+		w += 4;
+	}
+}
 
-	this->allocateData(numVerts);
-	memcpy(this->usedBones, usedBones, this->numUsedBones);
-	memcpy(this->inverseMatrices, invMats, this->numBones*64);
-	delete[] data;
+void
+Skin::findUsedBones(int32 numVertices)
+{
+	uint8 usedTab[256];
+	uint8 *indices = this->indices;
+	float *weights = this->weights;
+	memset(usedTab, 0, 256);
+	while(numVertices--){
+		for(int32 i = 0; i < this->numWeights; i++){
+			if(weights[i] == 0.0f)
+				continue;	// TODO: this could probably be optimized
+			if(usedTab[indices[i]] == 0)
+				usedTab[indices[i]]++;
+		}
+		indices += 4;
+		weights += 4;
+	}
+	this->numUsedBones = 0;
+	for(int32 i = 0; i < 256; i++)
+		if(usedTab[i])
+			this->usedBones[this->numUsedBones++] = i;
 }
 
 //

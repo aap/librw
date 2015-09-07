@@ -314,7 +314,7 @@ struct Skin
 {
 	int32 numBones;
 	int32 numUsedBones;
-	int32 maxIndex;
+	int32 numWeights;
 	uint8 *usedBones;
 	float *inverseMatrices;
 	uint8 *indices;
@@ -322,8 +322,9 @@ struct Skin
 	uint8 *data;	// only used by delete
 	void *platformData; // a place to store platform specific stuff
 
-	void allocateData(int32 numVerts);
-	void allocateVertexData(int32 numVerts);
+	void init(int32 numBones, int32 numUsedBones, int32 numVertices);
+	void findNumWeights(int32 numVertices);
+	void findUsedBones(int32 numVertices);
 };
 
 struct SkinGlobals

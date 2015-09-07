@@ -13,7 +13,6 @@ using namespace rw;
 int
 main(int argc, char *argv[])
 {
-	rw::version = 0x33002;
 	gta::registerEnvSpecPlugin();
 	rw::registerMatFXPlugin();
 	rw::registerMaterialRightsPlugin();
@@ -30,6 +29,7 @@ main(int argc, char *argv[])
 	rw::registerMeshPlugin();
 	rw::Atomic::init();
 
+//	rw::version = 0x33002;
 //	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 	rw::platform = rw::PLATFORM_XBOX;

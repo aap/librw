@@ -504,40 +504,19 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	assert(stream->readU32() == PLATFORM_OGL);
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
-	skin->numBones = stream->readI32();
-	skin->numUsedBones = 0;
-	skin->maxIndex = 0;
 
-	int32 size = skin->numBones*64 + 15;
-	uint8 *data = new uint8[size];
-	skin->data = data;
-	skin->indices = NULL;
-	skin->weights = NULL;
-	skin->usedBones = NULL;
-
-	uintptr ptr = (uintptr)data + 15;
-	ptr &= ~0xF;
-	data = (uint8*)ptr;
-	skin->inverseMatrices = NULL;
-	if(skin->numBones){
-		skin->inverseMatrices = (float*)data;
-		stream->read(skin->inverseMatrices, skin->numBones*64);
-	}
+	int32 numBones = stream->readI32();
+	skin->init(numBones, 0, 0);
+	stream->read(skin->inverseMatrices, skin->numBones*64);
 }
 
 void
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
-	uint8 header[4];
-
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	stream->writeU32(PLATFORM_OGL);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	header[0] = skin->numBones;
-	header[1] = 0;
-	header[2] = 0;
-	header[3] = 0;
-	stream->write(header, 4);
+	stream->writeI32(skin->numBones);
 	stream->write(skin->inverseMatrices, skin->numBones*64);
 }
 
@@ -608,7 +587,11 @@ skinUninstanceCB(Geometry *geo)
         if(skin == NULL)
 		return;
 
-	skin->allocateVertexData(geo->numVertices);
+	uint8 *data = skin->data;
+	float *invMats = skin->inverseMatrices;
+	skin->init(skin->numBones, skin->numBones, geo->numVertices);
+	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
+	delete[] data;
 
 	uint8 *p;
 	float *weights = skin->weights;
@@ -637,6 +620,9 @@ skinUninstanceCB(Geometry *geo)
 			break;
 		}
 	}
+
+	skin->findNumWeights(geo->numVertices);
+	skin->findUsedBones(geo->numVertices);
 }
 
 ObjPipeline*

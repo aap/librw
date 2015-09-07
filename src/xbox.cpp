@@ -16,11 +16,6 @@ using namespace std;
 namespace rw {
 namespace xbox {
 
-enum {
-	D3DPT_TRIANGLELIST    =  5,
-	D3DPT_TRIANGLESTRIP   =  6,
-};
-
 void*
 destroyNativeData(void *object, int32, int32)
 {
@@ -149,6 +144,11 @@ ObjPipeline::ObjPipeline(uint32 platform)
 void
 ObjPipeline::instance(Atomic *atomic)
 {
+	enum {
+		D3DPT_TRIANGLELIST    =  5,
+		D3DPT_TRIANGLESTRIP   =  6,
+	};
+
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -281,18 +281,15 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	assert(stream->readU32() == PLATFORM_XBOX);
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
-	skin->numBones = stream->readI32();
 
-	// only allocate matrices
-	skin->numUsedBones = 0;
-	skin->allocateData(0);
+	int32 numBones = stream->readI32();
+	skin->init(numBones, 0, 0);
 	NativeSkin *natskin = new NativeSkin;
 	skin->platformData = natskin;
 	stream->read(natskin->table1, 256*sizeof(int32));
 	stream->read(natskin->table2, 256*sizeof(int32));
-	// we use our own variable for this due to allocation
 	natskin->numUsedBones = stream->readI32();
-	skin->maxIndex = stream->readI32();
+	skin->numWeights = stream->readI32();
 	stream->seek(4);	// skip pointer to vertexBuffer
 	natskin->stride = stream->readI32();
 	int32 size = geometry->numVertices*natskin->stride;
@@ -319,7 +316,7 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	stream->write(natskin->table1, 256*sizeof(int32));
 	stream->write(natskin->table2, 256*sizeof(int32));
 	stream->writeI32(natskin->numUsedBones);
-	stream->writeI32(skin->maxIndex);
+	stream->writeI32(skin->numWeights);
 	stream->writeU32(0xBADEAFFE);	// pointer to vertexBuffer
 	stream->writeI32(natskin->stride);
 	stream->write(natskin->vertexBuffer,
@@ -347,6 +344,54 @@ void
 skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	defaultInstanceCB(geo, header);
+
+        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+        if(skin == NULL)
+		return;
+	NativeSkin *natskin = new NativeSkin;
+	skin->platformData = natskin;
+
+	natskin->numUsedBones = skin->numUsedBones;
+	memset(natskin->table1, 0xFF, sizeof(natskin->table1));
+	memset(natskin->table2, 0x00, sizeof(natskin->table2));
+	for(int32 i = 0; i < skin->numUsedBones; i++){
+		natskin->table1[i] = skin->usedBones[i];
+		natskin->table2[skin->usedBones[i]] = i;
+	}
+
+	natskin->stride = 3*skin->numWeights;
+	uint8 *vbuf = new uint8[header->numVertices*natskin->stride];
+	natskin->vertexBuffer = vbuf;
+
+	int32 w[4];
+	int sum;
+	float *weights = skin->weights;
+	uint8 *p = vbuf;
+	int32 numVertices = header->numVertices;
+	while(numVertices--){
+		sum = 0;
+		for(int i = 1; i < skin->numWeights; i++){
+			w[i] = weights[i]*255.0f + 0.5f;
+			sum += w[i];
+		}
+		w[0] = 255 - sum;
+		for(int i = 0; i < skin->numWeights; i++)
+			p[i] = w[i];
+		p += natskin->stride;
+		weights += 4;
+	}
+
+	numVertices = header->numVertices;
+	p = vbuf + skin->numWeights;
+	uint8 *indices = skin->indices;
+	uint16 *idx;
+	while(numVertices--){
+		idx = (uint16*)p;
+		for(int i = 0; i < skin->numWeights; i++)
+			idx[i] = 3*natskin->table2[indices[i]];
+		p += natskin->stride;
+		indices += 4;
+	}
 }
 
 ObjPipeline*
