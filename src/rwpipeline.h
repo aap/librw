@@ -30,7 +30,7 @@ public:
 	virtual void render(Atomic *atomic);
 };
 
-void findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, uint32 *numVertices);
+void findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, int32 *numVertices);
 
 // everything xbox, d3d8 and d3d9 may want to use
 enum {
@@ -45,9 +45,6 @@ enum {
 	VERT_ARGB,
 	VERT_COMPNORM
 };
-
-#define COLOR_ARGB(a,r,g,b) \
-    ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 
 void instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
 void instV2d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);

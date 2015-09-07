@@ -10,9 +10,10 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
-#include "rwxbox.h"
-#include "rwd3d9.h"
 #include "rwogl.h"
+#include "rwxbox.h"
+#include "rwd3d8.h"
+#include "rwd3d9.h"
 
 using namespace std;
 
@@ -262,12 +263,14 @@ destroyNativeData(void *object, int32 offset, int32 size)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::destroyNativeData(object, offset, size);
-	if(geometry->instData->platform == PLATFORM_XBOX)
-		return xbox::destroyNativeData(object, offset, size);
-	if(geometry->instData->platform == PLATFORM_D3D9)
-		return d3d9::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_OGL)
 		return gl::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_XBOX)
+		return xbox::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_D3D8)
+		return d3d8::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_D3D9)
+		return d3d9::destroyNativeData(object, offset, size);
 	return object;
 }
 
@@ -289,6 +292,8 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 			ps2::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
 			xbox::readNativeData(stream, len, object, o, s);
+		else if(platform == PLATFORM_D3D8)
+			d3d8::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_D3D9)
 			d3d9::readNativeData(stream, len, object, o, s);
 		else{
@@ -309,12 +314,14 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		ps2::writeNativeData(stream, len, object, o, s);
-	else if(geometry->instData->platform == PLATFORM_XBOX)
-		xbox::writeNativeData(stream, len, object, o, s);
-	else if(geometry->instData->platform == PLATFORM_D3D9)
-		d3d9::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		gl::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_XBOX)
+		xbox::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_D3D8)
+		d3d8::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_D3D9)
+		d3d9::writeNativeData(stream, len, object, o, s);
 }
 
 static int32
@@ -325,12 +332,14 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 		return -1;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::getSizeNativeData(object, offset, size);
-	else if(geometry->instData->platform == PLATFORM_XBOX)
-		return xbox::getSizeNativeData(object, offset, size);
-	else if(geometry->instData->platform == PLATFORM_D3D9)
-		return d3d9::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_OGL)
 		return gl::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_XBOX)
+		return xbox::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_D3D8)
+		return d3d8::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_D3D9)
+		return d3d9::getSizeNativeData(object, offset, size);
 	return -1;
 }
 
@@ -511,6 +520,8 @@ getSizeSkin(void *object, int32 offset, int32)
 			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_OGL)
 			return gl::getSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_D3D8)
+			return -1;
 		if(geometry->instData->platform == PLATFORM_D3D9)
 			return -1;
 		assert(0 && "unsupported native skin platform");
@@ -550,6 +561,8 @@ registerSkinPlugin(void)
 		gl::makeSkinPipeline();
 	skinGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
 		xbox::makeSkinPipeline();
+	skinGlobals.pipelines[platformIdx[PLATFORM_D3D8]] =
+		d3d8::makeSkinPipeline();
 	skinGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
 		d3d9::makeSkinPipeline();
 
@@ -963,6 +976,8 @@ registerMatFXPlugin(void)
 		gl::makeMatFXPipeline();
 	matFXGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
 		xbox::makeMatFXPipeline();
+	matFXGlobals.pipelines[platformIdx[PLATFORM_D3D8]] =
+		d3d8::makeMatFXPipeline();
 	matFXGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
 		d3d9::makeMatFXPipeline();
 

@@ -12,7 +12,8 @@ IDirect3DDevice9 *Device = 0;
 Camera *camera;
 
 namespace rw {
-namespace d3d9 {
+
+namespace d3d {
 
 int32 nativeRasterOffset;
 
@@ -127,6 +128,11 @@ setMaterial(Material *mat)
 	Device->SetMaterial(&mat9);
 }
 
+}
+
+namespace d3d9 {
+using namespace d3d;
+
 void
 drawAtomic(Atomic *atomic)
 {
@@ -156,13 +162,51 @@ drawAtomic(Atomic *atomic)
 		if(geo->geoflags & Geometry::PRELIT)
 			Device->SetRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		Device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
-		                             0/*inst->minVert*/, inst->numVertices,
+		                             0, inst->numVertices,
 		                             inst->startIndex, inst->numPrimitives);
 		inst++;
 	}
 }
-
 }
+
+namespace d3d8 {
+using namespace d3d;
+
+void
+drawAtomic(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+
+	atomic->frame->updateLTM();
+	Device->SetTransform(D3DTS_WORLD, (D3DMATRIX*)atomic->frame->ltm);
+
+	InstanceData *inst = header->inst;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		if(inst->material->texture)
+			setTexture(inst->material->texture);
+		else
+			Device->SetTexture(0, NULL);
+		setMaterial(inst->material);
+		Device->SetRenderState(D3DRS_AMBIENT, D3DCOLOR_ARGB(0xFF, 0x40, 0x40, 0x40));
+		Device->SetRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
+		Device->SetRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
+		if(geo->geoflags & Geometry::PRELIT)
+			Device->SetRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
+
+		Device->SetFVF(inst->vertexShader);
+		Device->SetStreamSource(0, (IDirect3DVertexBuffer9*)inst->vertexBuffer, 0, inst->stride);
+		Device->SetIndices((IDirect3DIndexBuffer9*)inst->indexBuffer);
+		uint32 numPrim = inst->primType == D3DPT_TRIANGLESTRIP ? inst->numIndices-2 : inst->numIndices/3;
+		Device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)inst->primType, inst->baseIndex,
+		                             0, inst->numVertices, 0, numPrim);
+		inst++;
+	}
+}
+}
+
 }
 
 rw::Clump *clump;
@@ -189,15 +233,16 @@ initrw(void)
 	rw::registerNativeDataPlugin();
 	rw::registerMeshPlugin();
 	rw::Atomic::init();
-	rw::d3d9::registerNativeRaster();
+	rw::d3d::registerNativeRaster();
 
-	rw::d3d9::device = Device;
+	rw::platform = rw::PLATFORM_D3D8;
+	rw::d3d::device = Device;
 
-	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
-//	char *filename = "out.dff";
+	char *filename = "out2.dff";
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL){
 		MessageBox(0, "couldn't open file\n", 0, 0);
@@ -284,7 +329,10 @@ Display(float timeDelta)
 		                          gta::nodeNameOffset);
 		if(strstr(name, "_dam") || strstr(name, "_vlo"))
 			continue;
-		rw::d3d9::drawAtomic(clump->atomicList[i]);
+		if(rw::platform == rw::PLATFORM_D3D9)
+			rw::d3d9::drawAtomic(clump->atomicList[i]);
+		else if(rw::platform == rw::PLATFORM_D3D8)
+			rw::d3d8::drawAtomic(clump->atomicList[i]);
 	}
 
 	Device->EndScene();

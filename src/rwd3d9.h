@@ -1,7 +1,3 @@
-#ifdef RW_D3D9
-#include <d3d9.h>
-#endif
-
 namespace rw {
 namespace d3d9 {
 
@@ -53,20 +49,8 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	InstanceData *inst;
 };
 
-#ifdef RW_D3D9
-extern IDirect3DDevice9 *device;
-#endif
-
-extern int vertFormatMap[];
-
-uint16 *lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags);
-void unlockIndices(void *indexBuffer);
-uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
-void unlockVertices(void *vertexBuffer);
 void *createVertexDeclaration(VertexElement *elements);
 uint32 getDeclaration(void *declaration, VertexElement *elements);
-void *createIndexBuffer(uint32 length);
-void *createVertexBuffer(uint32 length, int32 pool);
 
 void *destroyNativeData(void *object, int32, int32);
 void readNativeData(Stream *stream, int32 len, void *object, int32, int32);

@@ -180,7 +180,7 @@ ObjPipeline::instance(Atomic *atomic)
 	uint8 *indexbuf = (uint8*)header->data + ((0x18 + 0x24 + header->numMeshes*0x18 + 0xF)&~0xF);
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
-		                          &inst->minVert, (uint32*)&inst->numVertices);
+		                          &inst->minVert, &inst->numVertices);
 		inst->numIndices = mesh->numIndices;
 		inst->indexBuffer = indexbuf;
 		memcpy(inst->indexBuffer, mesh->indices, inst->numIndices*sizeof(uint16));

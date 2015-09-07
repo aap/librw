@@ -12,6 +12,7 @@
 #include "rwps2.h"
 #include "rwogl.h"
 #include "rwxbox.h"
+#include "rwd3d8.h"
 #include "rwd3d9.h"
 
 using namespace std;
@@ -538,6 +539,8 @@ Atomic::init(void)
 		gl::makeDefaultPipeline();
 	defaultPipelines[platformIdx[PLATFORM_XBOX]] =
 		xbox::makeDefaultPipeline();
+	defaultPipelines[platformIdx[PLATFORM_D3D8]] =
+		d3d8::makeDefaultPipeline();
 	defaultPipelines[platformIdx[PLATFORM_D3D9]] =
 		d3d9::makeDefaultPipeline();
 }

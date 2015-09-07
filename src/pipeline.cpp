@@ -11,6 +11,9 @@
 #include "rwobjects.h"
 #include "rwps2.h"
 
+#define COLOR_ARGB(a,r,g,b) \
+    ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
+
 using namespace std;
 
 namespace rw {
@@ -57,7 +60,7 @@ ObjPipeline::render(Atomic*)
 // helper functions
 
 void
-findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, uint32 *numVertices)
+findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, int32 *numVertices)
 {
 	uint32 min = 0xFFFFFFFF;
 	uint32 max = 0;

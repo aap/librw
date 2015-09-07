@@ -9,115 +9,19 @@
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwd3d.h"
 #include "rwd3d9.h"
 
 using namespace std;
 
 namespace rw {
 namespace d3d9 {
+using namespace d3d;
 
-#ifdef RW_D3D9
-IDirect3DDevice9 *device = NULL;
-#else
-enum {
-	D3DLOCK_NOSYSLOCK     =  0,  // ignored
-	D3DPOOL_MANAGED       =  0,  // ignored
-	D3DPT_TRIANGLELIST    =  4,
-	D3DPT_TRIANGLESTRIP   =  5,
-
-
-	D3DDECLTYPE_FLOAT1    =  0,  // 1D float expanded to (value, 0., 0., 1.)
-	D3DDECLTYPE_FLOAT2    =  1,  // 2D float expanded to (value, value, 0., 1.)
-	D3DDECLTYPE_FLOAT3    =  2,  // 3D float expanded to (value, value, value, 1.)
-	D3DDECLTYPE_FLOAT4    =  3,  // 4D float
-	D3DDECLTYPE_D3DCOLOR  =  4,  // 4D packed unsigned bytes mapped to 0. to 1. range
-	                             // Input is in D3DCOLOR format (ARGB) expanded to (R, G, B, A)
-	D3DDECLTYPE_UBYTE4    =  5,  // 4D unsigned byte
-	D3DDECLTYPE_SHORT2    =  6,  // 2D signed short expanded to (value, value, 0., 1.)
-	D3DDECLTYPE_SHORT4    =  7,  // 4D signed short
-
-	D3DDECLTYPE_UBYTE4N   =  8,  // Each of 4 bytes is normalized by dividing to 255.0
-	D3DDECLTYPE_SHORT2N   =  9,  // 2D signed short normalized (v[0]/32767.0,v[1]/32767.0,0,1)
-	D3DDECLTYPE_SHORT4N   = 10,  // 4D signed short normalized (v[0]/32767.0,v[1]/32767.0,v[2]/32767.0,v[3]/32767.0)
-	D3DDECLTYPE_USHORT2N  = 11,  // 2D unsigned short normalized (v[0]/65535.0,v[1]/65535.0,0,1)
-	D3DDECLTYPE_USHORT4N  = 12,  // 4D unsigned short normalized (v[0]/65535.0,v[1]/65535.0,v[2]/65535.0,v[3]/65535.0)
-	D3DDECLTYPE_UDEC3     = 13,  // 3D unsigned 10 10 10 format expanded to (value, value, value, 1)
-	D3DDECLTYPE_DEC3N     = 14,  // 3D signed 10 10 10 format normalized and expanded to (v[0]/511.0, v[1]/511.0, v[2]/511.0, 1)
-	D3DDECLTYPE_FLOAT16_2 = 15,  // Two 16-bit floating point values, expanded to (value, value, 0, 1)
-	D3DDECLTYPE_FLOAT16_4 = 16,  // Four 16-bit floating point values
-	D3DDECLTYPE_UNUSED    = 17,  // When the type field in a decl is unused.
-
-
-	D3DDECLMETHOD_DEFAULT =  0,
-
-
-	D3DDECLUSAGE_POSITION = 0,
-	D3DDECLUSAGE_BLENDWEIGHT,   // 1
-	D3DDECLUSAGE_BLENDINDICES,  // 2
-	D3DDECLUSAGE_NORMAL,        // 3
-	D3DDECLUSAGE_PSIZE,         // 4
-	D3DDECLUSAGE_TEXCOORD,      // 5
-	D3DDECLUSAGE_TANGENT,       // 6
-	D3DDECLUSAGE_BINORMAL,      // 7
-	D3DDECLUSAGE_TESSFACTOR,    // 8
-	D3DDECLUSAGE_POSITIONT,     // 9
-	D3DDECLUSAGE_COLOR,         // 10
-	D3DDECLUSAGE_FOG,           // 11
-	D3DDECLUSAGE_DEPTH,         // 12
-	D3DDECLUSAGE_SAMPLE,        // 13
-};
+// TODO: move to header, but not as #define
+#ifndef RW_D3D9
 #define D3DDECL_END() {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0}
-#define D3DCOLOR_ARGB(a,r,g,b) \
-    ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 #endif
-
-int vertFormatMap[] = {
-	-1, VERT_FLOAT2, VERT_FLOAT3, -1, VERT_ARGB
-};
-
-uint16*
-lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
-{
-#ifdef RW_D3D9
-	uint16 *indices;
-	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
-	ibuf->Lock(offset, size, (void**)&indices, flags);
-	return indices;
-#else
-	return (uint16*)indexBuffer;
-#endif
-}
-
-void
-unlockIndices(void *indexBuffer)
-{
-#ifdef RW_D3D9
-	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
-	ibuf->Unlock();
-#endif
-}
-
-uint8*
-lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
-{
-#ifdef RW_D3D9
-	uint8 *verts;
-	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
-	vertbuf->Lock(offset, size, (void**)&verts, flags);
-	return verts;
-#else
-	return (uint8*)vertexBuffer;
-#endif
-}
-
-void
-unlockVertices(void *vertexBuffer)
-{
-#ifdef RW_D3D9
-	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
-	vertbuf->Unlock();
-#endif
-}
 
 void*
 createVertexDeclaration(VertexElement *elements)
@@ -156,29 +60,6 @@ getDeclaration(void *declaration, VertexElement *elements)
 #endif
 }
 
-void*
-createIndexBuffer(uint32 length)
-{
-#ifdef RW_D3D9
-	IDirect3DIndexBuffer9 *ibuf;
-	device->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
-	return ibuf;
-#else
-	return new uint8[length];
-#endif
-}
-
-void*
-createVertexBuffer(uint32 length, int32 pool)
-{
-#ifdef RW_D3D9
-	IDirect3DVertexBuffer9 *vbuf;
-	device->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, 0, (D3DPOOL)pool, &vbuf, 0);
-	return vbuf;
-#else
-	return new uint8[length];
-#endif
-}
 
 void*
 destroyNativeData(void *object, int32, int32)
@@ -203,6 +84,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_D3D9;
+
 	int32 size = stream->readI32();
 	uint8 *data = new uint8[size];
 	stream->read(data, size);
@@ -238,8 +120,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	stream->read(elements, numDeclarations*8);
 	header->vertexDeclaration = createVertexDeclaration(elements);
 
-	header->indexBuffer = createIndexBuffer(header->totalNumIndex*sizeof(uint16));
-
+	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2);
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	stream->read(indices, 2*header->totalNumIndex);
 	unlockIndices(header->indexBuffer);
@@ -260,8 +141,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 			continue;
 		// TODO: unset managed flag when using morph targets.
 		//       also uses different buffer type and locks differently
-		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, D3DPOOL_MANAGED);
-
+		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, 0, D3DPOOL_MANAGED);
 		uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 		stream->read(verts, s->stride*header->totalNumVertex);
 		unlockVertices(s->vertexBuffer);
@@ -407,7 +287,7 @@ ObjPipeline::instance(Atomic *atomic)
 	uint32 startindex = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
-		                          &inst->minVert, &inst->numVertices);
+		                          &inst->minVert, (int32*)&inst->numVertices);
 		inst->numIndex = mesh->numIndices;
 		inst->material = mesh->material;
 		inst->vertexAlpha = 0;
@@ -419,23 +299,14 @@ ObjPipeline::instance(Atomic *atomic)
 			memcpy(&indices[inst->startIndex], mesh->indices, inst->numIndex*sizeof(uint16));
 		else
 			for(uint32 j = 0; j < inst->numIndex; j++)
-				indices[inst->startIndex+j] = mesh->indices[j]-inst->minVert;
+				indices[inst->startIndex+j] = mesh->indices[j] - inst->minVert;
 		startindex += inst->numIndex;
 		mesh++;
 		inst++;
 	}
 	unlockIndices(header->indexBuffer);
 
-	VertexStream *s;
-	for(int i = 0; i < 2; i++){
-		s = &header->vertexStream[i];
-		s->vertexBuffer = NULL;
-		s->offset = 0;
-		s->stride = 0;
-		s->geometryFlags = 0;
-		s->managed = 0;
-		s->dynamicLock = 0;
-	}
+	memset(&header->vertexStream, 0, 2*sizeof(VertexStream));
 
 	this->instanceCB(geo, header);
 }
@@ -446,6 +317,7 @@ ObjPipeline::uninstance(Atomic *atomic)
 	assert(0 && "can't uninstance");
 }
 
+// TODO: support more than one set of tex coords
 void
 defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
@@ -487,7 +359,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
 
-	s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, D3DPOOL_MANAGED);
+	s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, D3DPOOL_MANAGED);
 
 	uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
