@@ -281,37 +281,6 @@ ObjPipeline::uninstance(Atomic *atomic)
 }
 
 void
-defaultUninstanceCB(Geometry *geo, InstanceData *inst)
-{
-	uint8 *src = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
-	uninstV3d(VERT_FLOAT3, 
-		&geo->morphTargets[0].vertices[3*inst->minVert],
-		src, inst->numVertices, inst->stride);
-	src += 12;
-
-	if(geo->geoflags & Geometry::NORMALS){
-		uninstV3d(VERT_FLOAT3, 
-			&geo->morphTargets[0].normals[3*inst->minVert],
-			src, inst->numVertices, inst->stride);
-		src += 12;
-	}
-
-	inst->vertexAlpha = 0;
-	if(geo->geoflags & Geometry::PRELIT){
-		uninstColor(VERT_ARGB, &geo->colors[4*inst->minVert], src,
-			    inst->numVertices, inst->stride);
-		src += 4;
-	}
-
-	for(int32 i = 0; i < geo->numTexCoordSets; i++){
-		uninstV2d(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
-		  	inst->numVertices, inst->stride);
-		src += 8;
-	}
-	unlockVertices(inst->vertexBuffer);
-}
-
-void
 defaultInstanceCB(Geometry *geo, InstanceData *inst)
 {
 	inst->vertexShader = makeFVFDeclaration(geo->geoflags, geo->numTexCoordSets);
@@ -329,22 +298,53 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 
 	if(geo->geoflags & Geometry::NORMALS){
 		instV3d(VERT_FLOAT3, dst,
-			&geo->morphTargets[0].normals[3*inst->minVert],
-			inst->numVertices, inst->stride);
+		        &geo->morphTargets[0].normals[3*inst->minVert],
+		        inst->numVertices, inst->stride);
 		dst += 12;
 	}
 
 	inst->vertexAlpha = 0;
 	if(geo->geoflags & Geometry::PRELIT){
 		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->colors[4*inst->minVert],
-			                      inst->numVertices, inst->stride);
+		                              inst->numVertices, inst->stride);
 		dst += 4;
 	}
 
 	for(int32 i = 0; i < geo->numTexCoordSets; i++){
 		instV2d(VERT_FLOAT2, dst, &geo->texCoords[i][2*inst->minVert],
-			inst->numVertices, inst->stride);
+		        inst->numVertices, inst->stride);
 		dst += 8;
+	}
+	unlockVertices(inst->vertexBuffer);
+}
+
+void
+defaultUninstanceCB(Geometry *geo, InstanceData *inst)
+{
+	uint8 *src = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+	uninstV3d(VERT_FLOAT3,
+		&geo->morphTargets[0].vertices[3*inst->minVert],
+		src, inst->numVertices, inst->stride);
+	src += 12;
+
+	if(geo->geoflags & Geometry::NORMALS){
+		uninstV3d(VERT_FLOAT3,
+		          &geo->morphTargets[0].normals[3*inst->minVert],
+		          src, inst->numVertices, inst->stride);
+		src += 12;
+	}
+
+	inst->vertexAlpha = 0;
+	if(geo->geoflags & Geometry::PRELIT){
+		uninstColor(VERT_ARGB, &geo->colors[4*inst->minVert], src,
+		            inst->numVertices, inst->stride);
+		src += 4;
+	}
+
+	for(int32 i = 0; i < geo->numTexCoordSets; i++){
+		uninstV2d(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
+		          inst->numVertices, inst->stride);
+		src += 8;
 	}
 	unlockVertices(inst->vertexBuffer);
 }

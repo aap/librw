@@ -430,10 +430,10 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		// TODO: function pointers
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::readNativeSkin(stream, len, object, offset);
-		else if(geometry->instData->platform == PLATFORM_XBOX)
-			xbox::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
 			gl::readNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_XBOX)
+			xbox::readNativeSkin(stream, len, object, offset);
 		else
 			assert(0 && "unsupported native skin platform");
 		return;
@@ -485,10 +485,10 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::writeNativeSkin(stream, len, object, offset);
-		else if(geometry->instData->platform == PLATFORM_XBOX)
-			xbox::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_OGL)
 			gl::writeNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_XBOX)
+			xbox::writeNativeSkin(stream, len, object, offset);
 		else
 			assert(0 && "unsupported native skin platform");
 		return;
@@ -532,10 +532,10 @@ getSizeSkin(void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			return ps2::getSizeNativeSkin(object, offset);
-		if(geometry->instData->platform == PLATFORM_XBOX)
-			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_OGL)
 			return gl::getSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_XBOX)
+			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_D3D8)
 			return -1;
 		if(geometry->instData->platform == PLATFORM_D3D9)

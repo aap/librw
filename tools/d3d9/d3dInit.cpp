@@ -242,7 +242,7 @@ initrw(void)
 	rw::platform = rw::PLATFORM_D3D9;
 	rw::d3d::device = Device;
 
-	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";
@@ -250,6 +250,7 @@ initrw(void)
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
 //	char *filename = "out2.dff";
+	char *filename = "C:\\Users\\aap\\src\\librw\\tools\\insttest\\out.dff";
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL){
 		MessageBox(0, "couldn't open file\n", 0, 0);

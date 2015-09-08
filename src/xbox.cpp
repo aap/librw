@@ -201,7 +201,28 @@ ObjPipeline::instance(Atomic *atomic)
 void
 ObjPipeline::uninstance(Atomic *atomic)
 {
-	assert(0 && "can't uninstance");
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_XBOX);
+	geo->geoflags &= ~Geometry::NATIVE;
+	geo->allocateData();
+	geo->meshHeader->allocateIndices();
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	InstanceData *inst = header->begin;
+	Mesh *mesh = geo->meshHeader->mesh;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		uint16 *indices = (uint16*)inst->indexBuffer;
+		memcpy(mesh->indices, indices, inst->numIndices*2);
+		mesh++;
+		inst++;
+	}
+
+	this->uninstanceCB(geo, header);
+	geo->generateTriangles();
+	destroyNativeData(geo, 0, 0);
 }
 
 int v3dFormatMap[] = {
@@ -255,11 +276,49 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		assert(0 && "can't instance tangents or whatever it is");
 }
 
+void
+defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	uint32 *vertexFmt = getVertexFmt(geo);
+	uint32 fmt = *vertexFmt;
+	assert(fmt != 0);
+	uint32 offset = 0;
+	uint8 *src = (uint8*)header->vertexBuffer;
+
+	uint32 sel = fmt & 0xF;
+	uninstV3d(v3dFormatMap[sel], geo->morphTargets[0].vertices, src,
+	          header->numVertices, header->stride);
+	src += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
+
+	sel = (fmt >> 4) & 0xF;
+	if(sel){
+		uninstV3d(v3dFormatMap[sel], geo->morphTargets[0].normals, src,
+		          header->numVertices, header->stride);
+		src += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
+	}
+
+	if(fmt & 0x1000000){
+		uninstColor(VERT_ARGB, geo->colors, src,
+		            header->numVertices, header->stride);
+		src += 4;
+	}
+
+	for(int i = 0; i < 4; i++){
+		sel = (fmt >> (i*4 + 8)) & 0xF;
+		if(sel == 0)
+			break;
+		uninstV2d(v2dFormatMap[sel], geo->texCoords[i], src,
+		          header->numVertices, header->stride);
+		src += sel == 4 ? 4 : 2*vertexFormatSizes[sel];
+	}
+}
+
 ObjPipeline*
 makeDefaultPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	return pipe;
 }
 
@@ -397,11 +456,62 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 }
 
+void
+skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	defaultUninstanceCB(geo, header);
+
+        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+        if(skin == NULL)
+		return;
+	NativeSkin *natskin = (NativeSkin*)skin->platformData;
+
+	uint8 *data = skin->data;
+	float *invMats = skin->inverseMatrices;
+	skin->init(skin->numBones, natskin->numUsedBones, geo->numVertices);
+	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
+	delete[] data;
+
+	for(int32 i = 0; i < skin->numUsedBones; i++)
+		skin->usedBones[i] = natskin->table1[i];
+
+	float *weights = skin->weights;
+	uint8 *indices = skin->indices;
+	uint8 *p = (uint8*)natskin->vertexBuffer;
+	int32 numVertices = header->numVertices;
+	float w[4];
+	uint8 i[4];
+	uint16 *ip;
+	while(numVertices--){
+		w[0] = w[1] = w[2] = w[3] = 0.0f;
+		i[0] = i[1] = i[2] = i[3] = 0;
+
+		for(int32 j = 0; j < skin->numWeights; j++)
+			w[j] = *p++/255.0f;
+
+		ip = (uint16*)p;
+		for(int32 j = 0; j < skin->numWeights; j++){
+			i[j] = natskin->table1[*ip++/3];
+			if(w[j] == 0.0f) i[j] = 0;	// clean up a bit
+		}
+		p = (uint8*)ip;
+
+		for(int32 j = 0; j < 4; j++){
+			*weights++ = w[j];
+			*indices++ = i[j];
+		}
+	}
+
+	delete[] (uint8*)natskin->vertexBuffer;
+	delete natskin;
+}
+
 ObjPipeline*
 makeSkinPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
 	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = skinUninstanceCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;
@@ -412,6 +522,7 @@ makeMatFXPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;
