@@ -244,6 +244,9 @@ initrw(void)
 
 	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\lae2_roads89.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
 //	char *filename = "out2.dff";
@@ -267,7 +270,7 @@ initrw(void)
 		renderCB = rw::d3d9::drawAtomic;
 
 //	rw::StreamFile out;
-//	out.open("out2.dff", "wb");
+//	out.open("out.dff", "wb");
 //	clump->streamWrite(&out);
 //	out.close();
 }

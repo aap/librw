@@ -233,10 +233,10 @@ ObjPipeline::instance(Atomic *atomic)
 		inst->managed = 0;
 		inst->remapped = 0;
 
-		inst->indexBuffer = createIndexBuffer(inst->numIndices*sizeof(uint16));
+		inst->indexBuffer = createIndexBuffer(inst->numIndices*2);
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		if(inst->minVert == 0)
-			memcpy(indices, mesh->indices, inst->numIndices*sizeof(uint16));
+			memcpy(indices, mesh->indices, inst->numIndices*2);
 		else
 			for(int32 j = 0; j < inst->numIndices; j++)
 				indices[j] = mesh->indices[j] - inst->minVert;
@@ -254,6 +254,8 @@ ObjPipeline::uninstance(Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_D3D8);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
 	geo->meshHeader->allocateIndices();
@@ -264,7 +266,7 @@ ObjPipeline::uninstance(Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		if(inst->minVert == 0)
-			memcpy(mesh->indices, indices, inst->numIndices*sizeof(uint16));
+			memcpy(mesh->indices, indices, inst->numIndices*2);
 		else
 			for(int32 j = 0; j < inst->numIndices; j++)
 				mesh->indices[j] = indices[j] + inst->minVert;

@@ -39,6 +39,8 @@ createIndexBuffer(uint32 length)
 uint16*
 lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
 {
+	if(indexBuffer == NULL)
+		return NULL;
 #ifdef RW_D3D9
 	uint16 *indices;
 	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
@@ -52,6 +54,8 @@ lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
 void
 unlockIndices(void *indexBuffer)
 {
+	if(indexBuffer == NULL)
+		return;
 #ifdef RW_D3D9
 	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
 	ibuf->Unlock();
@@ -73,6 +77,8 @@ createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
 uint8*
 lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
 {
+	if(vertexBuffer == NULL)
+		return NULL;
 #ifdef RW_D3D9
 	uint8 *verts;
 	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
@@ -86,6 +92,8 @@ lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
 void
 unlockVertices(void *vertexBuffer)
 {
+	if(vertexBuffer == NULL)
+		return;
 #ifdef RW_D3D9
 	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
 	vertbuf->Unlock();

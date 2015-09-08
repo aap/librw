@@ -422,6 +422,8 @@ ObjPipeline::uninstance(Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_OGL);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
 

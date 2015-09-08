@@ -23,6 +23,8 @@ using namespace d3d;
 #define D3DDECL_END() {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0}
 #endif
 
+#define NUMDECLELT 12
+
 void*
 createVertexDeclaration(VertexElement *elements)
 {
@@ -120,7 +122,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst++;
 	}
 
-	VertexElement elements[10];
+	VertexElement elements[NUMDECLELT];
 	uint32 numDeclarations = stream->readU32();
 	stream->read(elements, numDeclarations*8);
 	header->vertexDeclaration = createVertexDeclaration(elements);
@@ -202,7 +204,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	}
 	stream->write(data, size);
 
-	VertexElement elements[10];
+	VertexElement elements[NUMDECLELT];
 	uint32 numElt = getDeclaration(header->vertexDeclaration, elements);
 	stream->writeU32(numElt);
 	stream->write(elements, 8*numElt);
@@ -284,7 +286,7 @@ ObjPipeline::instance(Atomic *atomic)
 	header->totalNumIndex = meshh->totalIndices;
 	header->inst = new InstanceData[header->numMeshes];
 
-	header->indexBuffer = createIndexBuffer(header->totalNumIndex*sizeof(uint16));
+	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2);
 
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	InstanceData *inst = header->inst;
@@ -301,7 +303,7 @@ ObjPipeline::instance(Atomic *atomic)
 		inst->startIndex = startindex;
 		inst->numPrimitives = header->primType == D3DPT_TRIANGLESTRIP ? inst->numIndex-2 : inst->numIndex/3;
 		if(inst->minVert == 0)
-			memcpy(&indices[inst->startIndex], mesh->indices, inst->numIndex*sizeof(uint16));
+			memcpy(&indices[inst->startIndex], mesh->indices, inst->numIndex*2);
 		else
 			for(uint32 j = 0; j < inst->numIndex; j++)
 				indices[inst->startIndex+j] = mesh->indices[j] - inst->minVert;
@@ -319,14 +321,39 @@ ObjPipeline::instance(Atomic *atomic)
 void
 ObjPipeline::uninstance(Atomic *atomic)
 {
-	assert(0 && "can't uninstance");
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_D3D9);
+	geo->geoflags &= ~Geometry::NATIVE;
+	geo->allocateData();
+	geo->meshHeader->allocateIndices();
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
+	InstanceData *inst = header->inst;
+	Mesh *mesh = geo->meshHeader->mesh;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		if(inst->minVert == 0)
+			memcpy(mesh->indices, &indices[inst->startIndex], inst->numIndex*2);
+		else
+			for(int32 j = 0; j < inst->numIndex; j++)
+				mesh->indices[j] = indices[inst->startIndex+j] + inst->minVert;
+		mesh++;
+		inst++;
+	}
+	unlockIndices(header->indexBuffer);
+
+	this->uninstanceCB(geo, header);
+	geo->generateTriangles();
+	destroyNativeData(geo, 0, 0);
 }
 
-// TODO: support more than one set of tex coords
 void
 defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
-	VertexElement dcl[6];
+	VertexElement dcl[NUMDECLELT];
 
 	VertexStream *s = &header->vertexStream[0];
 	s->offset = 0;
@@ -346,10 +373,9 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		stride += 4;
 	}
 
-	bool isTextured = (geo->geoflags & (Geometry::TEXTURED | Geometry::TEXTURED2)) != 0;
-	if(isTextured){
-		dcl[i++] = {0, stride, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0};
-		s->geometryFlags |= 0x10;
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		dcl[i++] = {0, stride, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, n};
+		s->geometryFlags |= 0x10 << n;
 		stride += 8;
 	}
 
@@ -366,6 +392,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, D3DPOOL_MANAGED);
 
+	// TODO: support both vertex buffers
 	uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
 		;
@@ -377,17 +404,18 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	if(isPrelit){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
 			;
+		// TODO: vertex alpha (instance per mesh)
 		instColor(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
 			  geo->colors,
 			  header->totalNumVertex,
 			  header->vertexStream[dcl[i].stream].stride);
 	}
 
-	if(isTextured){
-		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != 0; i++)
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
 			;
 		instV2d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->texCoords[0],
+			geo->texCoords[n],
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
 	}
@@ -403,11 +431,65 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	unlockVertices(s->vertexBuffer);
 }
 
+void
+defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	VertexElement dcl[NUMDECLELT];
+	uint32 numElt = getDeclaration(header->vertexDeclaration, dcl);
+
+	uint8 *verts[2];
+	verts[0] = lockVertices(header->vertexStream[0].vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+	verts[1] = lockVertices(header->vertexStream[1].vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+
+	int i;
+	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
+		;
+	uninstV3d(vertFormatMap[dcl[i].type], 
+		  geo->morphTargets[0].vertices,
+	          verts[dcl[i].stream] + dcl[i].offset,
+		  header->totalNumVertex,
+		  header->vertexStream[dcl[i].stream].stride);
+
+	if(geo->geoflags & Geometry::PRELIT){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
+			;
+		uninstColor(vertFormatMap[dcl[i].type],
+			    geo->colors,
+		            verts[dcl[i].stream] + dcl[i].offset,
+			    header->totalNumVertex,
+			    header->vertexStream[dcl[i].stream].stride);
+	}
+
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
+			;
+		uninstV2d(vertFormatMap[dcl[i].type],
+			  geo->texCoords[n],
+		          verts[dcl[i].stream] + dcl[i].offset,
+			  header->totalNumVertex,
+			  header->vertexStream[dcl[i].stream].stride);
+	}
+
+	if(geo->geoflags & Geometry::NORMALS){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
+			;
+		uninstV3d(vertFormatMap[dcl[i].type],
+			  geo->morphTargets[0].normals,
+		          verts[dcl[i].stream] + dcl[i].offset,
+			  header->totalNumVertex,
+			  header->vertexStream[dcl[i].stream].stride);
+	}
+
+	unlockVertices(verts[0]);
+	unlockVertices(verts[1]);
+}
+
 ObjPipeline*
 makeDefaultPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	return pipe;
 }
 
@@ -416,6 +498,7 @@ makeSkinPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;
@@ -426,6 +509,7 @@ makeMatFXPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
+	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;

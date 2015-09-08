@@ -33,7 +33,8 @@ main(int argc, char *argv[])
 //	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 //	rw::platform = rw::PLATFORM_XBOX;
-	rw::platform = rw::PLATFORM_D3D8;
+//	rw::platform = rw::PLATFORM_D3D8;
+	rw::platform = rw::PLATFORM_D3D9;
 
 	int uninstance = 0;
 	int arg = 1;
