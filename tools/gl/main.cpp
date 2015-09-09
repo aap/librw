@@ -189,30 +189,14 @@ init(void)
 //	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
 	camera->setPosition(Vec3(0.0f, -1.0f, 3.0f));
 
+	gta::attachPlugins();
+
 	rw::currentTexDictionary = new rw::TexDictionary;
 //	rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 //	rw::Image::setSearchPath("/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 	rw::Image::setSearchPath(
 	"/home/aap/gamedata/ps2/gta3/MODELS/gta3_archive/txd_extracted/;//home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/;/home/aap/gamedata/ps2/gtasa/models/gta3_archive/txd_extracted/");
 	//"D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
-
-	rw::gl::registerNativeRaster();
-	gta::registerEnvSpecPlugin();
-	rw::registerMatFXPlugin();
-	rw::registerMaterialRightsPlugin();
-	rw::registerAtomicRightsPlugin();
-	rw::registerHAnimPlugin();
-	gta::registerNodeNamePlugin();
-	gta::registerBreakableModelPlugin();
-	gta::registerExtraVertColorPlugin();
-	rw::ps2::registerADCPlugin();
-	rw::ps2::registerPDSPlugin();
-	rw::registerSkinPlugin();
-	rw::xbox::registerVertexFormatPlugin();
-	rw::registerNativeDataPlugin();
-//      rw::ps2::registerNativeDataPlugin();
-	rw::registerMeshPlugin();
-	rw::Atomic::init();
 
 	printf("platform: %d\n", rw::platform);
 

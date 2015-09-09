@@ -215,27 +215,12 @@ void (*renderCB)(rw::Atomic*) = NULL;
 void
 initrw(void)
 {
+	gta::attachPlugins();
+
 	rw::currentTexDictionary = new rw::TexDictionary;
 	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
 	                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
 	                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
-
-	gta::registerEnvSpecPlugin();
-	rw::registerMatFXPlugin();
-	rw::registerMaterialRightsPlugin();
-	rw::registerAtomicRightsPlugin();
-	rw::registerHAnimPlugin();
-	gta::registerNodeNamePlugin();
-	gta::registerExtraNormalsPlugin();
-	gta::registerBreakableModelPlugin();
-	gta::registerExtraVertColorPlugin();
-	rw::ps2::registerADCPlugin();
-	rw::ps2::registerPDSPlugin();
-	rw::registerSkinPlugin();
-	rw::xbox::registerVertexFormatPlugin();
-	rw::registerNativeDataPlugin();
-	rw::registerMeshPlugin();
-	rw::Atomic::init();
 
 	rw::d3d::registerNativeRaster();
 
@@ -247,10 +232,12 @@ initrw(void)
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\lae2_roads89.dff";
+	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\casinoblock41_nt.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\cutscene_archive\\csremington92.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
 //	char *filename = "out2.dff";
-	char *filename = "C:\\Users\\aap\\src\\librw\\tools\\insttest\\out.dff";
+//	char *filename = "C:\\Users\\aap\\src\\librw\\tools\\insttest\\out.dff";
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL){
 		MessageBox(0, "couldn't open file\n", 0, 0);
@@ -270,10 +257,10 @@ initrw(void)
 	else if(rw::platform == rw::PLATFORM_D3D9)
 		renderCB = rw::d3d9::drawAtomic;
 
-//	rw::StreamFile out;
-//	out.open("out.dff", "wb");
-//	clump->streamWrite(&out);
-//	out.close();
+	rw::StreamFile out;
+	out.open("out.dff", "wb");
+	clump->streamWrite(&out);
+	out.close();
 }
 
 bool
@@ -308,10 +295,10 @@ Setup()
 
 	camera = new Camera;
 	camera->setAspectRatio(640.0f/480.0f);
-	camera->setNearFar(0.1f, 250.0f);
+	camera->setNearFar(0.1f, 450.0f);
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
 //	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
-	camera->setPosition(Vec3(0.0f, -5.0f, 0.0f));
+	camera->setPosition(Vec3(0.0f, -70.0f, 0.0f));
 //	camera->setPosition(Vec3(0.0f, -1.0f, 3.0f));
 
 	return true;

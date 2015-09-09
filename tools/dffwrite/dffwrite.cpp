@@ -19,23 +19,7 @@ main(int argc, char *argv[])
 //	rw::version = 0x33002;
 //	rw::version = 0x30200;
 
-	gta::registerEnvSpecPlugin();
-	rw::registerMatFXPlugin();
-	rw::registerMaterialRightsPlugin();
-	rw::registerAtomicRightsPlugin();
-	rw::registerHAnimPlugin();
-	gta::registerNodeNamePlugin();
-	gta::registerExtraNormalsPlugin();
-	gta::registerBreakableModelPlugin();
-	gta::registerExtraVertColorPlugin();
-	rw::ps2::registerADCPlugin();
-	rw::ps2::registerPDSPlugin();
-	rw::registerSkinPlugin();
-	rw::xbox::registerVertexFormatPlugin();
-	rw::registerNativeDataPlugin();
-//	rw::ps2::registerNativeDataPlugin();
-	rw::registerMeshPlugin();
-	rw::Atomic::init();
+	gta::attachPlugins();
 
 	rw::Clump *c;
 

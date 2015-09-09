@@ -133,11 +133,16 @@ enum PluginID
 	ID_RIGHTTORENDER = 0x1F,
 	ID_UVANIMDICT    = 0x2B,
 
+	// Toolkit
+	ID_SKYMIPMAP     = 0x110,
 	ID_SKIN          = 0x116,
 	ID_HANIMPLUGIN   = 0x11E,
 	ID_MATFX         = 0x120,
 	ID_PDS           = 0x131,
 	ID_ADC           = 0x134,
+	ID_UVANIMATION   = 0x135,
+
+	// World
 	ID_MESH          = 0x50E,
 	ID_NATIVEDATA    = 0x510,
 	ID_VERTEXFMT     = 0x511,
@@ -147,6 +152,14 @@ extern int version;
 extern int build;
 extern int platform;
 extern char *debugFile;
+
+// 0x04000000	3.1
+// 0x08000000	3.2
+// 0x0C000000	3.3
+// 0x10000000	3.4
+// 0x14000000	3.5
+// 0x18000000	3.6
+// 0x1C000000	3.7
 
 inline uint32
 libraryIDPack(int version, int build)

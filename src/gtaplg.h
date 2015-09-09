@@ -4,12 +4,17 @@ using namespace rw;
 enum
 {
 	ID_EXTRANORMALS    = 0x253f2f2,
+	ID_PIPELINE        = 0x253f2f3,
 	ID_SPECMAT         = 0x253f2f6,
+	ID_2DEFFECT        = 0x253f2f8, // geometry
 	ID_EXTRAVERTCOLORS = 0x253f2f9,
+	ID_COLLISION       = 0x253f2fa, // clump
 	ID_ENVMAT          = 0x253f2fc,
 	ID_BREAKABLE       = 0x253f2fd,
 	ID_NODENAME        = 0x253f2fe
 };
+
+void attachPlugins(void);
 
 // Node name
 
@@ -78,5 +83,37 @@ struct SpecMat
 extern int32 specMatOffset;
 
 void registerEnvSpecPlugin(void);
+
+// Pipeline
+
+// 0x53F2009A		CCustomCarEnvMapPipeline
+//
+// PC & Mobile:
+// 0x53F20098		CCustomBuildingDNPipeline
+// 0x53F2009C		CCustomBuildingPipeline
+//
+// Xbox
+// 0x53F2009E		building  !N !EN
+// 0x53F20096		building   N !EN
+// 0x53F200A0		building  !N  EN   (also env) non-DN	 custom instanceCB!
+// 0x53F200A2		building   N  EN   (also env) DN	 custom instanceCB!
+
+extern int32 pipelineOffset;
+
+void registerPipelinePlugin(void);
+uint32 getPipelineID(Atomic *atomic);
+void setPipelineID(Atomic *atomic, uint32 id);
+
+// 2dEffect
+
+extern int32 twodEffectOffset;
+
+void register2dEffectPlugin(void);
+
+// Collision
+
+extern int32 collisionOffset;
+
+void registerCollisionPlugin(void);
 
 }

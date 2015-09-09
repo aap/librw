@@ -3,7 +3,7 @@ BUGS:
 
 Clump & related:
 	- make pointer arrays into lists
-	- work on ref counts, destruction, copying etc.
+	- !!! work on ref counts, destruction, copying etc.
 	- define and use types:
 		sphere
 		matrix
@@ -14,33 +14,30 @@ Clump & related:
 		texcoord
 	- implement plugins:
 		Clump
-			R* Collision	0x253F2FA
 			Animation (old III dffs)
 		Frame
 			Animation (old III dffs)
 		Atomic
 			((Particles))	0x118
-			R* Pipeline	0x253F2F3
 			Skin (old III dffs)
 		Geometry
 			((Morph))	0x105
-			R* 2dfx		0x253F2F8
-		Material
-			UV Anim		0x135
 		Texture
 			(Sky Mipmap Val)	0x110
 
-UV Anim Dict
+	- only stubs:
+				R* 2dfx       0x253F2F8
+				R* Collision  0x253F2FA
 
 Texture Dictionary
 
 .anm/.ska
 
-- properly implement Skin plugin
+- anim interpolation (only stubs right now)
 
-- PDS Pipelines
+- Pipelines (PDS, Xbox, PC)
 
 - ADC
 
-- uninstance geometry (PS2, Xbox; OpenGL done)
+- uninstance geometry (PS2)
 

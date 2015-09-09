@@ -409,6 +409,74 @@ struct TexDictionary
 	Texture *find(const char *name);
 };
 
+struct Animation;
+
+struct AnimInterpolatorInfo
+{
+	int32 id;
+	int32 keyFrameSize;
+	int32 customDataSize;
+	void (*streamRead)(Stream *stream, Animation *anim);
+	void (*streamWrite)(Stream *stream, Animation *anim);
+	uint32 (*streamGetSize)(Animation *anim);
+};
+
+void registerAnimInterpolatorInfo(AnimInterpolatorInfo *interpInfo);
+
+struct Animation
+{
+	AnimInterpolatorInfo *interpInfo;
+	int32 numFrames;
+	int32 flags;
+	float duration;
+	void *keyframes;
+	void *customData;
+
+	Animation(AnimInterpolatorInfo*, int32 numFrames, int32 flags, float duration);
+	static Animation *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+};
+
+struct AnimInterpolator
+{
+	// only a stub right now
+	Animation *anim;
+
+	AnimInterpolator(Animation *anim);
+};
+
 extern TexDictionary *currentTexDictionary;
+
+struct UVAnimKeyFrame
+{
+	UVAnimKeyFrame *prev;
+	float time;
+	float uv[6];
+};
+
+struct UVAnimCustomData
+{
+	char name[32];
+	int32 nodeToUVChannel[8];
+	// RW has a refcount
+};
+
+struct UVAnimDictionary
+{
+	int32 numAnims;
+	Animation **anims;
+
+	static UVAnimDictionary *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+	Animation *find(const char *name);
+};
+
+extern UVAnimDictionary *currentUVAnimDictionary;
+
+extern int32 uvAnimOffset;
+
+void registerUVAnimPlugin(void);
 
 }

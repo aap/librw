@@ -13,21 +13,7 @@ using namespace rw;
 int
 main(int argc, char *argv[])
 {
-	gta::registerEnvSpecPlugin();
-	rw::registerMatFXPlugin();
-	rw::registerMaterialRightsPlugin();
-	rw::registerAtomicRightsPlugin();
-	rw::registerHAnimPlugin();
-	gta::registerNodeNamePlugin();
-	gta::registerBreakableModelPlugin();
-	gta::registerExtraVertColorPlugin();
-	rw::ps2::registerADCPlugin();
-	rw::ps2::registerPDSPlugin();
-	rw::registerSkinPlugin();
-	rw::xbox::registerVertexFormatPlugin();
-	rw::registerNativeDataPlugin();
-	rw::registerMeshPlugin();
-	rw::Atomic::init();
+	gta::attachPlugins();
 
 //	rw::version = 0x33002;
 //	rw::platform = rw::PLATFORM_PS2;
@@ -59,7 +45,15 @@ main(int argc, char *argv[])
 	assert(data != NULL);
 	StreamMemory in;
 	in.open(data, len);
-	findChunk(&in, ID_CLUMP, NULL, NULL);
+
+	ChunkHeaderInfo header;
+	readChunkHeaderInfo(&in, &header);
+	if(header.type == ID_UVANIMDICT){
+		UVAnimDictionary *dict = UVAnimDictionary::streamRead(&in);
+		currentUVAnimDictionary = dict;
+		readChunkHeaderInfo(&in, &header);
+	}
+	assert(header.type == ID_CLUMP);
 	debugFile = argv[arg];
 	c = Clump::streamRead(&in);
 	assert(c != NULL);
@@ -91,6 +85,8 @@ main(int argc, char *argv[])
 	data = new rw::uint8[1024*1024];
 	rw::StreamMemory out;
 	out.open(data, 0, 1024*1024);
+	if(currentUVAnimDictionary)
+		currentUVAnimDictionary->streamWrite(&out);
 	c->streamWrite(&out);
 
 	FILE *cf = fopen("out.dff", "wb");

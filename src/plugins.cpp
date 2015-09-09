@@ -123,11 +123,11 @@ static int32
 getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
-	if(version >= 0x34000 && hanim->id == -1 && hanim->hierarchy == NULL)
+	// TODO: version correct?
+	if(version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == NULL)
 		return -1;
 	if(hanim->hierarchy)
 		return 12 + 8 + hanim->hierarchy->numNodes*12;
-	// TODO: version correct?
 	return 12;
 }
 
@@ -712,8 +712,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 {
 	int32 flag = *PLUGINOFFSET(int32, object, offset);
 	// TODO: not sure which version
-	return flag && rw::version < 0x35000 ? 4 : -1;
-	return 4;
+	return flag || rw::version < 0x35000 ? 4 : -1;
 }
 
 // Material

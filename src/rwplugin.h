@@ -92,7 +92,7 @@ PluginBase<T>::streamReadPlugins(Stream *stream)
 		readChunkHeaderInfo(stream, &header);
 		length -= 12;
 		for(Plugin *p = this->s_plugins; p; p = p->next)
-			if(p->id == header.type){
+			if(p->id == header.type && p->read){
 				p->read(stream, header.length,
 				        (void*)this, p->offset, p->size);
 				goto cont;
@@ -111,7 +111,7 @@ PluginBase<T>::streamWritePlugins(Stream *stream)
 	writeChunkHeader(stream, ID_EXTENSION, size);
 	for(Plugin *p = this->s_plugins; p; p = p->next){
 		if(p->getSize == NULL ||
-		   (size = p->getSize(this, p->offset, p->size)) < 0)
+		   (size = p->getSize(this, p->offset, p->size)) <= 0)
 			continue;
 		writeChunkHeader(stream, p->id, size);
 		p->write(stream, size, this, p->offset, p->size);
@@ -125,7 +125,7 @@ PluginBase<T>::streamGetPluginSize(void)
 	int32 plgsize;
 	for(Plugin *p = this->s_plugins; p; p = p->next)
 		if(p->getSize &&
-		   (plgsize = p->getSize(this, p->offset, p->size)) >= 0)
+		   (plgsize = p->getSize(this, p->offset, p->size)) > 0)
 			size += 12 + plgsize;
 	return size;
 }
@@ -160,8 +160,11 @@ PluginBase<T>::registerPlugin(int32 size, uint32 id,
 	p->getSize = NULL;
 	p->rightsCallback = NULL;
 
-	p->next = s_plugins;
-	s_plugins = p;
+	Plugin **next;
+	for(next = &s_plugins; *next; next = &(*next)->next)
+		;
+	*next = p;
+	p->next = NULL;
 	return p->offset;
 }
 

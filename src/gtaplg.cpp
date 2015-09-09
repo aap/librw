@@ -9,11 +9,39 @@
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwps2.h"
+#include "rwxbox.h"
 #include "gtaplg.h"
 
 using namespace std;
 
 namespace gta {
+
+void
+attachPlugins(void)
+{
+	rw::ps2::registerPDSPlugin();
+	rw::registerMeshPlugin();
+	rw::registerNativeDataPlugin();
+	rw::registerAtomicRightsPlugin();
+	rw::registerMaterialRightsPlugin();
+	rw::xbox::registerVertexFormatPlugin();
+	rw::registerSkinPlugin();
+	rw::registerHAnimPlugin();
+	gta::registerNodeNamePlugin();
+	rw::registerMatFXPlugin();
+	rw::registerUVAnimPlugin();
+	rw::ps2::registerADCPlugin();
+	gta::registerExtraNormalsPlugin();
+	gta::registerExtraVertColorPlugin();
+	gta::registerEnvSpecPlugin();
+	gta::registerBreakableModelPlugin();
+	gta::registerCollisionPlugin();
+	gta::register2dEffectPlugin();
+	gta::registerPipelinePlugin();
+
+	rw::Atomic::init();
+}
 
 //
 // Frame
@@ -66,7 +94,7 @@ getSizeNodeName(void *object, int32 offset, int32)
 {
 	char *name = PLUGINOFFSET(char, object, offset);
 	int32 len = strlen(name);
-	return len > 0 ? len : -1;
+	return len > 0 ? len : 0;
 }
 
 
@@ -243,7 +271,7 @@ getSizeExtraNormals(void *object, int32 offset, int32)
 	Geometry *geo = (Geometry*)object;
 	if(*PLUGINOFFSET(float*, object, offset))
 		return geo->numVertices*3*4;
-	return -1;
+	return 0;
 }
 
 void
@@ -300,7 +328,6 @@ readExtraVertColors(Stream *stream, int32, void *object, int32 offset, int32)
 	colordata->dayColors = new uint8[geometry->numVertices*4];
 	colordata->balance = 1.0f;
 	stream->read(colordata->nightColors, geometry->numVertices*4);
-printf("extra colors\n");
 	if(geometry->colors)
 		memcpy(colordata->dayColors, geometry->colors,
 		       geometry->numVertices*4);
@@ -326,7 +353,7 @@ getSizeExtraVertColors(void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 	if(colordata->nightColors)
 		return 4 + geometry->numVertices*4;
-	return -1;
+	return 0;
 }
 
 void
@@ -420,7 +447,7 @@ static int32
 getSizeEnvMat(void *object, int32 offset, int32)
 {
 	EnvMat *env = *PLUGINOFFSET(EnvMat*, object, offset);
-	return env ? (int)sizeof(EnvStream) : -1;
+	return env ? (int)sizeof(EnvStream) : 0;
 }
 
 // Specular mat
@@ -490,19 +517,12 @@ static int32
 getSizeSpecMat(void *object, int32 offset, int32)
 {
 	SpecMat *spec = *PLUGINOFFSET(SpecMat*, object, offset);
-	return spec ? (int)sizeof(SpecStream) : -1;
+	return spec ? (int)sizeof(SpecStream) : 0;
 }
 
 void
 registerEnvSpecPlugin(void)
 {
-	specMatOffset = Material::registerPlugin(sizeof(SpecMat*), ID_SPECMAT,
-	                                         createSpecMat,
-                                                 destroySpecMat,
-                                                 copySpecMat);
-	Material::registerPluginStream(ID_SPECMAT, readSpecMat,
-                                                   writeSpecMat,
-                                                   getSizeSpecMat);
 	envMatOffset = Material::registerPlugin(sizeof(EnvMat*), ID_ENVMAT,
 	                                        createEnvMat,
                                                 destroyEnvMat,
@@ -510,6 +530,226 @@ registerEnvSpecPlugin(void)
 	Material::registerPluginStream(ID_ENVMAT, readEnvMat,
                                                   writeEnvMat,
                                                   getSizeEnvMat);
+	specMatOffset = Material::registerPlugin(sizeof(SpecMat*), ID_SPECMAT,
+	                                         createSpecMat,
+                                                 destroySpecMat,
+                                                 copySpecMat);
+	Material::registerPluginStream(ID_SPECMAT, readSpecMat,
+                                                   writeSpecMat,
+                                                   getSizeSpecMat);
+}
+
+// Pipeline
+
+int32 pipelineOffset;
+
+static void*
+createPipeline(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(uint32, object, offset) = 0;
+	return object;
+}
+
+static void*
+copyPipeline(void *dst, void *src, int32 offset, int32)
+{
+	*PLUGINOFFSET(uint32, dst, offset) = *PLUGINOFFSET(uint32, src, offset);
+	return dst;
+}
+
+static void
+readPipeline(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(uint32, object, offset) = stream->readU32();
+}
+
+static void
+writePipeline(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	stream->writeU32(*PLUGINOFFSET(uint32, object, offset));
+}
+
+static int32
+getSizePipeline(void *object, int32 offset, int32)
+{
+	if(*PLUGINOFFSET(uint32, object, offset))
+		return 4;
+	return 0;
+}
+
+void
+registerPipelinePlugin(void)
+{
+	pipelineOffset = Atomic::registerPlugin(sizeof(uint32), ID_PIPELINE,
+	                                        createPipeline,
+                                                NULL,
+                                                copyPipeline);
+	Atomic::registerPluginStream(ID_PIPELINE, readPipeline,
+	                             writePipeline, getSizePipeline);
+}
+
+uint32
+getPipelineID(Atomic *atomic)
+{
+	return *PLUGINOFFSET(uint32, atomic, pipelineOffset);
+}
+
+void
+setPipelineID(Atomic *atomic, uint32 id)
+{
+	*PLUGINOFFSET(uint32, atomic, pipelineOffset) = id;
+}
+
+// 2dEffect
+
+struct SizedData
+{
+	uint32 size;
+	uint8 *data;
+};
+
+int32 twodEffectOffset;
+
+static void*
+create2dEffect(void *object, int32 offset, int32)
+{
+	SizedData *data;
+	data = PLUGINOFFSET(SizedData, object, offset);
+	data->size = 0;
+	data->data = NULL;
+	return object;
+}
+
+static void*
+destroy2dEffect(void *object, int32 offset, int32)
+{
+	SizedData *data;
+	data = PLUGINOFFSET(SizedData, object, offset);
+	delete[] data->data;
+	data->data = NULL;
+	data->size = 0;
+	return object;
+}
+
+static void*
+copy2dEffect(void *dst, void *src, int32 offset, int32)
+{
+	SizedData *srcdata, *dstdata;
+	dstdata = PLUGINOFFSET(SizedData, dst, offset);
+	srcdata = PLUGINOFFSET(SizedData, src, offset);
+	dstdata->size = srcdata->size;
+	if(dstdata->size != 0){
+		dstdata->data = new uint8[dstdata->size];
+		memcpy(dstdata->data, srcdata->data, dstdata->size);
+	}
+	return dst;
+}
+
+static void
+read2dEffect(Stream *stream, int32 size, void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	data->size = size;
+	data->data = new uint8[data->size];
+	stream->read(data->data, data->size);
+}
+
+static void
+write2dEffect(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	stream->write(data->data, data->size);
+}
+
+static int32
+getSize2dEffect(void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	return data->size;
+}
+
+void
+register2dEffectPlugin(void)
+{
+	twodEffectOffset = Geometry::registerPlugin(sizeof(SizedData), ID_2DEFFECT,
+	                                            create2dEffect,
+                                                    destroy2dEffect,
+                                                    copy2dEffect);
+	Geometry::registerPluginStream(ID_2DEFFECT, read2dEffect,
+	                               write2dEffect, getSize2dEffect);
+}
+
+// Collision
+
+int32 collisionOffset;
+
+static void*
+createCollision(void *object, int32 offset, int32)
+{
+	SizedData *data;
+	data = PLUGINOFFSET(SizedData, object, offset);
+	data->size = 0;
+	data->data = NULL;
+	return object;
+}
+
+static void*
+destroyCollision(void *object, int32 offset, int32)
+{
+	SizedData *data;
+	data = PLUGINOFFSET(SizedData, object, offset);
+	delete[] data->data;
+	data->data = NULL;
+	data->size = 0;
+	return object;
+}
+
+static void*
+copyCollision(void *dst, void *src, int32 offset, int32)
+{
+	SizedData *srcdata, *dstdata;
+	dstdata = PLUGINOFFSET(SizedData, dst, offset);
+	srcdata = PLUGINOFFSET(SizedData, src, offset);
+	dstdata->size = srcdata->size;
+	if(dstdata->size != 0){
+		dstdata->data = new uint8[dstdata->size];
+		memcpy(dstdata->data, srcdata->data, dstdata->size);
+	}
+	return dst;
+}
+
+static void
+readCollision(Stream *stream, int32 size, void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	data->size = size;
+	data->data = new uint8[data->size];
+	stream->read(data->data, data->size);
+}
+
+static void
+writeCollision(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	stream->write(data->data, data->size);
+}
+
+static int32
+getSizeCollision(void *object, int32 offset, int32)
+{
+	SizedData *data = PLUGINOFFSET(SizedData, object, offset);
+	return data->size;
+}
+
+void
+registerCollisionPlugin(void)
+{
+	collisionOffset = Clump::registerPlugin(sizeof(SizedData), ID_COLLISION,
+	                                        createCollision,
+                                                destroyCollision,
+                                                copyCollision);
+	Clump::registerPluginStream(ID_COLLISION, readCollision,
+	                            writeCollision, getSizeCollision);
 }
 
 }

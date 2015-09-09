@@ -98,6 +98,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\anim.cpp" />
     <ClCompile Include="src\clump.cpp" />
     <ClCompile Include="src\d3d.cpp" />
     <ClCompile Include="src\d3d8.cpp" />
