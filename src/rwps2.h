@@ -116,5 +116,10 @@ void registerADCPlugin(void);
 
 void registerPDSPlugin(void);
 
+// Raster
+
+extern int32 nativeRasterOffset;
+void registerNativeRaster(void);
+
 }
 }

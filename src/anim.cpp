@@ -66,15 +66,53 @@ Animation::streamRead(Stream *stream)
 	return anim;
 }
 
+Animation*
+Animation::streamReadLegacy(Stream *stream)
+{
+	Animation *anim;
+	AnimInterpolatorInfo *interpInfo = findAnimInterpolatorInfo(1);
+	int32 numFrames = stream->readI32();
+	int32 flags = stream->readI32();
+	float duration = stream->readF32();
+	anim = new Animation(interpInfo, numFrames, flags, duration);
+	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
+	for(int32 i = 0; i < anim->numFrames; i++){
+		stream->read(frames[i].q, 4*4);
+		stream->read(frames[i].t, 3*4);
+		frames[i].time = stream->readF32();
+		int32 prev = stream->readI32();
+		frames[i].prev = &frames[prev];
+	}
+	return anim;
+}
+
 bool
 Animation::streamWrite(Stream *stream)
 {
+	writeChunkHeader(stream, ID_ANIMANIMATION, this->streamGetSize());
 	stream->writeI32(0x100);
 	stream->writeI32(this->interpInfo->id);
 	stream->writeI32(this->numFrames);
 	stream->writeI32(this->flags);
 	stream->writeF32(this->duration);
 	this->interpInfo->streamWrite(stream, this);
+	return true;
+}
+
+bool
+Animation::streamWriteLegacy(Stream *stream)
+{
+	stream->writeI32(this->numFrames);
+	stream->writeI32(this->flags);
+	stream->writeF32(this->duration);
+	assert(interpInfo->id == 1);
+	HAnimKeyFrame *frames = (HAnimKeyFrame*)this->keyframes;
+	for(int32 i = 0; i < this->numFrames; i++){
+		stream->write(frames[i].q, 4*4);
+		stream->write(frames[i].t, 3*4);
+		stream->writeF32(frames[i].time);
+		stream->writeI32(frames[i].prev - frames);
+	}
 	return true;
 }
 
@@ -114,10 +152,8 @@ UVAnimDictionary::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_UVANIMDICT, size);
 	writeChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeI32(this->numAnims);
-	for(int32 i = 0; i < this->numAnims; i++){
-		writeChunkHeader(stream, ID_ANIMANIMATION, this->anims[i]->streamGetSize());
+	for(int32 i = 0; i < this->numAnims; i++)
 		this->anims[i]->streamWrite(stream);
-	}
 	return true;
 }
 
@@ -241,6 +277,19 @@ copyUVAnim(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
+Animation*
+makeDummyAnimation(const char *name)
+{
+	AnimInterpolatorInfo *interpInfo = findAnimInterpolatorInfo(0x1C0);
+	Animation *anim = new Animation(interpInfo, 2, 0, 1.0f);
+	UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
+//	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
+	strncpy(custom->name, name, 32);
+	memset(custom->nodeToUVChannel, 0, sizeof(custom->nodeToUVChannel));
+	// TODO: init the frames
+	return anim;
+}
+
 static void
 readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
@@ -252,8 +301,11 @@ readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	for(int32 i = 0; i < 8; i++){
 		if(mask & bit){
 			stream->read(name, 32);
-			assert(currentUVAnimDictionary != NULL);
-			Animation *anim = currentUVAnimDictionary->find(name);
+			Animation *anim = NULL;
+			if(currentUVAnimDictionary)
+				anim = currentUVAnimDictionary->find(name);
+			if(anim == NULL)
+				anim = makeDummyAnimation(name);
 			AnimInterpolator *interp = new AnimInterpolator(anim);
 			uvanim->interp[i] = interp;
 		}

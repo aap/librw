@@ -66,10 +66,7 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	int32 ver, numNodes;
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	ver = stream->readI32();
-	if(ver != 0x100){
-		fprintf(stderr, "hanim ver was not 0x100\n");
-		return;
-	}
+	assert(ver == 0x100);
 	hanim->id = stream->readI32();
 	numNodes = stream->readI32();
 	if(numNodes != 0){
@@ -131,6 +128,37 @@ getSizeHAnim(void *object, int32 offset, int32)
 	return 12;
 }
 
+static void
+hAnimFrameRead(Stream *stream, Animation *anim)
+{
+	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
+	for(int32 i = 0; i < anim->numFrames; i++){
+		frames[i].time = stream->readF32();
+		stream->read(frames[i].q, 4*4);
+		stream->read(frames[i].t, 3*4);
+		int32 prev = stream->readI32();
+		frames[i].prev = &frames[prev];
+	}
+}
+
+static void
+hAnimFrameWrite(Stream *stream, Animation *anim)
+{
+	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
+	for(int32 i = 0; i < anim->numFrames; i++){
+		stream->writeF32(frames[i].time);
+		stream->write(frames[i].q, 4*4);
+		stream->write(frames[i].t, 3*4);
+		stream->writeI32(frames[i].prev - frames);
+	}
+}
+
+static uint32
+hAnimFrameGetSize(Animation *anim)
+{
+	return anim->numFrames*(4 + 4*4 + 3*4 + 4);
+}
+
 void
 registerHAnimPlugin(void)
 {
@@ -141,6 +169,15 @@ registerHAnimPlugin(void)
 	                            readHAnim,
 	                            writeHAnim,
 	                            getSizeHAnim);
+
+	AnimInterpolatorInfo *info = new AnimInterpolatorInfo;
+	info->id = 1;
+	info->keyFrameSize = sizeof(HAnimKeyFrame);
+	info->customDataSize = sizeof(HAnimKeyFrame);
+	info->streamRead = hAnimFrameRead;
+	info->streamWrite = hAnimFrameWrite;
+	info->streamGetSize = hAnimFrameGetSize;
+	registerAnimInterpolatorInfo(info);
 }
 
 

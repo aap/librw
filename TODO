@@ -22,22 +22,17 @@ Clump & related:
 			Skin (old III dffs)
 		Geometry
 			((Morph))	0x105
-		Texture
-			(Sky Mipmap Val)	0x110
 
 	- only stubs:
 				R* 2dfx       0x253F2F8
 				R* Collision  0x253F2FA
 
-Texture Dictionary
-
-.anm/.ska
-
-- anim interpolation (only stubs right now)
+Texture Dictionary / Native Textures
 
 - Pipelines (PDS, Xbox, PC)
 
-- ADC
+- ADC conversion
 
 - uninstance geometry (PS2)
 
+- anim interpolation (only stubs right now)

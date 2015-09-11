@@ -683,7 +683,7 @@ void
 registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
-	                                            0x12340001, 
+	                                            0x12340000 | PLATFORM_OGL, 
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);

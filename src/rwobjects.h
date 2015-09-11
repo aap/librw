@@ -33,6 +33,14 @@ struct Frame : PluginBase<Frame>, Object
 	void setDirty(void);
 };
 
+struct HAnimKeyFrame
+{
+	HAnimKeyFrame *prev;
+	float time;
+	float q[4];
+	float t[3];
+};
+
 struct HAnimNodeInfo
 {
 	int32 id;
@@ -125,7 +133,7 @@ struct Texture : PluginBase<Texture>
 {
 	char name[32];
 	char mask[32];
-	uint32 filterAddressing;
+	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
 	Raster *raster;
 	int32 refCount;
 
@@ -434,7 +442,9 @@ struct Animation
 
 	Animation(AnimInterpolatorInfo*, int32 numFrames, int32 flags, float duration);
 	static Animation *streamRead(Stream *stream);
+	static Animation *streamReadLegacy(Stream *stream);
 	bool streamWrite(Stream *stream);
+	bool streamWriteLegacy(Stream *stream);
 	uint32 streamGetSize(void);
 };
 

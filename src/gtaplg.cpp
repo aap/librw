@@ -21,6 +21,7 @@ void
 attachPlugins(void)
 {
 	rw::ps2::registerPDSPlugin();
+	rw::ps2::registerNativeRaster();
 	rw::registerMeshPlugin();
 	rw::registerNativeDataPlugin();
 	rw::registerAtomicRightsPlugin();

@@ -90,9 +90,10 @@ Texture::read(const char *name, const char *mask)
 	if(img){
 		raster = Raster::createFromImage(img);
 		delete img;
-	}
+	}else
+		raster = new Raster;
 	tex->raster = raster;
-	if(currentTexDictionary)
+	if(currentTexDictionary && img)
 		currentTexDictionary->add(tex);
 	return tex;
 }
@@ -103,9 +104,10 @@ Texture::streamRead(Stream *stream)
 	uint32 length;
 	char name[32], mask[32];
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	uint32 filterAddressing = stream->readU16();
-	// TODO: what is this? (mipmap? i think)
-	stream->seek(2);
+	uint32 filterAddressing = stream->readU32();
+	// TODO: if V addressing is 0, copy U
+	// if using mipmap filter mode, set automipmapping,
+	// if 0x10000 is set, set mipmapping
 
 	assert(findChunk(stream, ID_STRING, &length, NULL));
 	stream->read(name, length);
@@ -115,7 +117,8 @@ Texture::streamRead(Stream *stream)
 
 	Texture *tex = Texture::read(name, mask);
 	tex->refCount++;
-	tex->filterAddressing = filterAddressing;
+	if(tex->refCount == 1)
+		tex->filterAddressing = filterAddressing;
 
 	tex->streamReadPlugins(stream);
 

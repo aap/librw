@@ -1110,5 +1110,75 @@ sizedebug(InstanceData *inst)
 	}
 }
 
+// Raster
+
+int32 nativeRasterOffset;
+
+struct Ps2Raster
+{
+	int32 mipmap;
+};
+
+static void*
+createNativeRaster(void *object, int32 offset, int32)
+{
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
+	raster->mipmap = 0xFC0;
+	return object;
+}
+
+static void*
+destroyNativeRaster(void *object, int32 offset, int32)
+{
+	return object;
+}
+
+static void*
+copyNativeRaster(void *dst, void *src, int32 offset, int32)
+{
+	Ps2Raster *dstraster = PLUGINOFFSET(Ps2Raster, dst, offset);
+	Ps2Raster *srcraster = PLUGINOFFSET(Ps2Raster, src, offset);
+	dstraster->mipmap = srcraster->mipmap;
+	return dst;
+}
+
+static void
+readMipmap(Stream *stream, int32 len, void *object, int32 offset, int32)
+{
+	int32 val = stream->readI32();
+	Texture *tex = (Texture*)object;
+	if(tex->raster == NULL)
+		return;
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
+	raster->mipmap = val;
+}
+
+static void
+writeMipmap(Stream *stream, int32 len, void *object, int32 offset, int32)
+{
+	Texture *tex = (Texture*)object;
+	assert(tex->raster);
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
+	stream->writeI32(raster->mipmap);
+}
+
+static int32
+getSizeMipmap(void *object, int32 offset, int32)
+{
+	return rw::platform == PLATFORM_PS2 ? 4 : 0;
+}
+
+void
+registerNativeRaster(void)
+{
+	nativeRasterOffset = Raster::registerPlugin(sizeof(Ps2Raster),
+	                                            0x12340000 | PLATFORM_PS2, 
+                                                    createNativeRaster,
+                                                    destroyNativeRaster,
+                                                    copyNativeRaster);
+	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
+	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
+}
+
 }
 }
