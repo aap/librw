@@ -97,30 +97,36 @@ void writeTGA(Image *image, const char *filename);
 
 struct Raster : PluginBase<Raster>
 {
+	int32 platform;
+
 	int32 type;	// hardly used
+	int32 flags;
+	int32 format;
 	int32 width, height, depth;
 	int32 stride;
-	int32 format;
 	uint8 *texels;
 	uint8 *palette;
 
-	Raster(void);
+	Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
 	~Raster(void);
 
 	static Raster *createFromImage(Image *image);
+	uint8 *lock(int32 level);
+	void unlock(int32 level);
+	int32 getNumLevels(void);
 
 	enum Format {
-		DEFAULT = 0,
-		C1555   = 0x100,
-		C565    = 0x200,
-		C4444   = 0x300,
-		LUM8    = 0x400,
-		C8888   = 0x500,
-		C888    = 0x600,
-		D16     = 0x700,
-		D24     = 0x800,
-		D32     = 0x900,
-		C555    = 0xa00,
+		DEFAULT    = 0,
+		C1555      = 0x0100,
+		C565       = 0x0200,
+		C4444      = 0x0300,
+		LUM8       = 0x0400,
+		C8888      = 0x0500,
+		C888       = 0x0600,
+		D16        = 0x0700,
+		D24        = 0x0800,
+		D32        = 0x0900,
+		C555       = 0x0A00,
 		AUTOMIPMAP = 0x1000,
 		PAL8       = 0x2000,
 		PAL4       = 0x4000,
@@ -147,6 +153,9 @@ struct Texture : PluginBase<Texture>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	static Texture *read(const char *name, const char *mask);
+	static Texture *streamReadNative(Stream *stream);
+	void streamWriteNative(Stream *stream);
+	uint32 streamGetSizeNative(void);
 
 	enum FilterMode {
 		NEAREST = 1,
@@ -408,13 +417,16 @@ private:
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 
-struct TexDictionary
+struct TexDictionary : PluginBase<Texture>
 {
 	Texture *first;
 
 	TexDictionary(void);
 	void add(Texture *tex);
 	Texture *find(const char *name);
+	static TexDictionary *streamRead(Stream *stream);
+	void streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
 };
 
 struct Animation;

@@ -65,7 +65,28 @@ void unlockIndices(void *indexBuffer);
 void *createVertexBuffer(uint32 length, uint32 fvf, int32 pool);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
+void *createTexture(int32 width, int32 height, int32 levels, uint32 format);
+uint8 *lockTexture(void *texture, int32 level);
+void unlockTexture(void *texture, int32 level);
 void deleteObject(void *object);
+
+// Native Raster
+
+struct D3dRaster {
+	void *texture;	// IDirect3DTexture9
+	void *palette;
+	uint32 format;
+	bool32 hasAlpha;
+};
+
+extern int32 nativeRasterOffset;
+
+void makeNativeRaster(Raster *raster);
+uint8 *lockRaster(Raster *raster, int32 level);
+void unlockRaster(Raster *raster, int32 level);
+int32 getNumLevels(Raster *raster);
+int32 getLevelSize(Raster *raster, int32 level);
+void registerNativeRaster(void);
 
 }
 }

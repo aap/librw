@@ -380,5 +380,139 @@ makeMatFXPipeline(void)
 	return pipe;
 }
 
+// Native Texture and Raster
+
+Texture*
+readNativeTexture(Stream *stream)
+{
+	static uint32 dxtMap[] = {
+		0x31545844,	// DXT1
+		0x32545844,	// DXT2
+		0x33545844,	// DXT3
+		0x34545844,	// DXT4
+		0x35545844,	// DXT5
+	};
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(stream->readU32() == PLATFORM_D3D8);
+	Texture *tex = new Texture;
+
+	// Texture
+	tex->filterAddressing = stream->readU32();
+	stream->read(tex->name, 32);
+	stream->read(tex->mask, 32);
+
+	// Raster
+	int32 format = stream->readI32();
+	bool32 hasAlpha = stream->readI32();
+	int32 width = stream->readU16();
+	int32 height = stream->readU16();
+	int32 depth = stream->readU8();
+	int32 numLevels = stream->readU8();
+	int32 type = stream->readU8();
+	int32 compression = stream->readU8();
+
+	Raster *raster;
+	D3dRaster *ras;
+	if(compression){
+		raster = new Raster(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
+		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ras->format = dxtMap[compression-1];
+		ras->hasAlpha = hasAlpha;
+		ras->texture = createTexture(raster->width, raster->width,
+	                                     raster->format & Raster::MIPMAP ? 0 : 1,
+	                                     ras->format);
+		raster->flags &= ~0x80;
+	}else
+		raster = new Raster(width, height, depth, format | type, PLATFORM_D3D8);
+	tex->raster = raster;
+
+	// TODO: check if format supported and convert if necessary
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		assert(0 && "don't support palettes");
+
+	uint32 size;
+	uint8 *data;
+	for(uint32 i = 0; i < numLevels; i++){
+		size = stream->readU32();
+		if(i < raster->getNumLevels()){
+			data = raster->lock(i);
+			stream->read(data, size);
+			raster->unlock(i);
+		}else
+			stream->seek(size);
+	}
+	tex->streamReadPlugins(stream);
+	return tex;
+}
+
+void
+writeNativeTexture(Texture *tex, Stream *stream)
+{
+	int32 chunksize = getSizeNativeTexture(tex);
+	int32 plgsize = tex->streamGetPluginSize();
+	writeChunkHeader(stream, ID_TEXTURENATIVE, chunksize);
+	writeChunkHeader(stream, ID_STRUCT, chunksize-24-plgsize);
+	stream->writeU32(PLATFORM_D3D8);
+
+	// Texture
+	stream->writeU32(tex->filterAddressing);
+	stream->write(tex->name, 32);
+	stream->write(tex->mask, 32);
+
+	// Raster
+	Raster *raster = tex->raster;
+	D3dRaster *ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	int32 numLevels = raster->getNumLevels();
+	stream->writeI32(raster->format);
+	stream->writeI32(ras->hasAlpha);
+	stream->writeU16(raster->width);
+	stream->writeU16(raster->height);
+	stream->writeU8(raster->depth);
+	stream->writeU8(numLevels);
+	stream->writeU8(raster->type);
+	int32 compression = 0;
+	if(ras->format)
+		switch(ras->format){
+		case 0x31545844:	// DXT1
+			compression = 1;
+			break;
+		case 0x32545844:	// DXT2
+			compression = 2;
+			break;
+		case 0x33545844:	// DXT3
+			compression = 3;
+			break;
+		case 0x34545844:	// DXT4
+			compression = 4;
+			break;
+		case 0x35545844:	// DXT5
+			compression = 5;
+			break;
+		}
+	stream->writeU8(compression);
+
+	uint32 size;
+	uint8 *data;
+	for(uint32 i = 0; i < numLevels; i++){
+		size = getLevelSize(raster, i);
+		stream->writeU32(size);
+		data = raster->lock(i);
+		stream->write(data, size);
+		raster->unlock(i);
+	}
+	tex->streamWritePlugins(stream);
+}
+
+uint32
+getSizeNativeTexture(Texture *tex)
+{
+	uint32 size = 12 + 72 + 16;
+	int32 levels = tex->raster->getNumLevels();
+	for(int32 i = 0; i < levels; i++)
+		size += 4 + getLevelSize(tex->raster, i);
+	size += 12 + tex->streamGetPluginSize();
+	return size;
+}
+
 }
 }

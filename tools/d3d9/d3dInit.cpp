@@ -15,49 +15,10 @@ namespace rw {
 
 namespace d3d {
 
-int32 nativeRasterOffset;
-
-struct D3d9Raster {
-	IDirect3DTexture9 *texture;
-};
-
-static void*
-createNativeRaster(void *object, int32 offset, int32)
-{
-	D3d9Raster *raster = PLUGINOFFSET(D3d9Raster, object, offset);
-	raster->texture = NULL;
-	return object;
-}
-
-static void*
-destroyNativeRaster(void *object, int32 offset, int32)
-{
-	// TODO:
-	return object;
-}
-
-static void*
-copyNativeRaster(void *dst, void *, int32 offset, int32)
-{
-	D3d9Raster *raster = PLUGINOFFSET(D3d9Raster, dst, offset);
-	raster->texture = NULL;
-	return dst;
-}
-
-void
-registerNativeRaster(void)
-{
-	nativeRasterOffset = Raster::registerPlugin(sizeof(D3d9Raster),
-	                                            0x12340000 | PLATFORM_D3D9, 
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
-}
-
 void
 createTexture(Texture *tex)
 {
-	D3d9Raster *raster = PLUGINOFFSET(D3d9Raster, tex->raster, nativeRasterOffset);
+	D3dRaster *raster = PLUGINOFFSET(D3dRaster, tex->raster, nativeRasterOffset);
 	int32 w, h;
 	w = tex->raster->width;
 	h = tex->raster->height;
@@ -79,6 +40,7 @@ createTexture(Texture *tex)
 	}
 	texture->UnlockRect(0);
 	raster->texture = texture;
+	raster->format = D3DFMT_A8R8G8B8;
 }
 
 void
@@ -94,11 +56,11 @@ setTexture(Texture *tex)
 		D3DTADDRESS_CLAMP, D3DTADDRESS_BORDER
 	};
 
-	D3d9Raster *raster = PLUGINOFFSET(D3d9Raster, tex->raster, nativeRasterOffset);
+	D3dRaster *raster = PLUGINOFFSET(D3dRaster, tex->raster, nativeRasterOffset);
 	if(tex->raster){
 		if(raster->texture == NULL)
 			createTexture(tex);
-		Device->SetTexture(0, raster->texture);
+		Device->SetTexture(0, (IDirect3DTexture9*)raster->texture);
 		Device->SetSamplerState(0, D3DSAMP_MAGFILTER, filternomip[tex->filterAddressing & 0xFF]);
 		Device->SetSamplerState(0, D3DSAMP_MINFILTER, filternomip[tex->filterAddressing & 0xFF]);
 		Device->SetSamplerState(0, D3DSAMP_ADDRESSU, wrap[(tex->filterAddressing >> 8) & 0xF]);
@@ -216,23 +178,42 @@ void
 initrw(void)
 {
 	gta::attachPlugins();
-
-	rw::currentTexDictionary = new rw::TexDictionary;
-	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
-	                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
-	                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
-
 	rw::d3d::registerNativeRaster();
 
-	rw::platform = rw::PLATFORM_D3D9;
+//	rw::currentTexDictionary = new rw::TexDictionary;
+//	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
+//	                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
+//	                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
+
+	rw::platform = rw::PLATFORM_D3D8;
 	rw::d3d::device = Device;
 
-//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+	if(0){
+		char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.txd";
+		rw::StreamFile in;
+		if(in.open(filename, "rb") == NULL){
+			MessageBox(0, "couldn't open file\n", 0, 0);
+			printf("couldn't open file\n");
+		}
+		rw::findChunk(&in, rw::ID_TEXDICTIONARY, NULL, NULL);
+		rw::TexDictionary *txd;
+		txd = rw::TexDictionary::streamRead(&in);
+		assert(txd);
+		in.close();
+		rw::currentTexDictionary = txd;
+
+		rw::StreamFile out;
+		out.open("out.txd", "wb");
+		txd->streamWrite(&out);
+		out.close();
+	}
+
+	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\lae2_roads89.dff";
-	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\casinoblock41_nt.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\casinoblock41_nt.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\cutscene_archive\\csremington92.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
 //	char *filename = "C:\\Users\\aap\\Desktop\\tmp\\out.dff";
@@ -298,7 +279,8 @@ Setup()
 	camera->setNearFar(0.1f, 450.0f);
 	camera->setTarget(Vec3(0.0f, 0.0f, 0.0f));
 //	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
-	camera->setPosition(Vec3(0.0f, -70.0f, 0.0f));
+//	camera->setPosition(Vec3(0.0f, -70.0f, 0.0f));
+	camera->setPosition(Vec3(0.0f, -10.0f, 0.0f));
 //	camera->setPosition(Vec3(0.0f, -1.0f, 3.0f));
 
 	return true;

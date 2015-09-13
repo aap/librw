@@ -9,6 +9,8 @@
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwd3d.h"
+#include "rwd3d8.h"
 
 using namespace std;
 
@@ -28,8 +30,10 @@ TexDictionary::TexDictionary(void)
 void
 TexDictionary::add(Texture *tex)
 {
-	tex->next = this->first;
-	this->first = tex;
+	Texture **tp;
+	for(tp = &this->first; *tp; tp = &(*tp)->next)
+		;
+	*tp = tex;
 }
 
 Texture*
@@ -39,6 +43,49 @@ TexDictionary::find(const char *name)
 		if(strncmp(tex->name, name, 32) == 0)
 			return tex;
 	return NULL;
+}
+
+TexDictionary*
+TexDictionary::streamRead(Stream *stream)
+{
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	int32 numTex = stream->readI16();
+	stream->readI16();	// some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
+	                        //                   6 = ps2, 8 = xbox)
+	TexDictionary *txd = new TexDictionary;
+	for(int32 i = 0; i < numTex; i++){
+		assert(findChunk(stream, ID_TEXTURENATIVE, NULL, NULL));
+		Texture *tex = Texture::streamReadNative(stream);
+		txd->add(tex);
+	}
+	txd->streamReadPlugins(stream);
+	return txd;
+}
+
+void
+TexDictionary::streamWrite(Stream *stream)
+{
+	writeChunkHeader(stream, ID_TEXDICTIONARY, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, 4);
+	int32 numTex = 0;
+	for(Texture *tex = this->first; tex; tex = tex->next)
+		numTex++;
+	stream->writeI16(numTex);
+	stream->writeI16(0);
+	for(Texture *tex = this->first; tex; tex = tex->next)
+		tex->streamWriteNative(stream);
+	this->streamWritePlugins(stream);
+}
+
+uint32
+TexDictionary::streamGetSize(void)
+{
+	uint32 size = 12 + 4;
+	Texture *tex;
+	for(Texture *tex = this->first; tex; tex = tex->next)
+		size += 12 + tex->streamGetSizeNative();
+	size += 12 + this->streamGetPluginSize();
+	return size;
 }
 
 //
@@ -91,7 +138,7 @@ Texture::read(const char *name, const char *mask)
 		raster = Raster::createFromImage(img);
 		delete img;
 	}else
-		raster = new Raster;
+		raster = new Raster(0, 0, 0, 0x80);
 	tex->raster = raster;
 	if(currentTexDictionary && img)
 		currentTexDictionary->add(tex);
@@ -156,6 +203,33 @@ Texture::streamGetSize(void)
 	size += strlen(this->mask)+4 & ~3;
 	size += 12 + this->streamGetPluginSize();
 	return size;
+}
+
+Texture*
+Texture::streamReadNative(Stream *stream)
+{
+	if(rw::platform == PLATFORM_D3D8)
+		return d3d8::readNativeTexture(stream);
+	assert(0 && "unsupported platform");
+	return NULL;
+}
+
+void
+Texture::streamWriteNative(Stream *stream)
+{
+	if(this->raster->platform == PLATFORM_D3D8)
+		d3d8::writeNativeTexture(this, stream);
+	else
+		assert(0 && "unsupported platform");
+}
+
+uint32
+Texture::streamGetSizeNative(void)
+{
+	if(this->raster->platform == PLATFORM_D3D8)
+		return d3d8::getSizeNativeTexture(this);
+	assert(0 && "unsupported platform");
+	return 0;
 }
 
 //
@@ -443,12 +517,19 @@ writeTGA(Image *image, const char *filename)
 // Raster
 //
 
-Raster::Raster(void)
+Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
-	this->type = 0;
-	this->width = this->height = this->depth = this->stride = 0;
-	this->format = 0;
+	this->platform = platform ? platform : rw::platform;
+	this->type = format & 0x7;
+	this->flags = format & 0xF8;
+	this->format = format & 0xFF00;
+	this->width = width;
+	this->height = height;
+	this->depth = depth;
 	this->texels = this->palette = NULL;
+	if(this->platform == PLATFORM_D3D8 || 
+	   this->platform == PLATFORM_D3D9)
+		d3d::makeNativeRaster(this);
 	this->constructPlugins();
 }
 
@@ -459,30 +540,58 @@ Raster::~Raster(void)
 	delete[] this->palette;
 }
 
+uint8*
+Raster::lock(int32 level)
+{
+	if(this->platform == PLATFORM_D3D8 || 
+	   this->platform == PLATFORM_D3D9)
+		return d3d::lockRaster(this, level);
+	assert(0 && "unsupported raster platform");
+}
+
+void
+Raster::unlock(int32 level)
+{
+	if(this->platform == PLATFORM_D3D8 || 
+	   this->platform == PLATFORM_D3D9)
+		d3d::unlockRaster(this, level);
+	else
+		assert(0 && "unsupported raster platform");
+}
+
+int32
+Raster::getNumLevels(void)
+{
+	if(this->platform == PLATFORM_D3D8 || 
+	   this->platform == PLATFORM_D3D9)
+		return d3d::getNumLevels(this);
+	assert(0 && "unsupported raster platform");
+	return 1;
+}
+
+// BAD BAD BAD BAD
 Raster*
 Raster::createFromImage(Image *image)
 {
-	Raster *raster = new Raster;
-	raster->type = 4;
-	raster->width = image->width;
-	raster->stride = image->stride;
-	raster->height = image->height;
-	raster->depth = image->depth;
-	raster->texels = raster->palette = NULL;
-	if(raster->depth == 32)
-		raster->format = Raster::C8888;
-	else if(raster->depth == 24)
-		raster->format = Raster::C888;
-	else if(raster->depth == 16)
-		raster->format = Raster::C1555;
-	else if(raster->depth == 8)
-		raster->format = Raster::PAL8 | Raster::C8888;
-	else if(raster->depth == 4)
-		raster->format = Raster::PAL4 | Raster::C8888;
-	else{
-		delete raster;
+	assert(0 && "unsupported atm");
+	int32 format;
+	// TODO: make that into a function
+	if(image->depth == 32)
+		format = Raster::C8888;
+	else if(image->depth == 24)
+		format = Raster::C888;
+	else if(image->depth == 16)
+		format = Raster::C1555;
+	else if(image->depth == 8)
+		format = Raster::PAL8 | Raster::C8888;
+	else if(image->depth == 4)
+		format = Raster::PAL4 | Raster::C8888;
+	else
 		return NULL;
-	}
+	Raster *raster = new Raster(image->width, image->height,
+	                            image->depth, format | 4 | 0x80);
+	raster->stride = image->stride;
+
 	raster->texels = new uint8[raster->stride*raster->height];
 	memcpy(raster->texels, image->pixels, raster->stride*raster->height);
 	if(image->palette){

@@ -52,5 +52,11 @@ ObjPipeline *makeSkinPipeline(void);
 
 ObjPipeline *makeMatFXPipeline(void);
 
+// Native Texture and Raster
+
+Texture *readNativeTexture(Stream *stream);
+void writeNativeTexture(Texture *tex, Stream *stream);
+uint32 getSizeNativeTexture(Texture *tex);
+
 }
 }
