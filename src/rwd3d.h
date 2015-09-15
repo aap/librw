@@ -72,20 +72,21 @@ void deleteObject(void *object);
 
 // Native Raster
 
-struct D3dRaster {
-	void *texture;	// IDirect3DTexture9
+void makeNativeRaster(Raster *raster);
+uint8 *lockRaster(Raster *raster, int32 level);
+void unlockRaster(Raster *raster, int32 level);
+int32 getNumLevels(Raster *raster);
+int32 getLevelSize(Raster *raster, int32 level);
+
+struct D3dRaster
+{
+	void *texture;
 	void *palette;
 	uint32 format;
 	bool32 hasAlpha;
 };
 
 extern int32 nativeRasterOffset;
-
-void makeNativeRaster(Raster *raster);
-uint8 *lockRaster(Raster *raster, int32 level);
-void unlockRaster(Raster *raster, int32 level);
-int32 getNumLevels(Raster *raster);
-int32 getLevelSize(Raster *raster, int32 level);
 void registerNativeRaster(void);
 
 }

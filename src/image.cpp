@@ -10,6 +10,7 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwd3d.h"
+#include "rwxbox.h"
 #include "rwd3d8.h"
 
 using namespace std;
@@ -81,7 +82,6 @@ uint32
 TexDictionary::streamGetSize(void)
 {
 	uint32 size = 12 + 4;
-	Texture *tex;
 	for(Texture *tex = this->first; tex; tex = tex->next)
 		size += 12 + tex->streamGetSizeNative();
 	size += 12 + this->streamGetPluginSize();
@@ -210,6 +210,8 @@ Texture::streamReadNative(Stream *stream)
 {
 	if(rw::platform == PLATFORM_D3D8)
 		return d3d8::readNativeTexture(stream);
+	if(rw::platform == PLATFORM_XBOX)
+		return xbox::readNativeTexture(stream);
 	assert(0 && "unsupported platform");
 	return NULL;
 }
@@ -219,6 +221,8 @@ Texture::streamWriteNative(Stream *stream)
 {
 	if(this->raster->platform == PLATFORM_D3D8)
 		d3d8::writeNativeTexture(this, stream);
+	else if(this->raster->platform == PLATFORM_XBOX)
+		xbox::writeNativeTexture(this, stream);
 	else
 		assert(0 && "unsupported platform");
 }
@@ -228,6 +232,8 @@ Texture::streamGetSizeNative(void)
 {
 	if(this->raster->platform == PLATFORM_D3D8)
 		return d3d8::getSizeNativeTexture(this);
+	if(this->raster->platform == PLATFORM_XBOX)
+		return xbox::getSizeNativeTexture(this);
 	assert(0 && "unsupported platform");
 	return 0;
 }
@@ -530,6 +536,8 @@ Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	if(this->platform == PLATFORM_D3D8 || 
 	   this->platform == PLATFORM_D3D9)
 		d3d::makeNativeRaster(this);
+	if(this->platform == PLATFORM_XBOX)
+		xbox::makeNativeRaster(this);
 	this->constructPlugins();
 }
 
@@ -543,18 +551,23 @@ Raster::~Raster(void)
 uint8*
 Raster::lock(int32 level)
 {
-	if(this->platform == PLATFORM_D3D8 || 
+	if(this->platform == PLATFORM_D3D8 ||
 	   this->platform == PLATFORM_D3D9)
 		return d3d::lockRaster(this, level);
+	if(this->platform == PLATFORM_XBOX)
+		return xbox::lockRaster(this, level);
 	assert(0 && "unsupported raster platform");
+	return NULL;
 }
 
 void
 Raster::unlock(int32 level)
 {
-	if(this->platform == PLATFORM_D3D8 || 
+	if(this->platform == PLATFORM_D3D8 ||
 	   this->platform == PLATFORM_D3D9)
 		d3d::unlockRaster(this, level);
+	else if(this->platform == PLATFORM_XBOX)
+		xbox::unlockRaster(this, level);
 	else
 		assert(0 && "unsupported raster platform");
 }
@@ -562,11 +575,23 @@ Raster::unlock(int32 level)
 int32
 Raster::getNumLevels(void)
 {
-	if(this->platform == PLATFORM_D3D8 || 
+	if(this->platform == PLATFORM_D3D8 ||
 	   this->platform == PLATFORM_D3D9)
 		return d3d::getNumLevels(this);
+	if(this->platform == PLATFORM_XBOX)
+		return xbox::getNumLevels(this);
 	assert(0 && "unsupported raster platform");
 	return 1;
+}
+
+int32
+Raster::calculateNumLevels(int32 width, int32 height)
+{
+	int32 size = width >= height ? width : height;
+	int32 n;
+	for(n = 0; size != 0; n++)
+		size /= 2;
+	return n;
 }
 
 // BAD BAD BAD BAD

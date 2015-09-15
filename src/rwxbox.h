@@ -66,5 +66,30 @@ uint32 getVertexFmtStride(uint32 fmt);
 
 void registerVertexFormatPlugin(void);
 
+// Native Texture and Raster
+
+void makeNativeRaster(Raster *raster);
+uint8 *lockRaster(Raster *raster, int32 level);
+void unlockRaster(Raster *raster, int32 level);
+int32 getNumLevels(Raster *raster);
+int32 getLevelSize(Raster *raster, int32 level);
+
+Texture *readNativeTexture(Stream *stream);
+void writeNativeTexture(Texture *tex, Stream *stream);
+uint32 getSizeNativeTexture(Texture *tex);
+
+struct XboxRaster
+{
+	void *texture;
+	void *palette;
+	uint32 format;
+	bool32 hasAlpha;
+	bool32 unknownFlag;
+//	int32 compression;
+};
+
+extern int32 nativeRasterOffset;
+void registerNativeRaster(void);
+
 }
 }

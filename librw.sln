@@ -21,6 +21,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "insttest", "tools\insttest\
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "d3d9", "tools\d3d9\d3d9.vcxproj", "{E5D477C8-4CAF-43BF-B7E3-6689503D469F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{30552BB0-3B19-49A4-ABF4-87CF68AF9E38} = {30552BB0-3B19-49A4-ABF4-87CF68AF9E38}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "txdwrite", "tools\txdwrite\txdwrite.vcxproj", "{403C35A9-6D06-4261-B305-9ED000F00136}"
+	ProjectSection(ProjectDependencies) = postProject
+		{30552BB0-3B19-49A4-ABF4-87CF68AF9E38} = {30552BB0-3B19-49A4-ABF4-87CF68AF9E38}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,6 +61,11 @@ Global
 		{E5D477C8-4CAF-43BF-B7E3-6689503D469F}.Debug|Win32.Build.0 = Debug|Win32
 		{E5D477C8-4CAF-43BF-B7E3-6689503D469F}.Release|Win32.ActiveCfg = Release|Win32
 		{E5D477C8-4CAF-43BF-B7E3-6689503D469F}.Release|Win32.Build.0 = Release|Win32
+		{403C35A9-6D06-4261-B305-9ED000F00136}.Debug - null|Win32.ActiveCfg = Debug - null|Win32
+		{403C35A9-6D06-4261-B305-9ED000F00136}.Debug - null|Win32.Build.0 = Debug - null|Win32
+		{403C35A9-6D06-4261-B305-9ED000F00136}.Debug|Win32.ActiveCfg = Debug|Win32
+		{403C35A9-6D06-4261-B305-9ED000F00136}.Release|Win32.ActiveCfg = Release|Win32
+		{403C35A9-6D06-4261-B305-9ED000F00136}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

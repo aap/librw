@@ -419,7 +419,7 @@ readNativeTexture(Stream *stream)
 		ras->format = dxtMap[compression-1];
 		ras->hasAlpha = hasAlpha;
 		ras->texture = createTexture(raster->width, raster->width,
-	                                     raster->format & Raster::MIPMAP ? 0 : 1,
+	                                     raster->format & Raster::MIPMAP ? numLevels : 1,
 	                                     ras->format);
 		raster->flags &= ~0x80;
 	}else
@@ -432,7 +432,7 @@ readNativeTexture(Stream *stream)
 
 	uint32 size;
 	uint8 *data;
-	for(uint32 i = 0; i < numLevels; i++){
+	for(int32 i = 0; i < numLevels; i++){
 		size = stream->readU32();
 		if(i < raster->getNumLevels()){
 			data = raster->lock(i);
@@ -493,7 +493,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	uint32 size;
 	uint8 *data;
-	for(uint32 i = 0; i < numLevels; i++){
+	for(int32 i = 0; i < numLevels; i++){
 		size = getLevelSize(raster, i);
 		stream->writeU32(size);
 		data = raster->lock(i);

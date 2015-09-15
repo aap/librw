@@ -95,6 +95,17 @@ struct Image
 Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
 
+// used to emulate d3d and xbox textures
+struct RasterLevels
+{
+	int32 numlevels;
+	uint32 format;
+	struct Level {
+		int32 width, height, size;
+		uint8 *data;
+	} levels[1];	// 0 is illegal :/
+};
+
 struct Raster : PluginBase<Raster>
 {
 	int32 platform;
@@ -114,6 +125,7 @@ struct Raster : PluginBase<Raster>
 	uint8 *lock(int32 level);
 	void unlock(int32 level);
 	int32 getNumLevels(void);
+	static int32 calculateNumLevels(int32 width, int32 height);
 
 	enum Format {
 		DEFAULT    = 0,

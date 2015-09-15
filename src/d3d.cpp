@@ -18,7 +18,165 @@ namespace d3d {
 
 #ifdef RW_D3D9
 IDirect3DDevice9 *device = NULL;
+#else
+#define MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
+            ((uint32)(uint8)(ch0) | ((uint32)(uint8)(ch1) << 8) |       \
+            ((uint32)(uint8)(ch2) << 16) | ((uint32)(uint8)(ch3) << 24 ))
+enum {
+	D3DFMT_UNKNOWN              =  0,
+
+	D3DFMT_R8G8B8               = 20,
+	D3DFMT_A8R8G8B8             = 21,
+	D3DFMT_X8R8G8B8             = 22,
+	D3DFMT_R5G6B5               = 23,
+	D3DFMT_X1R5G5B5             = 24,
+	D3DFMT_A1R5G5B5             = 25,
+	D3DFMT_A4R4G4B4             = 26,
+	D3DFMT_R3G3B2               = 27,
+	D3DFMT_A8                   = 28,
+	D3DFMT_A8R3G3B2             = 29,
+	D3DFMT_X4R4G4B4             = 30,
+	D3DFMT_A2B10G10R10          = 31,
+	D3DFMT_A8B8G8R8             = 32,
+	D3DFMT_X8B8G8R8             = 33,
+	D3DFMT_G16R16               = 34,
+	D3DFMT_A2R10G10B10          = 35,
+	D3DFMT_A16B16G16R16         = 36,
+
+	D3DFMT_A8P8                 = 40,
+	D3DFMT_P8                   = 41,
+
+	D3DFMT_L8                   = 50,
+	D3DFMT_A8L8                 = 51,
+	D3DFMT_A4L4                 = 52,
+
+	D3DFMT_V8U8                 = 60,
+	D3DFMT_L6V5U5               = 61,
+	D3DFMT_X8L8V8U8             = 62,
+	D3DFMT_Q8W8V8U8             = 63,
+	D3DFMT_V16U16               = 64,
+	D3DFMT_A2W10V10U10          = 67,
+
+	D3DFMT_UYVY                 = MAKEFOURCC('U', 'Y', 'V', 'Y'),
+	D3DFMT_R8G8_B8G8            = MAKEFOURCC('R', 'G', 'B', 'G'),
+	D3DFMT_YUY2                 = MAKEFOURCC('Y', 'U', 'Y', '2'),
+	D3DFMT_G8R8_G8B8            = MAKEFOURCC('G', 'R', 'G', 'B'),
+	D3DFMT_DXT1                 = MAKEFOURCC('D', 'X', 'T', '1'),
+	D3DFMT_DXT2                 = MAKEFOURCC('D', 'X', 'T', '2'),
+	D3DFMT_DXT3                 = MAKEFOURCC('D', 'X', 'T', '3'),
+	D3DFMT_DXT4                 = MAKEFOURCC('D', 'X', 'T', '4'),
+	D3DFMT_DXT5                 = MAKEFOURCC('D', 'X', 'T', '5'),
+
+	D3DFMT_D16_LOCKABLE         = 70,
+	D3DFMT_D32                  = 71,
+	D3DFMT_D15S1                = 73,
+	D3DFMT_D24S8                = 75,
+	D3DFMT_D24X8                = 77,
+	D3DFMT_D24X4S4              = 79,
+	D3DFMT_D16                  = 80,
+
+	D3DFMT_D32F_LOCKABLE        = 82,
+	D3DFMT_D24FS8               = 83,
+
+	// d3d9ex only
+	/* Z-Stencil formats valid for CPU access */
+	D3DFMT_D32_LOCKABLE         = 84,
+	D3DFMT_S8_LOCKABLE          = 85,
+
+	D3DFMT_L16                  = 81,
+
+	D3DFMT_VERTEXDATA           =100,
+	D3DFMT_INDEX16              =101,
+	D3DFMT_INDEX32              =102,
+
+	D3DFMT_Q16W16V16U16         =110,
+
+	D3DFMT_MULTI2_ARGB8         = MAKEFOURCC('M','E','T','1'),
+
+	// Floating point surface formats
+
+	// s10e5 formats (16-bits per channel)
+	D3DFMT_R16F                 = 111,
+	D3DFMT_G16R16F              = 112,
+	D3DFMT_A16B16G16R16F        = 113,
+
+	// IEEE s23e8 formats (32-bits per channel)
+	D3DFMT_R32F                 = 114,
+	D3DFMT_G32R32F              = 115,
+	D3DFMT_A32B32G32R32F        = 116,
+
+	D3DFMT_CxV8U8               = 117,
+
+	// d3d9ex only
+	// Monochrome 1 bit per pixel format
+	D3DFMT_A1                   = 118,
+	// 2.8 biased fixed point
+	D3DFMT_A2B10G10R10_XR_BIAS  = 119,
+	// Binary format indicating that the data has no inherent type
+	D3DFMT_BINARYBUFFER         = 199,
+};
 #endif
+
+// stolen from d3d8to9
+static uint32
+calculateTextureSize(uint32 width, uint32 height, uint32 depth, uint32 format)
+{
+#define D3DFMT_W11V11U10 65
+	switch(format){
+	default:
+	case D3DFMT_UNKNOWN:
+		return 0;
+	case D3DFMT_R3G3B2:
+	case D3DFMT_A8:
+	case D3DFMT_P8:
+	case D3DFMT_L8:
+	case D3DFMT_A4L4:
+		return width * height * depth;
+	case D3DFMT_R5G6B5:
+	case D3DFMT_X1R5G5B5:
+	case D3DFMT_A1R5G5B5:
+	case D3DFMT_A4R4G4B4:
+	case D3DFMT_A8R3G3B2:
+	case D3DFMT_X4R4G4B4:
+	case D3DFMT_A8P8:
+	case D3DFMT_A8L8:
+	case D3DFMT_V8U8:
+	case D3DFMT_L6V5U5:
+	case D3DFMT_D16_LOCKABLE:
+	case D3DFMT_D15S1:
+	case D3DFMT_D16:
+	case D3DFMT_UYVY:
+	case D3DFMT_YUY2:
+		return width * 2 * height * depth;
+	case D3DFMT_R8G8B8:
+		return width * 3 * height * depth;
+	case D3DFMT_A8R8G8B8:
+	case D3DFMT_X8R8G8B8:
+	case D3DFMT_A2B10G10R10:
+	case D3DFMT_A8B8G8R8:
+	case D3DFMT_X8B8G8R8:
+	case D3DFMT_G16R16:
+	case D3DFMT_X8L8V8U8:
+	case D3DFMT_Q8W8V8U8:
+	case D3DFMT_V16U16:
+	case D3DFMT_W11V11U10:
+	case D3DFMT_A2W10V10U10:
+	case D3DFMT_D32:
+	case D3DFMT_D24S8:
+	case D3DFMT_D24X8:
+	case D3DFMT_D24X4S4:
+		return width * 4 * height * depth;
+	case D3DFMT_DXT1:
+		assert(depth <= 1);
+		return ((width + 3) >> 2) * ((height + 3) >> 2) * 8;
+	case D3DFMT_DXT2:
+	case D3DFMT_DXT3:
+	case D3DFMT_DXT4:
+	case D3DFMT_DXT5:
+		assert(depth <= 1);
+		return ((width + 3) >> 2) * ((height + 3) >> 2) * 16;
+	}
+}
 
 int vertFormatMap[] = {
 	-1, VERT_FLOAT2, VERT_FLOAT3, -1, VERT_ARGB
@@ -101,15 +259,43 @@ unlockVertices(void *vertexBuffer)
 }
 
 void*
-createTexture(int32 width, int32 height, int32 levels, uint32 format)
+createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 {
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex;
-	device->CreateTexture(width, height, levels, 0,
+	device->CreateTexture(width, height, numlevels, 0,
 	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, NULL);
 	return tex;
 #else
-	assert(0 && "only supported with RW_D3D9");
+	int32 w = width;
+	int32 h = height;
+	int32 size = 0;
+	for(int32 i = 0; i < numlevels; i++){
+		size += calculateTextureSize(w, h, 1, format);
+		w /= 2;
+		if(w == 0) w = 1;
+		h /= 2;
+		if(h == 0) h = 1;
+	}
+	uint8 *data = new uint8[sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1)+size];
+	RasterLevels *levels = (RasterLevels*)data;
+	data += sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1);
+	levels->numlevels = numlevels;
+	levels->format = format;
+	w = width;
+	h = height;
+	for(int32 i = 0; i < numlevels; i++){
+		levels->levels[i].width = w;
+		levels->levels[i].height = h;
+		levels->levels[i].data = data;
+		levels->levels[i].size = calculateTextureSize(w, h, 1, format);
+		data += levels->levels[i].size;
+		w /= 2;
+		if(w == 0) w = 1;
+		h /= 2;
+		if(h == 0) h = 1;
+	}
+	return levels;
 #endif
 }
 
@@ -122,7 +308,8 @@ lockTexture(void *texture, int32 level)
 	tex->LockRect(level, &lr, 0, 0);
 	return (uint8*)lr.pBits;
 #else
-	assert(0 && "only supported with RW_D3D9");
+	RasterLevels *levels = (RasterLevels*)texture;
+	return levels->levels[level].data;
 #endif
 }
 
@@ -185,8 +372,9 @@ makeNativeRaster(Raster *raster)
 	uint32 format = formatMap[(raster->format >> 8) & 0xF];
 	ras->format = 0;
 	ras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
+	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
 	ras->texture = createTexture(raster->width, raster->width,
-	                             raster->format & Raster::MIPMAP ? 0 : 1,
+	                             raster->format & Raster::MIPMAP ? levels : 1,
 	                             format);
 	assert((raster->flags & (Raster::PAL4 | Raster::PAL8)) == 0);
 }
@@ -213,69 +401,9 @@ getNumLevels(Raster *raster)
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)ras->texture;
 	return tex->GetLevelCount();
 #else
-	assert(0 && "only supported with RW_D3D9");
+	RasterLevels *levels = (RasterLevels*)ras->texture;
+	return levels->numlevels;
 #endif
-}
-
-// stolen from d3d8to9
-uint32
-calculateTextureSize(uint32 width, uint32 height, uint32 depth, uint32 format)
-{
-#define D3DFMT_W11V11U10 65
-	switch(format){
-	default:
-	case D3DFMT_UNKNOWN:
-		return 0;
-	case D3DFMT_R3G3B2:
-	case D3DFMT_A8:
-	case D3DFMT_P8:
-	case D3DFMT_L8:
-	case D3DFMT_A4L4:
-		return width * height * depth;
-	case D3DFMT_R5G6B5:
-	case D3DFMT_X1R5G5B5:
-	case D3DFMT_A1R5G5B5:
-	case D3DFMT_A4R4G4B4:
-	case D3DFMT_A8R3G3B2:
-	case D3DFMT_X4R4G4B4:
-	case D3DFMT_A8P8:
-	case D3DFMT_A8L8:
-	case D3DFMT_V8U8:
-	case D3DFMT_L6V5U5:
-	case D3DFMT_D16_LOCKABLE:
-	case D3DFMT_D15S1:
-	case D3DFMT_D16:
-	case D3DFMT_UYVY:
-	case D3DFMT_YUY2:
-		return width * 2 * height * depth;
-	case D3DFMT_R8G8B8:
-		return width * 3 * height * depth;
-	case D3DFMT_A8R8G8B8:
-	case D3DFMT_X8R8G8B8:
-	case D3DFMT_A2B10G10R10:
-	case D3DFMT_A8B8G8R8:
-	case D3DFMT_X8B8G8R8:
-	case D3DFMT_G16R16:
-	case D3DFMT_X8L8V8U8:
-	case D3DFMT_Q8W8V8U8:
-	case D3DFMT_V16U16:
-	case D3DFMT_W11V11U10:
-	case D3DFMT_A2W10V10U10:
-	case D3DFMT_D32:
-	case D3DFMT_D24S8:
-	case D3DFMT_D24X8:
-	case D3DFMT_D24X4S4:
-		return width * 4 * height * depth;
-	case D3DFMT_DXT1:
-		assert(depth <= 1);
-		return ((width + 3) >> 2) * ((height + 3) >> 2) * 8;
-	case D3DFMT_DXT2:
-	case D3DFMT_DXT3:
-	case D3DFMT_DXT4:
-	case D3DFMT_DXT5:
-		assert(depth <= 1);
-		return ((width + 3) >> 2) * ((height + 3) >> 2) * 16;
-	}
 }
 
 int32
@@ -288,9 +416,11 @@ getLevelSize(Raster *raster, int32 level)
 	tex->GetLevelDesc(level, &desc);
 	return calculateTextureSize(desc.Width, desc.Height, 1, desc.Format);
 #else
-	assert(0 && "only supported with RW_D3D9");
+	RasterLevels *levels = (RasterLevels*)ras->texture;
+	return levels->levels[level].size;
 #endif
 }
+
 
 static void*
 createNativeRaster(void *object, int32 offset, int32)
