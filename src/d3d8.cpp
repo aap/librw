@@ -424,11 +424,16 @@ readNativeTexture(Stream *stream)
 		raster->flags &= ~0x80;
 	}else
 		raster = new Raster(width, height, depth, format | type, PLATFORM_D3D8);
+
+	ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	tex->raster = raster;
 
 	// TODO: check if format supported and convert if necessary
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		assert(0 && "don't support palettes");
+
+	if(raster->format & Raster::PAL4)
+		stream->read(ras->palette, 4*32);
+	else if(raster->format & Raster::PAL8)
+		stream->read(ras->palette, 4*256);
 
 	uint32 size;
 	uint8 *data;
@@ -491,6 +496,11 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		}
 	stream->writeU8(compression);
 
+	if(raster->format & Raster::PAL4)
+		stream->write(ras->palette, 4*32);
+	else if(raster->format & Raster::PAL8)
+		stream->write(ras->palette, 4*256);
+
 	uint32 size;
 	uint8 *data;
 	for(int32 i = 0; i < numLevels; i++){
@@ -508,6 +518,10 @@ getSizeNativeTexture(Texture *tex)
 {
 	uint32 size = 12 + 72 + 16;
 	int32 levels = tex->raster->getNumLevels();
+	if(tex->raster->format & Raster::PAL4)
+		size += 4*32;
+	else if(tex->raster->format & Raster::PAL8)
+		size += 4*256;
 	for(int32 i = 0; i < levels; i++)
 		size += 4 + getLevelSize(tex->raster, i);
 	size += 12 + tex->streamGetPluginSize();

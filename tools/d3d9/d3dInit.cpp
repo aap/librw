@@ -188,7 +188,7 @@ initrw(void)
 	rw::platform = rw::PLATFORM_D3D8;
 	rw::d3d::device = Device;
 
-	if(0){
+	if(1){
 		char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.txd";
 		rw::StreamFile in;
 		if(in.open(filename, "rb") == NULL){
@@ -209,6 +209,7 @@ initrw(void)
 	}
 
 	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gta3\\models\\gta3_archive\\kuruma.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";

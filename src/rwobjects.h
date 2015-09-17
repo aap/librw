@@ -429,7 +429,7 @@ private:
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 
-struct TexDictionary : PluginBase<Texture>
+struct TexDictionary : PluginBase<TexDictionary>
 {
 	Texture *first;
 

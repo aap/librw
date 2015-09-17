@@ -208,10 +208,19 @@ Texture::streamGetSize(void)
 Texture*
 Texture::streamReadNative(Stream *stream)
 {
-	if(rw::platform == PLATFORM_D3D8)
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	uint32 platform = stream->readU32();
+	stream->seek(-16);
+	if(platform == PLATFORM_D3D8)
 		return d3d8::readNativeTexture(stream);
-	if(rw::platform == PLATFORM_XBOX)
+	if(platform == PLATFORM_XBOX)
 		return xbox::readNativeTexture(stream);
+
+//	if(rw::platform == PLATFORM_D3D8)
+//		return d3d8::readNativeTexture(stream);
+//	if(rw::platform == PLATFORM_XBOX)
+//		return xbox::readNativeTexture(stream);
+
 	assert(0 && "unsupported platform");
 	return NULL;
 }
@@ -533,12 +542,12 @@ Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	this->height = height;
 	this->depth = depth;
 	this->texels = this->palette = NULL;
+	this->constructPlugins();
 	if(this->platform == PLATFORM_D3D8 || 
 	   this->platform == PLATFORM_D3D9)
 		d3d::makeNativeRaster(this);
 	if(this->platform == PLATFORM_XBOX)
 		xbox::makeNativeRaster(this);
-	this->constructPlugins();
 }
 
 Raster::~Raster(void)

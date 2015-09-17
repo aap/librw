@@ -369,14 +369,18 @@ makeNativeRaster(Raster *raster)
 	D3dRaster *ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	if(raster->flags & 0x80)
 		return;
-	uint32 format = formatMap[(raster->format >> 8) & 0xF];
+	uint32 format;
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		format = D3DFMT_P8;
+		ras->palette = new uint8[4*256];
+	}else
+		format = formatMap[(raster->format >> 8) & 0xF];
 	ras->format = 0;
 	ras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
 	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
 	ras->texture = createTexture(raster->width, raster->width,
 	                             raster->format & Raster::MIPMAP ? levels : 1,
 	                             format);
-	assert((raster->flags & (Raster::PAL4 | Raster::PAL8)) == 0);
 }
 
 uint8*

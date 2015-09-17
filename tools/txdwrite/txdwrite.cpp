@@ -14,18 +14,19 @@ int
 main(int argc, char *argv[])
 {
 	gta::attachPlugins();
+	rw::ps2::registerNativeRaster();
 	rw::xbox::registerNativeRaster();
 	rw::d3d::registerNativeRaster();
 
 //	rw::version = 0x33002;
 //	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
-	rw::platform = rw::PLATFORM_XBOX;
+//	rw::platform = rw::PLATFORM_XBOX;
 //	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
 
 	if(argc < 2){
-		printf("usage: %s in.txd\n", argv[0]);
+		printf("usage (%d): %s in.txd\n", rw::platform, argv[0]);
 		return 0;
 	}
 

@@ -873,14 +873,18 @@ makeNativeRaster(Raster *raster)
 	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	if(raster->flags & 0x80)
 		return;
-	uint32 format = formatMap[(raster->format >> 8) & 0xF];
+	uint32 format;
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		format = D3DFMT_P8;
+		ras->palette = new uint8[4*256];
+	}else
+		format = formatMap[(raster->format >> 8) & 0xF];
 	ras->format = 0;
 	ras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
 	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
 	ras->texture = createTexture(raster->width, raster->width,
 	                             raster->format & Raster::MIPMAP ? levels : 1,
 	                             format);
-	assert((raster->flags & (Raster::PAL4 | Raster::PAL8)) == 0);
 }
 
 uint8*
@@ -951,10 +955,13 @@ readNativeTexture(Stream *stream)
 		raster->flags &= ~0x80;
 	}else
 		raster = new Raster(width, height, depth, format | type, PLATFORM_XBOX);
+	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	tex->raster = raster;
 
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		assert(0 && "don't support palettes");
+	if(raster->format & Raster::PAL4)
+		stream->read(ras->palette, 4*32);
+	else if(raster->format & Raster::PAL8)
+		stream->read(ras->palette, 4*256);
 
 	// exploit the fact that mipmaps are allocated consecutively
 	uint8 *data = raster->lock(0);
@@ -999,6 +1006,11 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	totalSize = (totalSize+3)&~3;
 	stream->writeI32(totalSize);
 
+	if(raster->format & Raster::PAL4)
+		stream->write(ras->palette, 4*32);
+	else if(raster->format & Raster::PAL8)
+		stream->write(ras->palette, 4*256);
+
 	// exploit the fact that mipmaps are allocated consecutively
 	uint8 *data = raster->lock(0);
 	stream->write(data, totalSize);
@@ -1015,6 +1027,10 @@ getSizeNativeTexture(Texture *tex)
 	for(int32 i = 0; i < levels; i++)
 		size += getLevelSize(tex->raster, i);
 	size = (size+3)&~3;
+	if(tex->raster->format & Raster::PAL4)
+		size += 4*32;
+	else if(tex->raster->format & Raster::PAL8)
+		size += 4*256;
 	size += 12 + tex->streamGetPluginSize();
 	return size;
 }
