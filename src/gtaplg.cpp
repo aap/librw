@@ -10,6 +10,7 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
+#include "rwd3d.h"
 #include "rwxbox.h"
 #include "gtaplg.h"
 
@@ -21,7 +22,11 @@ void
 attachPlugins(void)
 {
 	rw::ps2::registerPDSPlugin();
+
 	rw::ps2::registerNativeRaster();
+	rw::xbox::registerNativeRaster();
+	rw::d3d::registerNativeRaster();
+
 	rw::registerMeshPlugin();
 	rw::registerNativeDataPlugin();
 	rw::registerAtomicRightsPlugin();
@@ -36,7 +41,7 @@ attachPlugins(void)
 	gta::registerExtraNormalsPlugin();
 	gta::registerExtraVertColorPlugin();
 	gta::registerEnvSpecPlugin();
-	gta::registerBreakableModelPlugin();
+//	gta::registerBreakableModelPlugin();
 	gta::registerCollisionPlugin();
 	gta::register2dEffectPlugin();
 	gta::registerPipelinePlugin();

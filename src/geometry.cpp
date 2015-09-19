@@ -304,6 +304,11 @@ Geometry::generateTriangles(void)
 	this->numTriangles = 0;
 	Mesh *m = header->mesh;
 	for(uint32 i = 0; i < header->numMeshes; i++){
+		if(m->numIndices < 3){
+			// shouldn't happen but it does
+			m++;
+			continue;
+		}
 		if(header->flags == 1){	// tristrip
 			for(uint32 j = 0; j < m->numIndices-2; j++){
 				if(!isDegenerate(&m->indices[j]))
@@ -320,6 +325,10 @@ Geometry::generateTriangles(void)
 	uint16 *f = this->triangles;
 	m = header->mesh;
 	for(uint32 i = 0; i < header->numMeshes; i++){
+		if(m->numIndices < 3){
+			m++;
+			continue;
+		}
 		int32 matid = findPointer((void*)m->material,
 		                          (void**)this->materialList,
 		                          this->numMaterials);

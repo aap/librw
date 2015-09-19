@@ -116,7 +116,12 @@ void registerADCPlugin(void);
 
 void registerPDSPlugin(void);
 
-// Raster
+// Native Texture and Raster
+
+struct Ps2Raster : NativeRaster
+{
+	int32 mipmap;
+};
 
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);

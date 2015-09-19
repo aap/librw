@@ -105,10 +105,8 @@ enum Platform
 	// SOFTRAS
 	PLATFORM_D3D8 = 8,
 	PLATFORM_D3D9 = 9,
-	NUM_PLATFORMS = 6
+	NUM_PLATFORMS
 };
-
-extern int platformIdx[10];
 
 enum PluginID
 {

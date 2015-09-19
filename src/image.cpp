@@ -532,6 +532,8 @@ writeTGA(Image *image, const char *filename)
 // Raster
 //
 
+int32 Raster::nativeOffsets[NUM_PLATFORMS];
+
 Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
 	this->platform = platform ? platform : rw::platform;
@@ -543,11 +545,11 @@ Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	this->depth = depth;
 	this->texels = this->palette = NULL;
 	this->constructPlugins();
-	if(this->platform == PLATFORM_D3D8 || 
-	   this->platform == PLATFORM_D3D9)
-		d3d::makeNativeRaster(this);
-	if(this->platform == PLATFORM_XBOX)
-		xbox::makeNativeRaster(this);
+
+	int32 offset = nativeOffsets[this->platform];
+	assert(offset != 0 && "unimplemented raster platform");
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
+	nr->create(this);
 }
 
 Raster::~Raster(void)
@@ -560,37 +562,28 @@ Raster::~Raster(void)
 uint8*
 Raster::lock(int32 level)
 {
-	if(this->platform == PLATFORM_D3D8 ||
-	   this->platform == PLATFORM_D3D9)
-		return d3d::lockRaster(this, level);
-	if(this->platform == PLATFORM_XBOX)
-		return xbox::lockRaster(this, level);
-	assert(0 && "unsupported raster platform");
-	return NULL;
+	int32 offset = nativeOffsets[this->platform];
+	assert(offset != 0 && "unimplemented raster platform");
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
+	return nr->lock(this, level);
 }
 
 void
 Raster::unlock(int32 level)
 {
-	if(this->platform == PLATFORM_D3D8 ||
-	   this->platform == PLATFORM_D3D9)
-		d3d::unlockRaster(this, level);
-	else if(this->platform == PLATFORM_XBOX)
-		xbox::unlockRaster(this, level);
-	else
-		assert(0 && "unsupported raster platform");
+	int32 offset = nativeOffsets[this->platform];
+	assert(offset != 0 && "unimplemented raster platform");
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
+	nr->unlock(this, level);
 }
 
 int32
 Raster::getNumLevels(void)
 {
-	if(this->platform == PLATFORM_D3D8 ||
-	   this->platform == PLATFORM_D3D9)
-		return d3d::getNumLevels(this);
-	if(this->platform == PLATFORM_XBOX)
-		return xbox::getNumLevels(this);
-	assert(0 && "unsupported raster platform");
-	return 1;
+	int32 offset = nativeOffsets[this->platform];
+	assert(offset != 0 && "unimplemented raster platform");
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
+	return nr->getNumLevels(this);
 }
 
 int32

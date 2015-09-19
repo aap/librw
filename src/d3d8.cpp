@@ -385,13 +385,6 @@ makeMatFXPipeline(void)
 Texture*
 readNativeTexture(Stream *stream)
 {
-	static uint32 dxtMap[] = {
-		0x31545844,	// DXT1
-		0x32545844,	// DXT2
-		0x33545844,	// DXT3
-		0x34545844,	// DXT4
-		0x35545844,	// DXT5
-	};
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	assert(stream->readU32() == PLATFORM_D3D8);
 	Texture *tex = new Texture;
@@ -415,13 +408,7 @@ readNativeTexture(Stream *stream)
 	D3dRaster *ras;
 	if(compression){
 		raster = new Raster(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
-		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-		ras->format = dxtMap[compression-1];
-		ras->hasAlpha = hasAlpha;
-		ras->texture = createTexture(raster->width, raster->width,
-	                                     raster->format & Raster::MIPMAP ? numLevels : 1,
-	                                     ras->format);
-		raster->flags &= ~0x80;
+		allocateDXT(raster, compression, numLevels, hasAlpha);
 	}else
 		raster = new Raster(width, height, depth, format | type, PLATFORM_D3D8);
 

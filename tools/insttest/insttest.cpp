@@ -15,10 +15,10 @@ main(int argc, char *argv[])
 {
 	gta::attachPlugins();
 
-//	rw::version = 0x33002;
-	rw::platform = rw::PLATFORM_PS2;
+	rw::version = 0x34003;
+//	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
-//	rw::platform = rw::PLATFORM_XBOX;
+	rw::platform = rw::PLATFORM_XBOX;
 //	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
 
@@ -32,7 +32,7 @@ main(int argc, char *argv[])
 
 	if(strcmp(argv[arg], "-u") == 0){
 		uninstance++;
-		arg++; 
+		arg++;
 		if(argc < 3){
 			printf("usage: %s [-u] in.dff\n", argv[0]);
 			return 0;
@@ -82,6 +82,9 @@ main(int argc, char *argv[])
 			p->instance(a);
 	}
 
+	if(uninstance)
+		rw::platform = rw::PLATFORM_D3D8;
+
 	data = new rw::uint8[1024*1024];
 	rw::StreamMemory out;
 	out.open(data, 0, 1024*1024);
@@ -89,7 +92,11 @@ main(int argc, char *argv[])
 		currentUVAnimDictionary->streamWrite(&out);
 	c->streamWrite(&out);
 
-	FILE *cf = fopen("out.dff", "wb");
+	FILE *cf;
+	if(arg+1 < argc)
+		cf = fopen(argv[arg+1], "wb");
+	else
+		cf = fopen("out.dff", "wb");
 	assert(cf != NULL);
 	fwrite(data, out.getLength(), 1, cf);
 	fclose(cf);

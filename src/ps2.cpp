@@ -1114,15 +1114,11 @@ sizedebug(InstanceData *inst)
 
 int32 nativeRasterOffset;
 
-struct Ps2Raster
-{
-	int32 mipmap;
-};
-
 static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
+	new (raster) Ps2Raster;
 	raster->mipmap = 0xFC0;
 	return object;
 }
@@ -1176,6 +1172,7 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
+	Raster::nativeOffsets[PLATFORM_PS2] = nativeRasterOffset;
 	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
 }

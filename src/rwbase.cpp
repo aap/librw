@@ -12,8 +12,6 @@ using namespace std;
 
 namespace rw {
 
-int platformIdx[10] = { 0, -1, 1, -1, 2, 3, -1, -1, 4, 5 };
-
 int version = 0x36003;
 int build = 0xFFFF;
 #ifdef RW_PS2

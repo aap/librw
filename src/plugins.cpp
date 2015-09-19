@@ -303,6 +303,7 @@ MeshHeader::allocateIndices(void)
 	for(uint32 i = 0; i < this->numMeshes; i++){
 		mesh->indices = p;
 		p += mesh->numIndices;
+		mesh++;
 	}
 }
 
@@ -597,7 +598,7 @@ getSizeSkin(void *object, int32 offset, int32)
 static void
 skinRights(void *object, int32, int32, uint32)
 {
-	((Atomic*)object)->pipeline = skinGlobals.pipelines[platformIdx[rw::platform]];
+	((Atomic*)object)->pipeline = skinGlobals.pipelines[rw::platform];
 }
 
 void
@@ -608,15 +609,15 @@ registerSkinPlugin(void)
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
-	skinGlobals.pipelines[platformIdx[PLATFORM_PS2]] =
+	skinGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeSkinPipeline();
-	skinGlobals.pipelines[platformIdx[PLATFORM_OGL]] =
+	skinGlobals.pipelines[PLATFORM_OGL] =
 		gl::makeSkinPipeline();
-	skinGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
+	skinGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeSkinPipeline();
-	skinGlobals.pipelines[platformIdx[PLATFORM_D3D8]] =
+	skinGlobals.pipelines[PLATFORM_D3D8] =
 		d3d8::makeSkinPipeline();
-	skinGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
+	skinGlobals.pipelines[PLATFORM_D3D9] =
 		d3d9::makeSkinPipeline();
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
@@ -733,7 +734,7 @@ readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(int32, object, offset) = flag;
 	if(flag)
 		((Atomic*)object)->pipeline =
-			matFXGlobals.pipelines[platformIdx[rw::platform]];
+			matFXGlobals.pipelines[rw::platform];
 }
 
 static void
@@ -1022,15 +1023,15 @@ registerMatFXPlugin(void)
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		matFXGlobals.pipelines[i] = defpipe;
-	matFXGlobals.pipelines[platformIdx[PLATFORM_PS2]] =
+	matFXGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeMatFXPipeline();
-	matFXGlobals.pipelines[platformIdx[PLATFORM_OGL]] =
+	matFXGlobals.pipelines[PLATFORM_OGL] =
 		gl::makeMatFXPipeline();
-	matFXGlobals.pipelines[platformIdx[PLATFORM_XBOX]] =
+	matFXGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeMatFXPipeline();
-	matFXGlobals.pipelines[platformIdx[PLATFORM_D3D8]] =
+	matFXGlobals.pipelines[PLATFORM_D3D8] =
 		d3d8::makeMatFXPipeline();
-	matFXGlobals.pipelines[platformIdx[PLATFORM_D3D9]] =
+	matFXGlobals.pipelines[PLATFORM_D3D9] =
 		d3d9::makeMatFXPipeline();
 
 	matFXGlobals.atomicOffset =

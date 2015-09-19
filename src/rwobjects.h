@@ -118,6 +118,8 @@ struct Raster : PluginBase<Raster>
 	uint8 *texels;
 	uint8 *palette;
 
+	static int32 nativeOffsets[NUM_PLATFORMS];
+
 	Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
 	~Raster(void);
 
@@ -144,6 +146,14 @@ struct Raster : PluginBase<Raster>
 		PAL4       = 0x4000,
 		MIPMAP     = 0x8000
 	};
+};
+
+struct NativeRaster
+{
+	virtual void create(Raster *raster) { assert (0 && "unimplemented"); };
+	virtual uint8 *lock(Raster *raster, int32 level) { assert (0 && "unimplemented"); return NULL; };
+	virtual void unlock(Raster *raster, int32 level) { assert (0 && "unimplemented"); };
+	virtual int32 getNumLevels(Raster *raster) { assert (0 && "unimplemented"); return 0; };
 };
 
 // TODO: link into texdict

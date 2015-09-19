@@ -70,21 +70,25 @@ uint8 *lockTexture(void *texture, int32 level);
 void unlockTexture(void *texture, int32 level);
 void deleteObject(void *object);
 
-// Native Raster
+// Native Texture and Raster
 
-void makeNativeRaster(Raster *raster);
-uint8 *lockRaster(Raster *raster, int32 level);
-void unlockRaster(Raster *raster, int32 level);
-int32 getNumLevels(Raster *raster);
-int32 getLevelSize(Raster *raster, int32 level);
-
-struct D3dRaster
+struct D3dRaster : NativeRaster
 {
 	void *texture;
 	void *palette;
 	uint32 format;
 	bool32 hasAlpha;
+
+	virtual void create(Raster *raster);
+	virtual uint8 *lock(Raster *raster, int32 level);
+	virtual void unlock(Raster *raster, int32 level);
+	virtual int32 getNumLevels(Raster *raster);
 };
+
+int32 getLevelSize(Raster *raster, int32 level);
+void allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha);
+void setPalette(Raster *raster, void *palette, int32 size);
+void setTexels(Raster *raster, void *texels, int32 level);
 
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);

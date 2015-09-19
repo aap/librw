@@ -524,7 +524,7 @@ Atomic::getPipeline(void)
 {
 	return this->pipeline ?
 		this->pipeline :
-		defaultPipelines[platformIdx[platform]];
+		defaultPipelines[platform];
 }
 
 void
@@ -533,15 +533,15 @@ Atomic::init(void)
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		defaultPipelines[i] = defpipe;
-	defaultPipelines[platformIdx[PLATFORM_PS2]] =
+	defaultPipelines[PLATFORM_PS2] =
 		ps2::makeDefaultPipeline();
-	defaultPipelines[platformIdx[PLATFORM_OGL]] =
+	defaultPipelines[PLATFORM_OGL] =
 		gl::makeDefaultPipeline();
-	defaultPipelines[platformIdx[PLATFORM_XBOX]] =
+	defaultPipelines[PLATFORM_XBOX] =
 		xbox::makeDefaultPipeline();
-	defaultPipelines[platformIdx[PLATFORM_D3D8]] =
+	defaultPipelines[PLATFORM_D3D8] =
 		d3d8::makeDefaultPipeline();
-	defaultPipelines[platformIdx[PLATFORM_D3D9]] =
+	defaultPipelines[PLATFORM_D3D9] =
 		d3d9::makeDefaultPipeline();
 }
 
