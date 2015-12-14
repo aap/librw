@@ -344,7 +344,8 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 }
 
 MatPipeline::MatPipeline(uint32 platform)
- : rw::Pipeline(platform), instanceCB(NULL)
+ : rw::Pipeline(platform), instanceCB(NULL), uninstanceCB(NULL),
+   allocateCB(NULL), finishCB(NULL)
 {
 	for(int i = 0; i < 10; i++)
 		this->attribs[i] = NULL;
@@ -386,57 +387,77 @@ brokenout:
 
 uint32 markcnt = 0xf790;
 
+struct InstMeshInfo
+{
+	uint32 numAttribs, numBrokenAttribs;
+	uint32 batchVertCount, lastBatchVertCount;
+	uint32 numBatches;
+	uint32 batchSize, lastBatchSize;
+	uint32 size, size2, stride;
+	uint32 attribPos[10];
+};
+
+InstMeshInfo
+getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
+{
+	PipeAttribute *a;
+	InstMeshInfo im;
+	im.numAttribs = 0;
+	im.numBrokenAttribs = 0;
+	im.stride = 0;
+	for(uint i = 0; i < nelem(pipe->attribs); i++)
+		if(a = pipe->attribs[i])
+			if(a->attrib & AT_RW)
+				im.numBrokenAttribs++;
+			else{
+				im.stride += attribSize(a->attrib);
+				im.numAttribs++;
+			}
+	uint32 totalVerts = 0;
+	if(g->meshHeader->flags == 1){	// tristrip
+		im.numBatches = 0;
+		for(uint i = 0; i < m->numIndices; i += pipe->triStripCount-2){
+			im.numBatches++;
+			totalVerts += m->numIndices-i < pipe->triStripCount ?
+			              m->numIndices-i : pipe->triStripCount;
+		}
+		im.batchVertCount = pipe->triStripCount;
+		im.lastBatchVertCount = totalVerts % pipe->triStripCount;
+	}else{				// trilist
+		im.numBatches = (m->numIndices+pipe->triListCount-1) /
+		                 pipe->triListCount;
+		im.batchVertCount = pipe->triListCount;
+		im.lastBatchVertCount = m->numIndices % pipe->triListCount;
+	}
+
+	im.batchSize = getBatchSize(pipe, im.batchVertCount);
+	im.lastBatchSize = getBatchSize(pipe, im.lastBatchVertCount);
+	im.size = 0;
+	if(im.numBrokenAttribs == 0)
+		im.size = 1 + im.batchSize*(im.numBatches-1) + im.lastBatchSize;
+	else
+		im.size = 2*im.numBatches +
+		          (1+im.batchSize)*(im.numBatches-1) + 1+im.lastBatchSize;
+
+	/* figure out size and addresses of broken out sections */
+	im.size2 = 0;
+	for(uint i = 0; i < nelem(im.attribPos); i++)
+		if((a = pipe->attribs[i]) && a->attrib & AT_RW){
+			im.attribPos[i] = im.size2 + im.size;
+			im.size2 += QWC(m->numIndices*attribSize(a->attrib));
+		}
+
+	return im;
+}
+
 void
 MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 {
 	PipeAttribute *a;
-	uint32 numAttribs = 0;
-	uint32 numBrokenAttribs = 0;
-	for(uint i = 0; i < nelem(this->attribs); i++)
-		if(a = this->attribs[i])
-			if(a->attrib & AT_RW)
-				numBrokenAttribs++;
-			else
-				numAttribs++;
-	uint32 numBatches = 0;
-	uint32 totalVerts = 0;
-	uint32 batchVertCount, lastBatchVertCount;
-	if(g->meshHeader->flags == 1){	// tristrip
-		for(uint i = 0; i < m->numIndices; i += this->triStripCount-2){
-			numBatches++;
-			totalVerts += m->numIndices-i < this->triStripCount ?
-				m->numIndices-i : this->triStripCount;
-		}
-		batchVertCount = this->triStripCount;
-		lastBatchVertCount = totalVerts%this->triStripCount;
-	}else{				// trilist
-		numBatches = (m->numIndices+this->triListCount-1) /
-			this->triListCount;
-		totalVerts = m->numIndices;
-		batchVertCount = this->triListCount;
-		lastBatchVertCount = totalVerts%this->triListCount;
-	}
+	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
-	uint32 batchSize = getBatchSize(this, batchVertCount);
-	uint32 lastBatchSize = getBatchSize(this, lastBatchVertCount);
-	uint32 size = 0;
-	if(numBrokenAttribs == 0)
-		size = 1 + batchSize*(numBatches-1) + lastBatchSize;
-	else
-		size = 2*numBatches +
-		       (1+batchSize)*(numBatches-1) + 1+lastBatchSize;
-
-	/* figure out size and addresses of broken out sections */
-	uint32 attribPos[nelem(this->attribs)];
-	uint32 size2 = 0;
-	for(uint i = 0; i < nelem(this->attribs); i++)
-		if((a = this->attribs[i]) && a->attrib & AT_RW){
-			attribPos[i] = size2 + size;
-			size2 += QWC(m->numIndices*attribSize(a->attrib));
-		}
-
-	inst->dataSize = (size+size2)<<4;
-	inst->arePointersFixed = numBrokenAttribs == 0;
+	inst->dataSize = (im.size+im.size2)<<4;
+	inst->arePointersFixed = im.numBrokenAttribs == 0;
 	// TODO: force alignment
 	inst->data = new uint8[inst->dataSize];
 
@@ -445,30 +466,30 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 	uint8 **dp = datap;
 	for(uint i = 0; i < nelem(this->attribs); i++)
 		if((a = this->attribs[i]) && a->attrib & AT_RW)
-			*dp++ = inst->data + attribPos[i]*0x10;
+			*dp++ = inst->data + im.attribPos[i]*0x10;
 
 	uint32 idx = 0;
 	uint32 *p = (uint32*)inst->data;
-	if(numBrokenAttribs == 0){
-		*p++ = 0x60000000 | size-1;
+	if(im.numBrokenAttribs == 0){
+		*p++ = 0x60000000 | im.size-1;
 		*p++ = 0;
 		*p++ = 0x11000000;	// FLUSH
 		*p++ = 0x06000000;	// MSKPATH3; SA: FLUSH
 	}
-	for(uint32 j = 0; j < numBatches; j++){
+	for(uint32 j = 0; j < im.numBatches; j++){
 		uint32 nverts, bsize;
-		if(j < numBatches-1){
-			bsize = batchSize;
-			nverts = batchVertCount;
+		if(j < im.numBatches-1){
+			bsize = im.batchSize;
+			nverts = im.batchVertCount;
 		}else{
-			bsize = lastBatchSize;
-			nverts = lastBatchVertCount;
+			bsize = im.lastBatchSize;
+			nverts = im.lastBatchVertCount;
 		}
 		for(uint i = 0; i < nelem(this->attribs); i++)
 			if((a = this->attribs[i]) && a->attrib & AT_RW){
 				uint32 atsz = attribSize(a->attrib);
 				*p++ = 0x30000000 | QWC(nverts*atsz);
-				*p++ = attribPos[i];
+				*p++ = im.attribPos[i];
 				*p++ = 0x01000100 |
 					this->inputStride;	// STCYCL
 				*p++ = (a->attrib&0xFF004000)
@@ -479,12 +500,12 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				*p++ = 0x0;
 				*p++ = 0x0;
 
-				attribPos[i] += g->meshHeader->flags == 1 ?
-					QWC((batchVertCount-2)*atsz) :
-					QWC(batchVertCount*atsz);
+				im.attribPos[i] += g->meshHeader->flags == 1 ?
+					QWC((im.batchVertCount-2)*atsz) :
+					QWC(im.batchVertCount*atsz);
 			}
-		if(numBrokenAttribs){
-			*p++ = (j < numBatches-1 ? 0x10000000 : 0x60000000) |
+		if(im.numBrokenAttribs){
+			*p++ = (j < im.numBatches-1 ? 0x10000000 : 0x60000000) |
 			       bsize;
 			*p++ = 0x0;
 			*p++ = 0x0;
@@ -516,11 +537,11 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				}
 			}
 		idx += g->meshHeader->flags == 1
-			? batchVertCount-2 : batchVertCount;
+			? im.batchVertCount-2 : im.batchVertCount;
 
 		*p++ = 0x04000000 | nverts;	// ITOP
 		*p++ = j == 0 ? 0x15000000 : 0x17000000;
-		if(j < numBatches-1){
+		if(j < im.numBatches-1){
 			*p++ = 0x0;
 			*p++ = 0x0;
 		}else{
@@ -530,9 +551,58 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 	}
 
 	if(instanceCB)
-		instanceCB(this, g, m, datap, numBrokenAttribs);
+		instanceCB(this, g, m, datap, im.numBrokenAttribs);
 }
 
+uint8*
+MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[])
+{
+	PipeAttribute *a;
+	InstMeshInfo im = getInstMeshInfo(this, g, m);
+
+	uint8 *raw = im.stride*m->numIndices ? new uint8[im.stride*m->numIndices] : NULL;
+	uint8 *dp = raw;
+	for(uint i = 0; i < nelem(this->attribs); i++)
+		if(a = this->attribs[i])
+			if(a->attrib & AT_RW){
+				data[i] = inst->data + im.attribPos[i]*0x10;
+			}else{
+				data[i] = dp;
+				dp += m->numIndices*attribSize(a->attrib);
+			}
+
+	uint8 *datap[nelem(this->attribs)];
+	for(uint i = 0; i < nelem(this->attribs); i++){
+		datap[i] = data[i];
+		//printf("%p %x, %x\n", datap[i], datap[i]-datap[0], im.attribPos[i]*0x10);
+	}
+
+	uint32 overlap = g->meshHeader->flags == 1 ? 2 : 0;
+	uint32 *p = (uint32*)inst->data;
+	if(im.numBrokenAttribs == 0)
+		p += 4;
+	for(uint32 j = 0; j < im.numBatches; j++){
+		uint32 nverts = j < im.numBatches-1 ? im.batchVertCount :
+		                                      im.lastBatchVertCount;
+		for(uint i = 0; i < nelem(this->attribs); i++)
+			if((a = this->attribs[i]) && a->attrib & AT_RW)
+				p += 8;
+		if(im.numBrokenAttribs)
+			p += 4;
+		for(uint i = 0; i < nelem(this->attribs); i++)
+			if((a = this->attribs[i]) && (a->attrib & AT_RW) == 0){
+				uint32 asz = attribSize(a->attrib);
+				p += 4;
+				if((p[-1] & 0xff004000) != a->attrib)
+					printf("unexpected unpack: %08x %08x\n", p[-1], a->attrib);
+				memcpy(datap[i], p, asz*nverts);
+				datap[i] += asz*(nverts-overlap);
+				p += QWC(asz*nverts)*4;
+			}
+		p += 4;
+	}
+	return raw;
+}
 
 ObjPipeline::ObjPipeline(uint32 platform)
  : rw::ObjPipeline(platform), groupPipeline(NULL) { }
@@ -540,28 +610,28 @@ ObjPipeline::ObjPipeline(uint32 platform)
 void
 ObjPipeline::instance(Atomic *atomic)
 {
-	Geometry *geometry = atomic->geometry;
-	if(geometry->geoflags & Geometry::NATIVE)
+	Geometry *geo = atomic->geometry;
+	if(geo->geoflags & Geometry::NATIVE)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
-	geometry->instData = header;
+	geo->instData = header;
 	header->platform = PLATFORM_PS2;
-	assert(geometry->meshHeader != NULL);
-	header->numMeshes = geometry->meshHeader->numMeshes;
+	assert(geo->meshHeader != NULL);
+	header->numMeshes = geo->meshHeader->numMeshes;
 	header->instanceMeshes = new InstanceData[header->numMeshes];
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geometry->meshHeader->mesh[i];
+		Mesh *mesh = &geo->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 
 		MatPipeline *m;
 		m = this->groupPipeline ?
-			this->groupPipeline :
-			(MatPipeline*)mesh->material->pipeline;
+		    this->groupPipeline :
+		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL)
 			m = defaultMatPipe;
-		m->instance(geometry, instance, mesh);
+		m->instance(geo, instance, mesh);
 	}
-	geometry->geoflags |= Geometry::NATIVE;
+	geo->geoflags |= Geometry::NATIVE;
 }
 
 void
@@ -589,20 +659,149 @@ printVertCounts(InstanceData *inst, int flag)
 	}
 }
 
-// Only a dummy right now
 void
 ObjPipeline::uninstance(Atomic *atomic)
 {
-	Geometry *geometry = atomic->geometry;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_PS2);
-	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		return;
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_PS2);
+	// highest possible number of vertices
+	geo->numVertices = geo->meshHeader->totalIndices;
+	geo->geoflags &= ~Geometry::NATIVE;
+	geo->allocateData();
+	geo->meshHeader->allocateIndices();
+	uint32 *flags = new uint32[geo->numVertices];
+	memset(flags, 0, 4*geo->numVertices);
+	memset(geo->meshHeader->mesh[0].indices, 0, 2*geo->meshHeader->totalIndices);
+	geo->numVertices = 0;
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
+		Mesh *mesh = &geo->meshHeader->mesh[i];
+		InstanceData *instance = &header->instanceMeshes[i];
+
+		MatPipeline *m;
+		m = this->groupPipeline ?
+		    this->groupPipeline :
+		    (MatPipeline*)mesh->material->pipeline;
+		if(m == NULL) m = defaultMatPipe;
+		if(m->allocateCB) m->allocateCB(m, geo);
+
+		uint8 *data[nelem(m->attribs)] = { NULL };
+		uint8 *raw = m->collectData(geo, instance, mesh, data);
+		assert(m->uninstanceCB);
+		m->uninstanceCB(m, geo, flags, mesh, data);
+		if(raw) delete[] raw;
+	}
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		Mesh *mesh = &geo->meshHeader->mesh[i];
+		MatPipeline *m;
+		m = this->groupPipeline ?
+		    this->groupPipeline :
+		    (MatPipeline*)mesh->material->pipeline;
+		if(m == NULL) m = defaultMatPipe;
+		if(m->finishCB) m->finishCB(m, geo);
+	}
+
+	geo->generateTriangles();
+	delete[] flags;
+	destroyNativeData(geo, 0, 0);
+	geo->instData = NULL;
+
+/*	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geometry->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 //		printf("numIndices: %d\n", mesh->numIndices);
 //		printDMA(instance);
 		printVertCounts(instance, geometry->meshHeader->flags);
+	}*/
+}
+
+int32
+findVertex(Geometry *g, uint32 flags[], uint32 mask, int32 first,
+           float *v, float *t0, float *t1, uint8 *c, float *n)
+{
+	float32 *verts = &g->morphTargets[0].vertices[first*3];
+	float32 *tex0 = &g->texCoords[0][first*2];
+	float32 *tex1 = &g->texCoords[1][first*2];
+	float32 *norms = &g->morphTargets[0].normals[first*3];
+	uint8 *cols = &g->colors[first*4];
+
+	for(int32 i = first; i < g->numVertices; i++){
+		if(mask & flags[i] & 0x1 &&
+		   !(verts[0] == v[0] && verts[1] == v[1] && verts[2] == v[2]))
+			goto cont;
+		if(mask & flags[i] & 0x10 &&
+		   !(norms[0] == n[0] && norms[1] == n[1] && norms[2] == n[2]))
+			goto cont;
+		if(mask & flags[i] & 0x100 &&
+		   !(cols[0] == c[0] && cols[1] == c[1] && cols[2] == c[2] && cols[3] == c[3]))
+			goto cont;
+		if(mask & flags[i] & 0x1000 &&
+		   !(tex0[0] == t0[0] && tex0[1] == t0[1]))
+			goto cont;
+		if(mask & flags[i] & 0x2000 &&
+		   !(tex1[0] == t1[0] && tex1[1] == t1[1]))
+			goto cont;
+		return i;
+	cont:
+		verts += 3;
+		tex0 += 2;
+		tex1 += 2;
+		norms += 3;
+		cols += 4;
+	}
+	return -1;
+}
+
+void
+insertVertex(Geometry *geo, int32 i, uint32 mask, float *v, float *t0, float *t1, uint8 *c, float *n)
+{
+	if(mask & 0x1)
+		memcpy(&geo->morphTargets[0].vertices[i*3], v, 12);
+	if(mask & 0x10)
+		memcpy(&geo->morphTargets[0].normals[i*3], n, 12);
+	if(mask & 0x100)
+		memcpy(&geo->colors[i*4], c, 4);
+	if(mask & 0x1000)
+		memcpy(&geo->texCoords[0][i*2], t0, 8);
+	if(mask & 0x2000)
+		memcpy(&geo->texCoords[1][i*2], t1, 8);
+}
+
+void
+defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+{
+	float32 *verts     = (float32*)data[AT_XYZ];
+	float32 *texcoords = (float32*)data[AT_UV];
+	uint8 *colors      = (uint8*)data[AT_RGBA];
+	int8 *norms        = (int8*)data[AT_NORMAL];
+	uint32 mask = 0x1;	// vertices
+	if(geo->geoflags & Geometry::NORMALS)
+		mask |= 0x10;
+	if(geo->geoflags & Geometry::PRELIT)
+		mask |= 0x100;
+	if(geo->numTexCoordSets > 0)
+		mask |= 0x1000;
+
+	float32 n[3];
+	for(uint32 i = 0; i < mesh->numIndices; i++){
+		if(mask & 0x10){
+			n[0] = norms[0]/127.0f;
+			n[1] = norms[1]/127.0f;
+			n[2] = norms[2]/127.0f;
+		}
+		int32 idx = findVertex(geo, flags, mask, 0, verts, texcoords, NULL, colors, n);
+		if(idx < 0)
+			idx = geo->numVertices++;
+		mesh->indices[i] = idx;
+		flags[idx] = mask;
+		insertVertex(geo, idx, mask, verts, texcoords, NULL, colors, n);
+		verts += 3;
+		texcoords += 2;
+		colors += 4;
+		norms += 3;
 	}
 }
 
@@ -620,6 +819,7 @@ makeDefaultPipeline(void)
 		uint32 vertCount = MatPipeline::getVertCount(VU_Lights,4,3,2);
 		pipe->setTriBufferSizes(4, vertCount);
 		pipe->vifOffset = pipe->inputStride*vertCount;
+		pipe->uninstanceCB = defaultUninstanceCB;
 		defaultMatPipe = pipe;
 	}
 
@@ -631,6 +831,9 @@ makeDefaultPipeline(void)
 }
 
 static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
+static void skinUninstanceCB(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
+static void skinAllocateCB(MatPipeline*, Geometry*);
+static void skinFinishCB(MatPipeline*, Geometry*);
 
 ObjPipeline*
 makeSkinPipeline(void)
@@ -647,6 +850,9 @@ makeSkinPipeline(void)
 	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = skinUninstanceCB;
+	pipe->allocateCB = skinAllocateCB;
+	pipe->finishCB = skinFinishCB;
 
 	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_SKIN;
@@ -668,6 +874,7 @@ makeMatFXPipeline(void)
 	uint32 vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->uninstanceCB = defaultUninstanceCB;
 
 	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_MATFX;
@@ -768,7 +975,7 @@ skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
 	if(skin == NULL || n < 1)
 		return;
-	float *weights = (float*)data[0];
+	float32 *weights = (float32*)data[0];
 	uint32 *indices = (uint32*)data[0];
 	uint16 j;
 	for(uint32 i = 0; i < m->numIndices; i++){
@@ -792,6 +999,139 @@ skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
 	}
 }
 
+// TODO: call base function perhaps?
+int32
+findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
+               float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
+               float32 *w, uint8 *ix)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	float32 *wghts = &skin->weights[first*4];
+	uint8 *inds = &skin->indices[first*4];
+
+	float32 *verts = &g->morphTargets[0].vertices[first*3];
+	float32 *tex0 = &g->texCoords[0][first*2];
+	float32 *tex1 = &g->texCoords[1][first*2];
+	float32 *norms = &g->morphTargets[0].normals[first*3];
+	uint8 *cols = &g->colors[first*4];
+
+	for(int32 i = first; i < g->numVertices; i++){
+		if(mask & flags[i] & 0x1 &&
+		   !(verts[0] == v[0] && verts[1] == v[1] && verts[2] == v[2]))
+			goto cont;
+		if(mask & flags[i] & 0x10 &&
+		   !(norms[0] == n[0] && norms[1] == n[1] && norms[2] == n[2]))
+			goto cont;
+		if(mask & flags[i] & 0x100 &&
+		   !(cols[0] == c[0] && cols[1] == c[1] && cols[2] == c[2] && cols[3] == c[3]))
+			goto cont;
+		if(mask & flags[i] & 0x1000 &&
+		   !(tex0[0] == t0[0] && tex0[1] == t0[1]))
+			goto cont;
+		if(mask & flags[i] & 0x2000 &&
+		   !(tex1[0] == t1[0] && tex1[1] == t1[1]))
+			goto cont;
+		if(mask & flags[i] & 0x10000 &&
+		   !(wghts[0] == w[0] && wghts[1] == w[1] &&
+		     wghts[2] == w[2] && wghts[3] == w[3] &&
+		     inds[0] == ix[0] && inds[1] == ix[1] &&
+		     inds[2] == ix[2] && inds[3] == ix[3]))
+			goto cont;
+		return i;
+	cont:
+		verts += 3;
+		tex0 += 2;
+		tex1 += 2;
+		norms += 3;
+		cols += 4;
+		wghts += 4;
+		inds += 4;
+	}
+	return -1;
+}
+
+void
+insertVertexSkin(Geometry *geo, int32 i, uint32 mask, float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
+	float32 *w, uint8 *ix)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	insertVertex(geo, i, mask, v, t0, t1, c, n);
+	if(mask & 0x10000){
+		memcpy(&skin->weights[i*4], w, 16);
+		memcpy(&skin->indices[i*4], ix, 4);
+	}
+}
+
+static void
+skinUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+{
+	float32 *verts     = (float32*)data[AT_XYZ];
+	float32 *texcoords = (float32*)data[AT_UV];
+	uint8 *colors      = (uint8*)data[AT_RGBA];
+	int8 *norms        = (int8*)data[AT_NORMAL];
+	uint32 *wghts      = (uint32*)data[AT_NORMAL+1];
+	uint32 mask = 0x1;	// vertices
+	if(geo->geoflags & Geometry::NORMALS)
+		mask |= 0x10;
+	if(geo->geoflags & Geometry::PRELIT)
+		mask |= 0x100;
+	if(geo->numTexCoordSets > 0)
+		mask |= 0x1000;
+	mask |= 0x10000;
+
+	float32 n[3];
+	float32 w[4];
+	uint8 ix[4];
+	for(uint32 i = 0; i < mesh->numIndices; i++){
+		if(mask & 0x10){
+			n[0] = norms[0]/127.0f;
+			n[1] = norms[1]/127.0f;
+			n[2] = norms[2]/127.0f;
+		}
+		for(int j = 0; j < 4; j++){
+			((uint32*)w)[j] = wghts[j] & ~0x3FF;
+			ix[j] = (wghts[j] & 0x3FF) >> 2;
+			if(ix[j]) ix[j]--;
+			if(w[j] == 0.0f) ix[j] = 0;
+		}
+		int32 idx = findVertexSkin(geo, flags, mask, 0, verts, texcoords, NULL, colors, n, w, ix);
+		if(idx < 0)
+			idx = geo->numVertices++;
+		mesh->indices[i] = idx;
+		flags[idx] = mask;
+		insertVertexSkin(geo, idx, mask, verts, texcoords, NULL, colors, n, w, ix);
+		verts += 3;
+		texcoords += 2;
+		colors += 4;
+		norms += 3;
+		wghts += 4;
+	}
+}
+
+static void
+skinAllocateCB(MatPipeline*, Geometry *geo)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	// If weight/index data is allocated don't do it again as this function
+	// can be called multiple times per geometry.
+	if(skin == NULL || skin->weights)
+		return;
+
+	uint8 *data = skin->data;
+	float *invMats = skin->inverseMatrices;
+	// meshHeader->totalIndices is highest possible number of vertices again
+	skin->init(skin->numBones, skin->numBones, geo->meshHeader->totalIndices);
+	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
+	delete[] data;
+}
+
+static void
+skinFinishCB(MatPipeline*, Geometry *geo)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	skin->findNumWeights(geo->numVertices);
+	skin->findUsedBones(geo->numVertices);
+}
 
 // ADC
 

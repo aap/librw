@@ -335,6 +335,7 @@ writeUVAnim(Stream *stream, int32 size, void *object, int32 offset, int32)
 	}
 }
 
+// TODO: under what circumstance 0?
 static int32
 getSizeUVAnim(void *object, int32 offset, int32)
 {

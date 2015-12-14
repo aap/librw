@@ -69,8 +69,7 @@ main(int argc, char *argv[])
 {
 	gta::attachPlugins();
 
-//	rw::version = 0x33002;
-	rw::version = 0x32000;
+	rw::version = 0x33002;
 //	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 //	rw::platform = rw::PLATFORM_XBOX;
@@ -94,10 +93,10 @@ main(int argc, char *argv[])
 	in.close();
 	rw::currentTexDictionary = txd;
 
-//	for(Texture *tex = txd->first; tex; tex = tex->next)
-//		tex->raster = xboxToD3d8(tex->raster);
 	for(Texture *tex = txd->first; tex; tex = tex->next)
-		tex->filterAddressing = (tex->filterAddressing&~0xF) | 0x2;
+		tex->raster = xboxToD3d8(tex->raster);
+//	for(Texture *tex = txd->first; tex; tex = tex->next)
+//		tex->filterAddressing = (tex->filterAddressing&~0xF) | 0x2;
 
 	rw::StreamFile out;
 	if(argc > 2)

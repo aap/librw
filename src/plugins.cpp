@@ -607,7 +607,7 @@ registerSkinPlugin(void)
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	defpipe->pluginID = ID_SKIN;
 	defpipe->pluginData = 1;
-	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
 	skinGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeSkinPipeline();

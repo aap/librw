@@ -46,6 +46,9 @@ public:
 	uint32 triStripCount, triListCount;
 	PipeAttribute *attribs[10];
 	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
+	void (*uninstanceCB)(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
+	void (*allocateCB)(MatPipeline*, Geometry*);
+	void (*finishCB)(MatPipeline*, Geometry*);
 
 	static uint32 getVertCount(uint32 top, uint32 inAttribs,
 	                           uint32 outAttribs, uint32 outBufs) {
@@ -56,6 +59,7 @@ public:
 	virtual void dump(void);
 	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
 	void instance(Geometry *g, InstanceData *inst, Mesh *m);
+	uint8 *collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]);
 };
 
 class ObjPipeline : public rw::ObjPipeline

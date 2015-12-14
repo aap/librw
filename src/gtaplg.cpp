@@ -36,7 +36,7 @@ attachPlugins(void)
 	rw::registerHAnimPlugin();
 	gta::registerNodeNamePlugin();
 	rw::registerMatFXPlugin();
-	rw::registerUVAnimPlugin();
+//	rw::registerUVAnimPlugin();
 	rw::ps2::registerADCPlugin();
 	gta::registerExtraNormalsPlugin();
 	gta::registerExtraVertColorPlugin();
@@ -86,6 +86,7 @@ readNodeName(Stream *stream, int32 len, void *object, int32 offset, int32)
 	char *name = PLUGINOFFSET(char, object, offset);
 	stream->read(name, len);
 	name[len] = '\0';
+	//printf("%s\n", name);
 }
 
 static void

@@ -148,12 +148,14 @@ struct Raster : PluginBase<Raster>
 	};
 };
 
+#define IGNORERASTERIMP 1
+
 struct NativeRaster
 {
-	virtual void create(Raster *raster) { assert (0 && "unimplemented"); };
-	virtual uint8 *lock(Raster *raster, int32 level) { assert (0 && "unimplemented"); return NULL; };
-	virtual void unlock(Raster *raster, int32 level) { assert (0 && "unimplemented"); };
-	virtual int32 getNumLevels(Raster *raster) { assert (0 && "unimplemented"); return 0; };
+	virtual void create(Raster *raster) { assert(IGNORERASTERIMP && "unimplemented"); };
+	virtual uint8 *lock(Raster *raster, int32 level) { assert(IGNORERASTERIMP && "unimplemented"); return NULL; };
+	virtual void unlock(Raster *raster, int32 level) { assert(IGNORERASTERIMP && "unimplemented"); };
+	virtual int32 getNumLevels(Raster *raster) { assert(IGNORERASTERIMP && "unimplemented"); return 0; };
 };
 
 // TODO: link into texdict
