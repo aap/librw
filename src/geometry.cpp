@@ -289,33 +289,36 @@ Geometry::allocateData(void)
 static int
 isDegenerate(uint16 *idx)
 {
-	// TODO: maybe check position instead of index?
 	return idx[0] == idx[1] ||
 	       idx[0] == idx[2] ||
 	       idx[1] == idx[2];
 }
 
 void
-Geometry::generateTriangles(void)
+Geometry::generateTriangles(int8 *adc)
 {
 	MeshHeader *header = this->meshHeader;
 	assert(header != NULL);
 
 	this->numTriangles = 0;
 	Mesh *m = header->mesh;
+	int8 *adcbits = adc;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		if(m->numIndices < 3){
 			// shouldn't happen but it does
+			adcbits += m->numIndices;
 			m++;
 			continue;
 		}
 		if(header->flags == 1){	// tristrip
 			for(uint32 j = 0; j < m->numIndices-2; j++){
-				if(!isDegenerate(&m->indices[j]))
+				if(!(adc && adcbits[j+2]) &&
+				   !isDegenerate(&m->indices[j]))
 					this->numTriangles++;
 			}
 		}else
 			this->numTriangles += m->numIndices/3;
+		adcbits += m->numIndices;
 		m++;
 	}
 
@@ -324,8 +327,10 @@ Geometry::generateTriangles(void)
 
 	uint16 *f = this->triangles;
 	m = header->mesh;
+	adcbits = adc;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		if(m->numIndices < 3){
+			adcbits += m->numIndices;
 			m++;
 			continue;
 		}
@@ -334,7 +339,8 @@ Geometry::generateTriangles(void)
 		                          this->numMaterials);
 		if(header->flags == 1)	// tristrip
 			for(uint32 j = 0; j < m->numIndices-2; j++){
-				if(isDegenerate(&m->indices[j]))
+				if(adc && adcbits[j+2] ||
+				   isDegenerate(&m->indices[j]))
 					continue;
 				*f++ = m->indices[j+1 + (j%2)];
 				*f++ = m->indices[j+0];
@@ -348,6 +354,7 @@ Geometry::generateTriangles(void)
 				*f++ = matid;
 				*f++ = m->indices[j+2];
 			}
+		adcbits += m->numIndices;
 		m++;
 	}
 }

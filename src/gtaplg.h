@@ -116,4 +116,8 @@ extern int32 collisionOffset;
 
 void registerCollisionPlugin(void);
 
+// PDS pipes
+
+void registerPDSPipes(void);
+
 }

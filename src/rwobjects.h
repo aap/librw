@@ -333,7 +333,7 @@ struct Geometry : PluginBase<Geometry>, Object
 	uint32 streamGetSize(void);
 	void addMorphTargets(int32 n);
 	void allocateData(void);
-	void generateTriangles(void);
+	void generateTriangles(int8 *adc = NULL);
 
 	enum Flags
 	{

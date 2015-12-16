@@ -23,6 +23,28 @@ enum {
 	VU_Lights	= 0x3d0
 };
 
+enum PS2Attribs {
+	AT_V2_32	= 0x64000000,
+	AT_V2_16	= 0x65000000,
+	AT_V2_8		= 0x66000000,
+	AT_V3_32	= 0x68000000,
+	AT_V3_16	= 0x69000000,
+	AT_V3_8		= 0x6A000000,
+	AT_V4_32	= 0x6C000000,
+	AT_V4_16	= 0x6D000000,
+	AT_V4_8		= 0x6E000000,
+	AT_UNSGN	= 0x00004000,
+
+	AT_RW		= 0x6
+};
+
+enum PS2AttibTypes {
+	AT_XYZ		= 0,
+	AT_UV		= 1,
+	AT_RGBA		= 2,
+	AT_NORMAL	= 3
+};
+
 void *destroyNativeData(void *object, int32, int32);
 void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
 void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
@@ -30,7 +52,6 @@ int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 
 void printDMA(InstanceData *inst);
-void walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size));
 void sizedebug(InstanceData *inst);
 
 // only RW_PS2
@@ -47,8 +68,8 @@ public:
 	PipeAttribute *attribs[10];
 	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
 	void (*uninstanceCB)(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
-	void (*allocateCB)(MatPipeline*, Geometry*);
-	void (*finishCB)(MatPipeline*, Geometry*);
+	void (*preUninstCB)(MatPipeline*, Geometry*);
+	void (*postUninstCB)(MatPipeline*, Geometry*);
 
 	static uint32 getVertCount(uint32 top, uint32 inAttribs,
 	                           uint32 outAttribs, uint32 outBufs) {
@@ -72,6 +93,8 @@ public:
 	virtual void uninstance(Atomic *atomic);
 };
 
+void insertVertex(Geometry *geo, int32 i, uint32 mask, float *v, float *t0, float *t1, uint8 *c, float *n);
+
 extern ObjPipeline *defaultObjPipe;
 extern MatPipeline *defaultMatPipe;
 
@@ -85,6 +108,9 @@ void dumpPipeline(rw::Pipeline *pipe);
 void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
+
+void skinPreCB(MatPipeline*, Geometry*);
+void skinPostCB(MatPipeline*, Geometry*);
 
 // ADC plugin
 
@@ -101,8 +127,10 @@ struct ADCData
 	int8 *adcBits;
 	int32 numBits;
 };
-
+extern int32 adcOffset;
 void registerADCPlugin(void);
+
+void allocateADC(Geometry *geo);
 
 // PDS plugin
 
@@ -117,8 +145,9 @@ void registerADCPlugin(void);
 //  4640  53f20084 53f2008b	// vehicles
 //   418  53f20088 53f20089	// peds
 
-
-void registerPDSPlugin(void);
+Pipeline *getPDSPipe(uint32 data);
+void registerPDSPipe(Pipeline *pipe);
+void registerPDSPlugin(int32 n);
 
 // Native Texture and Raster
 

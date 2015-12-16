@@ -58,6 +58,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		assert(a % 0x10 == 0);
 #endif
 		stream->read(instance->data, instance->dataSize);
+		instance->material = geometry->meshHeader->mesh[i].material;
 //		sizedebug(instance);
 	}
 }
@@ -189,28 +190,6 @@ unfixDmaOffsets(InstanceData *inst)
 
 // Pipeline
 
-enum PS2Attribs {
-	AT_V2_32	= 0x64000000,
-	AT_V2_16	= 0x65000000,
-	AT_V2_8		= 0x66000000,
-	AT_V3_32	= 0x68000000,
-	AT_V3_16	= 0x69000000,
-	AT_V3_8		= 0x6A000000,
-	AT_V4_32	= 0x6C000000,
-	AT_V4_16	= 0x6D000000,
-	AT_V4_8		= 0x6E000000,
-	AT_UNSGN	= 0x00004000,
-
-	AT_RW		= 0x6
-};
-
-enum PS2AttibTypes {
-	AT_XYZ		= 0,
-	AT_UV		= 1,
-	AT_RGBA		= 2,
-	AT_NORMAL	= 3
-};
-
 PipeAttribute attribXYZ = { 
 	"XYZ",
 	AT_V3_32
@@ -254,10 +233,10 @@ static uint32
 getBatchSize(MatPipeline *pipe, uint32 vertCount)
 {
 	PipeAttribute *a;
-	uint32 size = 1;
+	uint32 size = 1;	// ITOP &c. at the end
 	for(uint i = 0; i < nelem(pipe->attribs); i++)
 		if((a = pipe->attribs[i]) && (a->attrib & AT_RW) == 0){
-			size++;
+			size++;	// UNPACK &c.
 			size += QWC(vertCount*attribSize(a->attrib));
 		}
 	return size;
@@ -345,7 +324,7 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 
 MatPipeline::MatPipeline(uint32 platform)
  : rw::Pipeline(platform), instanceCB(NULL), uninstanceCB(NULL),
-   allocateCB(NULL), finishCB(NULL)
+   preUninstCB(NULL), postUninstCB(NULL)
 {
 	for(int i = 0; i < 10; i++)
 		this->attribs[i] = NULL;
@@ -436,7 +415,7 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 	if(im.numBrokenAttribs == 0)
 		im.size = 1 + im.batchSize*(im.numBatches-1) + im.lastBatchSize;
 	else
-		im.size = 2*im.numBatches +
+		im.size = 2*im.numBrokenAttribs*im.numBatches +
 		          (1+im.batchSize)*(im.numBatches-1) + 1+im.lastBatchSize;
 
 	/* figure out size and addresses of broken out sections */
@@ -492,8 +471,11 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				*p++ = im.attribPos[i];
 				*p++ = 0x01000100 |
 					this->inputStride;	// STCYCL
+				// Round up nverts so UNPACK will fit exactly into the DMA packet
+				//  (can't pad with zeroes in broken out sections).
+				// TODO: check for clash with vifOffset somewhere
 				*p++ = (a->attrib&0xFF004000)
-					| 0x8000 | nverts << 16 | i; // UNPACK
+					| 0x8000 | (QWC(nverts*atsz)<<4)/atsz << 16 | i; // UNPACK
 
 				*p++ = 0x10000000;
 				*p++ = 0x0;
@@ -572,10 +554,7 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 			}
 
 	uint8 *datap[nelem(this->attribs)];
-	for(uint i = 0; i < nelem(this->attribs); i++){
-		datap[i] = data[i];
-		//printf("%p %x, %x\n", datap[i], datap[i]-datap[0], im.attribPos[i]*0x10);
-	}
+	memcpy(datap, data, sizeof(datap));
 
 	uint32 overlap = g->meshHeader->flags == 1 ? 2 : 0;
 	uint32 *p = (uint32*)inst->data;
@@ -630,6 +609,7 @@ ObjPipeline::instance(Atomic *atomic)
 		if(m == NULL)
 			m = defaultMatPipe;
 		m->instance(geo, instance, mesh);
+		instance->material = mesh->material;
 	}
 	geo->geoflags |= Geometry::NATIVE;
 }
@@ -638,6 +618,9 @@ void
 printVertCounts(InstanceData *inst, int flag)
 {
 	uint32 *d = (uint32*)inst->data;
+	uint32 id = 0;
+	if(inst->material->pipeline)
+		id = inst->material->pipeline->pluginData;
 	int stride;
 	if(inst->arePointersFixed){
 		d += 4;
@@ -646,15 +629,16 @@ printVertCounts(InstanceData *inst, int flag)
 			d += 4 + 4*QWC(attribSize(d[3])*((d[3]>>16)&0xFF));
 		}
 		if(d[2] == 0)
-			printf("ITOP %x %d (%d)\n", *d, stride, flag);
+			printf("ITOP %x %d (%d) %x\n", *d, stride, flag, id);
 	}else{
 		while((*d&0x70000000) == 0x30000000){
 			stride = d[2]&0xFF;
+			printf("UNPACK %x %d (%d) %x\n", d[3], stride, flag, id);
 			d += 8;
 		}
 		if((*d&0x70000000) == 0x10000000){
 			d += (*d&0xFFFF)*4;
-			printf("ITOP %x %d (%d)\n", *d, stride, flag);
+			printf("ITOP %x %d (%d) %x\n", *d, stride, flag, id);
 		}
 	}
 }
@@ -667,6 +651,7 @@ ObjPipeline::uninstance(Atomic *atomic)
 		return;
 	assert(geo->instData != NULL);
 	assert(geo->instData->platform == PLATFORM_PS2);
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	// highest possible number of vertices
 	geo->numVertices = geo->meshHeader->totalIndices;
 	geo->geoflags &= ~Geometry::NATIVE;
@@ -675,18 +660,24 @@ ObjPipeline::uninstance(Atomic *atomic)
 	uint32 *flags = new uint32[geo->numVertices];
 	memset(flags, 0, 4*geo->numVertices);
 	memset(geo->meshHeader->mesh[0].indices, 0, 2*geo->meshHeader->totalIndices);
-	geo->numVertices = 0;
-	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geo->meshHeader->mesh[i];
-		InstanceData *instance = &header->instanceMeshes[i];
-
 		MatPipeline *m;
 		m = this->groupPipeline ?
 		    this->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL) m = defaultMatPipe;
-		if(m->allocateCB) m->allocateCB(m, geo);
+		if(m->preUninstCB) m->preUninstCB(m, geo);
+	}
+	geo->numVertices = 0;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		Mesh *mesh = &geo->meshHeader->mesh[i];
+		InstanceData *instance = &header->instanceMeshes[i];
+		MatPipeline *m;
+		m = this->groupPipeline ?
+		    this->groupPipeline :
+		    (MatPipeline*)mesh->material->pipeline;
+		if(m == NULL) m = defaultMatPipe;
 
 		uint8 *data[nelem(m->attribs)] = { NULL };
 		uint8 *raw = m->collectData(geo, instance, mesh, data);
@@ -701,21 +692,28 @@ ObjPipeline::uninstance(Atomic *atomic)
 		    this->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL) m = defaultMatPipe;
-		if(m->finishCB) m->finishCB(m, geo);
+		if(m->postUninstCB) m->postUninstCB(m, geo);
 	}
 
-	geo->generateTriangles();
+	int8 *bits = NULL;
+	if(adcOffset){
+		ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
+		if(adc->adcFormatted)
+			bits = adc->adcBits;
+	}
+	geo->generateTriangles(bits);
 	delete[] flags;
 	destroyNativeData(geo, 0, 0);
 	geo->instData = NULL;
-
-/*	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geometry->meshHeader->mesh[i];
+/*
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		Mesh *mesh = &geo->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 //		printf("numIndices: %d\n", mesh->numIndices);
 //		printDMA(instance);
-		printVertCounts(instance, geometry->meshHeader->flags);
-	}*/
+		printVertCounts(instance, geo->meshHeader->flags);
+	}
+*/
 }
 
 int32
@@ -832,8 +830,6 @@ makeDefaultPipeline(void)
 
 static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
 static void skinUninstanceCB(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
-static void skinAllocateCB(MatPipeline*, Geometry*);
-static void skinFinishCB(MatPipeline*, Geometry*);
 
 ObjPipeline*
 makeSkinPipeline(void)
@@ -851,8 +847,8 @@ makeSkinPipeline(void)
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = skinUninstanceCB;
-	pipe->allocateCB = skinAllocateCB;
-	pipe->finishCB = skinFinishCB;
+	pipe->preUninstCB = skinPreCB;
+	pipe->postUninstCB = skinPostCB;
 
 	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_SKIN;
@@ -1108,15 +1104,12 @@ skinUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, u
 	}
 }
 
-static void
-skinAllocateCB(MatPipeline*, Geometry *geo)
+void
+skinPreCB(MatPipeline*, Geometry *geo)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-	// If weight/index data is allocated don't do it again as this function
-	// can be called multiple times per geometry.
-	if(skin == NULL || skin->weights)
+	if(skin == NULL)
 		return;
-
 	uint8 *data = skin->data;
 	float *invMats = skin->inverseMatrices;
 	// meshHeader->totalIndices is highest possible number of vertices again
@@ -1125,8 +1118,8 @@ skinAllocateCB(MatPipeline*, Geometry *geo)
 	delete[] data;
 }
 
-static void
-skinFinishCB(MatPipeline*, Geometry *geo)
+void
+skinPostCB(MatPipeline*, Geometry *geo)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
 	skin->findNumWeights(geo->numVertices);
@@ -1134,6 +1127,8 @@ skinFinishCB(MatPipeline*, Geometry *geo)
 }
 
 // ADC
+
+int32 adcOffset;
 
 // TODO: look at PC SA rccam.dff bloodrb.dff, Xbox csbigbear.dff
 
@@ -1215,6 +1210,17 @@ debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
 		}
 	}
 	return n;
+}
+
+void
+allocateADC(Geometry *geo)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
+	adc->adcFormatted = 1;
+	adc->numBits = geo->meshHeader->totalIndices;
+	int32 size = adc->numBits+3 & ~3;
+	adc->adcBits = new int8[size];
+	memset(adc->adcBits, 0, size);
 }
 
 static void*
@@ -1311,8 +1317,8 @@ getSizeADC(void *object, int32 offset, int32)
 void
 registerADCPlugin(void)
 {
-	Geometry::registerPlugin(sizeof(ADCData), ID_ADC,
-	                         createADC, destroyADC, copyADC);
+	adcOffset = Geometry::registerPlugin(sizeof(ADCData), ID_ADC,
+	                                     createADC, destroyADC, copyADC);
 	Geometry::registerPluginStream(ID_ADC,
 	                               readADC,
 	                               writeADC,
@@ -1322,29 +1328,50 @@ registerADCPlugin(void)
 
 // PDS plugin
 
+struct PdsGlobals
+{
+	Pipeline **pipes;
+	int32 maxPipes;
+	int32 numPipes;
+};
+PdsGlobals pdsGlobals;
+
+Pipeline*
+getPDSPipe(uint32 data)
+{
+	for(int32 i = 0; i < pdsGlobals.numPipes; i++)
+		if(pdsGlobals.pipes[i]->pluginData == data)
+			return pdsGlobals.pipes[i];
+	return NULL;
+}
+
+void
+registerPDSPipe(Pipeline *pipe)
+{
+	assert(pdsGlobals.numPipes < pdsGlobals.maxPipes);
+	pdsGlobals.pipes[pdsGlobals.numPipes++] = pipe;
+}
+
 static void
 atomicPDSRights(void *object, int32, int32, uint32 data)
 {
 	Atomic *a = (Atomic*)object;
-	// TODO: lookup pipeline by data
-	a->pipeline = new ObjPipeline(PLATFORM_PS2);
-	a->pipeline->pluginID = ID_PDS;
-	a->pipeline->pluginData = data;
+	a->pipeline = (ObjPipeline*)getPDSPipe(data);
 }
 
 static void
 materialPDSRights(void *object, int32, int32, uint32 data)
 {
 	Material *m = (Material*)object;
-	// TODO: lookup pipeline by data
-	m->pipeline = new Pipeline(PLATFORM_PS2);
-	m->pipeline->pluginID = ID_PDS;
-	m->pipeline->pluginData = data;
+	m->pipeline = (ObjPipeline*)getPDSPipe(data);
 }
 
 void
-registerPDSPlugin(void)
+registerPDSPlugin(int32 n)
 {
+	pdsGlobals.maxPipes = n;
+	pdsGlobals.numPipes = 0;
+	pdsGlobals.pipes = new Pipeline*[n];
 	Atomic::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
 	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
 
@@ -1376,36 +1403,6 @@ printDMA(InstanceData *inst)
 		// DMAret
 		case 0x60000000:
 			printf("%08x %08x\n", tag[0], tag[1]);
-			return;
-		}
-	}
-}
-
-/* Function to specifically walk geometry chains */
-void
-walkDMA(InstanceData *inst, void (*f)(uint32 *data, int32 size))
-{
-	if(inst->arePointersFixed == 2)
-		return;
-	uint32 *base = (uint32*)inst->data;
-	uint32 *tag = (uint32*)inst->data;
-	for(;;){
-		switch(tag[0]&0x70000000){
-		// DMAcnt
-		case 0x10000000:
-			f(tag+2, 2+(tag[0]&0xFFFF)*4);
-			tag += (1+(tag[0]&0xFFFF))*4;
-			break;
-
-		// DMAref
-		case 0x30000000:
-			f(base + tag[1]*4, (tag[0]&0xFFFF)*4);
-			tag += 4;
-			break;
-
-		// DMAret
-		case 0x60000000:
-			f(tag+2, 2+(tag[0]&0xFFFF)*4);
 			return;
 		}
 	}
