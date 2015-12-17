@@ -15,12 +15,13 @@ main(int argc, char *argv[])
 {
 	gta::attachPlugins();
 
-	rw::version = 0x34003;
+	rw::version = 0;
+//	rw::version = 0x34003;
 //	rw::version = 0x33002;
-	rw::platform = rw::PLATFORM_PS2;
+//	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 //	rw::platform = rw::PLATFORM_XBOX;
-//	rw::platform = rw::PLATFORM_D3D8;
+	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
 
 	int uninstance = 0;
@@ -74,6 +75,12 @@ main(int argc, char *argv[])
 	}
 */
 
+	int32 platform = findPlatform(c);
+	if(platform){
+		rw::platform = platform;
+		switchPipes(c, platform);
+	}
+
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		ObjPipeline *p = a->getPipeline();
@@ -81,6 +88,11 @@ main(int argc, char *argv[])
 			p->uninstance(a);
 		else
 			p->instance(a);
+	}
+
+	if(rw::version == 0){
+		rw::version = header.version;
+		rw::build = header.build;
 	}
 
 	if(uninstance)

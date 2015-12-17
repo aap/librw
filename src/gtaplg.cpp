@@ -16,6 +16,40 @@
 
 using namespace std;
 
+namespace rw {
+
+int32
+findPlatform(Clump *c)
+{
+	for(int32 i = 0; i < c->numAtomics; i++){
+		Geometry *g = c->atomicList[i]->geometry;
+		if(g->instData)
+			return g->instData->platform;
+	}
+	return 0;
+}
+
+void
+switchPipes(Clump *c, int32 platform)
+{
+	for(int32 i = 0; i < c->numAtomics; i++){
+		Atomic *a = c->atomicList[i];
+		if(a->pipeline && a->pipeline->platform != platform){
+			uint32 plgid = a->pipeline->pluginID;
+			switch(plgid){
+			case ID_SKIN:
+				a->pipeline = skinGlobals.pipelines[platform];
+				break;
+			case ID_MATFX:
+				a->pipeline = matFXGlobals.pipelines[platform];
+				break;
+			}
+		}
+	}
+}
+
+}
+
 namespace gta {
 
 void
@@ -579,6 +613,7 @@ static void
 readPipeline(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	*PLUGINOFFSET(uint32, object, offset) = stream->readU32();
+	printf("%x\n", *PLUGINOFFSET(uint32, object, offset));
 }
 
 static void

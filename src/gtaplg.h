@@ -1,3 +1,8 @@
+namespace rw {
+int32 findPlatform(Clump *c);
+void switchPipes(Clump *c, int32 platform);
+};
+
 namespace gta {
 using namespace rw;
 
