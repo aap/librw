@@ -33,6 +33,8 @@ struct Frame : PluginBase<Frame>, Object
 	void setDirty(void);
 };
 
+Frame **makeFrameList(Frame *frame, Frame **flist);
+
 struct HAnimKeyFrame
 {
 	HAnimKeyFrame *prev;
@@ -268,6 +270,7 @@ struct MatFXGlobals
 	int32 atomicOffset;
 	int32 materialOffset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
+	bool32 hack;
 };
 extern MatFXGlobals matFXGlobals;
 void registerMatFXPlugin(void);
@@ -436,7 +439,6 @@ struct Clump : PluginBase<Clump>, Object
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
-private:
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };

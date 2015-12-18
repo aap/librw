@@ -157,7 +157,7 @@ sizeCB(Frame *f, void *size)
 	return f;
 }
 
-static Frame**
+Frame**
 makeFrameList(Frame *frame, Frame **flist)
 {
 	*flist++ = frame;

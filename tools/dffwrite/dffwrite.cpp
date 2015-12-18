@@ -21,6 +21,9 @@ main(int argc, char *argv[])
 	rw::platform = PLATFORM_D3D8;
 //	rw::version = 0x30200;
 
+	int lcs = 1;
+	matFXGlobals.hack = lcs;
+
 	gta::attachPlugins();
 
 	rw::Clump *c;
@@ -62,10 +65,16 @@ main(int argc, char *argv[])
 			readChunkHeaderInfo(&in, &header);
 		}
 		assert(header.type == ID_CLUMP);
-		c = Clump::streamRead(&in);
+		if(lcs)
+			c = clumpStreamReadRsl(&in);
+		else
+			c = Clump::streamRead(&in);
 		assert(c != NULL);
 	}
 
+	if(lcs)
+		for(int32 i = 0; i < c->numAtomics; i++)
+			convertRslGeometry(c->atomicList[i]->geometry);
 
 //	rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 
@@ -75,14 +84,6 @@ main(int argc, char *argv[])
 	assert(tga != NULL);
 	rw::writeTGA(tga, "out.tga");
 */
-
-	for(int32 i = 0; i < c->numAtomics; i++){
-		Geometry *g = c->atomicList[i]->geometry;
-		for(int32 j = 0; j < g->numMaterials; j++)
-			if(g->materialList[j]->texture)
-				g->materialList[j]->texture->filterAddressing =
-				    (g->materialList[j]->texture->filterAddressing&~0xF) | 2;
-	}
 
 //	for(rw::int32 i = 0; i < c->numAtomics; i++)
 //		rw::Gl::Instance(c->atomicList[i]);
@@ -106,7 +107,10 @@ main(int argc, char *argv[])
 			out.open(argv[2], "wb");
 		else
 			out.open("out.dff", "wb");
-		c->streamWrite(&out);
+		if(lcs)
+			clumpStreamWriteRsl(&out, c);
+		else
+			c->streamWrite(&out);
 		out.close();
 	}
 

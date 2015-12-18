@@ -882,7 +882,8 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
 	matfx->setEffects(stream->readU32());
 
-	for(int i = 0; i < 2; i++){
+	int32 n = matFXGlobals.hack ? 1 : 2;
+	for(int i = 0; i < n; i++){
 		uint32 type = stream->readU32();
 		switch(type){
 		case MatFX::BUMPMAP:
@@ -907,7 +908,10 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 
 		case MatFX::ENVMAP:
 			coefficient = stream->readF32();
-			fbAlpha = stream->readI32();
+			if(matFXGlobals.hack)
+				fbAlpha = 0;
+			else
+				fbAlpha = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
 				assert(findChunk(stream, ID_TEXTURE,

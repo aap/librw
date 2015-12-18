@@ -193,6 +193,7 @@
     <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\gtaplg.cpp" />
     <ClCompile Include="src\image.cpp" />
+    <ClCompile Include="src\mdl.cpp" />
     <ClCompile Include="src\ogl.cpp" />
     <ClCompile Include="src\pipeline.cpp" />
     <ClCompile Include="src\plugins.cpp" />
@@ -202,6 +203,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\gtaplg.h" />
+    <ClInclude Include="src\mdl.h" />
     <ClInclude Include="src\rwbase.h" />
     <ClInclude Include="src\rwd3d.h" />
     <ClInclude Include="src\rwd3d8.h" />

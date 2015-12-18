@@ -12,6 +12,7 @@
 #include "rwps2.h"
 #include "rwd3d.h"
 #include "rwxbox.h"
+#include "mdl.h"
 #include "gtaplg.h"
 
 using namespace std;
@@ -80,6 +81,8 @@ attachPlugins(void)
 	gta::registerCollisionPlugin();
 	gta::register2dEffectPlugin();
 	gta::registerPipelinePlugin();
+
+	registerRslPlugin();
 
 	rw::Atomic::init();
 }
