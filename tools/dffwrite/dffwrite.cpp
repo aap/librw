@@ -107,9 +107,9 @@ main(int argc, char *argv[])
 			out.open(argv[2], "wb");
 		else
 			out.open("out.dff", "wb");
-		if(lcs)
-			clumpStreamWriteRsl(&out, c);
-		else
+//		if(lcs)
+//			clumpStreamWriteRsl(&out, c);
+//		else
 			c->streamWrite(&out);
 		out.close();
 	}

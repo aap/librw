@@ -520,6 +520,8 @@ static void*
 destroySpecMat(void *object, int32 offset, int32)
 {
 	SpecMat **specmat = PLUGINOFFSET(SpecMat*, object, offset);
+	if(*specmat == NULL)
+		return object;
 	if((*specmat)->texture)
 		(*specmat)->texture->decRef();
 	delete *specmat;

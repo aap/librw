@@ -39,7 +39,7 @@ struct RslGeometry
 {
 	float32 bound[4];
 	uint32 size;
-	int32 type;
+	int32 flags;
 	int32 unknown[4];
 	float32 scale[3];
 	float32 pos[3];
@@ -59,24 +59,38 @@ unpackSize(uint32 unpack)
 	return ((unpack>>26 & 3)+1)*size[unpack>>24 & 3]/8;
 }
 
-void
-analyzeData(uint8 *p)
+int
+analyzeDMA(uint8 *p)
 {
 	uint32 *w = (uint32*)p;
 	uint32 *end;
-	end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);	// TODO: find out real mask
-	printf("start: %p end: %p\n", w, end);
+	end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);
 	w += 4;
+	int flags = 0;
 	while(w < end){
 		if((w[0] & 0x60000000) == 0x60000000){
-			printf("UNPACK %x %x\n", w[0], unpackSize(w[0]));
+//			printf("UNPACK %x %x\n", w[0], unpackSize(w[0]));
+			printf("UNPACK %x %x %x\n", w[0] & 0x7F004000, w[0], unpackSize(w[0]));
+			uint32 type = w[0] & 0x7F004000;
+			if(w[0] != 0x6c018000){
+				if(type == 0x79000000)
+					flags |= 0x1;
+				if(type == 0x76004000)
+					flags |= 0x10;
+				if(type == 0x6a000000)
+					flags |= 0x100;
+				if(type == 0x6f000000)
+					flags |= 0x1000;
+				if(type == 0x6c000000)
+					flags |= 0x10000;
+			}
 			int32 n = (w[0] >> 16) & 0xFF;
 			p = (uint8*)(w+1);
-			p += n*unpackSize(w[0]);
+			p += (n*unpackSize(w[0])+3)&~3;
 			w = (uint32*)p;
 			continue;
 		}
-		switch(w[0] & 0x7FFFFFFF){
+		switch(w[0] & 0x7F000000){
 		case 0x20000000:	// STMASK
 			printf("STMASK %x\n", w[1]);
 			w++;
@@ -89,6 +103,10 @@ analyzeData(uint8 *p)
 			printf("STCOL %x %x %x %x\n", w[1], w[2], w[3], w[4]);
 			w+=4;
 			break;
+		case 0x14000000:
+			printf("MSCAL %x\n", w[0]&0xFFFF);
+			return flags;
+			break;
 		case 0:
 			break;
 		default:
@@ -97,6 +115,156 @@ analyzeData(uint8 *p)
 		}
 		w++;
 	}
+	return flags;
+}
+
+uint32*
+skipUnpack(uint32 *p)
+{
+	int32 n = (p[0] >> 16) & 0xFF;
+	return p + (n*unpackSize(p[0])+3 >> 2) + 1;
+}
+
+void
+unpackVertices(RslGeometry *rg, int16 *data, float32 *verts, int32 n)
+{
+	while(n--){
+		verts[0] = data[0]/32768.0f*rg->scale[0] + rg->pos[0];
+		verts[1] = data[1]/32768.0f*rg->scale[1] + rg->pos[1];
+		verts[2] = data[2]/32768.0f*rg->scale[2] + rg->pos[2];
+		verts += 3;
+		data += 3;
+	}
+}
+
+void
+unpackTex(RslMesh *rm, uint8 *data, float32 *tex, int32 n)
+{
+	while(n--){
+		tex[0] = data[0]/255.0f*rm->uvOff[0];
+		tex[1] = data[1]/255.0f*rm->uvOff[1];
+		tex += 2;
+		data += 2;
+	}
+}
+
+void
+unpackNormals(int8 *data, float32 *norms, int32 n)
+{
+	while(n--){
+		norms[0] = data[0]/127.0f;
+		norms[1] = data[1]/127.0f;
+		norms[2] = data[2]/127.0f;
+		norms += 3;
+		data += 3;
+	}
+}
+
+void
+unpackColors(uint16 *data, uint8 *cols, int32 n)
+{
+	while(n--){
+		cols[0] = (data[0] & 0x1f) * 255 / 0x1F;
+		cols[1] = (data[0]>>5 & 0x1f) * 255 / 0x1F;
+		cols[2] = (data[0]>>10 & 0x1f) * 255 / 0x1F;
+		cols[3] = data[0]&0x80 ? 0xFF : 0;
+		cols += 4;
+		data++;
+	}
+}
+
+void
+unpackSkinData(uint32 *data, float32 *weights, uint8 *indices, int32 n)
+{
+	while(n--){
+		for(int j = 0; j < 4; j++){
+			((uint32*)weights)[j] = data[j] & ~0x3FF;
+			indices[j] = data[j] >> 2;
+			if(indices[j]) indices[j]--;
+			if(weights[j] == 0.0f) indices[j] = 0;
+		}
+		weights += 4;
+		indices += 4;
+		data += 4;
+	}
+}
+
+void
+insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
+{
+	float32 *verts = &g->morphTargets[0].vertices[g->numVertices*3];
+	float32 *norms = &g->morphTargets[0].normals[g->numVertices*3];
+	uint8 *cols = &g->colors[g->numVertices*4];
+	float32 *texCoords = &g->texCoords[0][g->numVertices*2];
+	uint8 *indices = NULL;
+	float32 *weights = NULL;
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	if(skin){
+		indices = &skin->indices[g->numVertices*4];
+		weights = &skin->weights[g->numVertices*4];
+	}
+	bool first = 1;
+
+	uint8 *p = rg->data + rm->dmaOffset;
+	uint32 *w = (uint32*)p;
+	uint32 *end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);
+	w += 4;
+	int flags = 0;
+	int32 nvert, n;
+	while(w < end){
+		assert(w[0] == 0x6C018000);	// UNPACK
+		nvert = w[4] & 0x7FFF;
+		n = first ? nvert : nvert-2;
+		w += 5;
+
+		// positions
+		assert(w[0] == 0x20000000);	// STMASK
+		w += 2;
+		assert(w[0] == 0x30000000);	// STROW
+		w += 5;
+		assert((w[0] & 0xFF004000) == 0x79000000);
+		unpackVertices(rg, (int16*)(w+1), verts, nvert);
+		w = skipUnpack(w);
+		verts += 3*n;
+
+		// tex coords
+		assert(w[0] == 0x20000000);	// STMASK
+		w += 2;
+		assert(w[0] == 0x30000000);	// STROW
+		w += 5;
+		assert((w[0] & 0xFF004000) == 0x76004000);
+		unpackTex(rm, (uint8*)(w+1), texCoords, nvert);
+		w = skipUnpack(w);
+		texCoords += 2*n;
+
+		if(g->geoflags & Geometry::NORMALS){
+			assert((w[0] & 0xFF004000) == 0x6A000000);
+			unpackNormals((int8*)(w+1), norms, nvert);
+			w = skipUnpack(w);
+			norms += 3*n;
+		}
+
+		if(g->geoflags & Geometry::PRELIT){
+			assert((w[0] & 0xFF004000) == 0x6F000000);
+			unpackColors((uint16*)(w+1), cols, nvert);
+			w = skipUnpack(w);
+			cols += 4*n;
+		}
+
+		if(skin){
+			assert((w[0] & 0xFF004000) == 0x6C000000);
+			unpackSkinData((w+1), weights, indices, nvert);
+			w = skipUnpack(w);
+			indices += 4*n;
+			weights += 4*n;
+		}
+		g->numVertices += n;
+
+		assert(w[0] == 0x14000006);
+		w++;
+		while(w[0] == 0) w++;
+		first = 0;
+	}
 }
 
 void
@@ -104,9 +272,59 @@ convertRslGeometry(Geometry *g)
 {
 	RslGeometry *rg = *PLUGINOFFSET(RslGeometry*, g, rslPluginOffset);
 	assert(rg != NULL);
-	RslMesh *m = rg->meshes;
-	for(int32 i = 0; i < rg->numMeshes; i++, m++)
-		analyzeData(rg->data + m->dmaOffset);
+
+	g->meshHeader = new MeshHeader;
+	g->meshHeader->flags = 1;
+	g->meshHeader->numMeshes = rg->numMeshes;
+	g->meshHeader->mesh = new Mesh[rg->numMeshes];
+	g->meshHeader->totalIndices = 0;
+	int32 nverts = 0;
+	RslMesh *rm = rg->meshes;
+	Mesh *m = g->meshHeader->mesh;
+	for(uint32 i = 0; i < rg->numMeshes; i++, rm++, m++){
+		nverts += m->numIndices = rm->numTriangles+2;
+		m->material = g->materialList[i];
+	}
+	g->geoflags = Geometry::TRISTRIP |
+	              Geometry::POSITIONS |	/* 0x01 ? */
+	              Geometry::TEXTURED;	/* 0x04 ? */
+	if(rg->flags & 0x2)
+		g->geoflags |= Geometry::NORMALS;
+	if(rg->flags & 0x8)
+		g->geoflags |= Geometry::PRELIT;
+	g->numTexCoordSets = 1;
+
+	g->numVertices = nverts;
+	g->meshHeader->totalIndices = nverts;
+	g->allocateData();
+	g->meshHeader->allocateIndices();
+
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	if(rg->flags & 0x10)
+		assert(skin);
+	if(skin){
+		uint8 *data = skin->data;
+		float *invMats = skin->inverseMatrices;
+		skin->init(skin->numBones, skin->numBones, g->numVertices);
+		memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
+		delete[] data;
+	}
+
+	uint16 idx = 0;
+	rm = rg->meshes;
+	m = g->meshHeader->mesh;
+	g->numVertices = 0;
+	for(uint32 i = 0; i < rg->numMeshes; i++, rm++, m++){
+		for(uint32 j = 0; j < m->numIndices; j++)
+			m->indices[j] = idx++;
+		insertVertices(g, rg, rm);
+	}
+
+	if(skin){
+		skin->findNumWeights(g->numVertices);
+		skin->findUsedBones(g->numVertices);
+	}
+	g->generateTriangles();
 }
 
 Geometry*
@@ -128,13 +346,24 @@ geometryStreamReadRsl(Stream *stream)
 
 	assert(findChunk(stream, ID_MATLIST, NULL, NULL));
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	g->numMaterials = stream->readI32();
-	g->materialList = new Material*[g->numMaterials];
-	stream->seek(g->numMaterials*4);	// unused (-1)
-	for(int32 i = 0; i < g->numMaterials; i++){
+	int32 numMaterials = stream->readI32();
+	Material **materialList = new Material*[numMaterials];
+	stream->seek(numMaterials*4);	// unused (-1)
+	for(int32 i = 0; i < numMaterials; i++){
 		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
-		g->materialList[i] = Material::streamRead(stream);
+		materialList[i] = Material::streamRead(stream);
 	}
+
+	g->numMaterials = rg->numMeshes;
+	g->materialList = new Material*[g->numMaterials];
+	for(int32 i = 0; i < rg->numMeshes; i++){
+		g->materialList[i] = materialList[rg->meshes[i].matID];
+		g->materialList[i]->refCount++;
+		//g->materialList[i] = new Material(materialList[rg->meshes[i].matID]);
+	}
+
+	for(int32 i = 0; i < numMaterials; i++)
+		materialList[i]->decRef();
 
 	g->streamReadPlugins(stream);
 

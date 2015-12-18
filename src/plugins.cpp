@@ -882,6 +882,11 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
 	matfx->setEffects(stream->readU32());
 
+	if(matfx->flags == MatFX::BUMPMAP && matFXGlobals.hack){
+		stream->seek(12);
+		return;
+	}
+
 	int32 n = matFXGlobals.hack ? 1 : 2;
 	for(int i = 0; i < n; i++){
 		uint32 type = stream->readU32();

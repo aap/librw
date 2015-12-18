@@ -29,7 +29,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	for(int32 i = 0; i < this->numTexCoordSets; i++)
 		this->texCoords[i] = NULL;
 	this->triangles = NULL;
-	if(!(this->geoflags & NATIVE)){
+	if(!(this->geoflags & NATIVE) && this->numVertices){
 		if(this->geoflags & PRELIT)
 			this->colors = new uint8[4*this->numVertices];
 		if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
@@ -42,7 +42,7 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	MorphTarget *m = this->morphTargets;
 	m->vertices = NULL;
 	m->normals = NULL;
-	if(!(this->geoflags & NATIVE)){
+	if(!(this->geoflags & NATIVE) && this->numVertices){
 		m->vertices = new float32[3*this->numVertices];
 		if(this->geoflags & NORMALS)
 			m->normals = new float32[3*this->numVertices];
@@ -87,7 +87,7 @@ void
 Geometry::decRef(void)
 {
 	this->refCount--;
-	if(this->refCount)
+	if(this->refCount == 0)
 		delete this;
 }
 
@@ -375,16 +375,19 @@ Material::Material(void)
 
 Material::Material(Material *m)
 {
-	m->color[0] = this->color[0];
-	m->color[1] = this->color[1];
-	m->color[2] = this->color[2];
-	m->color[3] = this->color[3];
-	m->surfaceProps[0] = this->surfaceProps[0];
-	m->surfaceProps[1] = this->surfaceProps[1];
-	m->surfaceProps[2] = this->surfaceProps[2];
-	m->texture = this->texture;
-	if(m->texture)
-		m->texture->refCount++;
+	this->color[0] = m->color[0];
+	this->color[1] = m->color[1];
+	this->color[2] = m->color[2];
+	this->color[3] = m->color[3];
+	this->surfaceProps[0] = m->surfaceProps[0];
+	this->surfaceProps[1] = m->surfaceProps[1];
+	this->surfaceProps[2] = m->surfaceProps[2];
+	this->texture = m->texture;
+	if(this->texture)
+		this->texture->refCount++;
+	this->pipeline = m->pipeline;
+	this->refCount = 1;
+	this->constructPlugins();
 	this->copyPlugins(m);
 }
 
@@ -399,7 +402,7 @@ void
 Material::decRef(void)
 {
 	this->refCount--;
-	if(this->refCount)
+	if(this->refCount == 0)
 		delete this;
 }
 
@@ -418,6 +421,7 @@ Material::streamRead(Stream *stream)
 {
 	uint32 length, version;
 	MatStreamData buf;
+
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
 	Material *mat = new Material;
@@ -436,7 +440,6 @@ Material::streamRead(Stream *stream)
 		mat->surfaceProps[1] = surfaceProps[1];
 		mat->surfaceProps[2] = surfaceProps[2];
 	}
-
 	if(buf.textured){
 		assert(findChunk(stream, ID_TEXTURE, &length, NULL));
 		mat->texture = Texture::streamRead(stream);

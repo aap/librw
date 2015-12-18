@@ -112,7 +112,7 @@ void
 Texture::decRef(void)
 {
 	this->refCount--;
-	if(this->refCount)
+	if(this->refCount == NULL)
 		delete this;
 }
 
@@ -346,7 +346,7 @@ Image::getFilename(const char *name)
 	char *s, *p = searchPaths;
 	int len = strlen(name)+1;
 	if(numSearchPaths == 0){
-		f = fopen(name, "r");
+		f = fopen(name, "rb");
 		if(f){
 			fclose(f);
 			printf("found %s\n", name);
