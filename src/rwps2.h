@@ -93,7 +93,13 @@ public:
 	virtual void uninstance(Atomic *atomic);
 };
 
+// TODO: better use a struct, this is terrible
 void insertVertex(Geometry *geo, int32 i, uint32 mask, float *v, float *t0, float *t1, uint8 *c, float *n);
+void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
+                      float32 *w, uint8 *ix);
+int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
+                     float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
+                     float32 *w, uint8 *ix);
 
 extern ObjPipeline *defaultObjPipe;
 extern MatPipeline *defaultMatPipe;

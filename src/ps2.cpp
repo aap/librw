@@ -1002,8 +1002,12 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
                float32 *w, uint8 *ix)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-	float32 *wghts = &skin->weights[first*4];
-	uint8 *inds = &skin->indices[first*4];
+	float32 *wghts = NULL;
+	uint8 *inds = NULL;
+	if(skin){
+		wghts = &skin->weights[first*4];
+		inds = &skin->indices[first*4];
+	}
 
 	float32 *verts = &g->morphTargets[0].vertices[first*3];
 	float32 *tex0 = &g->texCoords[0][first*2];
@@ -1012,22 +1016,23 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
 	uint8 *cols = &g->colors[first*4];
 
 	for(int32 i = first; i < g->numVertices; i++){
-		if(mask & flags[i] & 0x1 &&
+		uint32 flag = flags ? flags[i] : ~0;
+		if(mask & flag & 0x1 &&
 		   !(verts[0] == v[0] && verts[1] == v[1] && verts[2] == v[2]))
 			goto cont;
-		if(mask & flags[i] & 0x10 &&
+		if(mask & flag & 0x10 &&
 		   !(norms[0] == n[0] && norms[1] == n[1] && norms[2] == n[2]))
 			goto cont;
-		if(mask & flags[i] & 0x100 &&
+		if(mask & flag & 0x100 &&
 		   !(cols[0] == c[0] && cols[1] == c[1] && cols[2] == c[2] && cols[3] == c[3]))
 			goto cont;
-		if(mask & flags[i] & 0x1000 &&
+		if(mask & flag & 0x1000 &&
 		   !(tex0[0] == t0[0] && tex0[1] == t0[1]))
 			goto cont;
-		if(mask & flags[i] & 0x2000 &&
+		if(mask & flag & 0x2000 &&
 		   !(tex1[0] == t1[0] && tex1[1] == t1[1]))
 			goto cont;
-		if(mask & flags[i] & 0x10000 &&
+		if(mask & flag & 0x10000 &&
 		   !(wghts[0] == w[0] && wghts[1] == w[1] &&
 		     wghts[2] == w[2] && wghts[3] == w[3] &&
 		     inds[0] == ix[0] && inds[1] == ix[1] &&

@@ -31,7 +31,7 @@ struct RslMesh
 	uint32 unknown;
 	uint32 dmaOffset;
 	uint16 numTriangles;
-	uint16 matID;
+	int16 matID;
 	float32 pos[3];		// ?
 };
 
@@ -125,73 +125,25 @@ skipUnpack(uint32 *p)
 	return p + (n*unpackSize(p[0])+3 >> 2) + 1;
 }
 
-void
-unpackVertices(RslGeometry *rg, int16 *data, float32 *verts, int32 n)
+struct RslVertex
 {
-	while(n--){
-		verts[0] = data[0]/32768.0f*rg->scale[0] + rg->pos[0];
-		verts[1] = data[1]/32768.0f*rg->scale[1] + rg->pos[1];
-		verts[2] = data[2]/32768.0f*rg->scale[2] + rg->pos[2];
-		verts += 3;
-		data += 3;
-	}
-}
+	float32 p[3];
+	float32 n[3];
+	float32 t[2];
+	uint8   c[4];
+	float32 w[4];
+	uint8   i[4];
+};
 
 void
-unpackTex(RslMesh *rm, uint8 *data, float32 *tex, int32 n)
+convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 {
-	while(n--){
-		tex[0] = data[0]/255.0f*rm->uvOff[0];
-		tex[1] = data[1]/255.0f*rm->uvOff[1];
-		tex += 2;
-		data += 2;
-	}
-}
-
-void
-unpackNormals(int8 *data, float32 *norms, int32 n)
-{
-	while(n--){
-		norms[0] = data[0]/127.0f;
-		norms[1] = data[1]/127.0f;
-		norms[2] = data[2]/127.0f;
-		norms += 3;
-		data += 3;
-	}
-}
-
-void
-unpackColors(uint16 *data, uint8 *cols, int32 n)
-{
-	while(n--){
-		cols[0] = (data[0] & 0x1f) * 255 / 0x1F;
-		cols[1] = (data[0]>>5 & 0x1f) * 255 / 0x1F;
-		cols[2] = (data[0]>>10 & 0x1f) * 255 / 0x1F;
-		cols[3] = data[0]&0x80 ? 0xFF : 0;
-		cols += 4;
-		data++;
-	}
-}
-
-void
-unpackSkinData(uint32 *data, float32 *weights, uint8 *indices, int32 n)
-{
-	while(n--){
-		for(int j = 0; j < 4; j++){
-			((uint32*)weights)[j] = data[j] & ~0x3FF;
-			indices[j] = data[j] >> 2;
-			if(indices[j]) indices[j]--;
-			if(weights[j] == 0.0f) indices[j] = 0;
-		}
-		weights += 4;
-		indices += 4;
-		data += 4;
-	}
-}
-
-void
-insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
-{
+	RslVertex v;
+	uint32 mask = 0x1001;	// tex coords, vertices
+	if(g->geoflags & Geometry::NORMALS)
+		mask |= 0x10;
+	if(g->geoflags & Geometry::PRELIT)
+		mask |= 0x100;
 	float32 *verts = &g->morphTargets[0].vertices[g->numVertices*3];
 	float32 *norms = &g->morphTargets[0].normals[g->numVertices*3];
 	uint8 *cols = &g->colors[g->numVertices*4];
@@ -202,7 +154,14 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 	if(skin){
 		indices = &skin->indices[g->numVertices*4];
 		weights = &skin->weights[g->numVertices*4];
+		mask |= 0x10000;
 	}
+
+	int16 *vuVerts = NULL;
+	int8 *vuNorms = NULL;
+	uint8 *vuTex = NULL;
+	uint16 *vuCols = NULL;
+	uint32 *vuSkin = NULL;
 
 	uint8 *p = rg->data + rm->dmaOffset;
 	uint32 *w = (uint32*)p;
@@ -210,9 +169,14 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 	w += 4;
 	int flags = 0;
 	int32 nvert;
+	bool first = 1;
 	while(w < end){
+		/* Get data pointers */
+
+		// GIFtag probably
 		assert(w[0] == 0x6C018000);	// UNPACK
 		nvert = w[4] & 0x7FFF;
+		if(!first) nvert -=2;
 		w += 5;
 
 		// positions
@@ -221,9 +185,9 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 		assert(w[0] == 0x30000000);	// STROW
 		w += 5;
 		assert((w[0] & 0xFF004000) == 0x79000000);
-		unpackVertices(rg, (int16*)(w+1), verts, nvert);
+		vuVerts = (int16*)(w+1);
+		if(!first) vuVerts += 2*3;
 		w = skipUnpack(w);
-		verts += 3*(nvert-2);
 
 		// tex coords
 		assert(w[0] == 0x20000000);	// STMASK
@@ -231,38 +195,85 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 		assert(w[0] == 0x30000000);	// STROW
 		w += 5;
 		assert((w[0] & 0xFF004000) == 0x76004000);
-		unpackTex(rm, (uint8*)(w+1), texCoords, nvert);
+		vuTex = (uint8*)(w+1);
+		if(!first) vuTex += 2*2;
 		w = skipUnpack(w);
-		texCoords += 2*(nvert-2);
 
 		if(g->geoflags & Geometry::NORMALS){
 			assert((w[0] & 0xFF004000) == 0x6A000000);
-			unpackNormals((int8*)(w+1), norms, nvert);
+			vuNorms = (int8*)(w+1);
+			if(!first) vuNorms += 2*3;
 			w = skipUnpack(w);
-			norms += 3*(nvert-2);
 		}
 
 		if(g->geoflags & Geometry::PRELIT){
 			assert((w[0] & 0xFF004000) == 0x6F000000);
-			unpackColors((uint16*)(w+1), cols, nvert);
+			vuCols = (uint16*)(w+1);
+			if(!first) vuCols += 2;
 			w = skipUnpack(w);
-			cols += 4*(nvert-2);
 		}
 
 		if(skin){
 			assert((w[0] & 0xFF004000) == 0x6C000000);
-			unpackSkinData((w+1), weights, indices, nvert);
+			vuSkin = w+1;
+			if(!first) vuSkin += 2*4;
 			w = skipUnpack(w);
-			indices += 4*(nvert-2);
-			weights += 4*(nvert-2);
 		}
-		g->numVertices += nvert-2;
 
-		assert(w[0] == 0x14000006);
+		assert(w[0] == 0x14000006);	// MSCAL
 		w++;
 		while(w[0] == 0) w++;
+
+		/* Insert Data */
+		for(uint32 i = 0; i < nvert; i++){
+			v.p[0] = vuVerts[0]/32768.0f*rg->scale[0] + rg->pos[0];
+			v.p[1] = vuVerts[1]/32768.0f*rg->scale[1] + rg->pos[1];
+			v.p[2] = vuVerts[2]/32768.0f*rg->scale[2] + rg->pos[2];
+			v.t[0] = vuTex[0]/255.0f*rm->uvOff[0];
+			v.t[1] = vuTex[1]/255.0f*rm->uvOff[1];
+			if(mask & 0x10){
+				v.n[0] = vuNorms[0]/127.0f;
+				v.n[1] = vuNorms[1]/127.0f;
+				v.n[2] = vuNorms[2]/127.0f;
+			}
+			if(mask & 0x100){
+				v.c[0] = (vuCols[0] & 0x1f) * 255 / 0x1F;
+				v.c[1] = (vuCols[0]>>5 & 0x1f) * 255 / 0x1F;
+				v.c[2] = (vuCols[0]>>10 & 0x1f) * 255 / 0x1F;
+				v.c[3] = vuCols[0]&0x80 ? 0xFF : 0;
+			}
+			if(mask & 0x10000){
+				for(int j = 0; j < 4; j++){
+					((uint32*)v.w)[j] = vuSkin[j] & ~0x3FF;
+					v.i[j] = vuSkin[j] >> 2;
+					if(v.i[j]) v.i[j]--;
+					if(v.w[j] == 0.0f) v.i[j] = 0;
+				}
+			}
+
+			int32 idx = ps2::findVertexSkin(g, NULL, mask, 0, v.p, v.t, NULL, v.c, v.n, v.w, v.i);
+			if(idx < 0)
+				idx = g->numVertices++;
+			/* Insert mesh joining indices when we get the index of the first vertex
+			 * in the first VU chunk of a non-first RslMesh. */
+			if(i == 0 && first && rm != &rg->meshes[0] && (rm-1)->matID == rm->matID){
+				m->indices[m->numIndices] = m->indices[m->numIndices-1];
+				m->numIndices++;
+				m->indices[m->numIndices++] = idx;
+				if((rm-1)->numTriangles % 2)
+					m->indices[m->numIndices++] = idx;
+			}
+			m->indices[m->numIndices++] = idx;
+			ps2::insertVertexSkin(g, idx, mask, v.p, v.t, NULL, v.c, v.n, v.w, v.i);
+
+			vuVerts += 3;
+			vuTex += 2;
+			vuNorms += 3;
+			vuCols++;
+			vuSkin += 4;
+		}
+		first = 0;
 	}
-	g->numVertices += 2;
 }
 
 void
@@ -273,16 +284,28 @@ convertRslGeometry(Geometry *g)
 
 	g->meshHeader = new MeshHeader;
 	g->meshHeader->flags = 1;
-	g->meshHeader->numMeshes = rg->numMeshes;
-	g->meshHeader->mesh = new Mesh[rg->numMeshes];
+	g->meshHeader->numMeshes = g->numMaterials;
+	g->meshHeader->mesh = new Mesh[g->meshHeader->numMeshes];
 	g->meshHeader->totalIndices = 0;
-	int32 nverts = 0;
+	Mesh *meshes = g->meshHeader->mesh;
+	for(uint32 i = 0; i < g->meshHeader->numMeshes; i++)
+		meshes[i].numIndices = 0;
 	RslMesh *rm = rg->meshes;
-	Mesh *m = g->meshHeader->mesh;
-	for(uint32 i = 0; i < rg->numMeshes; i++, rm++, m++){
-		nverts += m->numIndices = rm->numTriangles+2;
-		m->material = g->materialList[i];
+	int32 lastId = -1;
+	for(uint32 i = 0; i < rg->numMeshes; i++, rm++){
+		Mesh *m = &meshes[rm->matID];
+		g->numVertices += rm->numTriangles+2;
+		m->numIndices += rm->numTriangles+2;
+		// Extra indices since we're merging tristrip
+		// meshes with the same material.
+		// Be careful with face winding.
+		if(lastId == rm->matID)
+			m->numIndices += (rm-1)->numTriangles % 2 ? 3 : 2;
+		m->material = g->materialList[rm->matID];
+		lastId = rm->matID;
 	}
+	for(uint32 i = 0; i < g->meshHeader->numMeshes; i++)
+		g->meshHeader->totalIndices += meshes[i].numIndices;
 	g->geoflags = Geometry::TRISTRIP |
 	              Geometry::POSITIONS |	/* 0x01 ? */
 	              Geometry::TEXTURED;	/* 0x04 ? */
@@ -292,8 +315,6 @@ convertRslGeometry(Geometry *g)
 		g->geoflags |= Geometry::PRELIT;
 	g->numTexCoordSets = 1;
 
-	g->numVertices = nverts;
-	g->meshHeader->totalIndices = nverts;
 	g->allocateData();
 	g->meshHeader->allocateIndices();
 
@@ -308,15 +329,12 @@ convertRslGeometry(Geometry *g)
 		delete[] data;
 	}
 
-	uint16 idx = 0;
-	rm = rg->meshes;
-	m = g->meshHeader->mesh;
+	for(uint32 i = 0; i < g->meshHeader->numMeshes; i++)
+		meshes[i].numIndices = 0;
 	g->numVertices = 0;
-	for(uint32 i = 0; i < rg->numMeshes; i++, rm++, m++){
-		for(uint32 j = 0; j < m->numIndices; j++)
-			m->indices[j] = idx++;
-		insertVertices(g, rg, rm);
-	}
+	rm = rg->meshes;
+	for(uint32 i = 0; i < rg->numMeshes; i++, rm++)
+		convertRslMesh(g, rg, &meshes[rm->matID], rm);
 
 	if(skin){
 		skin->findNumWeights(g->numVertices);
@@ -344,24 +362,13 @@ geometryStreamReadRsl(Stream *stream)
 
 	assert(findChunk(stream, ID_MATLIST, NULL, NULL));
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	int32 numMaterials = stream->readI32();
-	Material **materialList = new Material*[numMaterials];
-	stream->seek(numMaterials*4);	// unused (-1)
-	for(int32 i = 0; i < numMaterials; i++){
-		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
-		materialList[i] = Material::streamRead(stream);
-	}
-
-	g->numMaterials = rg->numMeshes;
+	g->numMaterials = stream->readI32();
 	g->materialList = new Material*[g->numMaterials];
-	for(int32 i = 0; i < rg->numMeshes; i++){
-		g->materialList[i] = materialList[rg->meshes[i].matID];
-		g->materialList[i]->refCount++;
-		//g->materialList[i] = new Material(materialList[rg->meshes[i].matID]);
+	stream->seek(g->numMaterials*4);	// unused (-1)
+	for(int32 i = 0; i < g->numMaterials; i++){
+		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
+		g->materialList[i] = Material::streamRead(stream);
 	}
-
-	for(int32 i = 0; i < numMaterials; i++)
-		materialList[i]->decRef();
 
 	g->streamReadPlugins(stream);
 
