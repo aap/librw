@@ -335,6 +335,8 @@ struct Geometry : PluginBase<Geometry>, Object
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	void addMorphTargets(int32 n);
+	void calculateBoundingSphere(void);
+	bool32 hasColoredMaterial(void);
 	void allocateData(void);
 	void generateTriangles(int8 *adc = NULL);
 

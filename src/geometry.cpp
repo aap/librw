@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
+#include <cmath>
 
 #include <new>
 
@@ -268,6 +269,45 @@ Geometry::addMorphTargets(int32 n)
 		}
 	}
 	this->numMorphTargets += n;
+}
+
+void
+Geometry::calculateBoundingSphere(void)
+{
+	for(int32 i = 0; i < this->numMorphTargets; i++){
+		MorphTarget *m = &this->morphTargets[i];
+		float32 min[3] = {  1000000.0f,  1000000.0f,  1000000.0f };
+		float32 max[3] = { -1000000.0f, -1000000.0f, -1000000.0f };
+		float32 *v = m->vertices;
+		for(int32 j = 0; j < this->numVertices; j++){
+			if(v[0] > max[0]) max[0] = v[0];
+			if(v[0] < min[0]) min[0] = v[0];
+			if(v[1] > max[1]) max[1] = v[1];
+			if(v[1] < min[1]) min[1] = v[1];
+			if(v[2] > max[2]) max[2] = v[2];
+			if(v[2] < min[2]) min[2] = v[2];
+			v += 3;
+		}
+		m->boundingSphere[0] = (min[0] + max[0])/2.0f;
+		m->boundingSphere[1] = (min[1] + max[1])/2.0f;
+		m->boundingSphere[2] = (min[2] + max[2])/2.0f;
+		max[0] -= m->boundingSphere[0];
+		max[1] -= m->boundingSphere[1];
+		max[2] -= m->boundingSphere[2];
+		m->boundingSphere[3] = sqrt(max[0]*max[0] + max[1]*max[1] + max[2]*max[2]);
+	}
+}
+
+bool32
+Geometry::hasColoredMaterial(void)
+{
+	for(int32 i = 0; i < this->numMaterials; i++)
+		if(this->materialList[i]->color[0] != 255 ||
+		   this->materialList[i]->color[1] != 255 ||
+		   this->materialList[i]->color[2] != 255 ||
+		   this->materialList[i]->color[3] != 255)
+			return 1;
+	return 0;
 }
 
 void

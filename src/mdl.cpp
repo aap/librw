@@ -56,7 +56,7 @@ halfFloat(uint16 half)
 	uint32 f = (uint32)(half & 0x7fff) << 13;
 	uint32 sgn = (uint32)(half & 0x8000) << 16;
 	f += 0x38000000;
-	if(half & 0x7c00 == 0) f = 0;
+	if((half & 0x7c00) == 0) f = 0;
 	f |= sgn;
 	return *(float32*)&f;
 }
@@ -239,7 +239,7 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 		while(w[0] == 0) w++;
 
 		/* Insert Data */
-		for(uint32 i = 0; i < nvert; i++){
+		for(int32 i = 0; i < nvert; i++){
 			v.p[0] = vuVerts[0]/32768.0f*rg->scale[0] + rg->pos[0];
 			v.p[1] = vuVerts[1]/32768.0f*rg->scale[1] + rg->pos[1];
 			v.p[2] = vuVerts[2]/32768.0f*rg->scale[2] + rg->pos[2];
@@ -322,7 +322,10 @@ convertRslGeometry(Geometry *g)
 		g->meshHeader->totalIndices += meshes[i].numIndices;
 	g->geoflags = Geometry::TRISTRIP |
 	              Geometry::POSITIONS |	/* 0x01 ? */
-	              Geometry::TEXTURED;	/* 0x04 ? */
+	              Geometry::TEXTURED |	/* 0x04 ? */
+	              Geometry::LIGHT;
+	if(g->hasColoredMaterial())
+		g->geoflags |= Geometry::MODULATE;
 	if(rg->flags & 0x2)
 		g->geoflags |= Geometry::NORMALS;
 	if(rg->flags & 0x8)
@@ -354,6 +357,7 @@ convertRslGeometry(Geometry *g)
 		skin->findNumWeights(g->numVertices);
 		skin->findUsedBones(g->numVertices);
 	}
+	g->calculateBoundingSphere();
 	g->generateTriangles();
 }
 
@@ -382,6 +386,10 @@ geometryStreamReadRsl(Stream *stream)
 	for(int32 i = 0; i < g->numMaterials; i++){
 		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
 		g->materialList[i] = Material::streamRead(stream);
+		// fucked somehow
+		g->materialList[i]->surfaceProps[0] = 1.0f;
+		g->materialList[i]->surfaceProps[1] = 1.0f;
+		g->materialList[i]->surfaceProps[2] = 1.0f;
 	}
 
 	g->streamReadPlugins(stream);
