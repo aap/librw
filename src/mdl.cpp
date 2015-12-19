@@ -27,7 +27,7 @@ int32 rslPluginOffset;
 struct RslMesh
 {
 	float32 bound[4];	// ?
-	float32 uvOff[2];	// ?
+	float32 uvScale[2];
 	uint32 unknown;
 	uint32 dmaOffset;
 	uint16 numTriangles;
@@ -49,6 +49,17 @@ struct RslGeometry
 	uint32 dataSize;
 	uint8 *data;
 };
+
+float32
+halfFloat(uint16 half)
+{
+	uint32 f = (uint32)(half & 0x7fff) << 13;
+	uint32 sgn = (uint32)(half & 0x8000) << 16;
+	f += 0x38000000;
+	if(half & 0x7c00 == 0) f = 0;
+	f |= sgn;
+	return *(float32*)&f;
+}
 
 static uint32
 unpackSize(uint32 unpack)
@@ -157,6 +168,9 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 		mask |= 0x10000;
 	}
 
+	//float uScale = //halfFloat(rm->uvScale[0]);
+	//float vScale = //halfFloat(rm->uvScale[1]);
+
 	int16 *vuVerts = NULL;
 	int8 *vuNorms = NULL;
 	uint8 *vuTex = NULL;
@@ -229,8 +243,8 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 			v.p[0] = vuVerts[0]/32768.0f*rg->scale[0] + rg->pos[0];
 			v.p[1] = vuVerts[1]/32768.0f*rg->scale[1] + rg->pos[1];
 			v.p[2] = vuVerts[2]/32768.0f*rg->scale[2] + rg->pos[2];
-			v.t[0] = vuTex[0]/255.0f*rm->uvOff[0];
-			v.t[1] = vuTex[1]/255.0f*rm->uvOff[1];
+			v.t[0] = vuTex[0]/128.0f*rm->uvScale[0];
+			v.t[1] = vuTex[1]/128.0f*rm->uvScale[1];
 			if(mask & 0x10){
 				v.n[0] = vuNorms[0]/127.0f;
 				v.n[1] = vuNorms[1]/127.0f;
@@ -240,7 +254,7 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 				v.c[0] = (vuCols[0] & 0x1f) * 255 / 0x1F;
 				v.c[1] = (vuCols[0]>>5 & 0x1f) * 255 / 0x1F;
 				v.c[2] = (vuCols[0]>>10 & 0x1f) * 255 / 0x1F;
-				v.c[3] = vuCols[0]&0x80 ? 0xFF : 0;
+				v.c[3] = vuCols[0]&0x8000 ? 0xFF : 0;
 			}
 			if(mask & 0x10000){
 				for(int j = 0; j < 4; j++){

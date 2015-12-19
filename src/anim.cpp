@@ -335,16 +335,15 @@ writeUVAnim(Stream *stream, int32 size, void *object, int32 offset, int32)
 	}
 }
 
-// TODO: under what circumstance 0?
 static int32
 getSizeUVAnim(void *object, int32 offset, int32)
 {
 	UVAnim *uvanim = PLUGINOFFSET(UVAnim, object, offset);
-	int32 size = 12 + 4;
+	int32 size = 0;
 	for(int32 i = 0; i < 8; i++)
 		if(uvanim->interp[i])
 			size += 32;
-	return size;
+	return size ? size + 12 + 4 : 0;
 }
 
 

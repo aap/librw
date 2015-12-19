@@ -16,8 +16,9 @@ main(int argc, char *argv[])
 //	rw::version = 0x31000;
 //	rw::build = 0;
 
+	rw::version = 0;
 //	rw::version = 0x32000;
-	rw::version = 0x33002;
+//	rw::version = 0x33002;
 	rw::platform = PLATFORM_D3D8;
 //	rw::version = 0x30200;
 
@@ -31,6 +32,7 @@ main(int argc, char *argv[])
 //	rw::StreamFile in;
 //	in.open(argv[1], "rb");
 
+	ChunkHeaderInfo header;
 	if(0){
 		FILE *cf = fopen(argv[1], "rb");
 		assert(cf != NULL);
@@ -57,7 +59,6 @@ main(int argc, char *argv[])
 			return 1;
 		}
 		debugFile = argv[1];
-		ChunkHeaderInfo header;
 		readChunkHeaderInfo(&in, &header);
 		if(header.type == ID_UVANIMDICT){
 			UVAnimDictionary *dict = UVAnimDictionary::streamRead(&in);
@@ -75,6 +76,11 @@ main(int argc, char *argv[])
 	if(lcs)
 		for(int32 i = 0; i < c->numAtomics; i++)
 			convertRslGeometry(c->atomicList[i]->geometry);
+
+	if(rw::version == 0){
+		rw::version = header.version;
+		rw::build = header.build;
+	}
 
 //	rw::Image::setSearchPath("./;/home/aap/gamedata/ps2/gtavc/MODELS/gta3_archive/txd_extracted/");
 

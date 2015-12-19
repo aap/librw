@@ -243,7 +243,7 @@ getSizeBreakableModel(void *object, int32 offset, int32)
 {
 	Breakable *breakable = *PLUGINOFFSET(Breakable*, object, offset);
 	if(breakable == NULL)
-		return 4;
+		return 0; //4;
 	return 56 + breakable->numVertices*(12+8+4) +
 	            breakable->numFaces*(6+2) +
 	            breakable->numMaterials*(32+32+12);
