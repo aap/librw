@@ -203,18 +203,16 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 		indices = &skin->indices[g->numVertices*4];
 		weights = &skin->weights[g->numVertices*4];
 	}
-	bool first = 1;
 
 	uint8 *p = rg->data + rm->dmaOffset;
 	uint32 *w = (uint32*)p;
 	uint32 *end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);
 	w += 4;
 	int flags = 0;
-	int32 nvert, n;
+	int32 nvert;
 	while(w < end){
 		assert(w[0] == 0x6C018000);	// UNPACK
 		nvert = w[4] & 0x7FFF;
-		n = first ? nvert : nvert-2;
 		w += 5;
 
 		// positions
@@ -225,7 +223,7 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 		assert((w[0] & 0xFF004000) == 0x79000000);
 		unpackVertices(rg, (int16*)(w+1), verts, nvert);
 		w = skipUnpack(w);
-		verts += 3*n;
+		verts += 3*(nvert-2);
 
 		// tex coords
 		assert(w[0] == 0x20000000);	// STMASK
@@ -235,36 +233,36 @@ insertVertices(Geometry *g, RslGeometry *rg, RslMesh *rm)
 		assert((w[0] & 0xFF004000) == 0x76004000);
 		unpackTex(rm, (uint8*)(w+1), texCoords, nvert);
 		w = skipUnpack(w);
-		texCoords += 2*n;
+		texCoords += 2*(nvert-2);
 
 		if(g->geoflags & Geometry::NORMALS){
 			assert((w[0] & 0xFF004000) == 0x6A000000);
 			unpackNormals((int8*)(w+1), norms, nvert);
 			w = skipUnpack(w);
-			norms += 3*n;
+			norms += 3*(nvert-2);
 		}
 
 		if(g->geoflags & Geometry::PRELIT){
 			assert((w[0] & 0xFF004000) == 0x6F000000);
 			unpackColors((uint16*)(w+1), cols, nvert);
 			w = skipUnpack(w);
-			cols += 4*n;
+			cols += 4*(nvert-2);
 		}
 
 		if(skin){
 			assert((w[0] & 0xFF004000) == 0x6C000000);
 			unpackSkinData((w+1), weights, indices, nvert);
 			w = skipUnpack(w);
-			indices += 4*n;
-			weights += 4*n;
+			indices += 4*(nvert-2);
+			weights += 4*(nvert-2);
 		}
-		g->numVertices += n;
+		g->numVertices += nvert-2;
 
 		assert(w[0] == 0x14000006);
 		w++;
 		while(w[0] == 0) w++;
-		first = 0;
 	}
+	g->numVertices += 2;
 }
 
 void
