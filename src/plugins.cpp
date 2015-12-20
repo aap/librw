@@ -295,6 +295,13 @@ registerMeshPlugin(void)
 	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
 }
 
+MeshHeader::~MeshHeader(void)
+{
+	// first mesh holds pointer to all indices
+	delete[] this->mesh[0].indices;
+	delete[] this->mesh;
+}
+
 void
 MeshHeader::allocateIndices(void)
 {

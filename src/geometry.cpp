@@ -71,14 +71,7 @@ Geometry::~Geometry(void)
 		delete[] m->normals;
 	}
 	delete[] this->morphTargets;
-
-	if(this->meshHeader){
-		// first mesh holds pointer to all indices
-		delete[] this->meshHeader->mesh[0].indices;
-		delete[] this->meshHeader->mesh;
-		delete this->meshHeader;
-	}
-
+	delete this->meshHeader;
 	for(int32 i = 0; i < this->numMaterials; i++)
 		this->materialList[i]->decRef();
 	delete[] this->materialList;

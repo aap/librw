@@ -291,6 +291,7 @@ struct MeshHeader
 	Mesh *mesh;	// RW has a byte offset here
 
 	void allocateIndices(void);
+	~MeshHeader(void);
 };
 
 struct MorphTarget

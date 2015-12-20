@@ -84,9 +84,10 @@ main(int argc, char *argv[])
 	for(int32 i = 0; i < c->numAtomics; i++){
 		Atomic *a = c->atomicList[i];
 		ObjPipeline *p = a->getPipeline();
-		if(uninstance)
+		if(uninstance){
 			p->uninstance(a);
-		else
+			ps2::unconvertADC(a->geometry);
+		}else
 			p->instance(a);
 	}
 

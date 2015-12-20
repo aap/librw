@@ -816,37 +816,37 @@ registerCollisionPlugin(void)
 
 using namespace ps2;
 
-PipeAttribute saXYZADC = {
+rw::PipeAttribute saXYZADC = {
 	"saXYZADC",
 	AT_V4_16 | AT_RW
 };
 
-PipeAttribute saUV = {
+rw::PipeAttribute saUV = {
 	"saUV",
 	AT_V2_16 | AT_RW
 };
 
-PipeAttribute saUV2 = {
+rw::PipeAttribute saUV2 = {
 	"saUV2",
 	AT_V4_16 | AT_RW
 };
 
-PipeAttribute saRGBA = {
+rw::PipeAttribute saRGBA = {
 	"saRGBA",
 	AT_V4_8 | AT_UNSGN | AT_RW
 };
 
-PipeAttribute saRGBA2 = {
+rw::PipeAttribute saRGBA2 = {
 	"saRGBA2",
 	AT_V4_16 | AT_UNSGN | AT_RW
 };
 
-PipeAttribute saNormal = {
+rw::PipeAttribute saNormal = {
 	"saNormal",
 	AT_V4_8 | AT_RW
 };
 
-PipeAttribute saWeights = {
+rw::PipeAttribute saWeights = {
 	"saWeights",
 	AT_V4_32 | AT_RW
 };

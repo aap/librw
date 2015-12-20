@@ -1217,6 +1217,55 @@ debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
 	return n;
 }
 
+// Not optimal but works
+void
+unconvertADC(Geometry *g)
+{
+	ADCData *adc = PLUGINOFFSET(ADCData, g, adcOffset);
+	if(!adc->adcFormatted)
+		return;
+	int8 *b = adc->adcBits;
+	MeshHeader *h = new MeshHeader;
+	h->flags = g->meshHeader->flags;	// should be tristrip
+	h->numMeshes = g->meshHeader->numMeshes;
+	h->mesh = new Mesh[h->numMeshes];
+	Mesh *oldm = g->meshHeader->mesh;
+	Mesh *newm = h->mesh;
+	h->totalIndices = 0;
+	for(int32 i = 0; i < h->numMeshes; i++){
+		newm->material = oldm->material;
+		newm->numIndices = oldm->numIndices;
+		for(uint32 j = 0; j < oldm->numIndices; j++)
+			if(*b++)
+				newm->numIndices += 2;
+		h->totalIndices += newm->numIndices;
+		newm++;
+		oldm++;
+	}
+	h->allocateIndices();
+	b = adc->adcBits;
+	oldm = g->meshHeader->mesh;
+	newm = h->mesh;
+	for(int32 i = 0; i < h->numMeshes; i++){
+		int32 n = 0;
+		for(uint32 j = 0; j < oldm->numIndices; j++){
+			if(*b++){
+				newm->indices[n++] = oldm->indices[j-1];
+				newm->indices[n++] = oldm->indices[j-1];
+			}
+			newm->indices[n++] = oldm->indices[j];
+		}
+		newm++;
+		oldm++;
+	}
+	delete g->meshHeader;
+	g->meshHeader = h;
+	adc->adcFormatted = 0;
+	delete[] adc->adcBits;
+	adc->adcBits = 0;
+	adc->numBits = NULL;
+}
+
 void
 allocateADC(Geometry *geo)
 {

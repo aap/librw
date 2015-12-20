@@ -180,15 +180,15 @@ initrw(void)
 	gta::attachPlugins();
 	rw::d3d::registerNativeRaster();
 
-//	rw::currentTexDictionary = new rw::TexDictionary;
-//	rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
-//	                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
-//	                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
+	rw::currentTexDictionary = new rw::TexDictionary;
+	//rw::Image::setSearchPath("D:\\rockstargames\\ps2\\gta3\\MODELS\\gta3_archive\\txd_extracted\\;"
+	//                         "D:\\rockstargames\\ps2\\gtavc\\MODELS\\gta3_archive\\txd_extracted\\;"
+	//                         "D:\\rockstargames\\ps2\\gtasa\\models\\gta3_archive\\txd_extracted\\");
 
 	rw::platform = rw::PLATFORM_D3D8;
 	rw::d3d::device = Device;
 
-	if(1){
+	if(0){
 		char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.txd";
 		rw::StreamFile in;
 		if(in.open(filename, "rb") == NULL){
@@ -208,12 +208,12 @@ initrw(void)
 		out.close();
 	}
 
-	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
+//	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\admiral.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gta3\\models\\gta3_archive\\kuruma.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\player.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtavc\\models\\gta3_archive\\od_newscafe_dy.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\admiral.dff";
-//	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\lae2_roads89.dff";
+	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\lae2_roads89.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\gta3_archive\\casinoblock41_nt.dff";
 //	char *filename = "D:\\rockstargames\\pc\\gtasa\\models\\cutscene_archive\\csremington92.dff";
 //	char *filename = "C:\\gtasa\\test\\hanger.dff";
@@ -232,6 +232,8 @@ initrw(void)
 
 	for(int i = 0; i < clump->numAtomics; i++){
 		rw::Atomic *a = clump->atomicList[i];
+		if(a->pipeline && a->pipeline->platform == rw::PLATFORM_PS2)
+			a->pipeline = NULL;
 		a->getPipeline()->instance(a);
 	}
 	if(rw::platform == rw::PLATFORM_D3D8)

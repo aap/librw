@@ -136,6 +136,7 @@ struct ADCData
 extern int32 adcOffset;
 void registerADCPlugin(void);
 
+void unconvertADC(Geometry *geo);
 void allocateADC(Geometry *geo);
 
 // PDS plugin
