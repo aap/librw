@@ -492,7 +492,7 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		skin->init(header[0], header[1], geometry->numVertices);
 	skin->numWeights = header[2];
 
-	if(!oldFormat)
+	if(!oldFormat && !skinGlobals.forceSkipUsedBones)
 		stream->read(skin->usedBones, skin->numUsedBones);
 	if(skin->indices)
 		stream->read(skin->indices, geometry->numVertices*4);

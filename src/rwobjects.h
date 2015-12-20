@@ -379,6 +379,7 @@ struct SkinGlobals
 {
 	int32 offset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
+	bool32 forceSkipUsedBones;
 };
 extern SkinGlobals skinGlobals;
 void registerSkinPlugin(void);
