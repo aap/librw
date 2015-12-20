@@ -1205,9 +1205,9 @@ static int
 debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
 {
 	int n = 0;
-	for(int i = 0; i < mh->numMeshes; i++){
+	for(uint32 i = 0; i < mh->numMeshes; i++){
 		uint16 *idx = mh->mesh[i].indices;
-		for(int j = 0; j < mh->mesh[i].numIndices-2; j++){
+		for(uint32 j = 0; j < mh->mesh[i].numIndices-2; j++){
 			if(!validFace(g, idx, j, i) && !isdegenerate(idx+j)){
 				n++;
 //				printf("> %d %d %d %d\n", i, idx[j+0], idx[j+1], idx[j+2]);

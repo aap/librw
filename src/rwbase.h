@@ -151,6 +151,9 @@ extern int build;
 extern int platform;
 extern char *debugFile;
 
+void matrixMult(float32 *out, float32 *a, float32 *b);
+void matrixInvert(float32 *out, float32 *in);
+
 // 0x04000000	3.1
 // 0x08000000	3.2
 // 0x0C000000	3.3

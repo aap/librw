@@ -260,7 +260,7 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 				for(int j = 0; j < 4; j++){
 					((uint32*)v.w)[j] = vuSkin[j] & ~0x3FF;
 					v.i[j] = vuSkin[j] >> 2;
-					if(v.i[j]) v.i[j]--;
+					//if(v.i[j]) v.i[j]--;
 					if(v.w[j] == 0.0f) v.i[j] = 0;
 				}
 			}

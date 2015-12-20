@@ -470,6 +470,7 @@ struct AnimInterpolatorInfo
 };
 
 void registerAnimInterpolatorInfo(AnimInterpolatorInfo *interpInfo);
+AnimInterpolatorInfo *findAnimInterpolatorInfo(int32 id);
 
 struct Animation
 {

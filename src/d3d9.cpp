@@ -338,7 +338,7 @@ ObjPipeline::uninstance(Atomic *atomic)
 		if(inst->minVert == 0)
 			memcpy(mesh->indices, &indices[inst->startIndex], inst->numIndex*2);
 		else
-			for(int32 j = 0; j < inst->numIndex; j++)
+			for(uint32 j = 0; j < inst->numIndex; j++)
 				mesh->indices[j] = indices[inst->startIndex+j] + inst->minVert;
 		mesh++;
 		inst++;

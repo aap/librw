@@ -114,19 +114,7 @@ Frame::updateLTM(void)
 	Frame *parent = (Frame*)this->parent;
 	if(parent){
 		parent->updateLTM();
-// TODO: replace with platform optimized code
-#define L(i,j) this->ltm[i*4+j]
-#define A(i,j) parent->ltm[i*4+j]
-#define B(i,j) this->matrix[i*4+j]
-		for(int i = 0; i < 4; i++)
-			for(int j = 0; j < 4; j++)
-				L(i,j) = A(0,j)*B(i,0)
-				       + A(1,j)*B(i,1)
-				       + A(2,j)*B(i,2)
-				       + A(3,j)*B(i,3);
-#undef L
-#undef A
-#undef B
+		matrixMult(this->ltm, parent->ltm, this->matrix);
 		this->dirty = false;
 	}else{
 		memcpy(this->ltm, this->matrix, 16*4);
