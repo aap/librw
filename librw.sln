@@ -30,6 +30,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "txdwrite", "tools\txdwrite\
 		{30552BB0-3B19-49A4-ABF4-87CF68AF9E38} = {30552BB0-3B19-49A4-ABF4-87CF68AF9E38}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rsltest", "tools\rsltest\rsltest.vcxproj", "{27ECE916-900F-49B2-8E9F-95E6B347E161}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug - null|Win32 = Debug - null|Win32
@@ -100,6 +102,15 @@ Global
 		{403C35A9-6D06-4261-B305-9ED000F00136}.Release|Win32.Build.0 = Release|Win32
 		{403C35A9-6D06-4261-B305-9ED000F00136}.Release|x64.ActiveCfg = Release|x64
 		{403C35A9-6D06-4261-B305-9ED000F00136}.Release|x64.Build.0 = Release|x64
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug - null|Win32.ActiveCfg = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug - null|Win32.Build.0 = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug - null|x64.ActiveCfg = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug|Win32.ActiveCfg = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug|Win32.Build.0 = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Debug|x64.ActiveCfg = Debug|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Release|Win32.ActiveCfg = Release|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Release|Win32.Build.0 = Release|Win32
+		{27ECE916-900F-49B2-8E9F-95E6B347E161}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

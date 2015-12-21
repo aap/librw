@@ -315,11 +315,12 @@ convertRslGeometry(Geometry *g)
 		// Be careful with face winding.
 		if(lastId == rm->matID)
 			m->numIndices += (rm-1)->numTriangles % 2 ? 3 : 2;
-		m->material = g->materialList[rm->matID];
 		lastId = rm->matID;
 	}
-	for(uint32 i = 0; i < g->meshHeader->numMeshes; i++)
+	for(uint32 i = 0; i < g->meshHeader->numMeshes; i++){
+		g->meshHeader->mesh[i].material = g->materialList[i];
 		g->meshHeader->totalIndices += meshes[i].numIndices;
+	}
 	g->geoflags = Geometry::TRISTRIP |
 	              Geometry::POSITIONS |	/* 0x01 ? */
 	              Geometry::TEXTURED |	/* 0x04 ? */

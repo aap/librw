@@ -97,7 +97,7 @@ PluginBase<T>::streamReadPlugins(Stream *stream)
 				        (void*)this, p->offset, p->size);
 				goto cont;
 			}
-//		printf("skipping plugin %X\n", header.type);
+		//printf("skipping plugin %X\n", header.type);
 		stream->seek(header.length);
 cont:
 		length -= header.length;
