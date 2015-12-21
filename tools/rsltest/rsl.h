@@ -28,6 +28,7 @@ struct RslHAnimNode;
 struct RslPS2ResEntryHeader;
 struct RslPS2InstanceData;
 
+typedef RslFrame *(*RslFrameCallBack)(RslFrame *frame, void *data);
 typedef RslClump *(*RslClumpCallBack)(RslClump *clump, void *data);
 typedef RslAtomic *(*RslAtomicCallBack)(RslAtomic *atomic, void *data);
 typedef RslMaterial *(*RslMaterialCallBack)(RslMaterial *material, void *data);
@@ -71,6 +72,8 @@ struct RslObjectHasFrame {
 	void      (*sync)();
 };
 
+#define rslObjectGetParent(object)           (((const RslObject *)(object))->parent)
+
 // from Serge
 //void TEX::getInfo(TEXInfo a)
 //{
@@ -81,10 +84,21 @@ struct RslObjectHasFrame {
 // mipmaps = (a.flags & 0xFF0000) >> 20;
 //}
 
-struct RslRaster {
+struct RslRasterPS2 {
 	uint8 *data;
 	// XXXXSSSSMMMMMMMMBBBBHHHHHHHHWWWW
 	uint32 flags;
+};
+
+struct RslRasterPSP {
+	uint32 unk1;
+	uint8 *data;
+	uint32 flags1, flags2;
+};
+
+union RslRaster {
+	RslRasterPS2 ps2;
+	RslRasterPSP psp;
 };
 
 struct RslTexDictionary {
@@ -101,28 +115,9 @@ struct RslTexture {
 	char              mask[32];
 };
 
-struct RslClump {
-	RslObject   object;
-	RslLinkList atomicList;
-};
-
-struct RslAtomic {
-	RslObjectHasFrame  object;
-	RslGeometry       *geometry;
-	RslClump          *clump;
-	RslLLLink          inClumpLink;
-
-	// what's this?
-	uint32             unk1;
-	uint16             unk2;
-	uint16             unk3;
-	RslHAnimHierarchy *hier;
-	int32              pad;	// 0xAAAAAAAA
-};
-
 struct RslFrame {
-	RslObject object;
-	RslLLLink inDirtyListLink; // ?
+	RslObject          object;
+	RslLLLink          inDirtyListLink; // ?
 		         
 	float32            modelling[16];
 	float32            ltm[16];
@@ -133,12 +128,38 @@ struct RslFrame {
 	// RwHAnimFrameExtension
 	int32              nodeId;
 	RslHAnimHierarchy *hier;
-
 	// R* Node name
 	char              *name;
-	uint32             unk3;       // ?pad?
+	// R* Visibility
+	int32              hierId;
 };
 
+struct RslClump {
+	RslObject   object;
+	RslLinkList atomicList;
+};
+
+#define RslClumpGetFrame(_clump)                                    \
+    ((RslFrame *) rslObjectGetParent(_clump))
+
+struct RslAtomic {
+	RslObjectHasFrame  object;
+	RslGeometry       *geometry;
+	RslClump          *clump;
+	RslLLLink          inClumpLink;
+
+	// what's this? rpWorldObj?
+	uint32             unk1;
+	uint16             unk2;
+	uint16             unk3;
+	// RpSkin
+	RslHAnimHierarchy *hier;
+	// what about visibility? matfx?
+	int32              pad;	// 0xAAAAAAAA
+};
+
+#define RslAtomicGetFrame(_atomic)                                  \
+    ((RslFrame *) rslObjectGetParent(_atomic))
 
 struct RslMaterialList {
 	RslMaterial **materials;

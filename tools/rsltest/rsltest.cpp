@@ -26,6 +26,17 @@ RslStream::relocate(void)
 	}
 }
 
+RslFrame*
+RslFrameForAllChildren(RslFrame *frame, RslFrameCallBack callBack, void *data)
+{
+	for(RslFrame *child = frame->child;
+	    child;
+	    child = child->next)
+		if(callBack(child, data) == NULL)
+			break;
+	return frame;
+}
+
 RslClump*
 RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData)
 {
@@ -51,6 +62,12 @@ RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack
 }
 
 
+RslFrame *dumpFrameCB(RslFrame *frame, void *data)
+{
+	printf(" frm: %x %s %x\n", frame->nodeId, frame->name, frame->unk3);
+	RslFrameForAllChildren(frame, dumpFrameCB, data);
+	return frame;
+}
 
 RslMaterial *dumpMaterialCB(RslMaterial *material, void*)
 {
@@ -102,9 +119,11 @@ main(int argc, char *argv[])
 		RslAtomic *a = (RslAtomic*)p;
 		clump = a->clump;
 		if(clump)
-			RslClumpForAllAtomics(clump, dumpAtomicCB, NULL);
+			//RslClumpForAllAtomics(clump, dumpAtomicCB, NULL);
+			RslFrameForAllChildren(RslClumpGetFrame(clump), dumpFrameCB, NULL);
 		else
-			dumpAtomicCB(a, NULL);
+			//dumpAtomicCB(a, NULL);
+			RslFrameForAllChildren(RslAtomicGetFrame(a), dumpFrameCB, NULL);
 	}
 
 	return 0;
