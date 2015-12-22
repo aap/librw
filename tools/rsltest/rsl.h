@@ -169,13 +169,13 @@ struct RslMaterialList {
 
 struct RslGeometry {
 	RslObject       object;
-	uint16          locked;	  // ?
-	int16           refCount; // ?
+	int16           refCount;
+	int16           pad1;
 
 	RslMaterialList matList;
 
 	RslSkin        *skin;
-	uint32          pad;            // 0xAAAAAAAA
+	uint32          pad2;            // 0xAAAAAAAA
 };
 
 struct RslMatFXEnv {
@@ -194,8 +194,7 @@ struct RslMatFX {
 struct RslMaterial {
 	char       *texname;
 	uint32      color;
-	uint16      refCount;
-	uint16      pad;
+	uint32      refCount;
 	RslMatFX   *matfx;
 };
 

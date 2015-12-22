@@ -64,14 +64,14 @@ RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack
 
 RslFrame *dumpFrameCB(RslFrame *frame, void *data)
 {
-	printf(" frm: %x %s %x\n", frame->nodeId, frame->name, frame->unk3);
+	printf(" frm: %x %s %x\n", frame->nodeId, frame->name, frame->hierId);
 	RslFrameForAllChildren(frame, dumpFrameCB, data);
 	return frame;
 }
 
 RslMaterial *dumpMaterialCB(RslMaterial *material, void*)
 {
-	printf("  mat: %s %x %x\n", material->texname, material->pad, material->refCount);
+	printf("  mat: %s %x\n", material->texname, material->refCount);
 	if(material->matfx){
 		RslMatFX *fx = material->matfx;
 		printf("   matfx: ", fx->effectType);
