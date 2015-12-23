@@ -99,7 +99,7 @@ main(int argc, char *argv[])
 	assert(sizeof(void*) == 4);
 
 	if(argc < 2){
-		printf("usage: %s [-u] in.dff\n", argv[0]);
+		printf("usage: %s in\n", argv[0]);
 		return 0;
 	}
 
@@ -112,8 +112,71 @@ main(int argc, char *argv[])
 	stream.close();
 	rslstr->relocate();
 
+	int largefile = rslstr->dataSize > 0x100000;
+
+	World *world;
 	RslClump *clump;
-	if(rslstr->numAtomics){
+	Sector *sector;
+	if(rslstr->ident = WRLD_IDENT && largefile){	// hack
+		world = (World*)rslstr->data;
+
+		int len = strlen(argv[1])+1;
+		char filename[1024];
+		strncpy(filename, argv[1], len);
+		filename[len-3] = 'i';
+		filename[len-2] = 'm';
+		filename[len-1] = 'g';
+		filename[len] = '\0';
+		assert(stream.open(filename, "rb"));
+		filename[len-4] = '\\';
+		filename[len-3] = '\0';
+
+		char name[1024];
+		uint8 *data;
+		StreamFile outf;
+		RslStreamHeader *h;
+		int i = 0;
+		for(h = world->sectors->sector; h->ident == WRLD_IDENT; h++){
+			sprintf(name, "world%04d.wrld", i++);
+			strcat(filename, name);
+			assert(outf.open(filename, "wb"));
+			data = new uint8[h->fileEnd];
+			memcpy(data, h, 0x20);
+			stream.seek(h->root, 0);
+			stream.read(data+0x20, h->fileEnd-0x20);
+			outf.write(data, h->fileEnd);
+			outf.close();
+			filename[len-3] = '\0';
+		}
+		// radar textures
+		h = world->textures;
+		for(i = 0; i < world->numTextures; i++){
+			sprintf(name, "txd%04d.chk", i);
+			strcat(filename, name);
+			assert(outf.open(filename, "wb"));
+			data = new uint8[h->fileEnd];
+			memcpy(data, h, 0x20);
+			stream.seek(h->root, 0);
+			stream.read(data+0x20, h->fileEnd-0x20);
+			outf.write(data, h->fileEnd);
+			outf.close();
+			filename[len-3] = '\0';
+			h++;
+		}
+		stream.close();
+	}else if(rslstr->ident = WRLD_IDENT){	// sector
+		sector = (Sector*)rslstr->data;
+		printf("resources\n");
+		for(uint32 i = 0; i < sector->numResources; i++){
+			OverlayResource *r = &sector->resources[i];
+			printf(" %d %p\n", r->id, r->raw);
+		}
+		printf("placement\n");
+		Placement *p;
+		for(p = sector->sectionA; p < sector->sectionEnd; p++){
+			printf(" %d, %d, %f %f %f\n", p->id &0x7FFF, p->resId, p->matrix[12], p->matrix[13], p->matrix[14]);
+		}
+	}else if(rslstr->ident = MDL_IDENT){
 		uint8 *p = *rslstr->hashTab;
 		p -= 0x24;
 		RslAtomic *a = (RslAtomic*)p;

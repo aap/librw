@@ -1,5 +1,11 @@
+enum {
+	TEX_IDENT  = 0x00746578,
+	MDL_IDENT  = 0x006D646C,
+	WRLD_IDENT = 0x57524C44
+};
+
 struct RslStream {
-	uint32 ident;
+	uint32   ident;
 	bool32   isMulti;
 	uint32   fileSize;
 	uint32   dataSize;
@@ -263,10 +269,104 @@ struct RslPS2InstanceData {
 	float32  bound[4];      // ?
 	float32  uvScale[2];
 	int32    unk1;
-	uint8   *dmaPacket;
+	uint32   dmaPacket;
 	uint16   numTriangles;
 	int16    matID;
-	void    *unk2;
-	void    *unk3;
-	void    *unk4;
+	int16    min[3];          // bounding box
+	int16    max[3];
+};
+
+struct RslStreamHeader {
+	uint32   ident;
+	uint32   unk;
+	uint32   fileEnd;      //
+	uint32   dataEnd;      // relative to beginning of header
+	uint32   reloc;	       //
+	uint32   relocSize;
+	uint32   root;        // absolute
+	uint16   zero;
+	uint16   numAtomics;
+};
+
+struct RslWorldGeometry {
+	uint16 numMeshes;
+	uint16 size;
+	// array of numMeshes RslWorldMesh
+	// dma data
+};
+
+struct RslWorldMesh {
+	uint16 texID;           // index into resource table
+	uint16 dmaSize;
+	uint16 uvScale[2];	// half precision float
+	uint16 unk1;
+	int16  min[3];          // bounding box
+	int16  max[3];
+};
+
+struct Resource {
+	union {
+		RslRaster        *raster;
+		RslWorldGeometry *geometry;
+		uint8            *raw;
+	};
+	uint32 *dma;
+};
+
+struct OverlayResource {
+	int32 id;
+	union {
+		RslRaster        *raster;
+		RslWorldGeometry *geometry;
+		uint8            *raw;
+	};
+};
+
+struct Placement {
+	uint16 id;
+	uint16 resId;
+	int16 bound[4];
+	int32 pad;
+	float matrix[16];
+};
+
+struct Sector {
+	OverlayResource *resources;
+	uint16           numResources;
+	uint16           unk1;
+	Placement       *sectionA;
+	Placement       *sectionB;
+	Placement       *sectionC;
+	Placement       *sectionD;
+	Placement       *sectionE;
+	Placement       *sectionF;
+	Placement       *sectionG;
+	Placement       *sectionEnd;
+	uint16           unk2;
+	uint16           unk3;
+	uint32           unk4;
+};
+
+struct SectorEntry {
+	RslStreamHeader *sector;
+	uint32           num;
+};
+
+struct World {
+	Resource    *resources;
+	SectorEntry  sectors[47];
+	uint32       numResources;
+	uint8        pad[0x180];
+
+	uint32 numX;
+	void *tabX;	// size 0x4
+
+	uint32 numY;
+	void *tabY;	// size 0x30
+
+	uint32 numZ;
+	void *tabZ;	// size 0x6
+
+	uint32           numTextures;
+	RslStreamHeader *textures; // stream headers
 };
