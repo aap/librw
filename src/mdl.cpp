@@ -136,20 +136,10 @@ skipUnpack(uint32 *p)
 	return p + (n*unpackSize(p[0])+3 >> 2) + 1;
 }
 
-struct RslVertex
-{
-	float32 p[3];
-	float32 n[3];
-	float32 t[2];
-	uint8   c[4];
-	float32 w[4];
-	uint8   i[4];
-};
-
 void
 convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 {
-	RslVertex v;
+	ps2::SkinVertex v;
 	uint32 mask = 0x1001;	// tex coords, vertices
 	if(g->geoflags & Geometry::NORMALS)
 		mask |= 0x10;
@@ -167,9 +157,6 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 		weights = &skin->weights[g->numVertices*4];
 		mask |= 0x10000;
 	}
-
-	//float uScale = //halfFloat(rm->uvScale[0]);
-	//float vScale = //halfFloat(rm->uvScale[1]);
 
 	int16 *vuVerts = NULL;
 	int8 *vuNorms = NULL;
@@ -265,7 +252,7 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 				}
 			}
 
-			int32 idx = ps2::findVertexSkin(g, NULL, mask, 0, v.p, v.t, NULL, v.c, v.n, v.w, v.i);
+			int32 idx = ps2::findVertexSkin(g, NULL, mask, &v);
 			if(idx < 0)
 				idx = g->numVertices++;
 			/* Insert mesh joining indices when we get the index of the first vertex
@@ -278,7 +265,7 @@ convertRslMesh(Geometry *g, RslGeometry *rg, Mesh *m, RslMesh *rm)
 					m->indices[m->numIndices++] = idx;
 			}
 			m->indices[m->numIndices++] = idx;
-			ps2::insertVertexSkin(g, idx, mask, v.p, v.t, NULL, v.c, v.n, v.w, v.i);
+			ps2::insertVertexSkin(g, idx, mask, &v);
 
 			vuVerts += 3;
 			vuTex += 2;

@@ -869,21 +869,16 @@ static bool hasColors2(uint32 id)
 	return id == 0x53f20083 || id == 0x53f2008f;
 }
 
-struct SaVert {
-	float32 p[3];
-	float32 n[3];
-	float32 t0[2];
-	float32 t1[2];
-	uint8   c0[4];
-	uint8   c1[4];
+struct SaVert : ps2::Vertex {
 	float32 w[4];
 	uint8   i[4];
+	float32 t1[2];
+	uint8   c1[4];
 };
 
 static void
 saPreCB(MatPipeline *p, Geometry *geo)
 {
-	// allocate ADC, extra colors, skin
 	allocateADC(geo);
 	if(hasColors2(p->pluginData) && extraVertColorOffset)
 		allocateExtraVertColors(geo);
@@ -924,15 +919,15 @@ findSAVertex(Geometry *g, uint32 flags[], uint32 mask, SaVert *v)
 		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
 			goto cont;
 		if(mask & flags[i] & 0x100 &&
-		   !(cols0[0] == v->c0[0] && cols0[1] == v->c0[1] &&
-		     cols0[2] == v->c0[2] && cols0[3] == v->c0[3]))
+		   !(cols0[0] == v->c[0] && cols0[1] == v->c[1] &&
+		     cols0[2] == v->c[2] && cols0[3] == v->c[3]))
 			goto cont;
 		if(mask & flags[i] & 0x200 &&
 		   !(cols1[0] == v->c1[0] && cols1[1] == v->c1[1] &&
 		     cols1[2] == v->c1[2] && cols1[3] == v->c1[3]))
 			goto cont;
 		if(mask & flags[i] & 0x1000 &&
-		   !(tex0[0] == v->t0[0] && tex0[1] == v->t0[1]))
+		   !(tex0[0] == v->t[0] && tex0[1] == v->t[1]))
 			goto cont;
 		if(mask & flags[i] & 0x2000 &&
 		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
@@ -960,7 +955,9 @@ findSAVertex(Geometry *g, uint32 flags[], uint32 mask, SaVert *v)
 void
 insertSAVertex(Geometry *geo, int32 i, uint32 mask, SaVert *v)
 {
-	insertVertex(geo, i, mask, v->p, v->t0, v->t1, v->c0, v->n);
+	insertVertex(geo, i, mask, v);
+	if(mask & 0x2000)
+		memcpy(&geo->texCoords[1][i*2], v->t1, 8);
 	if(mask & 0x200 && extraVertColorOffset){
 		uint8 *cols1 =
 		 &PLUGINOFFSET(ExtraVertColors, geo, extraVertColorOffset)->nightColors[i*4];
@@ -1023,23 +1020,23 @@ saUninstanceCB(ps2::MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 			v.n[2] = norms[2]/127.0f;
 		}
 		if(mask & 0x200){
-			v.c0[0] = colors[0];
-			v.c0[1] = colors[2];
-			v.c0[2] = colors[4];
-			v.c0[3] = colors[6];
+			v.c[0] = colors[0];
+			v.c[1] = colors[2];
+			v.c[2] = colors[4];
+			v.c[3] = colors[6];
 			v.c1[0] = colors[1];
 			v.c1[1] = colors[3];
 			v.c1[2] = colors[5];
 			v.c1[3] = colors[7];
 		}else if(mask & 0x100){
-			v.c0[0] = colors[0];
-			v.c0[1] = colors[1];
-			v.c0[2] = colors[2];
-			v.c0[3] = colors[3];
+			v.c[0] = colors[0];
+			v.c[1] = colors[1];
+			v.c[2] = colors[2];
+			v.c[3] = colors[3];
 		}
 		if(mask & 0x1000){
-			v.t0[0] = texcoords[0]/4096.0f;
-			v.t0[1] = texcoords[1]/4096.0f;
+			v.t[0] = texcoords[0]/4096.0f;
+			v.t[1] = texcoords[1]/4096.0f;
 		}
 		if(mask & 0x2000){
 			v.t1[0] = texcoords[2]/4096.0f;
@@ -1071,8 +1068,162 @@ saUninstanceCB(ps2::MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 }
 
 static void
-saInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
+instanceSAPositions(Geometry *g, Mesh *m, int8 *adc, int16 *dst, float32 scale)
 {
+	float32 *verts = g->morphTargets[0].vertices;
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		dst[0] = verts[j*3+0]*scale;
+		dst[1] = verts[j*3+1]*scale;
+		dst[2] = verts[j*3+2]*scale;
+		dst[3] = adc ? 0x8000*adc[i] : 0;
+		dst += 4;
+	}
+}
+
+static void
+instanceSATex(Geometry *g, Mesh *m, int16 *dst)
+{
+	float32 *tex = g->texCoords[0];
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		if(tex){
+			dst[0] = tex[j*2+0]*4096.0f;
+			dst[1] = tex[j*2+1]*4096.0f;
+		}else{
+			dst[0] = 0;
+			dst[1] = 0;
+		}
+		dst += 2;
+	}
+}
+
+static void
+instanceSADualTex(Geometry *g, Mesh *m, int16 *dst)
+{
+	float32 *tex0 = g->texCoords[0];
+	float32 *tex1 = g->texCoords[1];
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		if(tex0){
+			dst[0] = tex0[j*2+0]*4096.0f;
+			dst[1] = tex0[j*2+1]*4096.0f;
+		}else{
+			dst[0] = 0;
+			dst[1] = 0;
+		}
+		if(tex1){
+			dst[2] = tex1[j*2+0]*4096.0f;
+			dst[3] = tex1[j*2+1]*4096.0f;
+		}else{
+			dst[2] = 0;
+			dst[3] = 0;
+		}
+		dst += 4;
+	}
+}
+
+static void
+instanceSAColors(Geometry *g, Mesh *m, uint8 *dst)
+{
+	uint8 *c = g->colors;
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		if(c)
+			memcpy(dst, &c[j*4], 4);
+		else
+			memset(dst, 0xFF, 4);
+		dst += 4;
+	}
+}
+
+static void
+instanceSADualColors(Geometry *g, Mesh *m, uint8 *dst)
+{
+	uint8 *c0 = g->colors;
+	uint8 *c1 =
+	 PLUGINOFFSET(ExtraVertColors, g, extraVertColorOffset)->nightColors;
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		if(c0){
+			dst[0] = c0[i*4+0];
+			dst[2] = c0[i*4+1];
+			dst[4] = c0[i*4+2];
+			dst[6] = c0[i*4+3];
+		}else{
+			dst[0] = 0xFF;
+			dst[2] = 0xFF;
+			dst[4] = 0xFF;
+			dst[6] = 0xFF;
+		}
+		if(c1){
+			dst[1] = c1[i*4+0];
+			dst[3] = c1[i*4+1];
+			dst[6] = c1[i*4+2];
+			dst[7] = c1[i*4+3];
+		}else{
+			dst[1] = 0xFF;
+			dst[3] = 0xFF;
+			dst[6] = 0xFF;
+			dst[7] = 0xFF;
+		}
+		dst += 8;
+	}
+}
+
+static void
+instanceSANormals(Geometry *g, Mesh *m, int8 *dst)
+{
+	float32 *norms = g->morphTargets[0].normals;
+	uint16 j;
+	for(uint32 i = 0; i < m->numIndices; i++){
+		j = m->indices[i];
+		if(norms){
+			dst[0] = norms[j*3+0]*127.0f;
+			dst[1] = norms[j*3+1]*127.0f;
+			dst[2] = norms[j*3+2]*127.0f;
+			dst[3] = 0;
+		}else
+			memset(dst, 0, 4);
+		dst += 4;
+	}
+}
+
+static void
+saInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data)
+{
+	uint32 id = pipe->pluginData;
+	float vertScale = 128.0f;
+	if(id == 0x53f20085 || id == 0x53f20087 ||
+	   id == 0x53f20089 || id == 0x53f2008b)
+		vertScale = 1024.0f;
+	ADCData *adc = PLUGINOFFSET(ADCData, g, adcOffset);
+
+	for(int i = 0; i < nelem(pipe->attribs); i++){
+		PipeAttribute *a = pipe->attribs[i];
+		if(a == &saXYZADC)
+			instanceSAPositions(g, m, adc->adcFormatted ? adc->adcBits : NULL,
+			                    (int16*)data[i], vertScale);
+		if(a == &saUV)
+			instanceSATex(g, m, (int16*)data[i]);
+		if(a == &saUV2)
+			instanceSADualTex(g, m, (int16*)data[i]);
+		if(a == &saRGBA)
+			instanceSAColors(g, m, (uint8*)data[i]);
+		if(a == &saRGBA2)
+			instanceSADualColors(g, m, (uint8*)data[i]);
+		if(a == &saNormal)
+			instanceSANormals(g, m, (int8*)data[i]);
+		if(a == &saWeights){
+			Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+			instanceSkinData(g, m, skin, (uint32*)data[i]);
+		}
+	}
 }
 
 void

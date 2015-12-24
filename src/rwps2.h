@@ -66,7 +66,7 @@ public:
 	uint32 inputStride;
 	uint32 triStripCount, triListCount;
 	PipeAttribute *attribs[10];
-	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
+	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**);
 	void (*uninstanceCB)(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
 	void (*preUninstCB)(MatPipeline*, Geometry*);
 	void (*postUninstCB)(MatPipeline*, Geometry*);
@@ -93,13 +93,14 @@ public:
 	virtual void uninstance(Atomic *atomic);
 };
 
-// TODO: better use a struct, this is terrible
-void insertVertex(Geometry *geo, int32 i, uint32 mask, float *v, float *t0, float *t1, uint8 *c, float *n);
-void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
-                      float32 *w, uint8 *ix);
-int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
-                     float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
-                     float32 *w, uint8 *ix);
+struct Vertex {
+	float32 p[3];
+	float32 t[2];
+	uint8   c[4];
+	float32 n[3];
+};
+
+void insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v);
 
 extern ObjPipeline *defaultObjPipe;
 extern MatPipeline *defaultMatPipe;
@@ -111,9 +112,19 @@ void dumpPipeline(rw::Pipeline *pipe);
 
 // Skin plugin
 
+struct SkinVertex : Vertex {
+	float32 w[4];
+	uint8   i[4];
+};
+
+void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v);
+int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v);
+
 void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
+
+void instanceSkinData(Geometry *g, Mesh *m, Skin *skin, uint32 *data);
 
 void skinPreCB(MatPipeline*, Geometry*);
 void skinPostCB(MatPipeline*, Geometry*);

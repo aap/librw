@@ -18,10 +18,10 @@ main(int argc, char *argv[])
 	rw::version = 0;
 //	rw::version = 0x34003;
 //	rw::version = 0x33002;
-//	rw::platform = rw::PLATFORM_PS2;
+	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 //	rw::platform = rw::PLATFORM_XBOX;
-	rw::platform = rw::PLATFORM_D3D8;
+//	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
 
 	int uninstance = 0;
@@ -86,7 +86,7 @@ main(int argc, char *argv[])
 		ObjPipeline *p = a->getPipeline();
 		if(uninstance){
 			p->uninstance(a);
-			ps2::unconvertADC(a->geometry);
+			//ps2::unconvertADC(a->geometry);
 		}else
 			p->instance(a);
 	}

@@ -445,7 +445,7 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 	uint8 **dp = datap;
 	for(uint i = 0; i < nelem(this->attribs); i++)
 		if((a = this->attribs[i]) && a->attrib & AT_RW)
-			*dp++ = inst->data + im.attribPos[i]*0x10;
+			dp[i] = inst->data + im.attribPos[i]*0x10;
 
 	uint32 idx = 0;
 	uint32 *p = (uint32*)inst->data;
@@ -532,8 +532,8 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 		}
 	}
 
-	if(instanceCB)
-		instanceCB(this, g, m, datap, im.numBrokenAttribs);
+	if(this->instanceCB)
+		this->instanceCB(this, g, m, datap);
 }
 
 uint8*
@@ -717,36 +717,30 @@ ObjPipeline::uninstance(Atomic *atomic)
 }
 
 int32
-findVertex(Geometry *g, uint32 flags[], uint32 mask, int32 first,
-           float *v, float *t0, float *t1, uint8 *c, float *n)
+findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
-	float32 *verts = &g->morphTargets[0].vertices[first*3];
-	float32 *tex0 = &g->texCoords[0][first*2];
-	float32 *tex1 = &g->texCoords[1][first*2];
-	float32 *norms = &g->morphTargets[0].normals[first*3];
-	uint8 *cols = &g->colors[first*4];
+	float32 *verts = g->morphTargets[0].vertices;
+	float32 *tex = g->texCoords[0];
+	float32 *norms = g->morphTargets[0].normals;
+	uint8 *cols = g->colors;
 
-	for(int32 i = first; i < g->numVertices; i++){
+	for(int32 i = 0; i < g->numVertices; i++){
 		if(mask & flags[i] & 0x1 &&
-		   !(verts[0] == v[0] && verts[1] == v[1] && verts[2] == v[2]))
+		   !(verts[0] == v->p[0] && verts[1] == v->p[1] && verts[2] == v->p[2]))
 			goto cont;
 		if(mask & flags[i] & 0x10 &&
-		   !(norms[0] == n[0] && norms[1] == n[1] && norms[2] == n[2]))
+		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
 			goto cont;
 		if(mask & flags[i] & 0x100 &&
-		   !(cols[0] == c[0] && cols[1] == c[1] && cols[2] == c[2] && cols[3] == c[3]))
+		   !(cols[0] == v->c[0] && cols[1] == v->c[1] && cols[2] == v->c[2] && cols[3] == v->c[3]))
 			goto cont;
 		if(mask & flags[i] & 0x1000 &&
-		   !(tex0[0] == t0[0] && tex0[1] == t0[1]))
-			goto cont;
-		if(mask & flags[i] & 0x2000 &&
-		   !(tex1[0] == t1[0] && tex1[1] == t1[1]))
+		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
 			goto cont;
 		return i;
 	cont:
 		verts += 3;
-		tex0 += 2;
-		tex1 += 2;
+		tex += 2;
 		norms += 3;
 		cols += 4;
 	}
@@ -754,18 +748,16 @@ findVertex(Geometry *g, uint32 flags[], uint32 mask, int32 first,
 }
 
 void
-insertVertex(Geometry *geo, int32 i, uint32 mask, float *v, float *t0, float *t1, uint8 *c, float *n)
+insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 {
 	if(mask & 0x1)
-		memcpy(&geo->morphTargets[0].vertices[i*3], v, 12);
+		memcpy(&geo->morphTargets[0].vertices[i*3], v->p, 12);
 	if(mask & 0x10)
-		memcpy(&geo->morphTargets[0].normals[i*3], n, 12);
+		memcpy(&geo->morphTargets[0].normals[i*3], v->n, 12);
 	if(mask & 0x100)
-		memcpy(&geo->colors[i*4], c, 4);
+		memcpy(&geo->colors[i*4], v->c, 4);
 	if(mask & 0x1000)
-		memcpy(&geo->texCoords[0][i*2], t0, 8);
-	if(mask & 0x2000)
-		memcpy(&geo->texCoords[1][i*2], t1, 8);
+		memcpy(&geo->texCoords[0][i*2], v->t, 8);
 }
 
 void
@@ -784,18 +776,26 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 		mask |= 0x1000;
 
 	float32 n[3];
+	Vertex v;
 	for(uint32 i = 0; i < mesh->numIndices; i++){
+		if(mask & 0x1)
+			memcpy(&v.p, verts, 12);
 		if(mask & 0x10){
 			n[0] = norms[0]/127.0f;
 			n[1] = norms[1]/127.0f;
 			n[2] = norms[2]/127.0f;
 		}
-		int32 idx = findVertex(geo, flags, mask, 0, verts, texcoords, NULL, colors, n);
+		if(mask & 0x100)
+			memcpy(&v.c, colors, 4);
+		if(mask & 0x1000)
+			memcpy(&v.t, texcoords, 8);
+
+		int32 idx = findVertex(geo, flags, mask, &v);
 		if(idx < 0)
 			idx = geo->numVertices++;
 		mesh->indices[i] = idx;
 		flags[idx] = mask;
-		insertVertex(geo, idx, mask, verts, texcoords, NULL, colors, n);
+		insertVertex(geo, idx, mask, &v);
 		verts += 3;
 		texcoords += 2;
 		colors += 4;
@@ -828,7 +828,7 @@ makeDefaultPipeline(void)
 	return defaultObjPipe;
 }
 
-static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**, int32);
+static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**);
 static void skinUninstanceCB(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
 
 ObjPipeline*
@@ -965,84 +965,73 @@ getSizeNativeSkin(void *object, int32 offset)
 	return size;
 }
 
-static void
-skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data, int32 n)
+void
+instanceSkinData(Geometry *g, Mesh *m, Skin *skin, uint32 *data)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-	if(skin == NULL || n < 1)
-		return;
-	float32 *weights = (float32*)data[0];
-	uint32 *indices = (uint32*)data[0];
 	uint16 j;
+	float32 *weights = (float32*)data;
+	uint32 *indices = data;
 	for(uint32 i = 0; i < m->numIndices; i++){
 		j = m->indices[i];
-		*weights++ = skin->weights[j*4+0];
-		*indices &= ~0x3FF;
-		*indices++ |= skin->indices[j*4+0] && skin->weights[j*4+0] ?
-				(skin->indices[j*4+0]+1) << 2 : 0;
-		*weights++ = skin->weights[j*4+1];
-		*indices &= ~0x3FF;
-		*indices++ |= skin->indices[j*4+1] && skin->weights[j*4+1] ?
-				(skin->indices[j*4+1]+1) << 2 : 0;
-		*weights++ = skin->weights[j*4+2];
-		*indices &= ~0x3FF;
-		*indices++ |= skin->indices[j*4+2] && skin->weights[j*4+2] ?
-				(skin->indices[j*4+2]+1) << 2 : 0;
-		*weights++ = skin->weights[j*4+3];
-		*indices &= ~0x3FF;
-		*indices++ |= skin->indices[j*4+3] && skin->weights[j*4+3] ?
-				(skin->indices[j*4+3]+1) << 2 : 0;
+		for(int32 k = 0; k < 4; k++){
+			*weights++ = skin->weights[j*4+k];
+			*indices &= ~0x3FF;
+			*indices++ |= skin->indices[j*4+k] && skin->weights[j*4+k] ?
+					(skin->indices[j*4+k]+1) << 2 : 0;
+		}
 	}
+}
+
+static void
+skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
+{
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	if(skin == NULL)
+		return;
+	instanceSkinData(g, m, skin, (uint32*)data[4]);
 }
 
 // TODO: call base function perhaps?
 int32
-findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
-               float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
-               float32 *w, uint8 *ix)
+findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
 	float32 *wghts = NULL;
 	uint8 *inds = NULL;
 	if(skin){
-		wghts = &skin->weights[first*4];
-		inds = &skin->indices[first*4];
+		wghts = skin->weights;
+		inds = skin->indices;
 	}
 
-	float32 *verts = &g->morphTargets[0].vertices[first*3];
-	float32 *tex0 = &g->texCoords[0][first*2];
-	float32 *tex1 = &g->texCoords[1][first*2];
-	float32 *norms = &g->morphTargets[0].normals[first*3];
-	uint8 *cols = &g->colors[first*4];
+	float32 *verts = g->morphTargets[0].vertices;
+	float32 *tex = g->texCoords[0];
+	float32 *norms = g->morphTargets[0].normals;
+	uint8 *cols = g->colors;
 
-	for(int32 i = first; i < g->numVertices; i++){
+	for(int32 i = 0; i < g->numVertices; i++){
 		uint32 flag = flags ? flags[i] : ~0;
 		if(mask & flag & 0x1 &&
-		   !(verts[0] == v[0] && verts[1] == v[1] && verts[2] == v[2]))
+		   !(verts[0] == v->p[0] && verts[1] == v->p[1] && verts[2] == v->p[2]))
 			goto cont;
 		if(mask & flag & 0x10 &&
-		   !(norms[0] == n[0] && norms[1] == n[1] && norms[2] == n[2]))
+		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
 			goto cont;
 		if(mask & flag & 0x100 &&
-		   !(cols[0] == c[0] && cols[1] == c[1] && cols[2] == c[2] && cols[3] == c[3]))
+		   !(cols[0] == v->c[0] && cols[1] == v->c[1] && cols[2] == v->c[2] && cols[3] == v->c[3]))
 			goto cont;
 		if(mask & flag & 0x1000 &&
-		   !(tex0[0] == t0[0] && tex0[1] == t0[1]))
-			goto cont;
-		if(mask & flag & 0x2000 &&
-		   !(tex1[0] == t1[0] && tex1[1] == t1[1]))
+		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
 			goto cont;
 		if(mask & flag & 0x10000 &&
-		   !(wghts[0] == w[0] && wghts[1] == w[1] &&
-		     wghts[2] == w[2] && wghts[3] == w[3] &&
-		     inds[0] == ix[0] && inds[1] == ix[1] &&
-		     inds[2] == ix[2] && inds[3] == ix[3]))
+		   !(wghts[0] == v->w[0] && wghts[1] == v->w[1] &&
+		     wghts[2] == v->w[2] && wghts[3] == v->w[3] &&
+		     inds[0] == v->i[0] && inds[1] == v->i[1] &&
+		     inds[2] == v->i[2] && inds[3] == v->i[3]))
 			goto cont;
 		return i;
 	cont:
 		verts += 3;
-		tex0 += 2;
-		tex1 += 2;
+		tex += 2;
 		norms += 3;
 		cols += 4;
 		wghts += 4;
@@ -1052,14 +1041,13 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, int32 first,
 }
 
 void
-insertVertexSkin(Geometry *geo, int32 i, uint32 mask, float32 *v, float32 *t0, float32 *t1, uint8 *c, float32 *n,
-	float32 *w, uint8 *ix)
+insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-	insertVertex(geo, i, mask, v, t0, t1, c, n);
+	insertVertex(geo, i, mask, v);
 	if(mask & 0x10000){
-		memcpy(&skin->weights[i*4], w, 16);
-		memcpy(&skin->indices[i*4], ix, 4);
+		memcpy(&skin->weights[i*4], v->w, 16);
+		memcpy(&skin->indices[i*4], v->i, 4);
 	}
 }
 
@@ -1083,24 +1071,31 @@ skinUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, u
 	float32 n[3];
 	float32 w[4];
 	uint8 ix[4];
+	SkinVertex v;
 	for(uint32 i = 0; i < mesh->numIndices; i++){
+		if(mask & 0x1)
+			memcpy(&v.p, verts, 12);
 		if(mask & 0x10){
-			n[0] = norms[0]/127.0f;
-			n[1] = norms[1]/127.0f;
-			n[2] = norms[2]/127.0f;
+			v.n[0] = norms[0]/127.0f;
+			v.n[1] = norms[1]/127.0f;
+			v.n[2] = norms[2]/127.0f;
 		}
+		if(mask & 0x100)
+			memcpy(&v.c, colors, 4);
+		if(mask & 0x1000)
+			memcpy(&v.t, texcoords, 8);
 		for(int j = 0; j < 4; j++){
-			((uint32*)w)[j] = wghts[j] & ~0x3FF;
-			ix[j] = (wghts[j] & 0x3FF) >> 2;
-			if(ix[j]) ix[j]--;
-			if(w[j] == 0.0f) ix[j] = 0;
+			((uint32*)v.w)[j] = wghts[j] & ~0x3FF;
+			v.i[j] = (wghts[j] & 0x3FF) >> 2;
+			if(v.i[j]) v.i[j]--;
+			if(v.w[j] == 0.0f) v.i[j] = 0;
 		}
-		int32 idx = findVertexSkin(geo, flags, mask, 0, verts, texcoords, NULL, colors, n, w, ix);
+		int32 idx = findVertexSkin(geo, flags, mask, &v);
 		if(idx < 0)
 			idx = geo->numVertices++;
 		mesh->indices[i] = idx;
 		flags[idx] = mask;
-		insertVertexSkin(geo, idx, mask, verts, texcoords, NULL, colors, n, w, ix);
+		insertVertexSkin(geo, idx, mask, &v);
 		verts += 3;
 		texcoords += 2;
 		colors += 4;
