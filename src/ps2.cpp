@@ -1212,6 +1212,12 @@ debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
 	return n;
 }
 
+// TODO
+void
+convertADC(Geometry *g)
+{
+}
+
 // Not optimal but works
 void
 unconvertADC(Geometry *g)
@@ -1310,11 +1316,12 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
 	assert(findChunk(stream, ID_ADC, NULL, NULL));
 	adc->numBits = stream->readI32();
+	adc->adcFormatted = 1;
 	if(adc->numBits == 0){
-		adc->adcFormatted = 0;
+		adc->adcBits = NULL;
+		adc->numBits = 0;
 		return;
 	}
-	adc->adcFormatted = 1;
 	int32 size = adc->numBits+3 & ~3;
 	adc->adcBits = new int8[size];
 	stream->read(adc->adcBits, size);
@@ -1357,7 +1364,7 @@ getSizeADC(void *object, int32 offset, int32)
 	Geometry *geometry = (Geometry*)object;
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
 	if(!adc->adcFormatted)
-		return -1;
+		return 0;
 	if(geometry->geoflags & Geometry::NATIVE)
 		return 16;
 	return 16 + (adc->numBits+3 & ~3);

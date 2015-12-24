@@ -1064,7 +1064,6 @@ saUninstanceCB(ps2::MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 		norms += 4;
 		wghts += 4;
 	}
-
 }
 
 static void
@@ -1205,7 +1204,7 @@ saInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data)
 	ADCData *adc = PLUGINOFFSET(ADCData, g, adcOffset);
 
 	for(int i = 0; i < nelem(pipe->attribs); i++){
-		PipeAttribute *a = pipe->attribs[i];
+		rw::PipeAttribute *a = pipe->attribs[i];
 		if(a == &saXYZADC)
 			instanceSAPositions(g, m, adc->adcFormatted ? adc->adcBits : NULL,
 			                    (int16*)data[i], vertScale);

@@ -31,6 +31,9 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "txdwrite", "tools\txdwrite\
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rsltest", "tools\rsltest\rsltest.vcxproj", "{27ECE916-900F-49B2-8E9F-95E6B347E161}"
+	ProjectSection(ProjectDependencies) = postProject
+		{30552BB0-3B19-49A4-ABF4-87CF68AF9E38} = {30552BB0-3B19-49A4-ABF4-87CF68AF9E38}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

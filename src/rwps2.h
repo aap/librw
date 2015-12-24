@@ -147,6 +147,7 @@ struct ADCData
 extern int32 adcOffset;
 void registerADCPlugin(void);
 
+void convertADC(Geometry *g);
 void unconvertADC(Geometry *geo);
 void allocateADC(Geometry *geo);
 
