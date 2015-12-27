@@ -315,8 +315,8 @@ convertTo32(uint8 *out, uint8 *pal, uint8 *tex,
 {
 	uint32 x;
 	if(d == 32){
-		//memcpy(out, tex, w*h*4);
-		unswizzle16((uint16*)out, (uint16*)tex, w, h);
+		memcpy(out, tex, w*h*4);
+		//unswizzle16((uint16*)out, (uint16*)tex, w, h);
 	}
 	if(d == 16) return;	// TODO
 	if(d == 8){
@@ -385,10 +385,137 @@ RslTexture *dumpTextureCB(RslTexture *texture, void *pData)
 	return texture;
 }
 
+bool32 unswizzle = 1;
+
+RslTexture*
+convertTexturePS2(RslTexture *texture, void *pData)
+{
+	TexDictionary *rwtxd = (TexDictionary*)pData;
+	Texture *rwtex = new Texture;
+	RslRasterPS2 *ras = &texture->raster->ps2;
+
+	strncpy(rwtex->name, texture->name, 32);
+	strncpy(rwtex->mask, texture->mask, 32);
+	rwtex->filterAddressing = 0x1102;
+
+	uint32 f = ras->flags;
+	uint32 w = 1 << (f & 0x3F);
+	uint32 h = 1 << (f>>6 & 0x3F);
+	uint32 d = f>>12 & 0xFF;
+	uint32 mip = f>>20 & 0xF;
+	uint32 swizmask = f>>24;
+	uint8 *palette = getPalettePS2(texture->raster);
+	uint8 *texels = getTexelPS2(texture->raster, 0);
+
+	int32 hasAlpha = 0;
+	uint8 *convtex = NULL;
+	if(d == 4){
+		convtex = new uint8[w*h];
+		for(uint32 i = 0; i < w*h/2; i++){
+			int32 a = texels[i] & 0xF;
+			int32 b = texels[i] >> 4;
+			if(palette[a*4+3] != 0x80)
+				hasAlpha = 1;
+			if(palette[b*4+3] != 0x80)
+				hasAlpha = 1;
+			convtex[i*2+0] = a;
+			convtex[i*2+1] = b;
+		}
+		if(swizmask & 1 && unswizzle){
+			uint8 *tmp = new uint8[w*h];
+			unswizzle8(tmp, convtex, w, h);
+			delete[] convtex;
+			convtex = tmp;
+		}
+	}else if(d == 8){
+		convtex = new uint8[w*h];
+		if(swizmask & 1 && unswizzle)
+			unswizzle8(convtex, texels, w, h);
+		else
+			memcpy(convtex, texels, w*h);
+		convertCLUT(convtex, w, h);
+		for(uint32 i = 0; i < w*h; i++)
+			if(palette[convtex[i]*4+3] != 0x80){
+				hasAlpha = 1;
+				break;
+			}
+	}
+
+	int32 format = 0;
+	switch(d){
+	case 4:
+	case 8:
+		format |= Raster::PAL8;
+		goto alpha32;
+
+	case 32:
+		for(uint32 i = 0; i < w*h; i++)
+			if(texels[i*4+3] != 0x80){
+				hasAlpha = 1;
+				break;
+			}
+	alpha32:
+		if(hasAlpha)
+			format |= Raster::C8888;
+		else
+			format |= Raster::C888;
+		break;
+	default:
+		fprintf(stderr, "unsupported depth %d\n", d);
+		return NULL;
+	}
+	Raster *rwras = new Raster(w, h, d == 4 ? 8 : d, format | 4, PLATFORM_D3D8);
+	d3d::D3dRaster *d3dras = PLUGINOFFSET(d3d::D3dRaster, rwras, d3d::nativeRasterOffset);
+
+	int32 pallen = d == 4 ? 16 :
+	               d == 8 ? 256 : 0;
+	if(pallen){
+		uint8 *p = new uint8[256*4];
+		for(int32 i = 0; i < pallen; i++){
+			p[i*4+0] = palette[i*4+0];
+			p[i*4+1] = palette[i*4+1];
+			p[i*4+2] = palette[i*4+2];
+			p[i*4+3] = palette[i*4+3]*255/128;
+		}
+		memcpy(d3dras->palette, p, 256*4);
+		delete[] p;
+	}
+
+	uint8 *data = rwras->lock(0);
+	if(d == 4 || d == 8)
+		memcpy(data, convtex, w*h);
+	else if(d == 32){
+		// texture is fucked, but pretend it isn't
+		for(uint32 i = 0; i < w*h; i++){
+			data[i*4+0] = texels[i*4+0];
+			data[i*4+1] = texels[i*4+1];
+			data[i*4+2] = texels[i*4+2];
+			data[i*4+3] = texels[i*4+3]*255/128;
+		}
+	}else
+		memcpy(data, texels, w*h*d/8);
+	rwras->unlock(0);
+	rwtex->raster = rwras;
+	delete[] convtex;
+
+	rwtxd->add(rwtex);
+	return texture;
+}
+
+TexDictionary*
+convertTXD(RslTexDictionary *txd)
+{
+	TexDictionary *rwtxd = new TexDictionary;
+	RslTexDictionaryForAllTextures(txd, convertTexturePS2, rwtxd);
+	return rwtxd;
+}
+
 void
 usage(void)
 {
-	fprintf(stderr, "%s [-t] input\n", argv0);
+	fprintf(stderr, "%s [-t] [-s] input [output.txd]\n", argv0);
+	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
+	fprintf(stderr, "\t-s don't unswizzle\n");
 	exit(1);
 }
 
@@ -396,15 +523,16 @@ int
 main(int argc, char *argv[])
 {
 	gta::attachPlugins();
-	rw::version = 0;
+	rw::version = 0x34003;
 
 	assert(sizeof(void*) == 4);
 
-	int32 dotxd = 0;
-
 	ARGBEGIN{
-	case 't':
-		dotxd++;
+	case 'v':
+		sscanf(EARGF(usage()), "%x", &rw::version);
+		break;
+	case 's':
+		unswizzle = 0;
 		break;
 	default:
 		usage();
@@ -413,19 +541,26 @@ main(int argc, char *argv[])
 	if(argc < 1)
 		usage();
 
-	if(dotxd){
-		StreamFile stream;
-		assert(stream.open(argv[0], "rb"));
-		findChunk(&stream, ID_TEXDICTIONARY, NULL, NULL);
-		RslTexDictionary *txd = RslTexDictionaryStreamRead(&stream);
-		stream.close();
-		assert(txd);
-		RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
-		return 0;
-	}
+	World *world;
+	Sector *sector;
+	RslClump *clump;
+	RslTexDictionary *txd;
+
 
 	StreamFile stream;
 	assert(stream.open(argv[0], "rb"));
+
+	uint32 ident = stream.readU32();
+	stream.seek(0, 0);
+
+	if(ident == 0x16){
+		findChunk(&stream, ID_TEXDICTIONARY, NULL, NULL);
+		txd = RslTexDictionaryStreamRead(&stream);
+		stream.close();
+		assert(txd);
+		goto writeTxd;
+	}
+
 	RslStream *rslstr = new RslStream;
 	stream.read(rslstr, 0x20);
 	rslstr->data = new uint8[rslstr->fileSize-0x20];
@@ -435,10 +570,6 @@ main(int argc, char *argv[])
 
 	int largefile = rslstr->dataSize > 0x100000;
 
-	World *world;
-	Sector *sector;
-	RslClump *clump;
-	RslTexDictionary *txd;
 	if(rslstr->ident == WRLD_IDENT && largefile){	// hack
 		world = (World*)rslstr->data;
 
@@ -511,7 +642,15 @@ main(int argc, char *argv[])
 			RslFrameForAllChildren(RslAtomicGetFrame(a), dumpFrameCB, NULL);
 	}else if(rslstr->ident == TEX_IDENT){
 		txd = (RslTexDictionary*)rslstr->data;
-		RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
+	writeTxd:
+		//RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
+		TexDictionary *rwtxd = convertTXD(txd);
+		if(argc > 1)
+			assert(stream.open(argv[1], "wb"));
+		else
+			assert(stream.open("out.txd", "wb"));
+		rwtxd->streamWrite(&stream);
+		stream.close();
 	}
 
 	return 0;
