@@ -4,12 +4,15 @@
 #include <cassert>
 #include <new>
 
+#include <args.h>
 #include <rw.h>
 #include <src/gtaplg.h>
 
 using namespace std;
 using namespace rw;
 #include "rsl.h"
+
+char *argv0;
 
 void
 RslStream::relocate(void)
@@ -61,6 +64,140 @@ RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack
 	return geometry;
 }
 
+RslTexDictionary*
+RslTexDictionaryCreate(void)
+{
+	RslTexDictionary *dict = new RslTexDictionary;
+	memset(dict, 0, sizeof(RslTexDictionary));
+	dict->object.type = 6;
+	dict->texturesInDict.link.prev = &dict->texturesInDict.link;
+	dict->texturesInDict.link.next = &dict->texturesInDict.link;
+	return dict;
+}
+
+RslTexture*
+RslTexDictionaryAddTexture(RslTexDictionary *dict, RslTexture *tex)
+{
+	if(tex->dict){
+		tex->lInDictionary.prev->next = tex->lInDictionary.next;
+		tex->lInDictionary.next->prev = tex->lInDictionary.prev;
+	}
+	tex->dict = dict;
+	tex->lInDictionary.prev = &dict->texturesInDict.link;
+	tex->lInDictionary.next = dict->texturesInDict.link.next;
+	dict->texturesInDict.link.next->prev = &tex->lInDictionary;
+	dict->texturesInDict.link.next = &tex->lInDictionary;
+	return tex;
+}
+
+RslTexDictionary*
+RslTexDictionaryForAllTextures(RslTexDictionary *dict, RslTextureCallBack fpCallBack, void *pData)
+{
+	RslTexture *t;
+	RslLLLink *link;
+	for(link = rslLLLinkGetNext(&dict->texturesInDict.link);
+	    link != &dict->texturesInDict.link;
+	    link = link->next){
+		t = rslLLLinkGetData(link, RslTexture, lInDictionary);
+		if(fpCallBack(t, pData) == NULL)
+			break;
+	}
+	return dict;
+}
+
+uint32
+guessSwizzling(uint32 w, uint32 h, uint32 d, uint32 mipmaps)
+{
+	uint32 swiz = 0;
+	for(uint32 i = 0; i < mipmaps; i++){
+		switch(d){
+		case 4:
+			if(w >= 32 && h >= 16)
+				swiz |= 1<<i;
+			break;
+		case 8:
+			if(w >= 16 && h >= 4)
+				swiz |= 1<<i;
+			break;
+		}
+		w /= 2;
+		h /= 2;
+	}
+	return swiz;
+}
+
+RslRaster*
+RslCreateRasterPS2(uint32 w, uint32 h, uint32 d, uint32 mipmaps)
+{
+	RslRasterPS2 *r;
+	r = new RslRasterPS2;
+	uint32 tmp, logw = 0, logh = 0;
+	for(tmp = 1; tmp < w; tmp <<= 1)
+		logw++;
+	for(tmp = 1; tmp < h; tmp <<= 1)
+		logh++;
+	r->flags = 0;
+	r->flags |= logw&0x3F;
+	r->flags |= (logh&0x3F)<<6;
+	r->flags |= d << 12;
+	r->flags |= mipmaps << 20;
+	uint32 swiz = guessSwizzling(w, h, d, mipmaps);
+	r->flags |= swiz << 24;
+	return (RslRaster*)r;
+}
+
+RslTexture*
+RslReadNativeTexturePS2(Stream *stream)
+{
+	RslPs2StreamRaster rasterInfo;
+	uint32 len;
+	uint32 buf[2];
+	RslTexture *tex = RslTextureCreate(NULL);
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	stream->read(buf, sizeof(buf));
+	assert(buf[0] == 0x00505350); /* "PSP\0" */
+	assert(findChunk(stream, ID_STRING, &len, NULL));
+	stream->read(tex->name, len);
+	assert(findChunk(stream, ID_STRING, &len, NULL));
+	stream->read(tex->mask, len);
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, &len, NULL));
+	stream->read(&rasterInfo, sizeof(rasterInfo));
+	assert(findChunk(stream, ID_STRUCT, &len, NULL));
+	tex->raster = RslCreateRasterPS2(rasterInfo.width,
+		rasterInfo.height, rasterInfo.depth, rasterInfo.mipmaps);
+	tex->raster->ps2.data = new uint8[len];
+	stream->read(tex->raster->ps2.data, len);
+	assert(findChunk(stream, ID_EXTENSION, &len, NULL));
+	stream->seek(len);
+	return tex;
+}
+
+RslTexDictionary*
+RslTexDictionaryStreamRead(Stream *stream)
+{
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	int32 numTex = stream->readI32();
+	RslTexDictionary *txd = RslTexDictionaryCreate();
+	for(int32 i = 0; i < numTex; i++){
+		assert(findChunk(stream, ID_TEXTURENATIVE, NULL, NULL));
+		RslTexture *tex = RslReadNativeTexturePS2(stream);
+		RslTexDictionaryAddTexture(txd, tex);
+	}
+	return txd;
+}
+
+RslTexture*
+RslTextureCreate(RslRaster *raster)
+{
+	RslTexture *tex = new RslTexture;
+	memset(tex, 0, sizeof(RslTexture));
+	tex->raster = raster;
+	return tex;
+}
+
+
+
 
 RslFrame *dumpFrameCB(RslFrame *frame, void *data)
 {
@@ -90,6 +227,171 @@ RslAtomic *dumpAtomicCB(RslAtomic *atomic, void*)
 	return atomic;
 }
 
+uint8*
+getPalettePS2(RslRaster *raster)
+{
+	uint32 f = raster->ps2.flags;
+	uint32 w = 1 << (f & 0x3F);
+	uint32 h = 1 << (f>>6 & 0x3F);
+	uint32 d = f>>12 & 0xFF;
+	uint32 mip = f>>20 & 0xF;
+	uint8 *data = raster->ps2.data;
+	if(d > 8)
+		return NULL;
+	while(mip--){
+		data += w*h*d/8;
+		w /= 2;
+		h /= 2;
+	}
+	return data;
+}
+
+uint8*
+getTexelPS2(RslRaster *raster, int32 n)
+{
+	uint32 f = raster->ps2.flags;
+	uint32 w = 1 << (f & 0x3F);
+	uint32 h = 1 << (f>>6 & 0x3F);
+	uint32 d = f>>12 & 0xFF;
+	uint8 *data = raster->ps2.data;
+	for(int32 i = 0; i < n; i++){
+		data += w*h*d/8;
+		w /= 2;
+		h /= 2;
+	}
+	return data;
+}
+
+void
+convertCLUT(uint8 *texels, uint32 w, uint32 h)
+{
+	uint8 map[4] = { 0, 16, 8, 24 };
+	for (uint32 i = 0; i < w*h; i++)
+		texels[i] = (texels[i] & ~0x18) | map[(texels[i] & 0x18) >> 3];
+}
+
+void
+unswizzle8(uint8 *dst, uint8 *src, uint32 w, uint32 h)
+{
+	for (uint32 y = 0; y < h; y++)
+		for (uint32 x = 0; x < w; x++) {
+			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
+			uint32 swap_sel = (((y+2)>>2)&0x1)*4;
+			int32 ypos = (((y&(~3))>>1) + (y&1))&0x7;
+			int32 column_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
+			int32 byte_sum = ((y>>1)&1) + ((x>>2)&2);
+			uint32 swizzled = block_loc + column_loc + byte_sum;
+			dst[y*w+x] = src[swizzled];
+		}
+}
+
+void
+unswizzle16(uint16 *dst, uint16 *src, int32 w, int32 h)
+{
+	for(int y = 0; y < h; y++)
+		for(int x = 0; x < w; x++){
+			int32 pageX = x & (~0x3f);
+			int32 pageY = y & (~0x3f);
+			int32 pages_horz = (w+63)/64;
+			int32 pages_vert = (h+63)/64;
+			int32 page_number = (pageY/64)*pages_horz + (pageX/64);
+			int32 page32Y = (page_number/pages_vert)*32;
+			int32 page32X = (page_number%pages_vert)*64;
+			int32 page_location = (page32Y*h + page32X)*2;
+			int32 locX = x & 0x3f;
+			int32 locY = y & 0x3f;
+			int32 block_location = (locX&(~0xf))*h + (locY&(~0x7))*2;
+			int32 column_location = ((y&0x7)*h + (x&0x7))*2;
+			int32 short_num = (x>>3)&1;       // 0,1
+			uint32 swizzled = page_location + block_location +
+			                  column_location + short_num;
+			dst[y*w+x] = src[swizzled];
+		}
+}
+
+void
+convertTo32(uint8 *out, uint8 *pal, uint8 *tex,
+            uint32 w, uint32 h, uint32 d, bool32 swiz)
+{
+	uint32 x;
+	if(d == 32){
+		//memcpy(out, tex, w*h*4);
+		unswizzle16((uint16*)out, (uint16*)tex, w, h);
+	}
+	if(d == 16) return;	// TODO
+	if(d == 8){
+		uint8 *dat = new uint8[w*h];
+		if(swiz)
+			unswizzle8(dat, tex, w, h);
+		else
+			memcpy(dat, tex, w*h);
+		tex = dat;
+		convertCLUT(tex, w, h);
+		for(uint32 i = 0; i < h; i++)
+			for(uint32 j = 0; j < w; j++){
+				x = *tex++;
+				*out++ = pal[x*4+0];
+				*out++ = pal[x*4+1];
+				*out++ = pal[x*4+2];
+				*out++ = pal[x*4+3]*255/128;
+			}
+		delete[] dat;
+	}
+	if(d == 4){
+		uint8 *dat = new uint8[w*h];
+		for(uint32 i = 0; i < w*h/2; i++){
+			dat[i*2+0] = tex[i] & 0xF;
+			dat[i*2+1] = tex[i] >> 4;
+		}
+		if(swiz){
+			uint8 *tmp = new uint8[w*h];
+			unswizzle8(tmp, dat, w, h);
+			delete[] dat;
+			dat = tmp;
+		}
+		tex = dat;
+		for(uint32 i = 0; i < h; i++)
+			for(uint32 j = 0; j < w; j++){
+				x = *tex++;
+				*out++ = pal[x*4+0];
+				*out++ = pal[x*4+1];
+				*out++ = pal[x*4+2];
+				*out++ = pal[x*4+3]*255/128;
+			}
+		delete[] dat;
+	}
+}
+
+RslTexture *dumpTextureCB(RslTexture *texture, void *pData)
+{
+	uint32 f = texture->raster->ps2.flags;
+	uint32 w = 1 << (f & 0x3F);
+	uint32 h = 1 << (f>>6 & 0x3F);
+	uint32 d = f>>12 & 0xFF;
+	uint32 mip = f>>20 & 0xF;
+	uint32 swizmask = f>>24;
+	uint8 *palette = getPalettePS2(texture->raster);
+	uint8 *texels = getTexelPS2(texture->raster, 0);
+	printf(" %x %x %x %x %x %s\n", w, h, d, mip, swizmask, texture->name);
+	Image *img = new Image(w, h, 32);
+	img->allocate();
+	convertTo32(img->pixels, palette, texels, w, h, d, swizmask&1);
+	char *name = new char[strlen(texture->name)+5];
+	strcpy(name, texture->name);
+	strcat(name, ".tga");
+	writeTGA(img, name);
+	delete img;
+	delete[] name;
+	return texture;
+}
+
+void
+usage(void)
+{
+	fprintf(stderr, "%s [-t] input\n", argv0);
+	exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -98,13 +400,32 @@ main(int argc, char *argv[])
 
 	assert(sizeof(void*) == 4);
 
-	if(argc < 2){
-		printf("usage: %s in\n", argv[0]);
+	int32 dotxd = 0;
+
+	ARGBEGIN{
+	case 't':
+		dotxd++;
+		break;
+	default:
+		usage();
+	}ARGEND;
+
+	if(argc < 1)
+		usage();
+
+	if(dotxd){
+		StreamFile stream;
+		assert(stream.open(argv[0], "rb"));
+		findChunk(&stream, ID_TEXDICTIONARY, NULL, NULL);
+		RslTexDictionary *txd = RslTexDictionaryStreamRead(&stream);
+		stream.close();
+		assert(txd);
+		RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
 		return 0;
 	}
 
 	StreamFile stream;
-	assert(stream.open(argv[1], "rb"));
+	assert(stream.open(argv[0], "rb"));
 	RslStream *rslstr = new RslStream;
 	stream.read(rslstr, 0x20);
 	rslstr->data = new uint8[rslstr->fileSize-0x20];
@@ -115,9 +436,10 @@ main(int argc, char *argv[])
 	int largefile = rslstr->dataSize > 0x100000;
 
 	World *world;
-	RslClump *clump;
 	Sector *sector;
-	if(rslstr->ident = WRLD_IDENT && largefile){	// hack
+	RslClump *clump;
+	RslTexDictionary *txd;
+	if(rslstr->ident == WRLD_IDENT && largefile){	// hack
 		world = (World*)rslstr->data;
 
 		int len = strlen(argv[1])+1;
@@ -135,7 +457,7 @@ main(int argc, char *argv[])
 		uint8 *data;
 		StreamFile outf;
 		RslStreamHeader *h;
-		int i = 0;
+		uint32 i = 0;
 		for(h = world->sectors->sector; h->ident == WRLD_IDENT; h++){
 			sprintf(name, "world%04d.wrld", i++);
 			strcat(filename, name);
@@ -164,7 +486,7 @@ main(int argc, char *argv[])
 			h++;
 		}
 		stream.close();
-	}else if(rslstr->ident = WRLD_IDENT){	// sector
+	}else if(rslstr->ident == WRLD_IDENT){	// sector
 		sector = (Sector*)rslstr->data;
 		printf("resources\n");
 		for(uint32 i = 0; i < sector->numResources; i++){
@@ -176,7 +498,7 @@ main(int argc, char *argv[])
 		for(p = sector->sectionA; p < sector->sectionEnd; p++){
 			printf(" %d, %d, %f %f %f\n", p->id &0x7FFF, p->resId, p->matrix[12], p->matrix[13], p->matrix[14]);
 		}
-	}else if(rslstr->ident = MDL_IDENT){
+	}else if(rslstr->ident == MDL_IDENT){
 		uint8 *p = *rslstr->hashTab;
 		p -= 0x24;
 		RslAtomic *a = (RslAtomic*)p;
@@ -187,6 +509,9 @@ main(int argc, char *argv[])
 		else
 			//dumpAtomicCB(a, NULL);
 			RslFrameForAllChildren(RslAtomicGetFrame(a), dumpFrameCB, NULL);
+	}else if(rslstr->ident == TEX_IDENT){
+		txd = (RslTexDictionary*)rslstr->data;
+		RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
 	}
 
 	return 0;

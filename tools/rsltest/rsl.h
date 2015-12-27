@@ -33,11 +33,14 @@ struct RslHAnimHierarchy;
 struct RslHAnimNode;
 struct RslPS2ResEntryHeader;
 struct RslPS2InstanceData;
+struct RslTexDictionary;
+struct RslTexture;
 
 typedef RslFrame *(*RslFrameCallBack)(RslFrame *frame, void *data);
 typedef RslClump *(*RslClumpCallBack)(RslClump *clump, void *data);
 typedef RslAtomic *(*RslAtomicCallBack)(RslAtomic *atomic, void *data);
 typedef RslMaterial *(*RslMaterialCallBack)(RslMaterial *material, void *data);
+typedef RslTexture *(*RslTextureCallBack)(RslTexture *texture, void *pData);
 
 struct RslLLLink {
 	RslLLLink *next;
@@ -80,26 +83,26 @@ struct RslObjectHasFrame {
 
 #define rslObjectGetParent(object)           (((const RslObject *)(object))->parent)
 
-// from Serge
-//void TEX::getInfo(TEXInfo a)
-//{
-// bpp = (a.flags & 0xF000) >> 12;
-// swizzle = (a.flags & 0xF000000) >> 24;
-// Width = (int)pow(2.0, (int)(a.flags & 0xF));
-// Height = (int)pow(16.0, (int)((a.flags & 0xF00) >> 8))*(int)pow(2.0, (int)(((a.flags & 0xF0) >> 4) / 4));
-// mipmaps = (a.flags & 0xFF0000) >> 20;
-//}
-
 struct RslRasterPS2 {
 	uint8 *data;
-	// XXXXSSSSMMMMMMMMBBBBHHHHHHHHWWWW
 	uint32 flags;
 };
 
 struct RslRasterPSP {
 	uint32 unk1;
 	uint8 *data;
-	uint32 flags1, flags2;
+	uint16 flags1;
+	uint8  width;    // log of width
+	uint8  height;   // log of height
+	uint32 flags2;
+};
+
+struct RslPs2StreamRaster {
+	uint32 width;
+	uint32 height;
+	uint32 depth;
+	uint32 mipmaps;
+	uint32 unused;
 };
 
 union RslRaster {
@@ -113,6 +116,10 @@ struct RslTexDictionary {
 	RslLLLink   lInInstance;
 };
 
+RslTexDictionary *RslTexDictionaryStreamRead(Stream *stream);
+RslTexDictionary *RslTexDictionaryCreate(void);
+RslTexture *RslTexDictionaryAddTexture(RslTexDictionary *dict, RslTexture *tex);
+
 struct RslTexture {
 	RslRaster        *raster;
 	RslTexDictionary *dict;
@@ -120,6 +127,8 @@ struct RslTexture {
 	char              name[32];
 	char              mask[32];
 };
+
+RslTexture *RslTextureCreate(RslRaster *raster);
 
 struct RslFrame {
 	RslObject          object;

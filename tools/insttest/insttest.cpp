@@ -59,7 +59,7 @@ fixLcsHier(HAnimHierarchy *hier)
 void
 usage(void)
 {
-	fprintf(stderr, "usage: %s [-u] [-i] [-v version] [-o platform] in.dff [out.dff]\n", argv0);
+	fprintf(stderr, "usage: %s [-u] [-i] [-s] [-v version] [-o platform] in.dff [out.dff]\n", argv0);
 	fprintf(stderr, "\t-u uninstance\n");
 	fprintf(stderr, "\t-i instance\n");
 	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
