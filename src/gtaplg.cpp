@@ -291,6 +291,7 @@ readExtraNormals(Stream *stream, int32, void *object, int32 offset, int32)
 		delete[] *plgp;
 	float *extranormals = *plgp = new float[geo->numVertices*3];
 	stream->read(extranormals, geo->numVertices*3*4);
+//	printf("extra normals\n");
 
 //	for(int i = 0; i < geo->numVertices; i++){
 //		float *nx = extranormals+i*3;
@@ -618,7 +619,7 @@ static void
 readPipeline(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	*PLUGINOFFSET(uint32, object, offset) = stream->readU32();
-	printf("%x\n", *PLUGINOFFSET(uint32, object, offset));
+//	printf("%x\n", *PLUGINOFFSET(uint32, object, offset));
 }
 
 static void

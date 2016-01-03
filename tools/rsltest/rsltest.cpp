@@ -265,7 +265,7 @@ getTexelPS2(RslRaster *raster, int32 n)
 void
 convertCLUT(uint8 *texels, uint32 w, uint32 h)
 {
-	uint8 map[4] = { 0, 16, 8, 24 };
+	static uint8 map[4] = { 0x00, 0x10, 0x08, 0x18 };
 	for (uint32 i = 0; i < w*h; i++)
 		texels[i] = (texels[i] & ~0x18) | map[(texels[i] & 0x18) >> 3];
 }
@@ -309,19 +309,32 @@ unswizzle16(uint16 *dst, uint16 *src, int32 w, int32 h)
 		}
 }
 
+bool32 unswizzle = 1;
+
 void
 convertTo32(uint8 *out, uint8 *pal, uint8 *tex,
             uint32 w, uint32 h, uint32 d, bool32 swiz)
 {
 	uint32 x;
 	if(d == 32){
-		memcpy(out, tex, w*h*4);
-		//unswizzle16((uint16*)out, (uint16*)tex, w, h);
+		//uint32 *dat = new uint32[w*h];
+		//if(swiz && unswizzle)
+		//	unswizzle8_hack(dat, (uint32*)tex, w, h);
+		//else
+		//	memcpy(dat, tex, w*h*4);
+		//tex = (uint8*)dat;
+		for(uint32 i = 0; i < w*h; i++){
+			out[i*4+0] = tex[i*4+0];
+			out[i*4+1] = tex[i*4+1];
+			out[i*4+2] = tex[i*4+2];
+			out[i*4+3] = tex[i*4+3]*255/128;
+		}
+		//delete[] dat;
 	}
 	if(d == 16) return;	// TODO
 	if(d == 8){
 		uint8 *dat = new uint8[w*h];
-		if(swiz)
+		if(swiz && unswizzle)
 			unswizzle8(dat, tex, w, h);
 		else
 			memcpy(dat, tex, w*h);
@@ -343,7 +356,7 @@ convertTo32(uint8 *out, uint8 *pal, uint8 *tex,
 			dat[i*2+0] = tex[i] & 0xF;
 			dat[i*2+1] = tex[i] >> 4;
 		}
-		if(swiz){
+		if(swiz && unswizzle){
 			uint8 *tmp = new uint8[w*h];
 			unswizzle8(tmp, dat, w, h);
 			delete[] dat;
@@ -384,8 +397,6 @@ RslTexture *dumpTextureCB(RslTexture *texture, void *pData)
 	delete[] name;
 	return texture;
 }
-
-bool32 unswizzle = 1;
 
 RslTexture*
 convertTexturePS2(RslTexture *texture, void *pData)
@@ -487,9 +498,9 @@ convertTexturePS2(RslTexture *texture, void *pData)
 	else if(d == 32){
 		// texture is fucked, but pretend it isn't
 		for(uint32 i = 0; i < w*h; i++){
-			data[i*4+0] = texels[i*4+0];
+			data[i*4+2] = texels[i*4+0];
 			data[i*4+1] = texels[i*4+1];
-			data[i*4+2] = texels[i*4+2];
+			data[i*4+0] = texels[i*4+2];
 			data[i*4+3] = texels[i*4+3]*255/128;
 		}
 	}else
@@ -513,8 +524,9 @@ convertTXD(RslTexDictionary *txd)
 void
 usage(void)
 {
-	fprintf(stderr, "%s [-t] [-s] input [output.txd]\n", argv0);
+	fprintf(stderr, "%s [-v version] [-x] [-s] input [output.txd]\n", argv0);
 	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
+	fprintf(stderr, "\t-x extract to tga\n");
 	fprintf(stderr, "\t-s don't unswizzle\n");
 	exit(1);
 }
@@ -526,6 +538,7 @@ main(int argc, char *argv[])
 	rw::version = 0x34003;
 
 	assert(sizeof(void*) == 4);
+	int extract = 0;
 
 	ARGBEGIN{
 	case 'v':
@@ -533,6 +546,9 @@ main(int argc, char *argv[])
 		break;
 	case 's':
 		unswizzle = 0;
+		break;
+	case 'x':
+		extract++;
 		break;
 	default:
 		usage();
@@ -643,7 +659,8 @@ main(int argc, char *argv[])
 	}else if(rslstr->ident == TEX_IDENT){
 		txd = (RslTexDictionary*)rslstr->data;
 	writeTxd:
-		//RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
+		if(extract)
+			RslTexDictionaryForAllTextures(txd, dumpTextureCB, NULL);
 		TexDictionary *rwtxd = convertTXD(txd);
 		if(argc > 1)
 			assert(stream.open(argv[1], "wb"));

@@ -5,10 +5,25 @@
 #include <new>
 
 #include <rw.h>
+#include <args.h>
 #include <src/gtaplg.h>
+
+char *argv0;
 
 using namespace std;
 using namespace rw;
+
+struct {
+	char *str;
+	uint32 val;
+} platforms[] = {
+	{ "mobile", PLATFORM_OGL },
+	{ "ps2",    PLATFORM_PS2 },
+	{ "xbox",   PLATFORM_XBOX },
+	{ "d3d8",   PLATFORM_D3D8 },
+	{ "d3d9",   PLATFORM_D3D9 },
+	{ NULL, 0 }
+};
 
 Raster*
 xboxToD3d8(Raster *raster)
@@ -64,43 +79,80 @@ xboxToD3d8(Raster *raster)
 	return newras;
 }
 
+void
+usage(void)
+{
+	fprintf(stderr, "usage: %s [-v version] [-o platform] in.txd [out.txd]\n", argv0);
+	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
+	fprintf(stderr, "\t-o output platform. ps2, xbox, mobile, d3d8, d3d9\n");
+	exit(1);
+}
+
 int
 main(int argc, char *argv[])
 {
 	gta::attachPlugins();
 
-	rw::version = 0x33002;
-//	rw::platform = rw::PLATFORM_PS2;
+	rw::version = 0;
+	rw::platform = rw::PLATFORM_PS2;
 //	rw::platform = rw::PLATFORM_OGL;
 //	rw::platform = rw::PLATFORM_XBOX;
 //	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
+	int outplatform = rw::PLATFORM_PS2;
 
-	if(argc < 2){
-		printf("usage (%d): %s in.txd\n", rw::platform, argv[0]);
-		return 0;
-	}
+	char *s;
+	ARGBEGIN{
+	case 'v':
+		sscanf(EARGF(usage()), "%x", &rw::version);
+		break;
+	case 'o':
+		s = EARGF(usage());
+		for(int i = 0; platforms[i].str; i++){
+			if(strcmp(platforms[i].str, s) == 0){
+				outplatform = platforms[i].val;
+				goto found;
+			}
+		}
+		printf("unknown platform %s\n", s);
+		outplatform = PLATFORM_D3D8;
+	found:
+		break;
+	default:
+		usage();
+	}ARGEND;
+
+	if(argc < 1)
+		usage();
 
 	rw::StreamFile in;
-	if(in.open(argv[1], "rb") == NULL){
+	if(in.open(argv[0], "rb") == NULL){
 		printf("couldn't open file %s\n", argv[1]);
 		return 1;
 	}
-	rw::findChunk(&in, rw::ID_TEXDICTIONARY, NULL, NULL);
+	ChunkHeaderInfo header;
+	readChunkHeaderInfo(&in, &header);
+	assert(header.type == ID_TEXDICTIONARY);
 	rw::TexDictionary *txd;
 	txd = rw::TexDictionary::streamRead(&in);
 	assert(txd);
 	in.close();
 	rw::currentTexDictionary = txd;
 
-	for(Texture *tex = txd->first; tex; tex = tex->next)
-		tex->raster = xboxToD3d8(tex->raster);
+	if(rw::version == 0){
+		rw::version = header.version;
+		rw::build = header.build;
+	}
+
+	if(outplatform == PLATFORM_D3D8)
+		for(Texture *tex = txd->first; tex; tex = tex->next)
+			tex->raster = xboxToD3d8(tex->raster);
 //	for(Texture *tex = txd->first; tex; tex = tex->next)
 //		tex->filterAddressing = (tex->filterAddressing&~0xF) | 0x2;
 
 	rw::StreamFile out;
-	if(argc > 2)
-		out.open(argv[2], "wb");
+	if(argc > 1)
+		out.open(argv[1], "wb");
 	else
 		out.open("out.txd", "wb");
 	txd->streamWrite(&out);

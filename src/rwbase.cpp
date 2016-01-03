@@ -12,16 +12,16 @@ using namespace std;
 
 namespace rw {
 
-int version = 0x36003;
-int build = 0xFFFF;
+int32 version = 0x36003;
+int32 build = 0xFFFF;
 #ifdef RW_PS2
-	int platform = PLATFORM_PS2;
+	int32 platform = PLATFORM_PS2;
 #elif RW_OPENGL
-	int platform = PLATFORM_OGL;
+	int32 platform = PLATFORM_OGL;
 #elif RW_D3D9
-	int platform = PLATFORM_D3D9;
+	int32 platform = PLATFORM_D3D9;
 #else
-	int platform = PLATFORM_NULL;
+	int32 platform = PLATFORM_NULL;
 #endif
 char *debugFile = NULL;
 

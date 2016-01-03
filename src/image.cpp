@@ -9,6 +9,7 @@
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwps2.h"
 #include "rwd3d.h"
 #include "rwxbox.h"
 #include "rwd3d8.h"
@@ -211,6 +212,8 @@ Texture::streamReadNative(Stream *stream)
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	uint32 platform = stream->readU32();
 	stream->seek(-16);
+	if(platform == FOURCC_PS2)
+		return ps2::readNativeTexture(stream);
 	if(platform == PLATFORM_D3D8)
 		return d3d8::readNativeTexture(stream);
 	if(platform == PLATFORM_XBOX)
@@ -228,7 +231,9 @@ Texture::streamReadNative(Stream *stream)
 void
 Texture::streamWriteNative(Stream *stream)
 {
-	if(this->raster->platform == PLATFORM_D3D8)
+	if(this->raster->platform == PLATFORM_PS2)
+		ps2::writeNativeTexture(this, stream);
+	else if(this->raster->platform == PLATFORM_D3D8)
 		d3d8::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_XBOX)
 		xbox::writeNativeTexture(this, stream);
@@ -239,6 +244,8 @@ Texture::streamWriteNative(Stream *stream)
 uint32
 Texture::streamGetSizeNative(void)
 {
+	if(this->raster->platform == PLATFORM_PS2)
+		return ps2::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_D3D8)
 		return d3d8::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_XBOX)

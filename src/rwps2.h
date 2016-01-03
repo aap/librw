@@ -172,11 +172,30 @@ void registerPDSPlugin(int32 n);
 
 struct Ps2Raster : NativeRaster
 {
-	int32 mipmap;
+	uint32 tex0[2];
+	uint32 tex1[2];
+	uint32 miptbp1[2];
+	uint32 miptbp2[2];
+	uint32 texelSize;
+	uint32 paletteSize;
+	uint32 gsSize;
+	int8 flags;
+
+	uint8 *data;	//tmp
+	uint32 dataSize;
+
+	virtual void create(Raster *raster);
+	virtual uint8 *lock(Raster *raster, int32 level);
+	virtual void unlock(Raster *raster, int32 level);
+	virtual int32 getNumLevels(Raster *raster);
 };
 
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);
+
+Texture *readNativeTexture(Stream *stream);
+void writeNativeTexture(Texture *tex, Stream *stream);
+uint32 getSizeNativeTexture(Texture *tex);
 
 }
 }
