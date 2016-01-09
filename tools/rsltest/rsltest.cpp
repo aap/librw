@@ -29,174 +29,6 @@ RslStream::relocate(void)
 	}
 }
 
-RslFrame*
-RslFrameForAllChildren(RslFrame *frame, RslFrameCallBack callBack, void *data)
-{
-	for(RslFrame *child = frame->child;
-	    child;
-	    child = child->next)
-		if(callBack(child, data) == NULL)
-			break;
-	return frame;
-}
-
-RslClump*
-RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData)
-{
-	RslAtomic *a;
-	RslLLLink *link;
-	for(link = rslLLLinkGetNext(&clump->atomicList.link);
-	    link != &clump->atomicList.link;
-	    link = link->next){
-		a = rslLLLinkGetData(link, RslAtomic, inClumpLink);
-		if(callback(a, pData) == NULL)
-			break;
-	}
-	return clump;
-}
-
-RslGeometry*
-RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack, void *pData)
-{
-	for(int32 i = 0; i < geometry->matList.numMaterials; i++)
-		if(fpCallBack(geometry->matList.materials[i], pData) == NULL)
-			break;
-	return geometry;
-}
-
-RslTexDictionary*
-RslTexDictionaryCreate(void)
-{
-	RslTexDictionary *dict = new RslTexDictionary;
-	memset(dict, 0, sizeof(RslTexDictionary));
-	dict->object.type = 6;
-	dict->texturesInDict.link.prev = &dict->texturesInDict.link;
-	dict->texturesInDict.link.next = &dict->texturesInDict.link;
-	return dict;
-}
-
-RslTexture*
-RslTexDictionaryAddTexture(RslTexDictionary *dict, RslTexture *tex)
-{
-	if(tex->dict){
-		tex->lInDictionary.prev->next = tex->lInDictionary.next;
-		tex->lInDictionary.next->prev = tex->lInDictionary.prev;
-	}
-	tex->dict = dict;
-	tex->lInDictionary.prev = &dict->texturesInDict.link;
-	tex->lInDictionary.next = dict->texturesInDict.link.next;
-	dict->texturesInDict.link.next->prev = &tex->lInDictionary;
-	dict->texturesInDict.link.next = &tex->lInDictionary;
-	return tex;
-}
-
-RslTexDictionary*
-RslTexDictionaryForAllTextures(RslTexDictionary *dict, RslTextureCallBack fpCallBack, void *pData)
-{
-	RslTexture *t;
-	RslLLLink *link;
-	for(link = rslLLLinkGetNext(&dict->texturesInDict.link);
-	    link != &dict->texturesInDict.link;
-	    link = link->next){
-		t = rslLLLinkGetData(link, RslTexture, lInDictionary);
-		if(fpCallBack(t, pData) == NULL)
-			break;
-	}
-	return dict;
-}
-
-uint32
-guessSwizzling(uint32 w, uint32 h, uint32 d, uint32 mipmaps)
-{
-	uint32 swiz = 0;
-	for(uint32 i = 0; i < mipmaps; i++){
-		switch(d){
-		case 4:
-			if(w >= 32 && h >= 16)
-				swiz |= 1<<i;
-			break;
-		case 8:
-			if(w >= 16 && h >= 4)
-				swiz |= 1<<i;
-			break;
-		}
-		w /= 2;
-		h /= 2;
-	}
-	return swiz;
-}
-
-RslRaster*
-RslCreateRasterPS2(uint32 w, uint32 h, uint32 d, uint32 mipmaps)
-{
-	RslRasterPS2 *r;
-	r = new RslRasterPS2;
-	uint32 tmp, logw = 0, logh = 0;
-	for(tmp = 1; tmp < w; tmp <<= 1)
-		logw++;
-	for(tmp = 1; tmp < h; tmp <<= 1)
-		logh++;
-	r->flags = 0;
-	r->flags |= logw&0x3F;
-	r->flags |= (logh&0x3F)<<6;
-	r->flags |= d << 12;
-	r->flags |= mipmaps << 20;
-	uint32 swiz = guessSwizzling(w, h, d, mipmaps);
-	r->flags |= swiz << 24;
-	return (RslRaster*)r;
-}
-
-RslTexture*
-RslReadNativeTexturePS2(Stream *stream)
-{
-	RslPs2StreamRaster rasterInfo;
-	uint32 len;
-	uint32 buf[2];
-	RslTexture *tex = RslTextureCreate(NULL);
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	stream->read(buf, sizeof(buf));
-	assert(buf[0] == 0x00505350); /* "PSP\0" */
-	assert(findChunk(stream, ID_STRING, &len, NULL));
-	stream->read(tex->name, len);
-	assert(findChunk(stream, ID_STRING, &len, NULL));
-	stream->read(tex->mask, len);
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, &len, NULL));
-	stream->read(&rasterInfo, sizeof(rasterInfo));
-	assert(findChunk(stream, ID_STRUCT, &len, NULL));
-	tex->raster = RslCreateRasterPS2(rasterInfo.width,
-		rasterInfo.height, rasterInfo.depth, rasterInfo.mipmaps);
-	tex->raster->ps2.data = new uint8[len];
-	stream->read(tex->raster->ps2.data, len);
-	assert(findChunk(stream, ID_EXTENSION, &len, NULL));
-	stream->seek(len);
-	return tex;
-}
-
-RslTexDictionary*
-RslTexDictionaryStreamRead(Stream *stream)
-{
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	int32 numTex = stream->readI32();
-	RslTexDictionary *txd = RslTexDictionaryCreate();
-	for(int32 i = 0; i < numTex; i++){
-		assert(findChunk(stream, ID_TEXTURENATIVE, NULL, NULL));
-		RslTexture *tex = RslReadNativeTexturePS2(stream);
-		RslTexDictionaryAddTexture(txd, tex);
-	}
-	return txd;
-}
-
-RslTexture*
-RslTextureCreate(RslRaster *raster)
-{
-	RslTexture *tex = new RslTexture;
-	memset(tex, 0, sizeof(RslTexture));
-	tex->raster = raster;
-	return tex;
-}
-
-
 
 
 RslFrame *dumpFrameCB(RslFrame *frame, void *data)
@@ -569,12 +401,18 @@ main(int argc, char *argv[])
 	uint32 ident = stream.readU32();
 	stream.seek(0, 0);
 
-	if(ident == 0x16){
+	if(ident == ID_TEXDICTIONARY){
 		findChunk(&stream, ID_TEXDICTIONARY, NULL, NULL);
 		txd = RslTexDictionaryStreamRead(&stream);
 		stream.close();
 		assert(txd);
 		goto writeTxd;
+	}
+	if(ident == 0x10){
+		findChunk(&stream, ID_CLUMP, NULL, NULL);
+		clump = RslClumpStreamRead(&stream);
+		stream.close();
+		return 0;
 	}
 
 	RslStream *rslstr = new RslStream;

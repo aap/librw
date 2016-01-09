@@ -374,10 +374,10 @@ geometryStreamReadRsl(Stream *stream)
 	for(int32 i = 0; i < g->numMaterials; i++){
 		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
 		g->materialList[i] = Material::streamRead(stream);
-		// fucked somehow
-		g->materialList[i]->surfaceProps[0] = 1.0f;
-		g->materialList[i]->surfaceProps[1] = 1.0f;
-		g->materialList[i]->surfaceProps[2] = 1.0f;
+		// unimplemented by Rsl
+		g->materialList[i]->surfaceProps.ambient = 1.0f;
+		g->materialList[i]->surfaceProps.specular = 1.0f;
+		g->materialList[i]->surfaceProps.diffuse = 1.0f;
 	}
 
 	g->streamReadPlugins(stream);

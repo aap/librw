@@ -791,17 +791,17 @@ clearMatFX(MatFX *matfx)
 }
 
 void
-MatFX::setEffects(uint32 flags)
+MatFX::setEffects(uint32 type)
 {
-	if(this->flags != 0 && this->flags != flags)
+	if(this->type != 0 && this->type != type)
 		clearMatFX(this);
-	this->flags = flags;
-	switch(flags){
+	this->type = type;
+	switch(type){
 	case BUMPMAP:
 	case ENVMAP:
 	case DUAL:
 	case UVTRANSFORM:
-		this->fx[0].type = flags;
+		this->fx[0].type = type;
 		this->fx[1].type = NOTHING;
 		break;
 
@@ -889,7 +889,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
 	matfx->setEffects(stream->readU32());
 
-	if(matfx->flags == MatFX::BUMPMAP && matFXGlobals.hack){
+	if(matfx->type == MatFX::BUMPMAP && matFXGlobals.hack){
 		stream->seek(12);
 		return;
 	}
@@ -961,7 +961,7 @@ writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
 
-	stream->writeU32(matfx->flags);
+	stream->writeU32(matfx->type);
 	for(int i = 0; i < 2; i++){
 		stream->writeU32(matfx->fx[i].type);
 		switch(matfx->fx[i].type){

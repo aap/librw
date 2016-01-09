@@ -199,11 +199,18 @@ struct Texture : PluginBase<Texture>
 	};
 };
 
+struct SurfaceProperties
+{
+	float32 ambient;
+	float32 specular;
+	float32 diffuse;
+};
+
 struct Material : PluginBase<Material>
 {
 	Texture *texture;
 	uint8 color[4];
-	float32 surfaceProps[3];
+	SurfaceProperties surfaceProps;
 	Pipeline *pipeline;
 	int32 refCount;
 
@@ -220,7 +227,7 @@ void registerMaterialRightsPlugin(void);
 
 struct MatFX
 {
-	enum Flags {
+	enum {
 		NOTHING = 0,
 		BUMPMAP,
 		ENVMAP,
@@ -259,7 +266,7 @@ struct MatFX
 			UVtransform uvtransform;
 		};
 	} fx[2];
-	uint32 flags;
+	uint32 type;
 
 	void setEffects(uint32 flags);
 	int32 getEffectIndex(uint32 type);

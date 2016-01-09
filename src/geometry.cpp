@@ -400,7 +400,9 @@ Material::Material(void)
 {
 	this->texture = NULL;
 	memset(this->color, 0xFF, 4);
-	surfaceProps[0] = surfaceProps[1] = surfaceProps[2] = 1.0f;
+	surfaceProps.ambient = 1.0f;
+	surfaceProps.specular = 1.0f;
+	surfaceProps.diffuse = 1.0f;
 	this->pipeline = NULL;
 	this->refCount = 1;
 	this->constructPlugins();
@@ -412,9 +414,9 @@ Material::Material(Material *m)
 	this->color[1] = m->color[1];
 	this->color[2] = m->color[2];
 	this->color[3] = m->color[3];
-	this->surfaceProps[0] = m->surfaceProps[0];
-	this->surfaceProps[1] = m->surfaceProps[1];
-	this->surfaceProps[2] = m->surfaceProps[2];
+	this->surfaceProps.ambient = m->surfaceProps.ambient;
+	this->surfaceProps.specular = m->surfaceProps.specular;
+	this->surfaceProps.diffuse = m->surfaceProps.diffuse;
 	this->texture = m->texture;
 	if(this->texture)
 		this->texture->refCount++;
@@ -463,15 +465,15 @@ Material::streamRead(Stream *stream)
 	mat->color[2] = buf.color[2];
 	mat->color[3] = buf.color[3];
 	if(version < 0x30400){
-		mat->surfaceProps[0] = 1.0f;
-		mat->surfaceProps[1] = 1.0f;
-		mat->surfaceProps[2] = 1.0f;
+		mat->surfaceProps.ambient = 1.0f;
+		mat->surfaceProps.specular = 1.0f;
+		mat->surfaceProps.diffuse = 1.0f;
 	}else{
 		float32 surfaceProps[3];
 		stream->read(surfaceProps, sizeof(surfaceProps));
-		mat->surfaceProps[0] = surfaceProps[0];
-		mat->surfaceProps[1] = surfaceProps[1];
-		mat->surfaceProps[2] = surfaceProps[2];
+		mat->surfaceProps.ambient = surfaceProps[0];
+		mat->surfaceProps.specular = surfaceProps[1];
+		mat->surfaceProps.diffuse = surfaceProps[2];
 	}
 	if(buf.textured){
 		assert(findChunk(stream, ID_TEXTURE, &length, NULL));
@@ -505,9 +507,9 @@ Material::streamWrite(Stream *stream)
 
 	if(rw::version >= 0x30400){
 		float32 surfaceProps[3];
-		surfaceProps[0] = this->surfaceProps[0];
-		surfaceProps[1] = this->surfaceProps[1];
-		surfaceProps[2] = this->surfaceProps[2];
+		surfaceProps[0] = this->surfaceProps.ambient;
+		surfaceProps[1] = this->surfaceProps.specular;
+		surfaceProps[2] = this->surfaceProps.diffuse;
 		stream->write(surfaceProps, sizeof(surfaceProps));
 	}
 

@@ -80,6 +80,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="rsl.cpp" />
     <ClCompile Include="rsltest.cpp" />
   </ItemGroup>
   <ItemGroup>

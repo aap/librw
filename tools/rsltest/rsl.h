@@ -42,12 +42,41 @@ typedef RslAtomic *(*RslAtomicCallBack)(RslAtomic *atomic, void *data);
 typedef RslMaterial *(*RslMaterialCallBack)(RslMaterial *material, void *data);
 typedef RslTexture *(*RslTextureCallBack)(RslTexture *texture, void *pData);
 
-struct RslLLLink {
+struct RslRGBA
+{
+	uint8 red;
+	uint8 green;
+	uint8 blue;
+	uint8 alpha;
+};
+
+struct RslV3d
+{
+	float32 x, y, z;
+};
+
+struct RslMatrix
+{
+	RslV3d right;
+	uint32 flags;
+	RslV3d up;
+	uint32 pad1;
+	RslV3d at;
+	uint32 pad2;
+	RslV3d pos;
+	uint32 pad3;
+};
+
+void RslMatrixSetIdentity(RslMatrix *matrix);
+
+struct RslLLLink
+{
 	RslLLLink *next;
 	RslLLLink *prev;
 };
 
-struct RslLinkList {
+struct RslLinkList
+{
 	RslLLLink link;
 };
 
@@ -68,12 +97,23 @@ struct RslLinkList {
     ((linkvar)->next)
 
 struct RslObject {
-        uint8  type;
-        uint8  subType;
-        uint8  flags;
-        uint8  privateFlags;
-        void  *parent;
+	uint8  type;
+	uint8  subType;
+	uint8  flags;
+	uint8  privateFlags;
+	void  *parent;
 };
+
+#define rslObjectInitialize(o, t, s)                  \
+{                                                     \
+    ((RslObject*)(o))->type = (uint8)(t);             \
+    ((RslObject*)(o))->subType = (uint8)(s);          \
+    ((RslObject*)(o))->flags = 0;                     \
+    ((RslObject*)(o))->privateFlags = 0;              \
+    ((RslObject*)(o))->parent = NULL;                 \
+}
+
+#define rslObjectGetParent(object)           (((const RslObject *)(object))->parent)
 
 struct RslObjectHasFrame {
 	RslObject   object;
@@ -81,7 +121,7 @@ struct RslObjectHasFrame {
 	void      (*sync)();
 };
 
-#define rslObjectGetParent(object)           (((const RslObject *)(object))->parent)
+void rslObjectHasFrameSetFrame(RslObjectHasFrame *object, RslFrame *f);
 
 struct RslRasterPS2 {
 	uint8 *data;
@@ -110,6 +150,8 @@ union RslRaster {
 	RslRasterPSP psp;
 };
 
+RslRaster *RslCreateRasterPS2(uint32 w, uint32 h, uint32 d, uint32 mipmaps);
+
 struct RslTexDictionary {
 	RslObject   object;
 	RslLinkList texturesInDict;
@@ -119,6 +161,7 @@ struct RslTexDictionary {
 RslTexDictionary *RslTexDictionaryStreamRead(Stream *stream);
 RslTexDictionary *RslTexDictionaryCreate(void);
 RslTexture *RslTexDictionaryAddTexture(RslTexDictionary *dict, RslTexture *tex);
+RslTexDictionary *RslTexDictionaryForAllTextures(RslTexDictionary *dict, RslTextureCallBack fpCallBack, void *pData);
 
 struct RslTexture {
 	RslRaster        *raster;
@@ -129,13 +172,16 @@ struct RslTexture {
 };
 
 RslTexture *RslTextureCreate(RslRaster *raster);
+void RslTextureDestroy(RslTexture *texture);
+RslTexture *RslTextureStreamRead(Stream *stream);
+RslTexture *RslReadNativeTexturePS2(Stream *stream);
 
 struct RslFrame {
-	RslObject          object;
-	RslLLLink          inDirtyListLink; // ?
+	RslObject         object;
+	RslLinkList       objectList;
 		         
-	float32            modelling[16];
-	float32            ltm[16];
+	RslMatrix         modelling;
+	RslMatrix         ltm;
 	RslFrame          *child;
 	RslFrame          *next;
 	RslFrame          *root;
@@ -149,6 +195,16 @@ struct RslFrame {
 	int32              hierId;
 };
 
+RslFrame *RslFrameCreate(void);
+RslFrame *RslFrameAddChild(RslFrame *parent, RslFrame *child);
+RslFrame *RslFrameForAllChildren(RslFrame *frame, RslFrameCallBack callBack, void *data);
+
+struct rslFrameList
+{
+	RslFrame **frames;
+	int32 numFrames;
+};
+
 struct RslClump {
 	RslObject   object;
 	RslLinkList atomicList;
@@ -156,6 +212,10 @@ struct RslClump {
 
 #define RslClumpGetFrame(_clump)                                    \
     ((RslFrame *) rslObjectGetParent(_clump))
+
+RslClump *RslClumpStreamRead(Stream *stream);
+RslClump *RslClumpAddAtomic(RslClump *clump, RslAtomic *a);
+RslClump *RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData);
 
 struct RslAtomic {
 	RslObjectHasFrame  object;
@@ -176,6 +236,10 @@ struct RslAtomic {
 #define RslAtomicGetFrame(_atomic)                                  \
     ((RslFrame *) rslObjectGetParent(_atomic))
 
+RslAtomic *RslAtomicCreate(void);
+RslAtomic *RslAtomicSetFrame(RslAtomic *atomic, RslFrame *frame);
+RslAtomic *RslAtomicStreamRead(Stream *stream, rslFrameList *framelist);
+
 struct RslMaterialList {
 	RslMaterial **materials;
 	int32         numMaterials;
@@ -193,9 +257,15 @@ struct RslGeometry {
 	uint32          pad2;            // 0xAAAAAAAA
 };
 
+RslGeometry *RslGeometryCreatePS2(uint32 sz);
+RslGeometry *RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack, void *pData);
+
 struct RslMatFXEnv {
 	RslFrame *frame;
-	char     *texname;
+	union {
+		char       *texname;
+		RslTexture *texture;
+	};
 	float32   intensity;
 };
 
@@ -207,11 +277,17 @@ struct RslMatFX {
 };
 
 struct RslMaterial {
-	char       *texname;
-	uint32      color;
+	union {
+		char       *texname;
+		RslTexture *texture;
+	};
+	RslRGBA     color;
 	uint32      refCount;
 	RslMatFX   *matfx;
 };
+
+RslMaterial *RslMaterialCreate(void);
+RslMaterial *RslMaterialStreamRead(Stream *stream);
 
 struct RslHAnimNodeInfo {
 	int8      id;
@@ -262,6 +338,8 @@ struct RslSkin {
 	void    *data;          // NULL
 };
 
+RslSkin *RslSkinStreamRead(Stream *stream, RslGeometry *g);
+
 struct RslPS2ResEntryHeader {
 	float32 bound[4];
 	uint32  size;		// and numMeshes
@@ -275,9 +353,9 @@ struct RslPS2ResEntryHeader {
 };
 
 struct RslPS2InstanceData {
-	float32  bound[4];      // ?
+	float32  bound[4];
 	float32  uvScale[2];
-	int32    unk1;
+	int32    unknown;
 	uint32   dmaPacket;
 	uint16   numTriangles;
 	int16    matID;
