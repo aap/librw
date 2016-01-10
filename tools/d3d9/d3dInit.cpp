@@ -74,8 +74,8 @@ setMaterial(Material *mat)
 {
 	D3DMATERIAL9 mat9;
 	D3DCOLORVALUE black = { 0, 0, 0, 0 };
-	float ambmult = mat->surfaceProps[0]/255.0f;
-	float diffmult = mat->surfaceProps[2]/255.0f;
+	float ambmult = mat->surfaceProps.ambient/255.0f;
+	float diffmult = mat->surfaceProps.diffuse/255.0f;
 	mat9.Ambient.r = mat->color[0]*ambmult;
 	mat9.Ambient.g = mat->color[1]*ambmult;
 	mat9.Ambient.b = mat->color[2]*ambmult;

@@ -499,7 +499,7 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		skin->init(header[0], header[1], geometry->numVertices);
 	skin->numWeights = header[2];
 
-	if(!oldFormat && !skinGlobals.forceSkipUsedBones)
+	if(!oldFormat)
 		stream->read(skin->usedBones, skin->numUsedBones);
 	if(skin->indices)
 		stream->read(skin->indices, geometry->numVertices*4);
@@ -826,6 +826,22 @@ MatFX::getEffectIndex(uint32 type)
 	return -1;
 }
 
+void
+MatFX::setEnvTexture(Texture *t)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		this->fx[i].env.tex = t;
+}
+
+void
+MatFX::setEnvCoefficient(float32 coef)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		this->fx[i].env.coefficient = coef;
+}
+
 static void*
 createMaterialMatFX(void *object, int32 offset, int32)
 {
@@ -889,13 +905,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
 	matfx->setEffects(stream->readU32());
 
-	if(matfx->type == MatFX::BUMPMAP && matFXGlobals.hack){
-		stream->seek(12);
-		return;
-	}
-
-	int32 n = matFXGlobals.hack ? 1 : 2;
-	for(int i = 0; i < n; i++){
+	for(int i = 0; i < 2; i++){
 		uint32 type = stream->readU32();
 		switch(type){
 		case MatFX::BUMPMAP:
@@ -920,10 +930,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 
 		case MatFX::ENVMAP:
 			coefficient = stream->readF32();
-			if(matFXGlobals.hack)
-				fbAlpha = 0;
-			else
-				fbAlpha = stream->readI32();
+			fbAlpha = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
 				assert(findChunk(stream, ID_TEXTURE,

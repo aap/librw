@@ -113,7 +113,8 @@ struct RslObject {
     ((RslObject*)(o))->parent = NULL;                 \
 }
 
-#define rslObjectGetParent(object)           (((const RslObject *)(object))->parent)
+#define rslObjectGetParent(object) (((RslObject*)(object))->parent)
+#define rslObjectSetParent(c,p)    (((RslObject*)(c))->parent) = (void*)(p)
 
 struct RslObjectHasFrame {
 	RslObject   object;
@@ -197,6 +198,7 @@ struct RslFrame {
 
 RslFrame *RslFrameCreate(void);
 RslFrame *RslFrameAddChild(RslFrame *parent, RslFrame *child);
+int32 RslFrameCount(RslFrame *f);
 RslFrame *RslFrameForAllChildren(RslFrame *frame, RslFrameCallBack callBack, void *data);
 
 struct rslFrameList
@@ -205,16 +207,25 @@ struct rslFrameList
 	int32 numFrames;
 };
 
+void rslFrameListStreamRead(Stream *stream, rslFrameList *framelist);
+void rslFrameListInitialize(rslFrameList *frameList, RslFrame *root);
+
 struct RslClump {
 	RslObject   object;
 	RslLinkList atomicList;
 };
 
 #define RslClumpGetFrame(_clump)                                    \
-    ((RslFrame *) rslObjectGetParent(_clump))
+    ((RslFrame*)rslObjectGetParent(_clump))
 
+#define RslClumpSetFrame(_clump, _frame)                            \
+    (rslObjectSetParent(_clump, _frame),                            \
+     (_clump))
+
+RslClump *RslClumpCreate(void);
 RslClump *RslClumpStreamRead(Stream *stream);
 RslClump *RslClumpAddAtomic(RslClump *clump, RslAtomic *a);
+int32 RslClumpGetNumAtomics(RslClump *clump);
 RslClump *RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData);
 
 struct RslAtomic {
@@ -234,7 +245,7 @@ struct RslAtomic {
 };
 
 #define RslAtomicGetFrame(_atomic)                                  \
-    ((RslFrame *) rslObjectGetParent(_atomic))
+    ((RslFrame*)rslObjectGetParent(_atomic))
 
 RslAtomic *RslAtomicCreate(void);
 RslAtomic *RslAtomicSetFrame(RslAtomic *atomic, RslFrame *frame);

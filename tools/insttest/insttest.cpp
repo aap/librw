@@ -25,37 +25,6 @@ struct {
 
 char *argv0;
 
-Frame*
-findHierCB(Frame *f, void *p)
-{
-	HAnimData *hanim = PLUGINOFFSET(HAnimData, f, hAnimOffset);
-	if(hanim->hierarchy){
-		*(HAnimHierarchy**)p = hanim->hierarchy;
-		return NULL;
-	}
-	f->forAllChildren(findHierCB, p);
-	return f;
-}
-
-HAnimHierarchy*
-getHierarchy(Clump *c)
-{
-	HAnimHierarchy *hier = NULL;
-	findHierCB((Frame*)c->parent, &hier);
-	return hier;
-}
-
-void
-fixLcsHier(HAnimHierarchy *hier)
-{
-	hier->maxInterpKeyFrameSize = findAnimInterpolatorInfo(1)->keyFrameSize;
-	for(int32 i = 0; i < hier->numNodes; i++){
-		int32 id = hier->nodeInfo[i].id;
-		if(id == 255) hier->nodeInfo[i].id = -1;
-		else if(id > 0x80) hier->nodeInfo[i].id |= 0x1300;
-	}
-}
-
 void
 usage(void)
 {
@@ -64,7 +33,6 @@ usage(void)
 	fprintf(stderr, "\t-i instance\n");
 	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
 	fprintf(stderr, "\t-o output platform. ps2, xbox, mobile, d3d8, d3d9\n");
-	fprintf(stderr, "\t-s expect iOS LCS dff as input\n");
 	exit(1);
 }
 
@@ -84,7 +52,6 @@ main(int argc, char *argv[])
 
 	int uninstance = 0;
 	int instance = 0;
-	int lcs = 0;
 	int outplatform = rw::PLATFORM_D3D8;
 
 	char *s;
@@ -110,9 +77,6 @@ main(int argc, char *argv[])
 		outplatform = PLATFORM_D3D8;
 	found:
 		break;
-	case 's':
-		lcs++;
-		break;
 	default:
 		usage();
 	}ARGEND;
@@ -121,9 +85,6 @@ main(int argc, char *argv[])
 		fprintf(stderr, "cannot both instance and uninstance, choose one!\n");
 		return 1;
 	}
-
-	matFXGlobals.hack = lcs;
-	skinGlobals.forceSkipUsedBones = lcs;
 
 	if(argc < 1)
 		usage();
@@ -145,10 +106,7 @@ main(int argc, char *argv[])
 	}
 	assert(header.type == ID_CLUMP);
 	debugFile = argv[0];
-	if(lcs)
-		c = clumpStreamReadRsl(&in);
-	else
-		c = Clump::streamRead(&in);
+	c = Clump::streamRead(&in);
 	assert(c != NULL);
 	in.close();
 
@@ -171,18 +129,6 @@ main(int argc, char *argv[])
 	if(platform){
 		rw::platform = platform;
 		switchPipes(c, rw::platform);
-	}
-
-	if(lcs){
-		HAnimHierarchy *hier = getHierarchy(c);
-		if(hier)
-			fixLcsHier(hier);
-		for(int32 i = 0; i < c->numAtomics; i++){
-			Skin *skin = *PLUGINOFFSET(Skin*, c->atomicList[i]->geometry, skinGlobals.offset);
-			convertRslGeometry(c->atomicList[i]->geometry);
-			if(skin)
-				c->atomicList[i]->pipeline = skinGlobals.pipelines[rw::platform];
-		}
 	}
 
 	if(uninstance)

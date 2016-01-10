@@ -31,6 +31,7 @@ Frame::Frame(void)
 	this->matrix[5] = 1.0f;
 	this->matrix[10] = 1.0f;
 	this->matrix[15] = 1.0f;
+	this->matflag = 0;
 	this->dirty = true;
 	constructPlugins();
 }

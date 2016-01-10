@@ -80,6 +80,15 @@ RslFrameAddChild(RslFrame *parent, RslFrame *child)
 	return parent;
 }
 
+int32
+RslFrameCount(RslFrame *f)
+{
+	int32 n = 1;
+	for(RslFrame *c = f->child; c; c = c->next)
+		n += RslFrameCount(c);
+	return n;
+}
+
 RslFrame*
 RslFrameForAllChildren(RslFrame *frame, RslFrameCallBack callBack, void *data)
 {
@@ -99,7 +108,7 @@ struct StreamFrame
 };
 
 void
-rwFrameListStreamRead(Stream *stream, rslFrameList *framelist)
+rslFrameListStreamRead(Stream *stream, rslFrameList *framelist)
 {
 	uint32 length;
 	StreamFrame strfrm;
@@ -138,6 +147,25 @@ rwFrameListStreamRead(Stream *stream, rslFrameList *framelist)
 			length -= 12 + header.length;
 		}
 	}
+}
+
+static RslFrame**
+rslFrameListFill(RslFrame *f, RslFrame **flist)
+{
+	*flist++ = f;
+	if(f->next)
+		flist = rslFrameListFill(f->next, flist);
+	if(f->child)
+		flist = rslFrameListFill(f->child, flist);
+	return flist;
+}
+
+void
+rslFrameListInitialize(rslFrameList *frameList, RslFrame *root)
+{
+	frameList->numFrames = RslFrameCount(root);
+	frameList->frames = new RslFrame*[frameList->numFrames];
+	rslFrameListFill(root, frameList->frames);
 }
 
 RslHAnimHierarchy*
@@ -320,7 +348,7 @@ RslClumpStreamRead(Stream *stream)
 
 	clump = RslClumpCreate();
 	assert(findChunk(stream, ID_FRAMELIST, NULL, NULL));
-	rwFrameListStreamRead(stream, &framelist);
+	rslFrameListStreamRead(stream, &framelist);
 	clump->object.parent = framelist.frames[0];
 
 	for(int32 i = 0; i < numAtomics; i++){
@@ -336,6 +364,7 @@ RslClumpStreamRead(Stream *stream)
 		stream->seek(header.length);
 		length -= 12 + header.length;
 	}
+	delete[] framelist.frames;
 	return clump;
 }
 
@@ -365,6 +394,18 @@ RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData)
 	return clump;
 }
 
+int32
+RslClumpGetNumAtomics(RslClump *clump)
+{
+	int32 n = 0;
+	RslLLLink *link;
+	for(link = rslLLLinkGetNext(&clump->atomicList.link);
+	    link != &clump->atomicList.link;
+	    link = link->next)
+		n++;
+	return n;
+}
+
 RslGeometry*
 RslGeometryCreatePS2(uint32 sz)
 {
@@ -387,11 +428,11 @@ RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack
 
 struct RslMaterialChunkInfo
 {
-    int32             flags;
-    RslRGBA           color;    // used
-    int32             unused;
-    bool32            textured; // used
-    SurfaceProperties surfaceProps;
+	int32             flags;
+	RslRGBA           color;    // used
+	int32             unused;
+	bool32            textured; // used
+	SurfaceProperties surfaceProps;
 };
 
 RslMaterial*
@@ -479,11 +520,11 @@ void
 rpMaterialListAppendMaterial(RslMaterialList *matlist, RslMaterial *mat)
 {
 	if(matlist->space <= matlist->numMaterials){
-		matlist->space += 16;
 		RslMaterial **mats = matlist->materials;
-		matlist->materials = new RslMaterial*[matlist->space];
-		if(matlist->space-16)
-			memcpy(matlist->materials, mats, (matlist->space+16)*sizeof(RslMaterial*));
+		matlist->materials = new RslMaterial*[matlist->space+16];
+		if(matlist->space)
+			memcpy(matlist->materials, mats, matlist->space*sizeof(RslMaterial*));
+		matlist->space += 16;
 		delete[] mats;
 	}
 	matlist->materials[matlist->numMaterials++] = mat;

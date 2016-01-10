@@ -41,6 +41,10 @@ Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 	}
 	this->morphTargets = new MorphTarget[1];
 	MorphTarget *m = this->morphTargets;
+	m->boundingSphere[0] = 0.0f;
+	m->boundingSphere[1] = 0.0f;
+	m->boundingSphere[2] = 0.0f;
+	m->boundingSphere[3] = 0.0f;
 	m->vertices = NULL;
 	m->normals = NULL;
 	if(!(this->geoflags & NATIVE) && this->numVertices){

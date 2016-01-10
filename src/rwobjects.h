@@ -8,6 +8,7 @@ struct Object
 	void *parent;
 };
 
+// TODO: missing: list of attached objects
 struct Frame : PluginBase<Frame>, Object
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
@@ -270,6 +271,8 @@ struct MatFX
 
 	void setEffects(uint32 flags);
 	int32 getEffectIndex(uint32 type);
+	void setEnvTexture(Texture *t);
+	void setEnvCoefficient(float32 coef);
 };
 
 struct MatFXGlobals
@@ -277,7 +280,6 @@ struct MatFXGlobals
 	int32 atomicOffset;
 	int32 materialOffset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
-	bool32 hack;
 };
 extern MatFXGlobals matFXGlobals;
 void registerMatFXPlugin(void);
@@ -387,7 +389,6 @@ struct SkinGlobals
 {
 	int32 offset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
-	bool32 forceSkipUsedBones;
 };
 extern SkinGlobals skinGlobals;
 void registerSkinPlugin(void);

@@ -40,7 +40,8 @@ RslFrame *dumpFrameCB(RslFrame *frame, void *data)
 
 RslMaterial *dumpMaterialCB(RslMaterial *material, void*)
 {
-	printf("  mat: %s %x\n", material->texname, material->refCount);
+	printf("  mat: %d %d %d %d %s %x\n", material->color.red, material->color.green, material->color.blue, material->color.alpha,
+		material->texname, material->refCount);
 	if(material->matfx){
 		RslMatFX *fx = material->matfx;
 		printf("   matfx: ", fx->effectType);
@@ -58,6 +59,411 @@ RslAtomic *dumpAtomicCB(RslAtomic *atomic, void*)
 	RslGeometryForAllMaterials(g, dumpMaterialCB, NULL);
 	return atomic;
 }
+
+int32
+mapID(int32 id)
+{
+	if(id == 255) return -1;
+	if(id > 0x80) id |= 0x1300;
+	return id;
+}
+
+Frame*
+convertFrame(RslFrame *f)
+{
+	Frame *rwf = new Frame;
+	rwf->matrix[0] =  f->modelling.right.x;
+	rwf->matrix[1] =  f->modelling.right.y;
+	rwf->matrix[2] =  f->modelling.right.z;
+	rwf->matrix[4] =  f->modelling.up.x;
+	rwf->matrix[5] =  f->modelling.up.y;
+	rwf->matrix[6] =  f->modelling.up.z;
+	rwf->matrix[8] =  f->modelling.at.x;
+	rwf->matrix[9] =  f->modelling.at.y;
+	rwf->matrix[10] = f->modelling.at.z;
+	rwf->matrix[12] = f->modelling.pos.x;
+	rwf->matrix[13] = f->modelling.pos.y;
+	rwf->matrix[14] = f->modelling.pos.z;
+
+	if(f->name)
+		strncpy(gta::getNodeName(rwf), f->name, 24);
+
+	HAnimData *hanim = PLUGINOFFSET(HAnimData, rwf, hAnimOffset);
+	hanim->id = f->nodeId;
+	if(f->hier){
+		HAnimHierarchy *hier;
+		hanim->hierarchy = hier = new HAnimHierarchy;
+		hier->numNodes = f->hier->numNodes;
+		hier->flags = f->hier->flags;
+		hier->maxInterpKeyFrameSize = f->hier->maxKeyFrameSize;
+		hier->parentFrame = rwf;
+		hier->parentHierarchy = hier;
+		hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
+		for(int32 i = 0; i < hier->numNodes; i++){
+			hier->nodeInfo[i].id = mapID((uint8)f->hier->pNodeInfo[i].id);
+			hier->nodeInfo[i].index = f->hier->pNodeInfo[i].index;
+			hier->nodeInfo[i].flags = f->hier->pNodeInfo[i].flags;
+			hier->nodeInfo[i].frame = NULL;
+		}
+	}
+	return rwf;
+}
+
+Texture*
+convertTexture(RslTexture *t)
+{
+	Texture *tex = Texture::read(t->name, t->mask);
+	//tex->refCount++;	// ??
+	if(tex->refCount == 1)
+		tex->filterAddressing = (Texture::WRAP << 12) | (Texture::WRAP << 8) | Texture::LINEAR;
+	return tex;
+}
+
+Material*
+convertMaterial(RslMaterial *m)
+{
+	Material *rwm;
+	rwm = new Material;
+
+	rwm->color[0] = m->color.red;
+	rwm->color[1] = m->color.green;
+	rwm->color[2] = m->color.blue;
+	rwm->color[3] = m->color.alpha;
+	if(m->texture)
+		rwm->texture = convertTexture(m->texture);
+
+	if(m->matfx){
+		MatFX *matfx = new MatFX;
+		matfx->setEffects(m->matfx->effectType);
+		matfx->setEnvCoefficient(m->matfx->env.intensity);
+		if(m->matfx->env.texture)
+			matfx->setEnvTexture(convertTexture(m->matfx->env.texture));
+		*PLUGINOFFSET(MatFX*, rwm, matFXGlobals.materialOffset) = matfx;
+	}
+	return rwm;
+}
+
+static uint32
+unpackSize(uint32 unpack)
+{
+	if((unpack&0x6F000000) == 0x6F000000)
+		return 2;
+	static uint32 size[] = { 32, 16, 8, 16 };
+	return ((unpack>>26 & 3)+1)*size[unpack>>24 & 3]/8;
+}
+
+static uint32*
+skipUnpack(uint32 *p)
+{
+	int32 n = (p[0] >> 16) & 0xFF;
+	return p + (n*unpackSize(p[0])+3 >> 2) + 1;
+}
+
+void
+convertMesh(Geometry *rwg, RslGeometry *g, int32 ii)
+{
+	RslPS2ResEntryHeader *resHeader = (RslPS2ResEntryHeader*)(g+1);
+	RslPS2InstanceData *inst = (RslPS2InstanceData*)(resHeader+1);
+	int32 numInst = resHeader->size >> 20;
+	uint8 *p = (uint8*)(inst+numInst);
+	inst += ii;
+	p += inst->dmaPacket;
+	Mesh *m = &rwg->meshHeader->mesh[inst->matID];
+
+	ps2::SkinVertex v;
+	uint32 mask = 0x1001;	// tex coords, vertices
+	if(rwg->geoflags & Geometry::NORMALS)
+		mask |= 0x10;
+	if(rwg->geoflags & Geometry::PRELIT)
+		mask |= 0x100;
+	float32 *verts = &rwg->morphTargets[0].vertices[rwg->numVertices*3];
+	float32 *norms = &rwg->morphTargets[0].normals[rwg->numVertices*3];
+	uint8 *cols = &rwg->colors[rwg->numVertices*4];
+	float32 *texCoords = &rwg->texCoords[0][rwg->numVertices*2];
+	uint8 *indices = NULL;
+	float32 *weights = NULL;
+	Skin *skin = *PLUGINOFFSET(Skin*, rwg, skinGlobals.offset);
+	if(skin){
+		indices = &skin->indices[rwg->numVertices*4];
+		weights = &skin->weights[rwg->numVertices*4];
+		mask |= 0x10000;
+	}
+
+	int16 *vuVerts = NULL;
+	int8 *vuNorms = NULL;
+	uint8 *vuTex = NULL;
+	uint16 *vuCols = NULL;
+	uint32 *vuSkin = NULL;
+
+	uint32 *w = (uint32*)p;
+	uint32 *end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);
+	w += 4;
+	int flags = 0;
+	int32 nvert;
+	bool first = 1;
+	while(w < end){
+		/* Get data pointers */
+
+		// GIFtag probably
+		assert(w[0] == 0x6C018000);	// UNPACK
+		nvert = w[4] & 0x7FFF;
+		if(!first) nvert -=2;
+		w += 5;
+
+		// positions
+		assert(w[0] == 0x20000000);	// STMASK
+		w += 2;
+		assert(w[0] == 0x30000000);	// STROW
+		w += 5;
+		assert((w[0] & 0xFF004000) == 0x79000000);
+		vuVerts = (int16*)(w+1);
+		if(!first) vuVerts += 2*3;
+		w = skipUnpack(w);
+
+		// tex coords
+		assert(w[0] == 0x20000000);	// STMASK
+		w += 2;
+		assert(w[0] == 0x30000000);	// STROW
+		w += 5;
+		assert((w[0] & 0xFF004000) == 0x76004000);
+		vuTex = (uint8*)(w+1);
+		if(!first) vuTex += 2*2;
+		w = skipUnpack(w);
+
+		if(rwg->geoflags & Geometry::NORMALS){
+			assert((w[0] & 0xFF004000) == 0x6A000000);
+			vuNorms = (int8*)(w+1);
+			if(!first) vuNorms += 2*3;
+			w = skipUnpack(w);
+		}
+
+		if(rwg->geoflags & Geometry::PRELIT){
+			assert((w[0] & 0xFF004000) == 0x6F000000);
+			vuCols = (uint16*)(w+1);
+			if(!first) vuCols += 2;
+			w = skipUnpack(w);
+		}
+
+		if(skin){
+			assert((w[0] & 0xFF004000) == 0x6C000000);
+			vuSkin = w+1;
+			if(!first) vuSkin += 2*4;
+			w = skipUnpack(w);
+		}
+
+		assert(w[0] == 0x14000006);	// MSCAL
+		w++;
+		while(w[0] == 0) w++;
+
+		/* Insert Data */
+		for(int32 i = 0; i < nvert; i++){
+			v.p[0] = vuVerts[0]/32768.0f*resHeader->scale[0] + resHeader->pos[0];
+			v.p[1] = vuVerts[1]/32768.0f*resHeader->scale[1] + resHeader->pos[1];
+			v.p[2] = vuVerts[2]/32768.0f*resHeader->scale[2] + resHeader->pos[2];
+			v.t[0] = vuTex[0]/128.0f*inst->uvScale[0];
+			v.t[1] = vuTex[1]/128.0f*inst->uvScale[1];
+			if(mask & 0x10){
+				v.n[0] = vuNorms[0]/127.0f;
+				v.n[1] = vuNorms[1]/127.0f;
+				v.n[2] = vuNorms[2]/127.0f;
+			}
+			if(mask & 0x100){
+				v.c[0] = (vuCols[0] & 0x1f) * 255 / 0x1F;
+				v.c[1] = (vuCols[0]>>5 & 0x1f) * 255 / 0x1F;
+				v.c[2] = (vuCols[0]>>10 & 0x1f) * 255 / 0x1F;
+				v.c[3] = vuCols[0]&0x8000 ? 0xFF : 0;
+			}
+			if(mask & 0x10000){
+				for(int j = 0; j < 4; j++){
+					((uint32*)v.w)[j] = vuSkin[j] & ~0x3FF;
+					v.i[j] = vuSkin[j] >> 2;
+					//if(v.i[j]) v.i[j]--;
+					if(v.w[j] == 0.0f) v.i[j] = 0;
+				}
+			}
+
+			int32 idx = ps2::findVertexSkin(rwg, NULL, mask, &v);
+			if(idx < 0)
+				idx = rwg->numVertices++;
+			/* Insert mesh joining indices when we get the index of the first vertex
+			 * in the first VU chunk of a non-first RslMesh. */
+			if(i == 0 && first && ii != 0 && inst[-1].matID == inst->matID){
+				m->indices[m->numIndices] = m->indices[m->numIndices-1];
+				m->numIndices++;
+				m->indices[m->numIndices++] = idx;
+				if(inst[-1].numTriangles % 2)
+					m->indices[m->numIndices++] = idx;
+			}
+			m->indices[m->numIndices++] = idx;
+			ps2::insertVertexSkin(rwg, idx, mask, &v);
+
+			vuVerts += 3;
+			vuTex += 2;
+			vuNorms += 3;
+			vuCols++;
+			vuSkin += 4;
+		}
+		first = 0;
+	}
+}
+
+Atomic*
+convertAtomic(RslAtomic *atomic)
+{
+	Atomic *rwa = new Atomic;
+	RslGeometry *g = atomic->geometry;
+	Geometry *rwg = new Geometry(0, 0, 0);
+	rwa->geometry = rwg;
+
+	rwg->numMaterials = g->matList.numMaterials;
+	rwg->materialList = new Material*[rwg->numMaterials];
+	for(int32 i = 0; i < rwg->numMaterials; i++)
+		rwg->materialList[i] = convertMaterial(g->matList.materials[i]);
+
+	rwg->meshHeader = new MeshHeader;
+	rwg->meshHeader->flags = 1;
+	rwg->meshHeader->numMeshes = rwg->numMaterials;
+	rwg->meshHeader->mesh = new Mesh[rwg->meshHeader->numMeshes];
+	rwg->meshHeader->totalIndices = 0;
+	Mesh *meshes = rwg->meshHeader->mesh;
+	for(uint32 i = 0; i < rwg->meshHeader->numMeshes; i++)
+		meshes[i].numIndices = 0;
+
+	RslPS2ResEntryHeader *resHeader = (RslPS2ResEntryHeader*)(g+1);
+	RslPS2InstanceData *inst = (RslPS2InstanceData*)(resHeader+1);
+	int32 numInst = resHeader->size >> 20;
+
+	int32 lastId = -1;
+	for(int32 i = 0; i < numInst; i++){
+		Mesh *m = &meshes[inst[i].matID];
+		rwg->numVertices += inst[i].numTriangles+2;
+		m->numIndices += inst[i].numTriangles+2;
+		// Extra indices since we're merging tristrip
+		// meshes with the same material.
+		// Be careful with face winding.
+		if(lastId == inst[i].matID)
+			m->numIndices += inst[i-1].numTriangles % 2 ? 3 : 2;
+		lastId = inst[i].matID;
+	}
+	for(uint32 i = 0; i < rwg->meshHeader->numMeshes; i++){
+		rwg->meshHeader->mesh[i].material = rwg->materialList[i];
+		rwg->meshHeader->totalIndices += meshes[i].numIndices;
+	}
+	rwg->geoflags = Geometry::TRISTRIP |
+	                Geometry::POSITIONS |	 /* 0x01 ? */
+	                Geometry::TEXTURED |	 /* 0x04 ? */
+	                Geometry::LIGHT;
+	if(rwg->hasColoredMaterial())
+		rwg->geoflags |= Geometry::MODULATE;
+	if(resHeader->flags & 0x2)
+		rwg->geoflags |= Geometry::NORMALS;
+	if(resHeader->flags & 0x8)
+		rwg->geoflags |= Geometry::PRELIT;
+	rwg->numTexCoordSets = 1;
+
+	rwg->allocateData();
+	rwg->meshHeader->allocateIndices();
+
+	Skin *skin = NULL;
+	if(resHeader->flags & 0x10)
+		assert(g->skin);
+	if(g->skin){
+		skin = new Skin;
+		*PLUGINOFFSET(Skin*, rwg, skinGlobals.offset) = skin;
+		skin->init(g->skin->numBones, g->skin->numBones, rwg->numVertices);
+		memcpy(skin->inverseMatrices, g->skin->invMatrices, skin->numBones*64);
+	}
+
+	for(uint32 i = 0; i < rwg->meshHeader->numMeshes; i++)
+		meshes[i].numIndices = 0;
+	rwg->meshHeader->totalIndices = rwg->numVertices = 0;
+	for(int32 i = 0; i < numInst; i++)
+		convertMesh(rwg, g, i);
+	for(uint32 i = 0; i < rwg->meshHeader->numMeshes; i++)
+		rwg->meshHeader->totalIndices += meshes[i].numIndices;
+	if(skin){
+		skin->findNumWeights(rwg->numVertices);
+		skin->findUsedBones(rwg->numVertices);
+	}
+	rwg->calculateBoundingSphere();
+	rwg->generateTriangles();
+	return rwa;
+}
+
+RslAtomic*
+collectAtomics(RslAtomic *atomic, void *data)
+{
+	RslAtomic ***alist = (RslAtomic***)data;
+	*(*alist)++ = atomic;
+	return atomic;
+}
+
+Clump*
+convertClump(RslClump *c)
+{
+	Clump *rwc;
+	Frame *rwf;
+	Atomic *rwa;
+	rslFrameList frameList;
+
+	rwc = new Clump;
+	rslFrameListInitialize(&frameList, (RslFrame*)c->object.parent);
+	Frame **rwframes = new Frame*[frameList.numFrames];
+	for(int32 i = 0; i < frameList.numFrames; i++){
+		rwf = convertFrame(frameList.frames[i]);
+		rwframes[i] = rwf;
+		void *par = frameList.frames[i]->object.parent;
+		int32 parent = findPointer(par, (void**)frameList.frames, frameList.numFrames);
+		if(parent >= 0)
+			rwframes[parent]->addChild(rwf);
+	}
+	rwc->parent = rwframes[0];
+
+	rwc->numAtomics = RslClumpGetNumAtomics(c);
+	rwc->atomicList = new Atomic*[rwc->numAtomics];
+	RslAtomic **alist = new RslAtomic*[rwc->numAtomics];
+	RslAtomic **ap = &alist[0];
+	RslClumpForAllAtomics(c, collectAtomics, &ap);
+	for(int32 i = 0; i < rwc->numAtomics; i++){
+		rwa = convertAtomic(alist[i]);
+		rwc->atomicList[i] = rwa;
+		int32 fi = findPointer(alist[i]->object.object.parent, (void**)frameList.frames, frameList.numFrames);
+		rwa->frame = rwframes[fi];
+		rwa->clump = rwc;
+	}
+
+	delete[] alist;
+	delete[] rwframes;
+	delete[] frameList.frames;
+	return rwc;
+}
+
+RslAtomic*
+makeTextures(RslAtomic *atomic, void*)
+{
+	RslGeometry *g = atomic->geometry;
+	RslMaterial *m;
+	for(int32 i = 0; i < g->matList.numMaterials; i++){
+		m = g->matList.materials[i];
+		if(m->texname){
+			RslTexture *tex = RslTextureCreate(NULL);
+			strncpy(tex->name, m->texname, 32);
+			strncpy(tex->mask, m->texname, 32);
+			m->texture = tex;
+		}
+		if(m->matfx && m->matfx->effectType == MatFX::ENVMAP &&
+		   m->matfx->env.texname){
+			RslTexture *tex = RslTextureCreate(NULL);
+			strncpy(tex->name, m->matfx->env.texname, 32);
+			strncpy(tex->mask, m->matfx->env.texname, 32);
+			m->matfx->env.texture = tex;
+		}
+	}
+	return atomic;
+}
+
+
+
 
 uint8*
 getPalettePS2(RslRaster *raster)
@@ -356,10 +762,10 @@ convertTXD(RslTexDictionary *txd)
 void
 usage(void)
 {
-	fprintf(stderr, "%s [-v version] [-x] [-s] input [output.txd]\n", argv0);
+	fprintf(stderr, "%s [-v version] [-x] [-s] input [output.{txd|dff}]\n", argv0);
 	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
-	fprintf(stderr, "\t-x extract to tga\n");
-	fprintf(stderr, "\t-s don't unswizzle\n");
+	fprintf(stderr, "\t-x extract textures to tga\n");
+	fprintf(stderr, "\t-s don't unswizzle textures\n");
 	exit(1);
 }
 
@@ -368,6 +774,7 @@ main(int argc, char *argv[])
 {
 	gta::attachPlugins();
 	rw::version = 0x34003;
+	rw::platform = PLATFORM_D3D8;
 
 	assert(sizeof(void*) == 4);
 	int extract = 0;
@@ -389,10 +796,11 @@ main(int argc, char *argv[])
 	if(argc < 1)
 		usage();
 
-	World *world;
-	Sector *sector;
-	RslClump *clump;
-	RslTexDictionary *txd;
+	World *world = NULL;
+	Sector *sector = NULL;
+	RslClump *clump = NULL;
+	RslAtomic *atomic = NULL;
+	RslTexDictionary *txd = NULL;
 
 
 	StreamFile stream;
@@ -408,11 +816,12 @@ main(int argc, char *argv[])
 		assert(txd);
 		goto writeTxd;
 	}
-	if(ident == 0x10){
+	if(ident == ID_CLUMP){
 		findChunk(&stream, ID_CLUMP, NULL, NULL);
 		clump = RslClumpStreamRead(&stream);
 		stream.close();
-		return 0;
+		assert(clump);
+		goto writeDff;
 	}
 
 	RslStream *rslstr = new RslStream;
@@ -486,14 +895,30 @@ main(int argc, char *argv[])
 	}else if(rslstr->ident == MDL_IDENT){
 		uint8 *p = *rslstr->hashTab;
 		p -= 0x24;
-		RslAtomic *a = (RslAtomic*)p;
-		clump = a->clump;
-		if(clump)
+		atomic = (RslAtomic*)p;
+		clump = atomic->clump;
+		Clump *rwc;
+		if(clump){
+			RslClumpForAllAtomics(clump, makeTextures, NULL);
 			//RslClumpForAllAtomics(clump, dumpAtomicCB, NULL);
-			RslFrameForAllChildren(RslClumpGetFrame(clump), dumpFrameCB, NULL);
-		else
+			//RslFrameForAllChildren(RslClumpGetFrame(clump), dumpFrameCB, NULL);
+		}else{
+			makeTextures(atomic, NULL);
+			clump = RslClumpCreate();
+			RslAtomicSetFrame(atomic, RslFrameCreate());
+			RslClumpSetFrame(clump, RslAtomicGetFrame(atomic));
+			RslClumpAddAtomic(clump, atomic);
 			//dumpAtomicCB(a, NULL);
-			RslFrameForAllChildren(RslAtomicGetFrame(a), dumpFrameCB, NULL);
+			//RslFrameForAllChildren(RslAtomicGetFrame(atomic), dumpFrameCB, NULL);
+		}
+	writeDff:
+		rwc = convertClump(clump);
+		if(argc > 1)
+			assert(stream.open(argv[1], "wb"));
+		else
+			assert(stream.open("out.dff", "wb"));
+		rwc->streamWrite(&stream);
+		stream.close();
 	}else if(rslstr->ident == TEX_IDENT){
 		txd = (RslTexDictionary*)rslstr->data;
 	writeTxd:

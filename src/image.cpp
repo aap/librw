@@ -130,18 +130,19 @@ Texture::read(const char *name, const char *mask)
 	tex = new Texture;
 	strncpy(tex->name, name, 32);
 	strncpy(tex->mask, mask, 32);
-	char *n = (char*)malloc(strlen(name) + 5);
-	strcpy(n, name);
-	strcat(n, ".tga");
-	Image *img = readTGA(n);
-	free(n);
-	if(img){
-		raster = Raster::createFromImage(img);
-		delete img;
-	}else
+//	char *n = (char*)malloc(strlen(name) + 5);
+//	strcpy(n, name);
+//	strcat(n, ".tga");
+//	Image *img = readTGA(n);
+//	free(n);
+//	if(img){
+//		//raster = Raster::createFromImage(img);
+//		raster = new Raster(0, 0, 0, 0x80);
+//		delete img;
+//	}else
 		raster = new Raster(0, 0, 0, 0x80);
 	tex->raster = raster;
-	if(currentTexDictionary && img)
+	if(currentTexDictionary /*&& img*/)
 		currentTexDictionary->add(tex);
 	return tex;
 }

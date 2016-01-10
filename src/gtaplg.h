@@ -25,6 +25,7 @@ void attachPlugins(void);
 
 extern int32 nodeNameOffset;
 void registerNodeNamePlugin(void);
+char *getNodeName(Frame *f);
 
 // Breakable model
 
