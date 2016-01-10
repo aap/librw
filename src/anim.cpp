@@ -263,6 +263,7 @@ destroyUVAnim(void *object, int32 offset, int32)
 	UVAnim *uvanim;
 	uvanim = PLUGINOFFSET(UVAnim, object, offset);
 	// TODO: ref counts &c.
+	(void)uvanim;
 	return object;
 }
 

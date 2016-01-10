@@ -15,9 +15,9 @@ extern char *argv0;
 				while(*_args && (_argc = *_args++))\
 				switch(_argc)
 #define	ARGEND		SET(_argt);USED(_argt);USED(_argc);USED(_args);}USED(argv);USED(argc);
-#define	ARGF()		(_argt=_args, _args="",\
+#define	ARGF()		(_argt=_args, _args=(char*)"",\
 				(*_argt? _argt: argv[1]? (argc--, *++argv): 0))
-#define	EARGF(x)	(_argt=_args, _args="",\
+#define	EARGF(x)	(_argt=_args, _args=(char*)"",\
 				(*_argt? _argt: argv[1]? (argc--, *++argv): ((x), abort(), (char*)0)))
 
 #define	ARGC()		_argc

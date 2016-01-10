@@ -13,7 +13,7 @@ class Pipeline
 public:
 	uint32 pluginID;
 	uint32 pluginData;
-	uint32 platform;
+	int32 platform;
 
 	Pipeline(uint32 platform);
 	Pipeline(Pipeline *p);

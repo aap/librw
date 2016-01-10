@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include <new>
+#include <stddef.h>
 
 #include <args.h>
 #include <rw.h>
@@ -12,9 +13,8 @@ using namespace std;
 using namespace rw;
 #include "rsl.h"
 
-void rslMaterialListStreamRead(Stream *stream, RslMaterialList *matlist);
-void hanimRead(Stream *stream, RslFrame *f);
-void matfxRead(Stream *stream, RslMaterial *mat);
+static void matfxRead(Stream *stream, RslMaterial *mat);
+static void hanimRead(Stream *stream, RslFrame *f);
 
 void
 RslMatrixSetIdentity(RslMatrix *matrix)
@@ -315,6 +315,8 @@ RslSkinStreamRead(Stream *stream, RslGeometry *g)
 	skin->numUsedBones = info;
 	skin->invMatrices = new float[skin->numBones*16];
 	stream->read(skin->invMatrices, skin->numBones*16*4);
+	// TODO: allocate...if we'd really care
+	(void)g;
 	return skin;
 }
 
@@ -440,7 +442,10 @@ RslMaterialCreate(void)
 {
 	RslMaterial *mat = new RslMaterial;
 	mat->texture = NULL;
-	mat->color = RslRGBA{255, 255, 255, 255};
+	mat->color.red = 255;
+	mat->color.green = 255;
+	mat->color.blue = 255;
+	mat->color.alpha = 255;
 	mat->refCount = 1;
 	mat->matfx = NULL;
 	return mat;
@@ -489,7 +494,7 @@ RslMatFXMaterialSetEffects(RslMaterial *mat, int32 effect)
 	}
 }
 
-void
+static void
 matfxRead(Stream *stream, RslMaterial *mat)
 {
 	int32 effect = stream->readI32();
@@ -506,6 +511,7 @@ matfxRead(Stream *stream, RslMaterial *mat)
 	case MatFX::ENVMAP:
 		coef = stream->readF32();
 		fbalpha = stream->readI32();
+		(void)fbalpha;
 		mfx->env.frame = NULL;
 		mfx->env.texture = RslTextureStreamRead(stream);
 		mfx->env.intensity = coef;

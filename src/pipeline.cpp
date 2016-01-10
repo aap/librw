@@ -155,10 +155,6 @@ instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
 	assert(type == VERT_ARGB);
 	bool32 hasAlpha = 0;
 	for(uint32 i = 0; i < numVertices; i++){
-//		uint32 col = COLOR_ARGB(src[3], src[0], src[1], src[2]);
-//		if(src[3] < 0xFF)
-//			hasAlpha = 1;
-//		memcpy(dst, &col, 4);
 		dst[0] = src[2];
 		dst[1] = src[1];
 		dst[2] = src[0];
@@ -173,7 +169,6 @@ void
 uninstColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
 {
 	assert(type == VERT_ARGB);
-	bool32 hasAlpha = 0;
 	for(uint32 i = 0; i < numVertices; i++){
 		dst[0] = src[2];
 		dst[1] = src[1];

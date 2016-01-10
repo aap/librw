@@ -205,6 +205,9 @@ lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
 	ibuf->Lock(offset, size, (void**)&indices, flags);
 	return indices;
 #else
+	(void)offset;
+	(void)size;
+	(void)flags;
 	return (uint16*)indexBuffer;
 #endif
 }
@@ -228,6 +231,8 @@ createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
 	device->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, fvf, (D3DPOOL)pool, &vbuf, 0);
 	return vbuf;
 #else
+	(void)fvf;
+	(void)pool;
 	return new uint8[length];
 #endif
 }
@@ -243,6 +248,9 @@ lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
 	vertbuf->Lock(offset, size, (void**)&verts, flags);
 	return verts;
 #else
+	(void)offset;
+	(void)size;
+	(void)flags;
 	return (uint8*)vertexBuffer;
 #endif
 }
@@ -316,6 +324,8 @@ lockTexture(void *texture, int32 level)
 void
 unlockTexture(void *texture, int32 level)
 {
+	(void)texture;
+	(void)level;
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
 	tex->UnlockRect(level);
@@ -383,19 +393,19 @@ D3dRaster::create(Raster *raster)
 }
 
 uint8*
-D3dRaster::lock(Raster *raster, int32 level)
+D3dRaster::lock(Raster*, int32 level)
 {
 	return lockTexture(this->texture, level);
 }
 
 void
-D3dRaster::unlock(Raster *raster, int32 level)
+D3dRaster::unlock(Raster*, int32 level)
 {
 	unlockTexture(this->texture, level);
 }
 
 int32
-D3dRaster::getNumLevels(Raster *raster)
+D3dRaster::getNumLevels(Raster*)
 {
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)this->texture;
@@ -450,7 +460,6 @@ setPalette(Raster *raster, void *palette, int32 size)
 void
 setTexels(Raster *raster, void *texels, int32 level)
 {
-	D3dRaster *ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	uint8 *dst = raster->lock(level);
 	memcpy(dst, texels, getLevelSize(raster, level));
 	raster->unlock(level);
@@ -472,6 +481,7 @@ static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
 	// TODO:
+	(void)offset;
 	return object;
 }
 

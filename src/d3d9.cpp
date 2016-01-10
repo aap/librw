@@ -435,7 +435,6 @@ void
 defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	VertexElement dcl[NUMDECLELT];
-	uint32 numElt = getDeclaration(header->vertexDeclaration, dcl);
 
 	uint8 *verts[2];
 	verts[0] = lockVertices(header->vertexStream[0].vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);

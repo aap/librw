@@ -1154,10 +1154,10 @@ instanceSADualColors(Geometry *g, Mesh *m, uint8 *dst)
 	for(uint32 i = 0; i < m->numIndices; i++){
 		j = m->indices[i];
 		if(c0){
-			dst[0] = c0[i*4+0];
-			dst[2] = c0[i*4+1];
-			dst[4] = c0[i*4+2];
-			dst[6] = c0[i*4+3];
+			dst[0] = c0[j*4+0];
+			dst[2] = c0[j*4+1];
+			dst[4] = c0[j*4+2];
+			dst[6] = c0[j*4+3];
 		}else{
 			dst[0] = 0xFF;
 			dst[2] = 0xFF;
@@ -1165,10 +1165,10 @@ instanceSADualColors(Geometry *g, Mesh *m, uint8 *dst)
 			dst[6] = 0xFF;
 		}
 		if(c1){
-			dst[1] = c1[i*4+0];
-			dst[3] = c1[i*4+1];
-			dst[6] = c1[i*4+2];
-			dst[7] = c1[i*4+3];
+			dst[1] = c1[j*4+0];
+			dst[3] = c1[j*4+1];
+			dst[6] = c1[j*4+2];
+			dst[7] = c1[j*4+3];
 		}else{
 			dst[1] = 0xFF;
 			dst[3] = 0xFF;
@@ -1207,7 +1207,7 @@ saInstanceCB(MatPipeline *pipe, Geometry *g, Mesh *m, uint8 **data)
 		vertScale = 1024.0f;
 	ADCData *adc = PLUGINOFFSET(ADCData, g, adcOffset);
 
-	for(int i = 0; i < nelem(pipe->attribs); i++){
+	for(uint32 i = 0; i < nelem(pipe->attribs); i++){
 		rw::PipeAttribute *a = pipe->attribs[i];
 		if(a == &saXYZADC)
 			instanceSAPositions(g, m, adc->adcFormatted ? adc->adcBits : NULL,

@@ -14,6 +14,11 @@
 #include "rwxbox.h"
 #include "rwd3d8.h"
 
+#ifdef _WIN32
+/* srsly? */
+#define strdup _strdup
+#endif
+
 using namespace std;
 
 namespace rw {
@@ -113,7 +118,7 @@ void
 Texture::decRef(void)
 {
 	this->refCount--;
-	if(this->refCount == NULL)
+	if(this->refCount == 0)
 		delete this;
 }
 
@@ -323,7 +328,7 @@ Image::setSearchPath(const char *path)
 	::free(searchPaths);
 	numSearchPaths = 0;
 	if(path)
-		searchPaths = p = _strdup(path);
+		searchPaths = p = strdup(path);
 	else{
 		searchPaths = NULL;
 		return;
@@ -358,7 +363,7 @@ Image::getFilename(const char *name)
 		if(f){
 			fclose(f);
 			printf("found %s\n", name);
-			return _strdup(name);
+			return strdup(name);
 		}
 		return NULL;
 	}else

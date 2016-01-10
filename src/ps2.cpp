@@ -761,7 +761,7 @@ insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 }
 
 void
-defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+defaultUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
 	float32 *verts     = (float32*)data[AT_XYZ];
 	float32 *texcoords = (float32*)data[AT_UV];
@@ -775,15 +775,14 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 	if(geo->numTexCoordSets > 0)
 		mask |= 0x1000;
 
-	float32 n[3];
 	Vertex v;
 	for(uint32 i = 0; i < mesh->numIndices; i++){
 		if(mask & 0x1)
 			memcpy(&v.p, verts, 12);
 		if(mask & 0x10){
-			n[0] = norms[0]/127.0f;
-			n[1] = norms[1]/127.0f;
-			n[2] = norms[2]/127.0f;
+			v.n[0] = norms[0]/127.0f;
+			v.n[1] = norms[1]/127.0f;
+			v.n[2] = norms[2]/127.0f;
 		}
 		if(mask & 0x100)
 			memcpy(&v.c, colors, 4);
@@ -966,7 +965,7 @@ getSizeNativeSkin(void *object, int32 offset)
 }
 
 void
-instanceSkinData(Geometry *g, Mesh *m, Skin *skin, uint32 *data)
+instanceSkinData(Geometry*, Mesh *m, Skin *skin, uint32 *data)
 {
 	uint16 j;
 	float32 *weights = (float32*)data;
@@ -1052,7 +1051,7 @@ insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v)
 }
 
 static void
-skinUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
 	float32 *verts     = (float32*)data[AT_XYZ];
 	float32 *texcoords = (float32*)data[AT_UV];
@@ -1127,91 +1126,9 @@ skinPostCB(MatPipeline*, Geometry *geo)
 
 int32 adcOffset;
 
-// TODO: look at PC SA rccam.dff bloodrb.dff, Xbox csbigbear.dff
-
-static void
-rotateface(int f[])
-{
-	int tmp;
-	while(f[0] > f[1] || f[0] > f[2]){
-		tmp = f[0];
-		f[0] = f[1];
-		f[1] = f[2];
-		f[2] = tmp;
-	}
-
-/*
-	if(f[0] > f[1]){
-		tmp = f[0];
-		f[0] = f[1];
-		f[1] = tmp;
-	}
-	if(f[0] > f[2]){
-		tmp = f[0];
-		f[0] = f[2];
-		f[2] = tmp;
-	}
-	if(f[1] > f[2]){
-		tmp = f[1];
-		f[1] = f[2];
-		f[2] = tmp;
-	}
-*/
-}
-
-static int
-validFace(Geometry *g, uint16 *f, int j, int m)
-{
-	int f1[3], f2[3];
-	f1[0] = f[j+0 + (j%2)];
-	f1[1] = f[j+1 - (j%2)];
-	f1[2] = f[j+2];
-//printf("-> %d %d %d\n", f1[0], f1[1], f1[2]);
-	rotateface(f1);
-	uint16 *fs = g->triangles;
-	for(int i = 0; i < g->numTriangles; i++, fs += 4){
-		if(fs[2] != m)
-			continue;
-		f2[0] = fs[1];
-		f2[1] = fs[0];
-		f2[2] = fs[3];
-//printf("<- %d %d %d\n", f2[0], f2[1], f2[2]);
-		rotateface(f2);
-		if(f1[0] == f2[0] &&
-		   f1[1] == f2[1] &&
-		   f1[2] == f2[2])
-			return 1;
-	}
-	return 0;
-}
-
-static int
-isdegenerate(uint16 *f)
-{
-	return f[0] == f[1] ||
-	       f[0] == f[2] ||
-	       f[1] == f[2];
-}
-
-static int
-debugadc(Geometry *g, MeshHeader *mh, ADCData *adc)
-{
-	int n = 0;
-	for(uint32 i = 0; i < mh->numMeshes; i++){
-		uint16 *idx = mh->mesh[i].indices;
-		for(uint32 j = 0; j < mh->mesh[i].numIndices-2; j++){
-			if(!validFace(g, idx, j, i) && !isdegenerate(idx+j)){
-				n++;
-//				printf("> %d %d %d %d\n", i, idx[j+0], idx[j+1], idx[j+2]);
-			}
-		}
-	}
-	return n;
-}
-
 // TODO
 void
-convertADC(Geometry *g)
+convertADC(Geometry*)
 {
 }
 
@@ -1260,8 +1177,8 @@ unconvertADC(Geometry *g)
 	g->meshHeader = h;
 	adc->adcFormatted = 0;
 	delete[] adc->adcBits;
-	adc->adcBits = 0;
-	adc->numBits = NULL;
+	adc->adcBits = NULL;
+	adc->numBits = 0;
 }
 
 void
@@ -1322,22 +1239,6 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 	int32 size = adc->numBits+3 & ~3;
 	adc->adcBits = new int8[size];
 	stream->read(adc->adcBits, size);
-
-/*
-	Geometry *geometry = (Geometry*)object;
-	int ones = 0, zeroes = 0;
-	for(int i = 0; i < adc->numBits; i++)
-		if(adc->adcBits[i])
-			ones++;
-		else
-			zeroes++;
-	MeshHeader *meshHeader = geometry->meshHeader;
-	int n = debugadc(geometry, meshHeader, adc);
-	printf("%X %X | %X %X %X\n",
-		meshHeader->totalIndices,
-		meshHeader->totalIndices + n,
-		adc->numBits, zeroes, ones);
-*/
 }
 
 static void
@@ -1673,7 +1574,7 @@ Ps2Raster::create(Raster *raster)
 	}else{
 		ras->flags |= 1;	// include GIF packets
 		int32 psm = ras->tex0[0]>>20 & 0x3F;
-		int32 cpsm = ras->tex0[1]>>19 & 0x3F;
+		//int32 cpsm = ras->tex0[1]>>19 & 0x3F;
 		if(psm == 0x13){	// PSMT8
 			ras->flags |= 2;
 			// TODO: stuff
@@ -1800,12 +1701,18 @@ Ps2Raster::create(Raster *raster)
 uint8*
 Ps2Raster::lock(Raster *raster, int32 level)
 {
+	// TODO
+	(void)raster;
+	(void)level;
 	return NULL;
 }
 
 void
 Ps2Raster::unlock(Raster *raster, int32 level)
 {
+	// TODO
+	(void)raster;
+	(void)level;
 }
 
 int32
@@ -1845,6 +1752,8 @@ createNativeRaster(void *object, int32 offset, int32)
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
+	// TODO
+	(void)offset;
 	return object;
 }
 
@@ -1858,27 +1767,27 @@ copyNativeRaster(void *dst, void *src, int32 offset, int32)
 }
 
 static void
-readMipmap(Stream *stream, int32 len, void *object, int32 offset, int32)
+readMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	uint16 val = stream->readI32();
 	Texture *tex = (Texture*)object;
 	if(tex->raster == NULL)
 		return;
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
 	SETKL(raster, val);
 }
 
 static void
-writeMipmap(Stream *stream, int32 len, void *object, int32 offset, int32)
+writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	Texture *tex = (Texture*)object;
 	assert(tex->raster);
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
 	stream->writeI32(raster->tex1[1]&0xFFFF);
 }
 
 static int32
-getSizeMipmap(void *object, int32 offset, int32)
+getSizeMipmap(void*, int32, int32)
 {
 	return rw::platform == PLATFORM_PS2 ? 4 : 0;
 }

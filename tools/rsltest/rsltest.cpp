@@ -17,7 +17,7 @@ char *argv0;
 void
 RslStream::relocate(void)
 {
-	uint32 off = (uint32)this->data;
+	uint32 off = (uint32)(uintptr)this->data;
 	off -= 0x20;
 	*(uint32*)&this->reloc += off;
 	*(uint32*)&this->hashTab += off;
@@ -44,7 +44,7 @@ RslMaterial *dumpMaterialCB(RslMaterial *material, void*)
 		material->texname, material->refCount);
 	if(material->matfx){
 		RslMatFX *fx = material->matfx;
-		printf("   matfx: ", fx->effectType);
+		printf("   matfx: %d", fx->effectType);
 		if(fx->effectType == 2)
 			printf("env[%s %f] ", fx->env.texname, fx->env.intensity);
 		printf("\n");
@@ -176,18 +176,9 @@ convertMesh(Geometry *rwg, RslGeometry *g, int32 ii)
 		mask |= 0x10;
 	if(rwg->geoflags & Geometry::PRELIT)
 		mask |= 0x100;
-	float32 *verts = &rwg->morphTargets[0].vertices[rwg->numVertices*3];
-	float32 *norms = &rwg->morphTargets[0].normals[rwg->numVertices*3];
-	uint8 *cols = &rwg->colors[rwg->numVertices*4];
-	float32 *texCoords = &rwg->texCoords[0][rwg->numVertices*2];
-	uint8 *indices = NULL;
-	float32 *weights = NULL;
 	Skin *skin = *PLUGINOFFSET(Skin*, rwg, skinGlobals.offset);
-	if(skin){
-		indices = &skin->indices[rwg->numVertices*4];
-		weights = &skin->weights[rwg->numVertices*4];
+	if(skin)
 		mask |= 0x10000;
-	}
 
 	int16 *vuVerts = NULL;
 	int8 *vuNorms = NULL;
@@ -198,7 +189,6 @@ convertMesh(Geometry *rwg, RslGeometry *g, int32 ii)
 	uint32 *w = (uint32*)p;
 	uint32 *end = (uint32*)(p + ((w[0] & 0xFFFF) + 1)*0x10);
 	w += 4;
-	int flags = 0;
 	int32 nvert;
 	bool first = 1;
 	while(w < end){
@@ -613,7 +603,7 @@ convertTo32(uint8 *out, uint8 *pal, uint8 *tex,
 	}
 }
 
-RslTexture *dumpTextureCB(RslTexture *texture, void *pData)
+RslTexture *dumpTextureCB(RslTexture *texture, void*)
 {
 	uint32 f = texture->raster->ps2.flags;
 	uint32 w = 1 << (f & 0x3F);
@@ -651,7 +641,7 @@ convertTexturePS2(RslTexture *texture, void *pData)
 	uint32 w = 1 << (f & 0x3F);
 	uint32 h = 1 << (f>>6 & 0x3F);
 	uint32 d = f>>12 & 0xFF;
-	uint32 mip = f>>20 & 0xF;
+	//uint32 mip = f>>20 & 0xF;
 	uint32 swizmask = f>>24;
 	uint8 *palette = getPalettePS2(texture->raster);
 	uint8 *texels = getTexelPS2(texture->raster, 0);
@@ -824,14 +814,16 @@ main(int argc, char *argv[])
 		goto writeDff;
 	}
 
-	RslStream *rslstr = new RslStream;
+	RslStream *rslstr;
+	rslstr = new RslStream;
 	stream.read(rslstr, 0x20);
 	rslstr->data = new uint8[rslstr->fileSize-0x20];
 	stream.read(rslstr->data, rslstr->fileSize-0x20);
 	stream.close();
 	rslstr->relocate();
 
-	int largefile = rslstr->dataSize > 0x100000;
+	bool32 largefile;
+	largefile = rslstr->dataSize > 0x100000;
 
 	if(rslstr->ident == WRLD_IDENT && largefile){	// hack
 		world = (World*)rslstr->data;
@@ -893,7 +885,8 @@ main(int argc, char *argv[])
 			printf(" %d, %d, %f %f %f\n", p->id &0x7FFF, p->resId, p->matrix[12], p->matrix[13], p->matrix[14]);
 		}
 	}else if(rslstr->ident == MDL_IDENT){
-		uint8 *p = *rslstr->hashTab;
+		uint8 *p;
+		p = *rslstr->hashTab;
 		p -= 0x24;
 		atomic = (RslAtomic*)p;
 		clump = atomic->clump;

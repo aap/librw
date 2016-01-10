@@ -25,7 +25,7 @@ destroyNativeData(void *object, int32, int32)
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = NULL;
-	delete[] header->vertexBuffer;
+	delete[] (uint8*)header->vertexBuffer;
 	delete[] header->begin;
 	delete[] header->data;
 	delete header;
@@ -241,7 +241,6 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		*vertexFmt = makeVertexFmt(geo->geoflags, geo->numTexCoordSets);
 	header->stride = getVertexFmtStride(*vertexFmt);
 	header->vertexBuffer = new uint8[header->stride*header->numVertices];
-	uint32 offset = 0;
 	uint8 *dst = (uint8*)header->vertexBuffer;
 
 	uint32 fmt = *vertexFmt;
@@ -282,7 +281,6 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	uint32 *vertexFmt = getVertexFmt(geo);
 	uint32 fmt = *vertexFmt;
 	assert(fmt != 0);
-	uint32 offset = 0;
 	uint8 *src = (uint8*)header->vertexBuffer;
 
 	uint32 sel = fmt & 0xF;
@@ -795,19 +793,19 @@ XboxRaster::create(Raster *raster)
 }
 
 uint8*
-XboxRaster::lock(Raster *raster, int32 level)
+XboxRaster::lock(Raster*, int32 level)
 {
 	RasterLevels *levels = (RasterLevels*)this->texture;
 	return levels->levels[level].data;
 }
 
 void
-XboxRaster::unlock(Raster *raster, int32 level)
+XboxRaster::unlock(Raster*, int32)
 {
 }
 
 int32
-XboxRaster::getNumLevels(Raster *raster)
+XboxRaster::getNumLevels(Raster*)
 {
 	RasterLevels *levels = (RasterLevels*)this->texture;
 	return levels->numlevels;
@@ -835,7 +833,7 @@ createNativeRaster(void *object, int32 offset, int32)
 }
 
 static void*
-destroyNativeRaster(void *object, int32 offset, int32)
+destroyNativeRaster(void *object, int32, int32)
 {
 	// TODO:
 	return object;

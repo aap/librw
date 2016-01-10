@@ -11,7 +11,7 @@
 using namespace std;
 using namespace rw;
 
-struct {
+static struct {
 	char *str;
 	uint32 val;
 } platforms[] = {

@@ -257,6 +257,8 @@ struct RslMaterialList {
 	int32         space;
 };
 
+void rslMaterialListStreamRead(Stream *stream, RslMaterialList *matlist);
+
 struct RslGeometry {
 	RslObject       object;
 	int16           refCount;

@@ -5,10 +5,8 @@ BUILD=null
 BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
 BUILDDIR=build-$(BUILD)
 SRCDIR=src
-SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
-                                         geometry.cpp plugins.cpp pipeline.cpp\
-                                         ps2.cpp ogl.cpp xbox.cpp\
-                                         image.cpp gtaplg.cpp)
+#SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, $(wildcard *.cpp))
+SRC := $(wildcard $(SRCDIR)/*.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 INC := -I/usr/local/include
@@ -27,6 +25,7 @@ $(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
 	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $(INC) $< > $@
 
 clean:
+	echo $(SRC)
 	rm -f $(BUILDDIR)/*.[od]
 
 -include $(DEP)
