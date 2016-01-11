@@ -31,6 +31,7 @@ TexDictionary *currentTexDictionary;
 
 TexDictionary::TexDictionary(void)
 {
+	this->object.init(6, 0);
 	this->first = NULL;
 }
 

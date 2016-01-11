@@ -28,17 +28,11 @@ RslMatrixSetIdentity(RslMatrix *matrix)
 void
 rslObjectHasFrameSetFrame(RslObjectHasFrame *object, RslFrame *f)
 {
-	if(object->object.parent){
-		object->lFrame.prev->next = object->lFrame.next;
-		object->lFrame.next->prev = object->lFrame.prev;
-	}
-	object->object.parent = f;
+	if(object->object.parent)
+		rslLinkListRemoveLLLink(&object->lFrame);
+	rslObjectSetParent(object, f);
 	if(f){
-		object->lFrame.prev = &f->objectList.link;
-		object->lFrame.next = f->objectList.link.next;
-		f->objectList.link.next->prev = &object->lFrame;
-		f->objectList.link.next = &object->lFrame;
-
+		rslLinkListAddLLLink(&f->objectList, &object->lFrame);
 		f->root->object.privateFlags |= 1;
 		f->object.privateFlags |= 2;
 	}
@@ -49,8 +43,7 @@ RslFrameCreate(void)
 {
 	RslFrame *f = new RslFrame;
 	rslObjectInitialize(&f->object, 0, 0);
-	f->objectList.link.prev = &f->objectList.link;
-	f->objectList.link.next = &f->objectList.link;
+	rslLinkListInitialize(&f->objectList);
 	RslMatrixSetIdentity(&f->modelling);
 	RslMatrixSetIdentity(&f->ltm);
 	f->child = NULL;
@@ -327,8 +320,7 @@ RslClumpCreate(void)
 {
 	RslClump *clump = new RslClump;
 	rslObjectInitialize(&clump->object, 2, 0);
-	clump->atomicList.link.prev = &clump->atomicList.link;
-	clump->atomicList.link.next = &clump->atomicList.link;
+	rslLinkListInitialize(&clump->atomicList);
 	return clump;
 }
 
@@ -373,10 +365,7 @@ RslClumpStreamRead(Stream *stream)
 RslClump*
 RslClumpAddAtomic(RslClump *clump, RslAtomic *a)
 {
-	a->inClumpLink.prev = &clump->atomicList.link;
-	a->inClumpLink.next = clump->atomicList.link.next;
-	clump->atomicList.link.next->prev = &a->inClumpLink;
-	clump->atomicList.link.next = &a->inClumpLink;
+	rslLinkListAddLLLink(&clump->atomicList, &a->inClumpLink);
 	a->clump = clump;
 	return clump;
 }
@@ -387,7 +376,7 @@ RslClumpForAllAtomics(RslClump *clump, RslAtomicCallBack callback, void *pData)
 	RslAtomic *a;
 	RslLLLink *link;
 	for(link = rslLLLinkGetNext(&clump->atomicList.link);
-	    link != &clump->atomicList.link;
+	    link != rslLinkListGetTerminator(&clump->atomicList);
 	    link = link->next){
 		a = rslLLLinkGetData(link, RslAtomic, inClumpLink);
 		if(callback(a, pData) == NULL)
@@ -402,7 +391,7 @@ RslClumpGetNumAtomics(RslClump *clump)
 	int32 n = 0;
 	RslLLLink *link;
 	for(link = rslLLLinkGetNext(&clump->atomicList.link);
-	    link != &clump->atomicList.link;
+	    link != rslLinkListGetTerminator(&clump->atomicList);
 	    link = link->next)
 		n++;
 	return n;
@@ -561,23 +550,17 @@ RslTexDictionaryCreate(void)
 	RslTexDictionary *dict = new RslTexDictionary;
 	memset(dict, 0, sizeof(RslTexDictionary));
 	rslObjectInitialize(&dict->object, 6, 0);
-	dict->texturesInDict.link.prev = &dict->texturesInDict.link;
-	dict->texturesInDict.link.next = &dict->texturesInDict.link;
+	rslLinkListInitialize(&dict->texturesInDict);
 	return dict;
 }
 
 RslTexture*
 RslTexDictionaryAddTexture(RslTexDictionary *dict, RslTexture *tex)
 {
-	if(tex->dict){
-		tex->lInDictionary.prev->next = tex->lInDictionary.next;
-		tex->lInDictionary.next->prev = tex->lInDictionary.prev;
-	}
+	if(tex->dict)
+		rslLinkListRemoveLLLink(&tex->lInDictionary);
 	tex->dict = dict;
-	tex->lInDictionary.prev = &dict->texturesInDict.link;
-	tex->lInDictionary.next = dict->texturesInDict.link.next;
-	dict->texturesInDict.link.next->prev = &tex->lInDictionary;
-	dict->texturesInDict.link.next = &tex->lInDictionary;
+	rslLinkListAddLLLink(&dict->texturesInDict, &tex->lInDictionary);
 	return tex;
 }
 
@@ -587,7 +570,7 @@ RslTexDictionaryForAllTextures(RslTexDictionary *dict, RslTextureCallBack fpCall
 	RslTexture *t;
 	RslLLLink *link;
 	for(link = rslLLLinkGetNext(&dict->texturesInDict.link);
-	    link != &dict->texturesInDict.link;
+	    link != rslLinkListGetTerminator(&dict->texturesInDict);
 	    link = link->next){
 		t = rslLLLinkGetData(link, RslTexture, lInDictionary);
 		if(fpCallBack(t, pData) == NULL)

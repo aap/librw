@@ -21,7 +21,8 @@ namespace rw {
 
 Frame::Frame(void)
 {
-	this->parent = NULL;
+	this->object.init(0, 0);
+	this->objectList.init();
 	this->child = NULL;
 	this->next = NULL;
 	this->root = NULL;
@@ -58,7 +59,7 @@ Frame::addChild(Frame *child)
 		f->next = child;
 	}
 	child->next = NULL;
-	child->parent = this;
+	child->object.parent = this;
 	child->root = this->root;
 	return this;
 }
@@ -66,7 +67,7 @@ Frame::addChild(Frame *child)
 Frame*
 Frame::removeChild(void)
 {
-	Frame *parent = (Frame*)this->parent;
+	Frame *parent = (Frame*)this->object.parent;
 	if(parent->child == this)
 		parent->child = this->next;
 	else{
@@ -78,7 +79,7 @@ Frame::removeChild(void)
 found:
 		f->next = f->next->next;
 	}
-	this->parent = NULL;
+	this->object.parent = NULL;
 	this->next = this->root = NULL;
 	return this;
 }
@@ -112,7 +113,7 @@ Frame::updateLTM(void)
 {
 	if(!this->dirty)
 		return;
-	Frame *parent = (Frame*)this->parent;
+	Frame *parent = (Frame*)this->object.parent;
 	if(parent){
 		parent->updateLTM();
 		matrixMult(this->ltm, parent->ltm, this->matrix);
@@ -163,6 +164,7 @@ makeFrameList(Frame *frame, Frame **flist)
 
 Clump::Clump(void)
 {
+	this->object.init(2, 0);
 	this->numAtomics = 0;
 	this->numLights = 0;
 	this->numCameras = 0;
@@ -206,7 +208,7 @@ Clump::streamRead(Stream *stream)
 	Frame **frameList;
 	int32 numFrames;
 	clump->frameListStreamRead(stream, &frameList, &numFrames);
-	clump->parent = (void*)frameList[0];
+	clump->object.parent = (void*)frameList[0];
 
 	Geometry **geometryList = 0;
 	if(version >= 0x30400){
@@ -242,7 +244,7 @@ Clump::streamRead(Stream *stream)
 		frm = stream->readI32();
 		assert(findChunk(stream, ID_LIGHT, NULL, NULL));
 		clump->lightList[i] = Light::streamRead(stream);
-		clump->lightList[i]->frame = frameList[frm];
+		clump->lightList[i]->setFrame(frameList[frm]);
 		clump->lightList[i]->clump = clump;
 	}
 
@@ -262,9 +264,9 @@ Clump::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
 
-	int32 numFrames = ((Frame*)this->parent)->count();
+	int32 numFrames = ((Frame*)this->object.parent)->count();
 	Frame **flist = new Frame*[numFrames];
-	makeFrameList((Frame*)this->parent, flist);
+	makeFrameList((Frame*)this->object.parent, flist);
 
 	this->frameListStreamWrite(stream, flist, numFrames);
 
@@ -285,7 +287,7 @@ Clump::streamWrite(Stream *stream)
 
 	for(int32 i = 0; i < this->numLights; i++){
 		Light *l = this->lightList[i];
-		int frm = findPointer((void*)l->frame, (void**)flist,numFrames);
+		int frm = findPointer((void*)l->object.parent, (void**)flist,numFrames);
 		if(frm < 0)
 			return false;
 		writeChunkHeader(stream, ID_STRUCT, 4);
@@ -317,9 +319,9 @@ Clump::streamGetSize(void)
 		size += 8;	// numLights, numCameras
 
 	// frame list
-	int32 numFrames = ((Frame*)this->parent)->count();
+	int32 numFrames = ((Frame*)this->object.parent)->count();
 	size += 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
-	sizeCB((Frame*)this->parent, (void*)&size);
+	sizeCB((Frame*)this->object.parent, (void*)&size);
 
 	if(rw::version >= 0x30400){
 		// geometry list
@@ -409,7 +411,7 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 		buf.pos[0] = f->matrix[12];
 		buf.pos[1] = f->matrix[13];
 		buf.pos[2] = f->matrix[14];
-		buf.parent = findPointer((void*)f->parent, (void**)frameList,
+		buf.parent = findPointer((void*)f->object.parent, (void**)frameList,
 		                         numFrames);
 		buf.matflag = f->matflag;
 		stream->write(&buf, sizeof(buf));
@@ -424,7 +426,7 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 
 Atomic::Atomic(void)
 {
-	this->frame = NULL;
+	this->object.init(1, 0);
 	this->geometry = NULL;
 	this->pipeline = NULL;
 	constructPlugins();
@@ -453,7 +455,7 @@ Atomic::streamReadClump(Stream *stream,
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(buf, version < 0x30400 ? 12 : 16);
 	Atomic *atomic = new Atomic;
-	atomic->frame = frameList[buf[0]];
+	atomic->setFrame(frameList[buf[0]]);
 	if(version < 0x30400){
 		assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
 		atomic->geometry = Geometry::streamRead(stream);
@@ -476,7 +478,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 		return false;
 	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, rw::version < 0x30400 ? 12 : 16);
-	buf[0] = findPointer((void*)this->frame, (void**)frameList, numFrames);
+	buf[0] = findPointer((void*)this->object.parent, (void**)frameList, numFrames);
 
 	if(version < 0x30400){
 		stream->write(buf, sizeof(int[3]));
@@ -576,9 +578,18 @@ registerAtomicRightsPlugin(void)
 // Light
 //
 
-Light::Light(void)
+Light::Light(int32 type)
 {
-	this->frame = NULL;
+	this->object.init(3, type);
+	this->radius = 0.0f;
+	this->color[0] = 1.0f;
+	this->color[1] = 1.0f;
+	this->color[2] = 1.0f;
+	this->color[3] = 1.0f;
+	this->minusCosAngle = 1.0f;
+	this->object.privateFlags = 1;
+	this->object.flags = 1 | 2;
+	Clump *clump;
 	constructPlugins();
 }
 
@@ -607,16 +618,15 @@ Light::streamRead(Stream *stream)
 {
 	LightChunkData buf;
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	Light *light = new Light;
 	stream->read(&buf, sizeof(LightChunkData));
+	Light *light = new Light(buf.type);
 	light->radius = buf.radius;
 	light->color[0] = buf.red;
 	light->color[1] = buf.green;
 	light->color[2] = buf.blue;
 	light->color[3] = 1.0f;
 	light->minusCosAngle = buf.minusCosAngle;
-	light->flags = (uint8)buf.flags;
-	light->subType = (uint8)buf.type;
+	light->object.flags = (uint8)buf.flags;
 
 	light->streamReadPlugins(stream);
 	return light;
@@ -633,8 +643,8 @@ Light::streamWrite(Stream *stream)
 	buf.green = this->color[1];
 	buf.blue  = this->color[2];
 	buf.minusCosAngle = this->minusCosAngle;
-	buf.flags = this->flags;
-	buf.type = this->subType;
+	buf.flags = this->object.flags;
+	buf.type = this->object.subType;
 	stream->write(&buf, sizeof(LightChunkData));
 
 	this->streamWritePlugins(stream);

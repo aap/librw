@@ -75,26 +75,43 @@ struct RslLLLink
 	RslLLLink *prev;
 };
 
+#define rslLLLinkGetData(linkvar,type,entry)                           \
+    ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
+#define rslLLLinkGetNext(linkvar)                                      \
+    ((linkvar)->next)
+#define rslLLLinkGetPrevious(linkvar)                                  \
+    ((linkvar)->prev)
+#define rslLLLinkInitialize(linkvar)                                   \
+    ((linkvar)->prev = (RslLLLink*)NULL,                               \
+     (linkvar)->next = (RslLLLink*)NULL)
+#define rslLLLinkAttached(linkvar)                                     \
+    ((linkvar)->next)
+
 struct RslLinkList
 {
 	RslLLLink link;
 };
 
-#define rslLLLinkGetData(linkvar,type,entry)                             \
-    ((type *)(((uint8 *)(linkvar))-offsetof(type,entry)))
+#define rslLinkListInitialize(list)                                    \
+    ((list)->link.next = ((RslLLLink*)(list)),                         \
+     (list)->link.prev = ((RslLLLink*)(list)))
+#define rslLinkListEmpty(list)                                         \
+    (((list)->link.next) == (&(list)->link))
+#define rslLinkListAddLLLink(list, linkvar)                            \
+    ((linkvar)->next = (list)->link.next,                              \
+     (linkvar)->prev = (&(list)->link),                                \
+     ((list)->link.next)->prev = (linkvar),                            \
+     (list)->link.next = (linkvar) )
+#define rslLinkListRemoveLLLink(linkvar)                               \
+    (((linkvar)->prev)->next = (linkvar)->next,                        \
+     ((linkvar)->next)->prev = (linkvar)->prev)
+#define rslLinkListGetFirstLLLink(list)                                \
+    ((list)->link.next)
+#define rslLinkListGetLastLLLink(list)                                 \
+    ((list)->link.prev)
+#define rslLinkListGetTerminator(list)                                 \
+    (&((list)->link))
 
-#define rslLLLinkGetNext(linkvar)                                        \
-    ((linkvar)->next)
-
-#define rslLLLinkGetPrevious(linkvar)                                    \
-    ((linkvar)->prev)
-
-#define rslLLLinkInitialize(linkvar)                                     \
-    ( (linkvar)->prev = (RslLLLink *)NULL,                               \
-      (linkvar)->next = (RslLLLink *)NULL )
-
-#define rslLLLinkAttached(linkvar)                                       \
-    ((linkvar)->next)
 
 struct RslObject {
 	uint8  type;

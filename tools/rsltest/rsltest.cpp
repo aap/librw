@@ -407,7 +407,7 @@ convertClump(RslClump *c)
 		if(parent >= 0)
 			rwframes[parent]->addChild(rwf);
 	}
-	rwc->parent = rwframes[0];
+	rwc->object.parent = rwframes[0];
 
 	rwc->numAtomics = RslClumpGetNumAtomics(c);
 	rwc->atomicList = new Atomic*[rwc->numAtomics];
@@ -418,7 +418,7 @@ convertClump(RslClump *c)
 		rwa = convertAtomic(alist[i]);
 		rwc->atomicList[i] = rwa;
 		int32 fi = findPointer(alist[i]->object.object.parent, (void**)frameList.frames, frameList.numFrames);
-		rwa->frame = rwframes[fi];
+		rwa->object.parent = rwframes[fi];
 		rwa->clump = rwc;
 	}
 
@@ -823,14 +823,14 @@ main(int argc, char *argv[])
 	rslstr->relocate();
 
 	bool32 largefile;
-	largefile = rslstr->dataSize > 0x100000;
+	largefile = rslstr->dataSize > 0x1000000;
 
 	if(rslstr->ident == WRLD_IDENT && largefile){	// hack
 		world = (World*)rslstr->data;
 
-		int len = strlen(argv[1])+1;
+		int len = strlen(argv[0])+1;
 		char filename[1024];
-		strncpy(filename, argv[1], len);
+		strncpy(filename, argv[0], len);
 		filename[len-3] = 'i';
 		filename[len-2] = 'm';
 		filename[len-1] = 'g';
@@ -874,16 +874,21 @@ main(int argc, char *argv[])
 		stream.close();
 	}else if(rslstr->ident == WRLD_IDENT){	// sector
 		sector = (Sector*)rslstr->data;
-		printf("resources\n");
-		for(uint32 i = 0; i < sector->numResources; i++){
-			OverlayResource *r = &sector->resources[i];
-			printf(" %d %p\n", r->id, r->raw);
-		}
-		printf("placement\n");
+		fprintf(stderr, "%d\n",sector->unk1);
+		//printf("resources\n");
+		//for(uint32 i = 0; i < sector->numResources; i++){
+		//	OverlayResource *r = &sector->resources[i];
+		//	printf(" %d %p\n", r->id, r->raw);
+		//}
+		//printf("placement\n");
+		if(sector->unk1 == 0)
+			return 0;
 		Placement *p;
-		for(p = sector->sectionA; p < sector->sectionEnd; p++){
-			printf(" %d, %d, %f %f %f\n", p->id &0x7FFF, p->resId, p->matrix[12], p->matrix[13], p->matrix[14]);
-		}
+		//for(p = sector->sectionA; p < sector->sectionEnd; p++){
+		//	printf(" %d, %d, %f %f %f\n", p->id &0x7FFF, p->resId, p->matrix[12], p->matrix[13], p->matrix[14]);
+		//}
+		for(p = sector->sectionA; p < sector->sectionEnd; p++)
+			printf("%f %f %f\n", p->matrix[12], p->matrix[13], p->matrix[14]);
 	}else if(rslstr->ident == MDL_IDENT){
 		uint8 *p;
 		p = *rslstr->hashTab;

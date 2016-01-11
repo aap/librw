@@ -11,37 +11,6 @@
 using namespace std;
 using namespace rw;
 
-Frame*
-findHierCB(Frame *f, void *p)
-{
-	HAnimData *hanim = PLUGINOFFSET(HAnimData, f, hAnimOffset);
-	if(hanim->hierarchy){
-		*(HAnimHierarchy**)p = hanim->hierarchy;
-		return NULL;
-	}
-	f->forAllChildren(findHierCB, p);
-	return f;
-}
-
-HAnimHierarchy*
-getHierarchy(Clump *c)
-{
-	HAnimHierarchy *hier = NULL;
-	findHierCB((Frame*)c->parent, &hier);
-	return hier;
-}
-
-void
-fixLcsHier(HAnimHierarchy *hier)
-{
-	hier->maxInterpKeyFrameSize = findAnimInterpolatorInfo(1)->keyFrameSize;
-	for(int32 i = 0; i < hier->numNodes; i++){
-		int32 id = hier->nodeInfo[i].id;
-		if(id == 255) hier->nodeInfo[i].id = -1;
-		else if(id > 0x80) hier->nodeInfo[i].id |= 0x1300;
-	}
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -53,10 +22,6 @@ main(int argc, char *argv[])
 	rw::version = 0x33002;
 	rw::platform = PLATFORM_D3D8;
 //	rw::version = 0x30200;
-
-	int lcs = 1;
-	matFXGlobals.hack = lcs;
-	skinGlobals.forceSkipUsedBones = lcs;
 
 	gta::attachPlugins();
 
@@ -104,23 +69,8 @@ main(int argc, char *argv[])
 			readChunkHeaderInfo(&in, &header);
 		}
 		assert(header.type == ID_CLUMP);
-		if(lcs)
-			c = clumpStreamReadRsl(&in);
-		else
-			c = Clump::streamRead(&in);
+		c = Clump::streamRead(&in);
 		assert(c != NULL);
-	}
-
-	if(lcs){
-		HAnimHierarchy *hier = getHierarchy(c);
-		if(hier)
-			fixLcsHier(hier);
-		for(int32 i = 0; i < c->numAtomics; i++){
-			Skin *skin = *PLUGINOFFSET(Skin*, c->atomicList[i]->geometry, skinGlobals.offset);
-			convertRslGeometry(c->atomicList[i]->geometry);
-			if(skin)
-				c->atomicList[i]->pipeline = skinGlobals.pipelines[rw::platform];
-		}	
 	}
 
 	if(rw::version == 0){
@@ -159,10 +109,7 @@ main(int argc, char *argv[])
 			out.open(argv[2], "wb");
 		else
 			out.open("out.dff", "wb");
-//		if(lcs)
-//			clumpStreamWriteRsl(&out, c);
-//		else
-			c->streamWrite(&out);
+		c->streamWrite(&out);
 		out.close();
 	}
 

@@ -17,6 +17,7 @@ namespace rw {
 
 Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
 {
+	this->object.init(8, 0);
 	this->geoflags = flags & 0xFF00FFFF;
 	this->numTexCoordSets = (flags & 0xFF0000) >> 16;
 	if(this->numTexCoordSets == 0)

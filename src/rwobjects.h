@@ -1,17 +1,66 @@
 namespace rw {
 
+struct LLLink
+{
+	LLLink *next;
+	LLLink *prev;
+	void init(void){
+		this->next = NULL;
+		this->prev = NULL;
+	}
+	void remove(void){
+		this->prev->next = this->next;
+		this->next->prev = this->prev;
+	}
+};
+
+#define LLLinkGetData(linkvar,type,entry)                           \
+    ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
+
+struct LinkList
+{
+	LLLink link;
+	void init(void){
+		this->link.next = &this->link;
+		this->link.prev = &this->link;
+	}
+	bool32 isEmpty(void){
+		return this->link.next == &this->link;
+	}
+	void add(LLLink *link){
+		link->next = this->link.next;
+		link->prev = &this->link;
+		this->link.next->prev = link;
+		this->link.next = link;
+	}
+	LLLink *end(void){
+		return &this->link;
+	}
+};
+
 struct Object
 {
 	uint8 type;
 	uint8 subType;
 	uint8 flags;
+	uint8 privateFlags;
 	void *parent;
+
+	void init(uint8 type, uint8 subType){
+		this->type = type;
+		this->subType = subType;
+		this->flags = 0;
+		this->privateFlags = 0;
+		this->parent = NULL;
+	}
 };
 
-// TODO: missing: list of attached objects
-struct Frame : PluginBase<Frame>, Object
+struct Frame : PluginBase<Frame>
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
+
+	Object object;
+	LinkList objectList;
 	float32	matrix[16];
 	float32	ltm[16];
 
@@ -35,6 +84,18 @@ struct Frame : PluginBase<Frame>, Object
 };
 
 Frame **makeFrameList(Frame *frame, Frame **flist);
+
+struct ObjectWithFrame : Object
+{
+	LLLink inFrame;
+	void setFrame(Frame *f){
+		if(this->parent)
+			this->inFrame.remove();
+		this->parent = f;
+		if(f)
+			f->objectList.add(&this->inFrame);
+	}
+};
 
 struct HAnimKeyFrame
 {
@@ -168,10 +229,11 @@ struct NativeRaster
 // TODO: link into texdict
 struct Texture : PluginBase<Texture>
 {
+	Raster *raster;
+	// TODO: pointer to txd and link
 	char name[32];
 	char mask[32];
 	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
-	Raster *raster;
 	int32 refCount;
 
 	// temporary - pointer to next tex in dictionary
@@ -319,9 +381,10 @@ struct InstanceDataHeader
 	uint32 platform;
 };
 
-struct Geometry : PluginBase<Geometry>, Object
+struct Geometry : PluginBase<Geometry>
 {
-	uint32 geoflags;
+	Object object;
+	uint32 geoflags;	// TODO: rename
 	int32 numTriangles;
 	int32 numVertices;
 	int32 numMorphTargets;
@@ -333,6 +396,7 @@ struct Geometry : PluginBase<Geometry>, Object
 
 	MorphTarget *morphTargets;
 
+	// TODO: struct
 	int32 numMaterials;
 	Material **materialList;
 
@@ -399,25 +463,28 @@ void registerSkinPlugin(void);
 
 struct Clump;
 
-struct Light : PluginBase<Light>, Object
+struct Light : PluginBase<Light>
 {
-	Frame *frame;
+	ObjectWithFrame object;
 	float32 radius;
 	float32 color[4];
 	float32 minusCosAngle;
+
+	// clump link handled by plugin in RW
 	Clump *clump;
 
-	Light(void);
+	Light(int32 type);
 	Light(Light *l);
 	~Light(void);
+	void setFrame(Frame *f) { this->object.setFrame(f); }
 	static Light *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
 
-struct Atomic : PluginBase<Atomic>, Object
+struct Atomic : PluginBase<Atomic>
 {
-	Frame *frame;
+	ObjectWithFrame object;
 	Geometry *geometry;
 	Clump *clump;
 	ObjPipeline *pipeline;
@@ -425,10 +492,11 @@ struct Atomic : PluginBase<Atomic>, Object
 	Atomic(void);
 	Atomic(Atomic *a);
 	~Atomic(void);
+	void setFrame(Frame *f) { this->object.setFrame(f); }
 	static Atomic *streamReadClump(Stream *stream,
-		Frame **frameList, Geometry **geometryList);
+	Frame **frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream,
-		Frame **frameList, int32 numFrames);
+	Frame **frameList, int32 numFrames);
 	uint32 streamGetSize(void);
 	ObjPipeline *getPipeline(void);
 
@@ -439,8 +507,9 @@ extern ObjPipeline *defaultPipelines[NUM_PLATFORMS];
 
 void registerAtomicRightsPlugin(void);
 
-struct Clump : PluginBase<Clump>, Object
+struct Clump : PluginBase<Clump>
 {
+	Object object;
 	int32 numAtomics;
 	Atomic **atomicList;
 	int32 numLights;
@@ -461,6 +530,7 @@ struct Clump : PluginBase<Clump>, Object
 
 struct TexDictionary : PluginBase<TexDictionary>
 {
+	Object object;
 	Texture *first;
 
 	TexDictionary(void);
