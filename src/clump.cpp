@@ -40,9 +40,47 @@ Frame::create(void)
 	return f;
 }
 
+Frame*
+Frame::cloneHierarchy(void)
+{
+	Frame *frame = this->cloneAndLink(NULL);
+	frame->purgeClone();
+	return frame;
+}
+
 void
 Frame::destroy(void)
 {
+	this->destructPlugins();
+	Frame *parent = this->getParent();
+	Frame *child;
+	if(parent){
+		// remove from child list
+		child = parent->child;
+		if(child == this)
+			parent->child = this->next;
+		else{
+			for(child = child->next; child != this; child = child->next)
+				;
+			child->next = this->next;
+		}
+		this->object.parent = NULL;
+		// Doesn't seem to make much sense, blame criterion.
+		this->setHierarchyRoot(this);
+	}
+	for(Frame *f = this->child; f; f = f->next)
+		f->object.parent = NULL;
+	free(this);
+}
+
+void
+Frame::destroyHierarchy(void)
+{
+	Frame *next;
+	for(Frame *child = this->child; child; child = next){
+		next = child->next;
+		child->destroyHierarchy();
+	}
 	this->destructPlugins();
 	free(this);
 }
@@ -138,6 +176,43 @@ Frame::setDirty(void)
 	this->forAllChildren(dirtyCB, NULL);
 }
 
+void
+Frame::setHierarchyRoot(Frame *root)
+{
+	this->root = root;
+	for(Frame *child = this->child; child; child = child->next)
+		child->setHierarchyRoot(root);
+}
+
+// Clone a frame hierarchy. Link cloned frames into Frame::root of the originals.
+Frame*
+Frame::cloneAndLink(Frame *clonedroot)
+{
+	Frame *frame = Frame::create();
+	if(clonedroot == NULL)
+		clonedroot = frame;
+	frame->object.copy(&this->object);
+	memcpy(frame->matrix, this->matrix, sizeof(this->matrix));
+	frame->root = clonedroot;
+	this->root = frame;	// Remember cloned frame
+	for(Frame *child = this->child; child; child = child->next){
+		Frame *clonedchild = child->cloneAndLink(clonedroot);
+		clonedchild->next = frame->child;
+		frame->child = clonedchild;
+		clonedchild->object.parent = frame;
+	}
+	frame->copyPlugins(this);
+	return frame;
+}
+
+// Remove links to cloned frames from hierarchy.
+void
+Frame::purgeClone(void)
+{
+	Frame *parent = this->getParent();
+	this->setHierarchyRoot(parent ? parent->root : this);
+}
+
 static Frame*
 sizeCB(Frame *f, void *size)
 {
@@ -176,7 +251,15 @@ Clump*
 Clump::clone(void)
 {
 	Clump *clump = Clump::create();
-	// TODO actually clone
+	Frame *root = this->getFrame()->cloneHierarchy();
+	clump->setFrame(root);
+	FORLIST(lnk, this->atomics){
+		Atomic *a = Atomic::fromClump(lnk);
+		Atomic *atomic = a->clone();
+		atomic->setFrame(a->getFrame()->root);
+		clump->addAtomic(atomic);
+	}
+	root->purgeClone();
 	clump->copyPlugins(this);
 	return clump;
 }
@@ -184,7 +267,14 @@ Clump::clone(void)
 void
 Clump::destroy(void)
 {
+	Frame *f;
 	this->destructPlugins();
+	FORLIST(lnk, this->atomics)
+		Atomic::fromClump(lnk)->destroy();
+	FORLIST(lnk, this->lights)
+		Light::fromClump(lnk)->destroy();
+	if(f = this->getFrame())
+		f->destroyHierarchy();
 	free(this);
 }
 
@@ -451,7 +541,13 @@ Atomic*
 Atomic::clone()
 {
 	Atomic *atomic = Atomic::create();
-	//TODO
+	atomic->object.copy(&this->object);
+	atomic->object.privateFlags |= 1;
+	if(this->geometry){
+		atomic->geometry = this->geometry;
+		atomic->geometry->refCount++;
+	}
+	atomic->pipeline = this->pipeline;
 	atomic->copyPlugins(this);
 	return atomic;
 }
@@ -459,8 +555,10 @@ Atomic::clone()
 void
 Atomic::destroy(void)
 {
-	//TODO
 	this->destructPlugins();
+	if(this->geometry)
+		this->geometry->destroy();
+	this->setFrame(NULL);
 	free(this);
 }
 

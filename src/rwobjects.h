@@ -64,6 +64,13 @@ struct Object
 		this->privateFlags = 0;
 		this->parent = NULL;
 	}
+	void copy(Object *o){
+		this->type = o->type;
+		this->subType = o->subType;
+		this->flags = o->flags;
+		this->privateFlags = o->privateFlags;
+		this->parent = NULL;
+	}
 };
 
 struct Frame : PluginBase<Frame>
@@ -85,14 +92,22 @@ struct Frame : PluginBase<Frame>
 
 	// MEM create, clonehiearchy, destroy, destroy hierarchy
 	static Frame *create(void);
+	Frame *cloneHierarchy(void);
 	void destroy(void);
-
+	void destroyHierarchy(void);
 	Frame *addChild(Frame *f);
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
+	Frame *getParent(void){
+		return (Frame*)this->object.parent;
+	}
 	int32 count(void);
 	void updateLTM(void);
 	void setDirty(void);
+
+	void setHierarchyRoot(Frame *root);
+	Frame *cloneAndLink(Frame *clonedroot);
+	void purgeClone(void);
 };
 
 Frame **makeFrameList(Frame *frame, Frame **flist);
@@ -515,6 +530,7 @@ struct Atomic : PluginBase<Atomic>
 	Atomic *clone(void);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
+	Frame *getFrame(void) { return (Frame*)this->object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump);
 	}
@@ -552,6 +568,12 @@ struct Clump : PluginBase<Clump>
 	void addLight(Light *l){
 		l->clump = this;
 		this->lights.append(&l->inClump);
+	}
+	void setFrame(Frame *f){
+		this->object.parent = f;
+	}
+	Frame *getFrame(void){
+		return (Frame*)this->object.parent;
 	}
 	static Clump *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
