@@ -205,15 +205,13 @@ PluginBase<T>::getPluginOffset(uint32 id)
 template <typename T> void*
 PluginBase<T>::operator new(size_t)
 {
-	void *m = malloc(T::s_size);
-	if(!m)
-		throw std::bad_alloc();
-	return m;
+	assert(0);
+	return NULL;
 }
 
 template <typename T> void
 PluginBase<T>::operator delete(void *p)
 {
-	free(p);
+	assert(0);
 }
 }

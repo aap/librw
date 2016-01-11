@@ -772,19 +772,19 @@ clearMatFX(MatFX *matfx)
 		switch(matfx->fx[i].type){
 		case MatFX::BUMPMAP:
 			if(matfx->fx[i].bump.bumpedTex)
-				matfx->fx[i].bump.bumpedTex->decRef();
+				matfx->fx[i].bump.bumpedTex->destroy();
 			if(matfx->fx[i].bump.tex)
-				matfx->fx[i].bump.tex->decRef();
+				matfx->fx[i].bump.tex->destroy();
 			break;
 
 		case MatFX::ENVMAP:
 			if(matfx->fx[i].env.tex)
-				matfx->fx[i].env.tex->decRef();
+				matfx->fx[i].env.tex->destroy();
 			break;
 
 		case MatFX::DUAL:
 			if(matfx->fx[i].dual.tex)
-				matfx->fx[i].dual.tex->decRef();
+				matfx->fx[i].dual.tex->destroy();
 			break;
 		}
 	memset(matfx, 0, sizeof(MatFX));

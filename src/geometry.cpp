@@ -15,79 +15,80 @@ using namespace std;
 
 namespace rw {
 
-Geometry::Geometry(int32 numVerts, int32 numTris, uint32 flags)
+Geometry*
+Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
-	this->object.init(8, 0);
-	this->geoflags = flags & 0xFF00FFFF;
-	this->numTexCoordSets = (flags & 0xFF0000) >> 16;
-	if(this->numTexCoordSets == 0)
-		this->numTexCoordSets = (this->geoflags & TEXTURED)  ? 1 :
-		                        (this->geoflags & TEXTURED2) ? 2 : 0;
-	this->numTriangles = numTris;
-	this->numVertices = numVerts;
-	this->numMorphTargets = 1;
+	Geometry *geo = (Geometry*)malloc(PluginBase::s_size);
+	geo->object.init(8, 0);
+	geo->geoflags = flags & 0xFF00FFFF;
+	geo->numTexCoordSets = (flags & 0xFF0000) >> 16;
+	if(geo->numTexCoordSets == 0)
+		geo->numTexCoordSets = (geo->geoflags & TEXTURED)  ? 1 :
+		                       (geo->geoflags & TEXTURED2) ? 2 : 0;
+	geo->numTriangles = numTris;
+	geo->numVertices = numVerts;
+	geo->numMorphTargets = 1;
 
-	this->colors = NULL;
-	for(int32 i = 0; i < this->numTexCoordSets; i++)
-		this->texCoords[i] = NULL;
-	this->triangles = NULL;
-	if(!(this->geoflags & NATIVE) && this->numVertices){
-		if(this->geoflags & PRELIT)
-			this->colors = new uint8[4*this->numVertices];
-		if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
-			for(int32 i = 0; i < this->numTexCoordSets; i++)
-				this->texCoords[i] =
-					new float32[2*this->numVertices];
-		this->triangles = new uint16[4*this->numTriangles];
+	geo->colors = NULL;
+	for(int32 i = 0; i < geo->numTexCoordSets; i++)
+		geo->texCoords[i] = NULL;
+	geo->triangles = NULL;
+	if(!(geo->geoflags & NATIVE) && geo->numVertices){
+		if(geo->geoflags & PRELIT)
+			geo->colors = new uint8[4*geo->numVertices];
+		if((geo->geoflags & TEXTURED) || (geo->geoflags & TEXTURED2))
+			for(int32 i = 0; i < geo->numTexCoordSets; i++)
+				geo->texCoords[i] =
+					new float32[2*geo->numVertices];
+		geo->triangles = new uint16[4*geo->numTriangles];
 	}
-	this->morphTargets = new MorphTarget[1];
-	MorphTarget *m = this->morphTargets;
+	geo->morphTargets = new MorphTarget[1];
+	MorphTarget *m = geo->morphTargets;
 	m->boundingSphere[0] = 0.0f;
 	m->boundingSphere[1] = 0.0f;
 	m->boundingSphere[2] = 0.0f;
 	m->boundingSphere[3] = 0.0f;
 	m->vertices = NULL;
 	m->normals = NULL;
-	if(!(this->geoflags & NATIVE) && this->numVertices){
-		m->vertices = new float32[3*this->numVertices];
-		if(this->geoflags & NORMALS)
-			m->normals = new float32[3*this->numVertices];
+	if(!(geo->geoflags & NATIVE) && geo->numVertices){
+		m->vertices = new float32[3*geo->numVertices];
+		if(geo->geoflags & NORMALS)
+			m->normals = new float32[3*geo->numVertices];
 	}
-	this->numMaterials = 0;
-	this->materialList = NULL;
-	this->meshHeader = NULL;
-	this->instData = NULL;
-	this->refCount = 1;
+	geo->numMaterials = 0;
+	geo->materialList = NULL;
+	geo->meshHeader = NULL;
+	geo->instData = NULL;
+	geo->refCount = 1;
 
-	this->constructPlugins();
+	geo->constructPlugins();
+	return geo;
 }
 
-Geometry::~Geometry(void)
-{
-	this->destructPlugins();
-	delete[] this->colors;
-	for(int32 i = 0; i < this->numTexCoordSets; i++)
-		delete[] this->texCoords[i];
-	delete[] this->triangles;
-
-	for(int32 i = 0; i < this->numMorphTargets; i++){
-		MorphTarget *m = &this->morphTargets[i];
-		delete[] m->vertices;
-		delete[] m->normals;
-	}
-	delete[] this->morphTargets;
-	delete this->meshHeader;
-	for(int32 i = 0; i < this->numMaterials; i++)
-		this->materialList[i]->decRef();
-	delete[] this->materialList;
-}
 
 void
-Geometry::decRef(void)
+Geometry::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0)
-		delete this;
+	if(this->refCount == 0){
+		this->destructPlugins();
+		delete[] this->colors;
+		for(int32 i = 0; i < this->numTexCoordSets; i++)
+			delete[] this->texCoords[i];
+		delete[] this->triangles;
+
+		for(int32 i = 0; i < this->numMorphTargets; i++){
+			MorphTarget *m = &this->morphTargets[i];
+			delete[] m->vertices;
+			delete[] m->normals;
+		}
+		delete[] this->morphTargets;
+		delete this->meshHeader;
+		for(int32 i = 0; i < this->numMaterials; i++)
+			this->materialList[i]->destroy();
+		delete[] this->materialList;
+		free(this);
+	}
 }
 
 struct GeoStreamData
@@ -105,8 +106,8 @@ Geometry::streamRead(Stream *stream)
 	GeoStreamData buf;
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
-	Geometry *geo = new Geometry(buf.numVertices,
-	                             buf.numTriangles, buf.flags);
+	Geometry *geo = Geometry::create(buf.numVertices,
+	                                 buf.numTriangles, buf.flags);
 	geo->addMorphTargets(buf.numMorphTargets-1);
 	// skip surface properties
 	if(version < 0x34000)
@@ -401,49 +402,48 @@ Geometry::generateTriangles(int8 *adc)
 // Material
 //
 
-Material::Material(void)
+Material*
+Material::create(void)
 {
-	this->texture = NULL;
-	memset(this->color, 0xFF, 4);
-	surfaceProps.ambient = 1.0f;
-	surfaceProps.specular = 1.0f;
-	surfaceProps.diffuse = 1.0f;
-	this->pipeline = NULL;
-	this->refCount = 1;
-	this->constructPlugins();
+	Material *mat = (Material*)malloc(PluginBase::s_size);
+	mat->texture = NULL;
+	memset(mat->color, 0xFF, 4);
+	mat->surfaceProps.ambient = 1.0f;
+	mat->surfaceProps.specular = 1.0f;
+	mat->surfaceProps.diffuse = 1.0f;
+	mat->pipeline = NULL;
+	mat->refCount = 1;
+	mat->constructPlugins();
+	return mat;
 }
 
-Material::Material(Material *m)
+Material*
+Material::clone(void)
 {
-	this->color[0] = m->color[0];
-	this->color[1] = m->color[1];
-	this->color[2] = m->color[2];
-	this->color[3] = m->color[3];
-	this->surfaceProps.ambient = m->surfaceProps.ambient;
-	this->surfaceProps.specular = m->surfaceProps.specular;
-	this->surfaceProps.diffuse = m->surfaceProps.diffuse;
-	this->texture = m->texture;
-	if(this->texture)
-		this->texture->refCount++;
-	this->pipeline = m->pipeline;
-	this->refCount = 1;
-	this->constructPlugins();
-	this->copyPlugins(m);
-}
-
-Material::~Material(void)
-{
-	this->destructPlugins();
-	if(this->texture)
-		this->texture->decRef();
+	Material *mat = Material::create();
+	mat->color[0] = this->color[0];
+	mat->color[1] = this->color[1];
+	mat->color[2] = this->color[2];
+	mat->color[3] = this->color[3];
+	mat->surfaceProps = this->surfaceProps;
+	mat->texture = this->texture;
+	if(mat->texture)
+		mat->texture->refCount++;
+	mat->pipeline = this->pipeline;
+	mat->copyPlugins(this);
+	return mat;
 }
 
 void
-Material::decRef(void)
+Material::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0)
-		delete this;
+	if(this->refCount == 0){
+		this->destructPlugins();
+		if(this->texture)
+			this->texture->destroy();
+		free(this);
+	}
 }
 
 struct MatStreamData
@@ -464,7 +464,7 @@ Material::streamRead(Stream *stream)
 
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
-	Material *mat = new Material;
+	Material *mat = Material::create();
 	mat->color[0] = buf.color[0];
 	mat->color[1] = buf.color[1];
 	mat->color[2] = buf.color[2];

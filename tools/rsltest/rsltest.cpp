@@ -71,7 +71,7 @@ mapID(int32 id)
 Frame*
 convertFrame(RslFrame *f)
 {
-	Frame *rwf = new Frame;
+	Frame *rwf = Frame::create();
 	rwf->matrix[0] =  f->modelling.right.x;
 	rwf->matrix[1] =  f->modelling.right.y;
 	rwf->matrix[2] =  f->modelling.right.z;
@@ -123,7 +123,7 @@ Material*
 convertMaterial(RslMaterial *m)
 {
 	Material *rwm;
-	rwm = new Material;
+	rwm = Material::create();
 
 	rwm->color[0] = m->color.red;
 	rwm->color[1] = m->color.green;
@@ -300,9 +300,9 @@ convertMesh(Geometry *rwg, RslGeometry *g, int32 ii)
 Atomic*
 convertAtomic(RslAtomic *atomic)
 {
-	Atomic *rwa = new Atomic;
+	Atomic *rwa = Atomic::create();
 	RslGeometry *g = atomic->geometry;
-	Geometry *rwg = new Geometry(0, 0, 0);
+	Geometry *rwg = Geometry::create(0, 0, 0);
 	rwa->geometry = rwg;
 
 	rwg->numMaterials = g->matList.numMaterials;
@@ -396,7 +396,7 @@ convertClump(RslClump *c)
 	Atomic *rwa;
 	rslFrameList frameList;
 
-	rwc = new Clump;
+	rwc = Clump::create();
 	rslFrameListInitialize(&frameList, (RslFrame*)c->object.parent);
 	Frame **rwframes = new Frame*[frameList.numFrames];
 	for(int32 i = 0; i < frameList.numFrames; i++){
@@ -409,17 +409,15 @@ convertClump(RslClump *c)
 	}
 	rwc->object.parent = rwframes[0];
 
-	rwc->numAtomics = RslClumpGetNumAtomics(c);
-	rwc->atomicList = new Atomic*[rwc->numAtomics];
-	RslAtomic **alist = new RslAtomic*[rwc->numAtomics];
+	int32 numAtomics = RslClumpGetNumAtomics(c);
+	RslAtomic **alist = new RslAtomic*[numAtomics];
 	RslAtomic **ap = &alist[0];
 	RslClumpForAllAtomics(c, collectAtomics, &ap);
-	for(int32 i = 0; i < rwc->numAtomics; i++){
+	for(int32 i = 0; i < numAtomics; i++){
 		rwa = convertAtomic(alist[i]);
-		rwc->atomicList[i] = rwa;
 		int32 fi = findPointer(alist[i]->object.object.parent, (void**)frameList.frames, frameList.numFrames);
-		rwa->object.parent = rwframes[fi];
-		rwa->clump = rwc;
+		rwa->setFrame(rwframes[fi]);
+		rwc->addAtomic(rwa);
 	}
 
 	delete[] alist;
@@ -614,14 +612,14 @@ RslTexture *dumpTextureCB(RslTexture *texture, void*)
 	uint8 *palette = getPalettePS2(texture->raster);
 	uint8 *texels = getTexelPS2(texture->raster, 0);
 	printf(" %x %x %x %x %x %s\n", w, h, d, mip, swizmask, texture->name);
-	Image *img = new Image(w, h, 32);
+	Image *img = Image::create(w, h, 32);
 	img->allocate();
 	convertTo32(img->pixels, palette, texels, w, h, d, swizmask&1);
 	char *name = new char[strlen(texture->name)+5];
 	strcpy(name, texture->name);
 	strcat(name, ".tga");
 	writeTGA(img, name);
-	delete img;
+	img->destroy();
 	delete[] name;
 	return texture;
 }
@@ -630,7 +628,7 @@ RslTexture*
 convertTexturePS2(RslTexture *texture, void *pData)
 {
 	TexDictionary *rwtxd = (TexDictionary*)pData;
-	Texture *rwtex = new Texture;
+	Texture *rwtex = Texture::create(NULL);
 	RslRasterPS2 *ras = &texture->raster->ps2;
 
 	strncpy(rwtex->name, texture->name, 32);
@@ -703,7 +701,7 @@ convertTexturePS2(RslTexture *texture, void *pData)
 		fprintf(stderr, "unsupported depth %d\n", d);
 		return NULL;
 	}
-	Raster *rwras = new Raster(w, h, d == 4 ? 8 : d, format | 4, PLATFORM_D3D8);
+	Raster *rwras = Raster::create(w, h, d == 4 ? 8 : d, format | 4, PLATFORM_D3D8);
 	d3d::D3dRaster *d3dras = PLUGINOFFSET(d3d::D3dRaster, rwras, d3d::nativeRasterOffset);
 
 	int32 pallen = d == 4 ? 16 :
@@ -744,7 +742,7 @@ convertTexturePS2(RslTexture *texture, void *pData)
 TexDictionary*
 convertTXD(RslTexDictionary *txd)
 {
-	TexDictionary *rwtxd = new TexDictionary;
+	TexDictionary *rwtxd = TexDictionary::create();
 	RslTexDictionaryForAllTextures(txd, convertTexturePS2, rwtxd);
 	return rwtxd;
 }

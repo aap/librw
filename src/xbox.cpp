@@ -869,7 +869,7 @@ readNativeTexture(Stream *stream)
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	assert(version >= 0x34001);
 	assert(stream->readU32() == PLATFORM_XBOX);
-	Texture *tex = new Texture;
+	Texture *tex = Texture::create(NULL);
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
@@ -891,7 +891,7 @@ readNativeTexture(Stream *stream)
 	assert(unknownFlag == 0);
 	Raster *raster;
 	if(compression){
-		raster = new Raster(width, height, depth, format | type | 0x80, PLATFORM_XBOX);
+		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_XBOX);
 		XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 		ras->format = compression;
 		ras->hasAlpha = hasAlpha;
@@ -900,7 +900,7 @@ readNativeTexture(Stream *stream)
 	                                     ras->format);
 		raster->flags &= ~0x80;
 	}else
-		raster = new Raster(width, height, depth, format | type, PLATFORM_XBOX);
+		raster = Raster::create(width, height, depth, format | type, PLATFORM_XBOX);
 	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	tex->raster = raster;
 

@@ -33,10 +33,21 @@ struct LinkList
 		this->link.next->prev = link;
 		this->link.next = link;
 	}
+	void append(LLLink *link){
+		link->next = &this->link;
+		link->prev = this->link.prev;
+		this->link.prev->next = link;
+		this->link.prev = link;
+	}
 	LLLink *end(void){
 		return &this->link;
 	}
 };
+
+#define FORLIST(_link, _list) \
+	for(LLLink *_link = (_list).link.next; \
+	(_link) != (_list).end(); \
+	(_link) = (_link)->next)
 
 struct Object
 {
@@ -72,9 +83,10 @@ struct Frame : PluginBase<Frame>
 	int32 matflag;
 	bool dirty;
 
-	Frame(void);
-	Frame(Frame *f);
-	~Frame(void);
+	// MEM create, clonehiearchy, destroy, destroy hierarchy
+	static Frame *create(void);
+	void destroy(void);
+
 	Frame *addChild(Frame *f);
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
@@ -145,8 +157,9 @@ struct Image
 	uint8 *pixels;
 	uint8 *palette;
 
-	Image(int32 width, int32 height, int32 depth);
-	~Image(void);
+	// MEM create, destroy
+	static Image *create(int32 width, int32 height, int32 depth);
+	void destroy(void);
 	void allocate(void);
 	void free(void);
 	void setPixels(uint8 *pixels);
@@ -184,8 +197,9 @@ struct Raster : PluginBase<Raster>
 
 	static int32 nativeOffsets[NUM_PLATFORMS];
 
-	Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
-	~Raster(void);
+	// MEM create, destroy
+	static Raster *create(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
+	void destroy(void);
 
 	static Raster *createFromImage(Image *image);
 	uint8 *lock(int32 level);
@@ -226,22 +240,24 @@ struct NativeRaster
 		{ assert(IGNORERASTERIMP && "unimplemented"); return 0; };
 };
 
-// TODO: link into texdict
+struct TexDictionary;
+
 struct Texture : PluginBase<Texture>
 {
 	Raster *raster;
-	// TODO: pointer to txd and link
+	TexDictionary *dict;
+	LLLink inDict;
 	char name[32];
 	char mask[32];
 	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
 	int32 refCount;
 
-	// temporary - pointer to next tex in dictionary
-	Texture *next;
-
-	Texture(void);
-	~Texture(void);
-	void decRef(void);
+	// MEM create, addref, destroy
+	static Texture *create(Raster *raster);
+	void destroy(void);
+	static Texture *fromDict(LLLink *lnk){
+		return LLLinkGetData(lnk, Texture, inDict);
+	}
 	static Texture *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -281,10 +297,10 @@ struct Material : PluginBase<Material>
 	Pipeline *pipeline;
 	int32 refCount;
 
-	Material(void);
-	Material(Material *m);
-	void decRef(void);
-	~Material(void);
+	// MEM create, clone, addref, destroy
+	static Material *create(void);
+	Material *clone(void);
+	void destroy(void);
 	static Material *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -406,9 +422,9 @@ struct Geometry : PluginBase<Geometry>
 
 	int32 refCount;
 
-	Geometry(int32 numVerts, int32 numTris, uint32 flags);
-	void decRef(void);
-	~Geometry(void);
+	// MEM create, addref, destroy
+	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
+	void destroy(void);
 	static Geometry *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -472,11 +488,15 @@ struct Light : PluginBase<Light>
 
 	// clump link handled by plugin in RW
 	Clump *clump;
+	LLLink inClump;
 
-	Light(int32 type);
-	Light(Light *l);
-	~Light(void);
+	// MEM create, destroy
+	static Light *create(int32 type);
+	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
+	static Light *fromClump(LLLink *lnk){
+		return LLLinkGetData(lnk, Light, inClump);
+	}
 	static Light *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -487,12 +507,17 @@ struct Atomic : PluginBase<Atomic>
 	ObjectWithFrame object;
 	Geometry *geometry;
 	Clump *clump;
+	LLLink inClump;
 	ObjPipeline *pipeline;
 
-	Atomic(void);
-	Atomic(Atomic *a);
-	~Atomic(void);
+	// MEM create, clone, destroy
+	static Atomic *create(void);
+	Atomic *clone(void);
+	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
+	static Atomic *fromClump(LLLink *lnk){
+		return LLLinkGetData(lnk, Atomic, inClump);
+	}
 	static Atomic *streamReadClump(Stream *stream,
 	Frame **frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream,
@@ -510,31 +535,46 @@ void registerAtomicRightsPlugin(void);
 struct Clump : PluginBase<Clump>
 {
 	Object object;
-	int32 numAtomics;
-	Atomic **atomicList;
-	int32 numLights;
-	Light **lightList;
-	int32 numCameras;
+	LinkList atomics;
+	LinkList lights;
 	// cameras not implemented
 
-	Clump(void);
-	Clump(Clump *c);
-	~Clump(void);
+	// MEM create, clone, destroy
+	static Clump *create(void);
+	Clump *clone(void);
+	void destroy(void);
+	int32 countAtomics(void);
+	void addAtomic(Atomic *a){
+		a->clump = this;
+		this->atomics.append(&a->inClump);
+	}
+	int32 countLights(void);
+	void addLight(Light *l){
+		l->clump = this;
+		this->lights.append(&l->inClump);
+	}
 	static Clump *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
+
 };
 
 struct TexDictionary : PluginBase<TexDictionary>
 {
 	Object object;
-	Texture *first;
+	LinkList textures;
 
-	TexDictionary(void);
-	void add(Texture *tex);
+	// MEM create, destroy
+	static TexDictionary *create(void);
+	void destroy(void);
+	int32 count(void);
+	void add(Texture *t){
+		t->dict = this;
+		this->textures.append(&t->inDict);
+	}
 	Texture *find(const char *name);
 	static TexDictionary *streamRead(Stream *stream);
 	void streamWrite(Stream *stream);
@@ -599,6 +639,7 @@ struct UVAnimCustomData
 
 struct UVAnimDictionary
 {
+	// TODO: linked list probably
 	int32 numAnims;
 	Animation **anims;
 

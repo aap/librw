@@ -1828,7 +1828,7 @@ readNativeTexture(Stream *stream)
 	uint32 length, oldversion, version;
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	assert(stream->readU32() == 0x00325350);	// 'PS2\0'
-	Texture *tex = new Texture;
+	Texture *tex = Texture::create(NULL);
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
@@ -1846,9 +1846,9 @@ readNativeTexture(Stream *stream)
 	Raster *raster;
 	noNewStyleRasters = streamExt.type < 2;
 	rw::version = version;
-	raster = new Raster(streamExt.width, streamExt.height,
-	                    streamExt.depth, streamExt.rasterFormat,
-	                    PLATFORM_PS2);
+	raster = Raster::create(streamExt.width, streamExt.height,
+	                        streamExt.depth, streamExt.rasterFormat,
+	                        PLATFORM_PS2);
 	noNewStyleRasters = 0;
 	rw::version = oldversion;
 	tex->raster = raster;

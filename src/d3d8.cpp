@@ -387,7 +387,7 @@ readNativeTexture(Stream *stream)
 {
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	assert(stream->readU32() == PLATFORM_D3D8);
-	Texture *tex = new Texture;
+	Texture *tex = Texture::create(NULL);
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
@@ -407,10 +407,10 @@ readNativeTexture(Stream *stream)
 	Raster *raster;
 	D3dRaster *ras;
 	if(compression){
-		raster = new Raster(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
+		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
 		allocateDXT(raster, compression, numLevels, hasAlpha);
 	}else
-		raster = new Raster(width, height, depth, format | type, PLATFORM_D3D8);
+		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D8);
 
 	ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	tex->raster = raster;

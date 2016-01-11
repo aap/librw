@@ -202,7 +202,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\gtaplg.h" />
-    <ClInclude Include="src\mdl.h" />
     <ClInclude Include="src\rwbase.h" />
     <ClInclude Include="src\rwd3d.h" />
     <ClInclude Include="src\rwd3d8.h" />

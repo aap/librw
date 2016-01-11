@@ -132,8 +132,8 @@ main(int argc, char *argv[])
 	}
 
 	if(uninstance)
-		for(int32 i = 0; i < c->numAtomics; i++){
-			Atomic *a = c->atomicList[i];
+		FORLIST(lnk, c->atomics){
+			Atomic *a = Atomic::fromClump(lnk);
 			ObjPipeline *p = a->getPipeline();
 			p->uninstance(a);
 			if(outplatform != PLATFORM_PS2)
@@ -144,8 +144,8 @@ main(int argc, char *argv[])
 	switchPipes(c, rw::platform);
 
 	if(instance)
-		for(int32 i = 0; i < c->numAtomics; i++){
-			Atomic *a = c->atomicList[i];
+		FORLIST(lnk, c->atomics){
+			Atomic *a = Atomic::fromClump(lnk);
 			ObjPipeline *p = a->getPipeline();
 			p->instance(a);
 			if(outplatform != PLATFORM_PS2)
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
 //	out.close();
 //	delete[] data;
 
-	delete c;
+	c->destroy();
 
 	return 0;
 }

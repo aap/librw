@@ -21,8 +21,8 @@ namespace rw {
 int32
 findPlatform(Clump *c)
 {
-	for(int32 i = 0; i < c->numAtomics; i++){
-		Geometry *g = c->atomicList[i]->geometry;
+	FORLIST(lnk, c->atomics){
+		Geometry *g = Atomic::fromClump(lnk)->geometry;
 		if(g->instData)
 			return g->instData->platform;
 	}
@@ -32,8 +32,8 @@ findPlatform(Clump *c)
 void
 switchPipes(Clump *c, int32 platform)
 {
-	for(int32 i = 0; i < c->numAtomics; i++){
-		Atomic *a = c->atomicList[i];
+	FORLIST(lnk, c->atomics){
+		Atomic *a = Atomic::fromClump(lnk);
 		if(a->pipeline && a->pipeline->platform != platform){
 			uint32 plgid = a->pipeline->pluginID;
 			switch(plgid){
@@ -527,7 +527,7 @@ destroySpecMat(void *object, int32 offset, int32)
 	if(*specmat == NULL)
 		return object;
 	if((*specmat)->texture)
-		(*specmat)->texture->decRef();
+		(*specmat)->texture->destroy();
 	delete *specmat;
 	*specmat = NULL;
 	return object;
@@ -560,7 +560,7 @@ readSpecMat(Stream *stream, int32, void *object, int32 offset, int32)
 	*PLUGINOFFSET(SpecMat*, object, offset) = spec;
 	stream->read(&buf, sizeof(buf));
 	spec->specularity = buf.specularity;
-	spec->texture = new Texture;
+	spec->texture = Texture::create(NULL);
 	strncpy(spec->texture->name, buf.texname, 24);
 }
 

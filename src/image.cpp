@@ -29,27 +29,40 @@ namespace rw {
 
 TexDictionary *currentTexDictionary;
 
-TexDictionary::TexDictionary(void)
+TexDictionary*
+TexDictionary::create(void)
 {
-	this->object.init(6, 0);
-	this->first = NULL;
+	TexDictionary *dict = (TexDictionary*)malloc(PluginBase::s_size);
+	dict->object.init(6, 0);
+	dict->textures.init();
+	dict->constructPlugins();
+	return dict;
 }
 
 void
-TexDictionary::add(Texture *tex)
+TexDictionary::destroy(void)
 {
-	Texture **tp;
-	for(tp = &this->first; *tp; tp = &(*tp)->next)
-		;
-	*tp = tex;
+	this->destructPlugins();
+	free(this);
+}
+
+int32
+TexDictionary::count(void)
+{
+	int32 n = 0;
+	FORLIST(l, this->textures)
+		n++;
+	return n;
 }
 
 Texture*
 TexDictionary::find(const char *name)
 {
-	for(Texture *tex = this->first; tex; tex = tex->next)
+	FORLIST(lnk, this->textures){
+		Texture *tex = Texture::fromDict(lnk);
 		if(strncmp(tex->name, name, 32) == 0)
 			return tex;
+	}
 	return NULL;
 }
 
@@ -60,7 +73,7 @@ TexDictionary::streamRead(Stream *stream)
 	int32 numTex = stream->readI16();
 	stream->readI16();	// some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
 	                        //                   6 = ps2, 8 = xbox)
-	TexDictionary *txd = new TexDictionary;
+	TexDictionary *txd = TexDictionary::create();
 	for(int32 i = 0; i < numTex; i++){
 		assert(findChunk(stream, ID_TEXTURENATIVE, NULL, NULL));
 		Texture *tex = Texture::streamReadNative(stream);
@@ -75,13 +88,11 @@ TexDictionary::streamWrite(Stream *stream)
 {
 	writeChunkHeader(stream, ID_TEXDICTIONARY, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, 4);
-	int32 numTex = 0;
-	for(Texture *tex = this->first; tex; tex = tex->next)
-		numTex++;
+	int32 numTex = this->count();
 	stream->writeI16(numTex);
 	stream->writeI16(0);
-	for(Texture *tex = this->first; tex; tex = tex->next)
-		tex->streamWriteNative(stream);
+	FORLIST(lnk, this->textures)
+		Texture::fromDict(lnk)->streamWriteNative(stream);
 	this->streamWritePlugins(stream);
 }
 
@@ -89,8 +100,8 @@ uint32
 TexDictionary::streamGetSize(void)
 {
 	uint32 size = 12 + 4;
-	for(Texture *tex = this->first; tex; tex = tex->next)
-		size += 12 + tex->streamGetSizeNative();
+	FORLIST(lnk, this->textures)
+		size += 12 + Texture::fromDict(lnk)->streamGetSizeNative();
 	size += 12 + this->streamGetPluginSize();
 	return size;
 }
@@ -99,28 +110,29 @@ TexDictionary::streamGetSize(void)
 // Texture
 //
 
-Texture::Texture(void)
+Texture*
+Texture::create(Raster *raster)
 {
-	memset(this->name, 0, 32);
-	memset(this->mask, 0, 32);
-	this->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
-	this->raster = NULL;
-	this->refCount = 1;
-	this->next = NULL;
-	this->constructPlugins();
-}
-
-Texture::~Texture(void)
-{
-	this->destructPlugins();
+	Texture *tex = (Texture*)malloc(PluginBase::s_size);
+	tex->dict = NULL;
+	tex->inDict.init();
+	memset(tex->name, 0, 32);
+	memset(tex->mask, 0, 32);
+	tex->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
+	tex->raster = raster;
+	tex->refCount = 1;
+	tex->constructPlugins();
+	return tex;
 }
 
 void
-Texture::decRef(void)
+Texture::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0)
-		delete this;
+	if(this->refCount == 0){
+		this->destructPlugins();
+		free(this);
+	}
 }
 
 // TODO: do this properly, pretty ugly right now
@@ -133,7 +145,7 @@ Texture::read(const char *name, const char *mask)
 
 	if(currentTexDictionary && (tex = currentTexDictionary->find(name)))
 		return tex;
-	tex = new Texture;
+	tex = Texture::create(NULL);
 	strncpy(tex->name, name, 32);
 	strncpy(tex->mask, mask, 32);
 //	char *n = (char*)malloc(strlen(name) + 5);
@@ -144,9 +156,9 @@ Texture::read(const char *name, const char *mask)
 //	if(img){
 //		//raster = Raster::createFromImage(img);
 //		raster = new Raster(0, 0, 0, 0x80);
-//		delete img;
+//		img->destroy();
 //	}else
-		raster = new Raster(0, 0, 0, 0x80);
+		raster = Raster::create(0, 0, 0, 0x80);
 	tex->raster = raster;
 	if(currentTexDictionary /*&& img*/)
 		currentTexDictionary->add(tex);
@@ -265,20 +277,25 @@ Texture::streamGetSizeNative(void)
 // Image
 //
 
-Image::Image(int32 width, int32 height, int32 depth)
+Image*
+Image::create(int32 width, int32 height, int32 depth)
 {
-	this->flags = 0;
-	this->width = width;
-	this->height = height;
-	this->depth = depth;
-	this->stride = 0;
-	this->pixels = NULL;
-	this->palette = NULL;
+	Image *img = (Image*)malloc(sizeof(*img));
+	img->flags = 0;
+	img->width = width;
+	img->height = height;
+	img->depth = depth;
+	img->stride = 0;
+	img->pixels = NULL;
+	img->palette = NULL;
+	return img;
 }
 
-Image::~Image(void)
+void
+Image::destroy(void)
 {
 	this->free();
+	::free(this);
 }
 
 void
@@ -443,7 +460,7 @@ readTGA(const char *afilename)
 		assert(depth == 24 || depth == 32);
 	}
 
-	image = new Image(header.width, header.height, depth);
+	image = Image::create(header.width, header.height, depth);
 	image->allocate();
 	uint8 *palette = header.colorMapType ? image->palette : NULL;
 	uint8 (*color)[4] = NULL;
@@ -548,29 +565,34 @@ writeTGA(Image *image, const char *filename)
 
 int32 Raster::nativeOffsets[NUM_PLATFORMS];
 
-Raster::Raster(int32 width, int32 height, int32 depth, int32 format, int32 platform)
+Raster*
+Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
-	this->platform = platform ? platform : rw::platform;
-	this->type = format & 0x7;
-	this->flags = format & 0xF8;
-	this->format = format & 0xFF00;
-	this->width = width;
-	this->height = height;
-	this->depth = depth;
-	this->texels = this->palette = NULL;
-	this->constructPlugins();
+	Raster *raster = (Raster*)malloc(PluginBase::s_size);
+	raster->platform = platform ? platform : rw::platform;
+	raster->type = format & 0x7;
+	raster->flags = format & 0xF8;
+	raster->format = format & 0xFF00;
+	raster->width = width;
+	raster->height = height;
+	raster->depth = depth;
+	raster->texels = raster->palette = NULL;
+	raster->constructPlugins();
 
-	int32 offset = nativeOffsets[this->platform];
+	int32 offset = nativeOffsets[raster->platform];
 	assert(offset != 0 && "unimplemented raster platform");
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
-	nr->create(this);
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
+	nr->create(raster);
+	return raster;
 }
 
-Raster::~Raster(void)
+void
+Raster::destroy(void)
 {
 	this->destructPlugins();
 	delete[] this->texels;
 	delete[] this->palette;
+	free(this);
 }
 
 uint8*
@@ -629,8 +651,8 @@ Raster::createFromImage(Image *image)
 		format = Raster::PAL4 | Raster::C8888;
 	else
 		return NULL;
-	Raster *raster = new Raster(image->width, image->height,
-	                            image->depth, format | 4 | 0x80);
+	Raster *raster = Raster::create(image->width, image->height,
+	                                image->depth, format | 4 | 0x80);
 	raster->stride = image->stride;
 
 	raster->texels = new uint8[raster->stride*raster->height];

@@ -40,8 +40,8 @@ xboxToD3d8(Raster *raster)
 	int32 format = raster->format;
 //	format &= ~Raster::MIPMAP;
 	if(ras->format){
-		newras = new Raster(raster->width, raster->height, raster->depth,
-		                    format | raster->type | 0x80, PLATFORM_D3D8);
+		newras = Raster::create(raster->width, raster->height, raster->depth,
+		                        format | raster->type | 0x80, PLATFORM_D3D8);
 		int32 dxt = 0;
 		switch(ras->format){
 		case D3DFMT_DXT1:
@@ -57,8 +57,8 @@ xboxToD3d8(Raster *raster)
 		d3d::allocateDXT(newras, dxt, numLevels, ras->hasAlpha);
 	}else{
 		printf("swizzled!\n");
-		newras = new Raster(raster->width, raster->height, raster->depth,
-		                    format | raster->type, PLATFORM_D3D8);
+		newras = Raster::create(raster->width, raster->height, raster->depth,
+		                        format | raster->type, PLATFORM_D3D8);
 	}
 
 	if(raster->format & Raster::PAL4)
@@ -145,8 +145,10 @@ main(int argc, char *argv[])
 	}
 
 	if(outplatform == PLATFORM_D3D8)
-		for(Texture *tex = txd->first; tex; tex = tex->next)
+		FORLIST(lnk, txd->textures){
+			Texture *tex = Texture::fromDict(lnk);
 			tex->raster = xboxToD3d8(tex->raster);
+		}
 //	for(Texture *tex = txd->first; tex; tex = tex->next)
 //		tex->filterAddressing = (tex->filterAddressing&~0xF) | 0x2;
 
