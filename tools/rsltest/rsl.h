@@ -42,14 +42,6 @@ typedef RslAtomic *(*RslAtomicCallBack)(RslAtomic *atomic, void *data);
 typedef RslMaterial *(*RslMaterialCallBack)(RslMaterial *material, void *data);
 typedef RslTexture *(*RslTextureCallBack)(RslTexture *texture, void *pData);
 
-struct RslRGBA
-{
-	uint8 red;
-	uint8 green;
-	uint8 blue;
-	uint8 alpha;
-};
-
 struct RslV3d
 {
 	float32 x, y, z;
@@ -311,7 +303,7 @@ struct RslMaterial {
 		char       *texname;
 		RslTexture *texture;
 	};
-	RslRGBA     color;
+	RGBA        color;
 	uint32      refCount;
 	RslMatFX   *matfx;
 };

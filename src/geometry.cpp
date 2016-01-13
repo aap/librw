@@ -19,7 +19,8 @@ Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
 	Geometry *geo = (Geometry*)malloc(PluginBase::s_size);
-	geo->object.init(8, 0);
+	assert(geo != NULL);
+	geo->object.init(Geometry::ID, 0);
 	geo->geoflags = flags & 0xFF00FFFF;
 	geo->numTexCoordSets = (flags & 0xFF0000) >> 16;
 	if(geo->numTexCoordSets == 0)
@@ -70,7 +71,7 @@ void
 Geometry::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0){
+	if(this->refCount <= 0){
 		this->destructPlugins();
 		delete[] this->colors;
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
@@ -301,10 +302,10 @@ bool32
 Geometry::hasColoredMaterial(void)
 {
 	for(int32 i = 0; i < this->numMaterials; i++)
-		if(this->materialList[i]->color[0] != 255 ||
-		   this->materialList[i]->color[1] != 255 ||
-		   this->materialList[i]->color[2] != 255 ||
-		   this->materialList[i]->color[3] != 255)
+		if(this->materialList[i]->color.red != 255 ||
+		   this->materialList[i]->color.green != 255 ||
+		   this->materialList[i]->color.blue != 255 ||
+		   this->materialList[i]->color.alpha != 255)
 			return 1;
 	return 0;
 }
@@ -406,8 +407,9 @@ Material*
 Material::create(void)
 {
 	Material *mat = (Material*)malloc(PluginBase::s_size);
+	assert(mat != NULL);
 	mat->texture = NULL;
-	memset(mat->color, 0xFF, 4);
+	memset(&mat->color, 0xFF, 4);
 	mat->surfaceProps.ambient = 1.0f;
 	mat->surfaceProps.specular = 1.0f;
 	mat->surfaceProps.diffuse = 1.0f;
@@ -421,14 +423,12 @@ Material*
 Material::clone(void)
 {
 	Material *mat = Material::create();
-	mat->color[0] = this->color[0];
-	mat->color[1] = this->color[1];
-	mat->color[2] = this->color[2];
-	mat->color[3] = this->color[3];
+	mat->color = this->color;
 	mat->surfaceProps = this->surfaceProps;
-	mat->texture = this->texture;
-	if(mat->texture)
+	if(this->texture){
+		mat->texture = this->texture;
 		mat->texture->refCount++;
+	}
 	mat->pipeline = this->pipeline;
 	mat->copyPlugins(this);
 	return mat;
@@ -438,7 +438,7 @@ void
 Material::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0){
+	if(this->refCount <= 0){
 		this->destructPlugins();
 		if(this->texture)
 			this->texture->destroy();
@@ -449,7 +449,7 @@ Material::destroy(void)
 struct MatStreamData
 {
 	int32 flags;	// unused according to RW
-	uint8 color[4];
+	RGBA  color;
 	int32 unused;
 	int32 textured;
 };
@@ -465,10 +465,7 @@ Material::streamRead(Stream *stream)
 	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(buf));
 	Material *mat = Material::create();
-	mat->color[0] = buf.color[0];
-	mat->color[1] = buf.color[1];
-	mat->color[2] = buf.color[2];
-	mat->color[3] = buf.color[3];
+	mat->color = buf.color;
 	if(version < 0x30400){
 		mat->surfaceProps.ambient = 1.0f;
 		mat->surfaceProps.specular = 1.0f;
@@ -501,10 +498,7 @@ Material::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRUCT, sizeof(MatStreamData)
 		+ (rw::version >= 0x30400 ? 12 : 0));
 
-	buf.color[0] = this->color[0];
-	buf.color[1] = this->color[1];
-	buf.color[2] = this->color[2];
-	buf.color[3] = this->color[3];
+	buf.color = this->color;
 	buf.flags = 0;
 	buf.unused = 0;
 	buf.textured = this->texture != NULL;

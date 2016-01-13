@@ -1,5 +1,23 @@
 namespace rw {
 
+struct RGBA
+{
+	uint8 red;
+	uint8 green;
+	uint8 blue;
+	uint8 alpha;
+};
+
+struct V2d
+{
+	float32 x, y;
+};
+
+struct V3d
+{
+	float32 x, y, z;
+};
+
 struct LLLink
 {
 	LLLink *next;
@@ -44,10 +62,11 @@ struct LinkList
 	}
 };
 
+// Have to be careful since the link might be deleted.
 #define FORLIST(_link, _list) \
-	for(LLLink *_link = (_list).link.next; \
-	(_link) != (_list).end(); \
-	(_link) = (_link)->next)
+	for(LLLink *_next = NULL, *_link = (_list).link.next; \
+	_next = (_link)->next, (_link) != (_list).end(); \
+	(_link) = _next)
 
 struct Object
 {
@@ -77,6 +96,7 @@ struct Frame : PluginBase<Frame>
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
 
+	enum { ID = 0 };
 	Object object;
 	LinkList objectList;
 	float32	matrix[16];
@@ -90,7 +110,6 @@ struct Frame : PluginBase<Frame>
 	int32 matflag;
 	bool dirty;
 
-	// MEM create, clonehiearchy, destroy, destroy hierarchy
 	static Frame *create(void);
 	Frame *cloneHierarchy(void);
 	void destroy(void);
@@ -99,8 +118,7 @@ struct Frame : PluginBase<Frame>
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
 	Frame *getParent(void){
-		return (Frame*)this->object.parent;
-	}
+		return (Frame*)this->object.parent; }
 	int32 count(void);
 	void updateLTM(void);
 	void setDirty(void);
@@ -121,6 +139,9 @@ struct ObjectWithFrame : Object
 		this->parent = f;
 		if(f)
 			f->objectList.add(&this->inFrame);
+	}
+	static ObjectWithFrame *fromFrame(LLLink *lnk){
+		return LLLinkGetData(lnk, ObjectWithFrame, inFrame);
 	}
 };
 
@@ -172,7 +193,6 @@ struct Image
 	uint8 *pixels;
 	uint8 *palette;
 
-	// MEM create, destroy
 	static Image *create(int32 width, int32 height, int32 depth);
 	void destroy(void);
 	void allocate(void);
@@ -212,10 +232,8 @@ struct Raster : PluginBase<Raster>
 
 	static int32 nativeOffsets[NUM_PLATFORMS];
 
-	// MEM create, destroy
 	static Raster *create(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
 	void destroy(void);
-
 	static Raster *createFromImage(Image *image);
 	uint8 *lock(int32 level);
 	void unlock(int32 level);
@@ -267,12 +285,10 @@ struct Texture : PluginBase<Texture>
 	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
 	int32 refCount;
 
-	// MEM create, addref, destroy
 	static Texture *create(Raster *raster);
 	void destroy(void);
 	static Texture *fromDict(LLLink *lnk){
-		return LLLinkGetData(lnk, Texture, inDict);
-	}
+		return LLLinkGetData(lnk, Texture, inDict); }
 	static Texture *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -307,12 +323,11 @@ struct SurfaceProperties
 struct Material : PluginBase<Material>
 {
 	Texture *texture;
-	uint8 color[4];
+	RGBA color;
 	SurfaceProperties surfaceProps;
 	Pipeline *pipeline;
 	int32 refCount;
 
-	// MEM create, clone, addref, destroy
 	static Material *create(void);
 	Material *clone(void);
 	void destroy(void);
@@ -414,6 +429,7 @@ struct InstanceDataHeader
 
 struct Geometry : PluginBase<Geometry>
 {
+	enum { ID = 8 };
 	Object object;
 	uint32 geoflags;	// TODO: rename
 	int32 numTriangles;
@@ -437,7 +453,6 @@ struct Geometry : PluginBase<Geometry>
 
 	int32 refCount;
 
-	// MEM create, addref, destroy
 	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
 	void destroy(void);
 	static Geometry *streamRead(Stream *stream);
@@ -494,50 +509,26 @@ void registerSkinPlugin(void);
 
 struct Clump;
 
-struct Light : PluginBase<Light>
-{
-	ObjectWithFrame object;
-	float32 radius;
-	float32 color[4];
-	float32 minusCosAngle;
-
-	// clump link handled by plugin in RW
-	Clump *clump;
-	LLLink inClump;
-
-	// MEM create, destroy
-	static Light *create(int32 type);
-	void destroy(void);
-	void setFrame(Frame *f) { this->object.setFrame(f); }
-	static Light *fromClump(LLLink *lnk){
-		return LLLinkGetData(lnk, Light, inClump);
-	}
-	static Light *streamRead(Stream *stream);
-	bool streamWrite(Stream *stream);
-	uint32 streamGetSize(void);
-};
-
 struct Atomic : PluginBase<Atomic>
 {
+	enum { ID = 1 };
 	ObjectWithFrame object;
 	Geometry *geometry;
 	Clump *clump;
 	LLLink inClump;
 	ObjPipeline *pipeline;
 
-	// MEM create, clone, destroy
 	static Atomic *create(void);
 	Atomic *clone(void);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
 	Frame *getFrame(void) { return (Frame*)this->object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
-		return LLLinkGetData(lnk, Atomic, inClump);
-	}
+		return LLLinkGetData(lnk, Atomic, inClump); }
 	static Atomic *streamReadClump(Stream *stream,
 	Frame **frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream,
-	Frame **frameList, int32 numFrames);
+	Frame **frameList, int32 numframes);
 	uint32 streamGetSize(void);
 	ObjPipeline *getPipeline(void);
 
@@ -548,14 +539,77 @@ extern ObjPipeline *defaultPipelines[NUM_PLATFORMS];
 
 void registerAtomicRightsPlugin(void);
 
+struct Light : PluginBase<Light>
+{
+	enum { ID = 3 };
+	ObjectWithFrame object;
+	float32 radius;
+	float32 red, green, blue;
+	float32 minusCosAngle;
+
+	// clump link handled by plugin in RW
+	Clump *clump;
+	LLLink inClump;
+
+	static Light *create(int32 type);
+	void destroy(void);
+	void setFrame(Frame *f) { this->object.setFrame(f); }
+	Frame *getFrame(void){ return (Frame*)this->object.parent; }
+	static Light *fromClump(LLLink *lnk){
+		return LLLinkGetData(lnk, Light, inClump); }
+	void setAngle(float32 angle);
+	float32 getAngle(void);
+	void setColor(float32 r, float32 g, float32 b);
+	static Light *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+
+	enum Type {
+		DIRECTIONAL = 1,
+		AMBIENT,
+		POINT = 0x80,	// positioned
+		SPOT,
+		SOFTSPOT,
+	};
+	enum Flags {
+		LIGHTATOMICS = 1,
+		LIGHTWORLD = 2
+	};
+};
+
+struct Camera : PluginBase<Camera>
+{
+	enum { ID = 4 };
+	ObjectWithFrame object;
+	V2d viewWindow;
+	V2d viewOffset;
+	float32 nearClip, farClip;
+	float32 fogPlane;
+	int32 projection;
+
+	Clump *clump;
+	LLLink inClump;
+
+	static Camera *create(void);
+	Camera *clone(void);
+	void destroy(void);
+	void setFrame(Frame *f) { this->object.setFrame(f); }
+	Frame *getFrame(void){ return (Frame*)this->object.parent; }
+	static Camera *fromClump(LLLink *lnk){
+		return LLLinkGetData(lnk, Camera, inClump); }
+	static Camera *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+};
+
 struct Clump : PluginBase<Clump>
 {
-	Object object;
+	enum { ID = 2 };
+	ObjectWithFrame object;
 	LinkList atomics;
 	LinkList lights;
-	// cameras not implemented
+	LinkList cameras;
 
-	// MEM create, clone, destroy
 	static Clump *create(void);
 	Clump *clone(void);
 	void destroy(void);
@@ -569,27 +623,29 @@ struct Clump : PluginBase<Clump>
 		l->clump = this;
 		this->lights.append(&l->inClump);
 	}
+	int32 countCameras(void);
+	void addCamera(Camera *c){
+		c->clump = this;
+		this->cameras.append(&c->inClump);
+	}
 	void setFrame(Frame *f){
-		this->object.parent = f;
-	}
+		this->object.parent = f; }
 	Frame *getFrame(void){
-		return (Frame*)this->object.parent;
-	}
+		return (Frame*)this->object.parent; }
 	static Clump *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
-
 };
 
 struct TexDictionary : PluginBase<TexDictionary>
 {
+	enum { ID = 6 };
 	Object object;
 	LinkList textures;
 
-	// MEM create, destroy
 	static TexDictionary *create(void);
 	void destroy(void);
 	int32 count(void);
@@ -602,6 +658,8 @@ struct TexDictionary : PluginBase<TexDictionary>
 	void streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 };
+
+extern TexDictionary *currentTexDictionary;
 
 struct Animation;
 
@@ -642,8 +700,6 @@ struct AnimInterpolator
 
 	AnimInterpolator(Animation *anim);
 };
-
-extern TexDictionary *currentTexDictionary;
 
 struct UVAnimKeyFrame
 {

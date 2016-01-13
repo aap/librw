@@ -33,7 +33,8 @@ TexDictionary*
 TexDictionary::create(void)
 {
 	TexDictionary *dict = (TexDictionary*)malloc(PluginBase::s_size);
-	dict->object.init(6, 0);
+	assert(dict != NULL);
+	dict->object.init(TexDictionary::ID, 0);
 	dict->textures.init();
 	dict->constructPlugins();
 	return dict;
@@ -42,6 +43,8 @@ TexDictionary::create(void)
 void
 TexDictionary::destroy(void)
 {
+	FORLIST(lnk, this->textures)
+		Texture::fromDict(lnk)->destroy();
 	this->destructPlugins();
 	free(this);
 }
@@ -50,7 +53,7 @@ int32
 TexDictionary::count(void)
 {
 	int32 n = 0;
-	FORLIST(l, this->textures)
+	FORLIST(lnk, this->textures)
 		n++;
 	return n;
 }
@@ -114,6 +117,7 @@ Texture*
 Texture::create(Raster *raster)
 {
 	Texture *tex = (Texture*)malloc(PluginBase::s_size);
+	assert(tex != NULL);
 	tex->dict = NULL;
 	tex->inDict.init();
 	memset(tex->name, 0, 32);
@@ -129,8 +133,12 @@ void
 Texture::destroy(void)
 {
 	this->refCount--;
-	if(this->refCount == 0){
+	if(this->refCount <= 0){
 		this->destructPlugins();
+		if(this->dict)
+			this->inDict.remove();
+		if(this->raster)
+			this->raster->destroy();
 		free(this);
 	}
 }
@@ -281,6 +289,7 @@ Image*
 Image::create(int32 width, int32 height, int32 depth)
 {
 	Image *img = (Image*)malloc(sizeof(*img));
+	assert(img != NULL);
 	img->flags = 0;
 	img->width = width;
 	img->height = height;
@@ -387,6 +396,7 @@ Image::getFilename(const char *name)
 	}else
 		for(int i = 0; i < numSearchPaths; i++){
 			s = (char*)malloc(strlen(p)+len);
+			assert(s != NULL);
 			strcpy(s, p);
 			strcat(s, name);
 			f = fopen(s, "r");
@@ -569,6 +579,7 @@ Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
 	Raster *raster = (Raster*)malloc(PluginBase::s_size);
+	assert(raster != NULL);
 	raster->platform = platform ? platform : rw::platform;
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;

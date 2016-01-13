@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
+#include <cmath>
 
 #include <new>
 
@@ -23,7 +24,8 @@ Frame*
 Frame::create(void)
 {
 	Frame *f = (Frame*)malloc(PluginBase::s_size);
-	f->object.init(0, 0);
+	assert(f != NULL);
+	f->object.init(Frame::ID, 0);
 	f->objectList.init();
 	f->child = NULL;
 	f->next = NULL;
@@ -104,7 +106,7 @@ Frame::addChild(Frame *child)
 Frame*
 Frame::removeChild(void)
 {
-	Frame *parent = (Frame*)this->object.parent;
+	Frame *parent = this->getParent();
 	if(parent->child == this)
 		parent->child = this->next;
 	else{
@@ -150,7 +152,7 @@ Frame::updateLTM(void)
 {
 	if(!this->dirty)
 		return;
-	Frame *parent = (Frame*)this->object.parent;
+	Frame *parent = this->getParent();
 	if(parent){
 		parent->updateLTM();
 		matrixMult(this->ltm, parent->ltm, this->matrix);
@@ -240,9 +242,11 @@ Clump*
 Clump::create(void)
 {
 	Clump *clump = (Clump*)malloc(PluginBase::s_size);
-	clump->object.init(2, 0);
+	assert(clump != NULL);
+	clump->object.init(Clump::ID, 0);
 	clump->atomics.init();
 	clump->lights.init();
+	clump->cameras.init();
 	clump->constructPlugins();
 	return clump;
 }
@@ -273,6 +277,8 @@ Clump::destroy(void)
 		Atomic::fromClump(lnk)->destroy();
 	FORLIST(lnk, this->lights)
 		Light::fromClump(lnk)->destroy();
+	FORLIST(lnk, this->cameras)
+		Camera::fromClump(lnk)->destroy();
 	if(f = this->getFrame())
 		f->destroyHierarchy();
 	free(this);
@@ -296,6 +302,15 @@ Clump::countLights(void)
 	return n;
 }
 
+int32
+Clump::countCameras(void)
+{
+	int32 n = 0;
+	FORLIST(l, this->cameras)
+		n++;
+	return n;
+}
+
 Clump*
 Clump::streamRead(Stream *stream)
 {
@@ -307,15 +322,17 @@ Clump::streamRead(Stream *stream)
 	stream->read(buf, length);
 	int32 numAtomics = buf[0];
 	int32 numLights = 0;
-	if(version > 0x33000)
+	int32 numCameras = 0;
+	if(version > 0x33000){
 		numLights = buf[1];
-	// ignore cameras
+		numCameras = buf[2];
+	}
 
 	// Frame list
 	Frame **frameList;
 	int32 numFrames;
 	clump->frameListStreamRead(stream, &frameList, &numFrames);
-	clump->object.parent = (void*)frameList[0];
+	clump->setFrame(frameList[0]);
 
 	Geometry **geometryList = 0;
 	if(version >= 0x30400){
@@ -350,6 +367,17 @@ Clump::streamRead(Stream *stream)
 		clump->addLight(l);
 	}
 
+	// Cameras
+	for(int32 i = 0; i < numCameras; i++){
+		int32 frm;
+		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+		frm = stream->readI32();
+		assert(findChunk(stream, ID_CAMERA, NULL, NULL));
+		Camera *cam = Camera::streamRead(stream);
+		cam->setFrame(frameList[frm]);
+		clump->addCamera(cam);
+	}
+
 	delete[] frameList;
 
 	clump->streamReadPlugins(stream);
@@ -368,9 +396,9 @@ Clump::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
 
-	int32 numFrames = ((Frame*)this->object.parent)->count();
+	int32 numFrames = this->getFrame()->count();
 	Frame **flist = new Frame*[numFrames];
-	makeFrameList((Frame*)this->object.parent, flist);
+	makeFrameList(this->getFrame(), flist);
 
 	this->frameListStreamWrite(stream, flist, numFrames);
 
@@ -390,12 +418,22 @@ Clump::streamWrite(Stream *stream)
 
 	FORLIST(lnk, this->lights){
 		Light *l = Light::fromClump(lnk);
-		int frm = findPointer((void*)l->object.parent, (void**)flist, numFrames);
+		int frm = findPointer(l->getFrame(), (void**)flist, numFrames);
 		if(frm < 0)
 			return false;
 		writeChunkHeader(stream, ID_STRUCT, 4);
 		stream->writeI32(frm);
 		l->streamWrite(stream);
+	}
+
+	FORLIST(lnk, this->cameras){
+		Camera *c = Camera::fromClump(lnk);
+		int frm = findPointer(c->getFrame(), (void**)flist, numFrames);
+		if(frm < 0)
+			return false;
+		writeChunkHeader(stream, ID_STRUCT, 4);
+		stream->writeI32(frm);
+		c->streamWrite(stream);
 	}
 
 	delete[] flist;
@@ -421,25 +459,29 @@ Clump::streamGetSize(void)
 	if(version > 0x33000)
 		size += 8;	// numLights, numCameras
 
-	// frame list
-	int32 numFrames = ((Frame*)this->object.parent)->count();
+	// Frame list
+	int32 numFrames = this->getFrame()->count();
 	size += 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
-	sizeCB((Frame*)this->object.parent, (void*)&size);
+	sizeCB(this->getFrame(), (void*)&size);
 
 	if(rw::version >= 0x30400){
-		// geometry list
+		// Geometry list
 		size += 12 + 12 + 4;
 		FORLIST(lnk, this->atomics)
 			size += 12 + Atomic::fromClump(lnk)->geometry->streamGetSize();
 	}
 
-	// atomics
+	// Atomics
 	FORLIST(lnk, this->atomics)
 		size += 12 + Atomic::fromClump(lnk)->streamGetSize();
 
-	// light
+	// Lights
 	FORLIST(lnk, this->lights)
 		size += 16 + 12 + Light::fromClump(lnk)->streamGetSize();
+
+	// Cameras
+	FORLIST(lnk, this->cameras)
+		size += 16 + 12 + Camera::fromClump(lnk)->streamGetSize();
 
 	size += 12 + this->streamGetPluginSize();
 	return size;
@@ -513,7 +555,7 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 		buf.pos[0] = f->matrix[12];
 		buf.pos[1] = f->matrix[13];
 		buf.pos[2] = f->matrix[14];
-		buf.parent = findPointer((void*)f->object.parent, (void**)frameList,
+		buf.parent = findPointer(f->getParent(), (void**)frameList,
 		                         numFrames);
 		buf.matflag = f->matflag;
 		stream->write(&buf, sizeof(buf));
@@ -530,7 +572,8 @@ Atomic*
 Atomic::create(void)
 {
 	Atomic *atomic = (Atomic*)malloc(PluginBase::s_size);
-	atomic->object.init(1, 0);
+	assert(atomic != NULL);
+	atomic->object.init(Atomic::ID, 0);
 	atomic->geometry = NULL;
 	atomic->pipeline = NULL;
 	atomic->constructPlugins();
@@ -596,7 +639,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 		return false;
 	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, rw::version < 0x30400 ? 12 : 16);
-	buf[0] = findPointer((void*)this->object.parent, (void**)frameList, numFrames);
+	buf[0] = findPointer(this->getFrame(), (void**)frameList, numFrames);
 
 	if(version < 0x30400){
 		stream->write(buf, sizeof(int[3]));
@@ -702,15 +745,15 @@ Light*
 Light::create(int32 type)
 {
 	Light *light = (Light*)malloc(PluginBase::s_size);
-	light->object.init(3, type);
+	assert(light != NULL);
+	light->object.init(Light::ID, type);
 	light->radius = 0.0f;
-	light->color[0] = 1.0f;
-	light->color[1] = 1.0f;
-	light->color[2] = 1.0f;
-	light->color[3] = 1.0f;
+	light->red = 1.0f;
+	light->green = 1.0f;
+	light->blue = 1.0f;
 	light->minusCosAngle = 1.0f;
 	light->object.privateFlags = 1;
-	light->object.flags = 1 | 2;
+	light->object.flags = LIGHTATOMICS | LIGHTWORLD;
 	light->inClump.init();
 	light->constructPlugins();
 	return light;
@@ -721,6 +764,27 @@ Light::destroy(void)
 {
 	this->destructPlugins();
 	free(this);
+}
+
+void
+Light::setAngle(float32 angle)
+{
+	this->minusCosAngle = -cos(angle);
+}
+
+float32
+Light::getAngle(void)
+{
+	return acos(-this->minusCosAngle);
+}
+
+void
+Light::setColor(float32 r, float32 g, float32 b)
+{
+	this->red = r;
+	this->green = g;
+	this->blue = b;
+	this->object.privateFlags = r == g && r == b;
 }
 
 struct LightChunkData
@@ -735,18 +799,20 @@ struct LightChunkData
 Light*
 Light::streamRead(Stream *stream)
 {
+	uint32 version;
 	LightChunkData buf;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	assert(findChunk(stream, ID_STRUCT, NULL, &version));
 	stream->read(&buf, sizeof(LightChunkData));
 	Light *light = Light::create(buf.type);
 	light->radius = buf.radius;
-	light->color[0] = buf.red;
-	light->color[1] = buf.green;
-	light->color[2] = buf.blue;
-	light->color[3] = 1.0f;
-	light->minusCosAngle = buf.minusCosAngle;
+	light->setColor(buf.red, buf.green, buf.blue);
+	float32 a = buf.minusCosAngle;
+	if(version >= 0x30300)
+		light->minusCosAngle = a;
+	else
+		// tan -> -cos
+		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
 	light->object.flags = (uint8)buf.flags;
-
 	light->streamReadPlugins(stream);
 	return light;
 }
@@ -758,10 +824,13 @@ Light::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_LIGHT, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, sizeof(LightChunkData));
 	buf.radius = this->radius;
-	buf.red   = this->color[0];
-	buf.green = this->color[1];
-	buf.blue  = this->color[2];
-	buf.minusCosAngle = this->minusCosAngle;
+	buf.red   = this->red;
+	buf.green = this->green;
+	buf.blue  = this->blue;
+	if(version >= 0x30300)
+		buf.minusCosAngle = this->minusCosAngle;
+	else
+		buf.minusCosAngle = tan(acos(-this->minusCosAngle));
 	buf.flags = this->object.flags;
 	buf.type = this->object.subType;
 	stream->write(&buf, sizeof(LightChunkData));
@@ -774,6 +843,85 @@ uint32
 Light::streamGetSize(void)
 {
 	return 12 + sizeof(LightChunkData) + 12 + this->streamGetPluginSize();
+}
+
+//
+// Camera
+//
+
+Camera*
+Camera::create(void)
+{
+	Camera *cam = (Camera*)malloc(PluginBase::s_size);
+	cam->object.init(Camera::ID, 0);
+	cam->constructPlugins();
+	return cam;
+}
+
+Camera*
+Camera::clone(void)
+{
+	Camera *cam = Camera::create();
+	cam->object.copy(&this->object);
+	cam->copyPlugins(this);
+	return cam;
+}
+
+void
+Camera::destroy(void)
+{
+	this->destructPlugins();
+	free(this);
+}
+
+struct CameraChunkData
+{
+	V2d viewWindow;
+	V2d viewOffset;
+	float32 nearClip, farClip;
+	float32 fogPlane;
+	int32 projection;
+};
+
+Camera*
+Camera::streamRead(Stream *stream)
+{
+	CameraChunkData buf;
+	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	stream->read(&buf, sizeof(CameraChunkData));
+	Camera *cam = Camera::create();
+	cam->viewWindow = buf.viewWindow;
+	cam->viewOffset = buf.viewOffset;
+	cam->nearClip = buf.nearClip;
+	cam->farClip = buf.farClip;
+	cam->fogPlane = buf.fogPlane;
+	cam->projection = buf.projection;
+	cam->streamReadPlugins(stream);
+	return cam;
+
+}
+
+bool
+Camera::streamWrite(Stream *stream)
+{
+	CameraChunkData buf;
+	writeChunkHeader(stream, ID_CAMERA, this->streamGetSize());
+	writeChunkHeader(stream, ID_STRUCT, sizeof(CameraChunkData));
+	buf.viewWindow = this->viewWindow;
+	buf.viewOffset = this->viewOffset;
+	buf.nearClip = this->nearClip;
+	buf.farClip  = this->farClip;
+	buf.fogPlane = this->fogPlane;
+	buf.projection = this->projection;
+	stream->write(&buf, sizeof(CameraChunkData));
+	this->streamWritePlugins(stream);
+	return true;
+}
+
+uint32
+Camera::streamGetSize(void)
+{
+	return 12 + sizeof(CameraChunkData) + 12 + this->streamGetPluginSize();
 }
 
 }

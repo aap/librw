@@ -420,7 +420,7 @@ RslGeometryForAllMaterials(RslGeometry *geometry, RslMaterialCallBack fpCallBack
 struct RslMaterialChunkInfo
 {
 	int32             flags;
-	RslRGBA           color;    // used
+	RGBA              color;    // used
 	int32             unused;
 	bool32            textured; // used
 	SurfaceProperties surfaceProps;

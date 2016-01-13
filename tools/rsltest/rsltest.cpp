@@ -125,10 +125,7 @@ convertMaterial(RslMaterial *m)
 	Material *rwm;
 	rwm = Material::create();
 
-	rwm->color[0] = m->color.red;
-	rwm->color[1] = m->color.green;
-	rwm->color[2] = m->color.blue;
-	rwm->color[3] = m->color.alpha;
+	rwm->color = m->color;
 	if(m->texture)
 		rwm->texture = convertTexture(m->texture);
 
