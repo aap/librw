@@ -39,16 +39,27 @@ findAnimInterpolatorInfo(int32 id)
 	return NULL;
 }
 
-Animation::Animation(AnimInterpolatorInfo *interpInfo, int32 numFrames, int32 flags, float duration)
+Animation*
+Animation::create(AnimInterpolatorInfo *interpInfo, int32 numFrames, int32 flags, float duration)
 {
-	this->interpInfo = interpInfo;
-	this->numFrames = numFrames;
-	this->flags = flags;
-	this->duration = duration;
-	uint8 *data = new uint8[this->numFrames*interpInfo->keyFrameSize + interpInfo->customDataSize];
-	this->keyframes = data;
-	data += this->numFrames*interpInfo->keyFrameSize;
-	this->customData = data;
+	Animation *anim = (Animation*)malloc(sizeof(*anim));
+	anim->interpInfo = interpInfo;
+	anim->numFrames = numFrames;
+	anim->flags = flags;
+	anim->duration = duration;
+	uint8 *data = new uint8[anim->numFrames*interpInfo->keyFrameSize + interpInfo->customDataSize];
+	anim->keyframes = data;
+	data += anim->numFrames*interpInfo->keyFrameSize;
+	anim->customData = data;
+	return anim;
+}
+
+void
+Animation::destroy(void)
+{
+	uint8 *c = (uint8*)this->keyframes;
+	delete[] c;
+	free(this);	
 }
 
 Animation*
@@ -61,7 +72,7 @@ Animation::streamRead(Stream *stream)
 	int32 numFrames = stream->readI32();
 	int32 flags = stream->readI32();
 	float duration = stream->readF32();
-	anim = new Animation(interpInfo, numFrames, flags, duration);
+	anim = Animation::create(interpInfo, numFrames, flags, duration);
 	interpInfo->streamRead(stream, anim);
 	return anim;
 }
@@ -74,7 +85,7 @@ Animation::streamReadLegacy(Stream *stream)
 	int32 numFrames = stream->readI32();
 	int32 flags = stream->readI32();
 	float duration = stream->readF32();
-	anim = new Animation(interpInfo, numFrames, flags, duration);
+	anim = Animation::create(interpInfo, numFrames, flags, duration);
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		stream->read(frames[i].q, 4*4);
@@ -129,18 +140,58 @@ AnimInterpolator::AnimInterpolator(Animation *anim)
 	this->anim = anim;
 }
 
+//
+// UVAnim
+//
+
+void
+UVAnimCustomData::destroy(Animation *anim)
+{
+	this->refCount--;
+	if(this->refCount <= 0)
+		anim->destroy();
+}
+
 UVAnimDictionary *currentUVAnimDictionary;
+
+UVAnimDictionary*
+UVAnimDictionary::create(void)
+{
+	UVAnimDictionary *dict = (UVAnimDictionary*)malloc(sizeof(*dict));
+	dict->animations.init();
+	return dict;
+}
+
+void
+UVAnimDictionary::destroy(void)
+{
+	FORLIST(lnk, this->animations){
+		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
+		UVAnimCustomData *cust = (UVAnimCustomData*)de->anim->customData;
+		cust->destroy(de->anim);
+		delete de;
+	}
+	free(this);
+}
+
+void
+UVAnimDictionary::add(Animation *anim)
+{
+	UVAnimDictEntry *de = new UVAnimDictEntry;
+	UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
+	de->anim = anim;
+	this->animations.append(&de->inDict);
+}
 
 UVAnimDictionary*
 UVAnimDictionary::streamRead(Stream *stream)
 {
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	UVAnimDictionary *dict = new UVAnimDictionary;
-	dict->numAnims = stream->readI32();
-	dict->anims = new Animation*[dict->numAnims];
-	for(int32 i = 0; i < dict->numAnims; i++){
+	UVAnimDictionary *dict = UVAnimDictionary::create();
+	int32 numAnims = stream->readI32();
+	for(int32 i = 0; i < numAnims; i++){
 		assert(findChunk(stream, ID_ANIMANIMATION, NULL, NULL));
-		dict->anims[i] = Animation::streamRead(stream);
+		dict->add(Animation::streamRead(stream));
 	}
 	return dict;
 }
@@ -151,9 +202,12 @@ UVAnimDictionary::streamWrite(Stream *stream)
 	uint32 size = this->streamGetSize();
 	writeChunkHeader(stream, ID_UVANIMDICT, size);
 	writeChunkHeader(stream, ID_STRUCT, 4);
-	stream->writeI32(this->numAnims);
-	for(int32 i = 0; i < this->numAnims; i++)
-		this->anims[i]->streamWrite(stream);
+	int32 numAnims = this->count();
+	stream->writeI32(numAnims);
+	FORLIST(lnk, this->animations){
+		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
+		de->anim->streamWrite(stream);
+	}
 	return true;
 }
 
@@ -161,16 +215,19 @@ uint32
 UVAnimDictionary::streamGetSize(void)
 {
 	uint32 size = 12 + 4;
-	for(int32 i = 0; i < this->numAnims; i++)
-		size += 12 + this->anims[i]->streamGetSize();
+	int32 numAnims = this->count();
+	FORLIST(lnk, this->animations){
+		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
+		size += 12 + de->anim->streamGetSize();
+	}
 	return size;
 }
 
 Animation*
 UVAnimDictionary::find(const char *name)
 {
-	for(int32 i = 0; i < this->numAnims; i++){
-		Animation *anim = this->anims[i];
+	FORLIST(lnk, this->animations){
+		Animation *anim = UVAnimDictEntry::fromDict(lnk)->anim;
 		UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
 		if(strncmp(custom->name, name, 32) == 0)	// strncmp correct?
 			return anim;
@@ -186,6 +243,7 @@ uvAnimStreamRead(Stream *stream, Animation *anim)
 	stream->readI32();
 	stream->read(custom->name, 32);
 	stream->read(custom->nodeToUVChannel, 8*4);
+	custom->refCount = 1;
 
 	for(int32 i = 0; i < anim->numFrames; i++){
 		frames[i].time = stream->readF32();
@@ -262,8 +320,14 @@ destroyUVAnim(void *object, int32 offset, int32)
 {
 	UVAnim *uvanim;
 	uvanim = PLUGINOFFSET(UVAnim, object, offset);
-	// TODO: ref counts &c.
-	(void)uvanim;
+	for(int32 i = 0; i < 8; i++){
+		AnimInterpolator *ip = uvanim->interp[i];
+		if(ip){
+			UVAnimCustomData *custom = (UVAnimCustomData*)ip->anim->customData;
+			custom->destroy(ip->anim);
+			delete ip;
+		}
+	}
 	return object;
 }
 
@@ -273,8 +337,16 @@ copyUVAnim(void *dst, void *src, int32 offset, int32)
 	UVAnim *srcuvanim, *dstuvanim;
 	dstuvanim = PLUGINOFFSET(UVAnim, dst, offset);
 	srcuvanim = PLUGINOFFSET(UVAnim, src, offset);
-	memcpy(dstuvanim, srcuvanim, sizeof(*srcuvanim));
-	// TODO: ref counts &c.
+	for(int32 i = 0; i < 8; i++){
+		AnimInterpolator *srcip = srcuvanim->interp[i];
+		AnimInterpolator *dstip;
+		if(srcip){
+			UVAnimCustomData *custom = (UVAnimCustomData*)srcip->anim->customData;
+			dstip = new AnimInterpolator(srcip->anim);
+			custom->refCount++;
+			dstuvanim->interp[i] = dstip;
+		}
+	}
 	return dst;
 }
 
@@ -282,12 +354,13 @@ Animation*
 makeDummyAnimation(const char *name)
 {
 	AnimInterpolatorInfo *interpInfo = findAnimInterpolatorInfo(0x1C0);
-	Animation *anim = new Animation(interpInfo, 2, 0, 1.0f);
+	Animation *anim = Animation::create(interpInfo, 2, 0, 1.0f);
 	UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
-//	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
 	strncpy(custom->name, name, 32);
 	memset(custom->nodeToUVChannel, 0, sizeof(custom->nodeToUVChannel));
+	custom->refCount = 1;
 	// TODO: init the frames
+//	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
 	return anim;
 }
 
@@ -305,9 +378,14 @@ readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 			Animation *anim = NULL;
 			if(currentUVAnimDictionary)
 				anim = currentUVAnimDictionary->find(name);
-			if(anim == NULL)
+			if(anim == NULL){
 				anim = makeDummyAnimation(name);
+				if(currentUVAnimDictionary)
+					currentUVAnimDictionary->add(anim);
+			}
+			UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
 			AnimInterpolator *interp = new AnimInterpolator(anim);
+			custom->refCount++;
 			uvanim->interp[i] = interp;
 		}
 		bit <<= 1;

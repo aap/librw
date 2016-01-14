@@ -49,15 +49,6 @@ TexDictionary::destroy(void)
 	free(this);
 }
 
-int32
-TexDictionary::count(void)
-{
-	int32 n = 0;
-	FORLIST(lnk, this->textures)
-		n++;
-	return n;
-}
-
 Texture*
 TexDictionary::find(const char *name)
 {
@@ -151,8 +142,10 @@ Texture::read(const char *name, const char *mask)
 	Raster *raster = NULL;
 	Texture *tex;
 
-	if(currentTexDictionary && (tex = currentTexDictionary->find(name)))
+	if(currentTexDictionary && (tex = currentTexDictionary->find(name))){
+		tex->refCount++;
 		return tex;
+	}
 	tex = Texture::create(NULL);
 	strncpy(tex->name, name, 32);
 	strncpy(tex->mask, mask, 32);

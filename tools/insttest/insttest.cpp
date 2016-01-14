@@ -97,6 +97,8 @@ main(int argc, char *argv[])
 	//in.open(data, len);
 	StreamFile in;
 	in.open(argv[0], "rb");
+	currentUVAnimDictionary = NULL;
+	currentTexDictionary = TexDictionary::create();
 	ChunkHeaderInfo header;
 	readChunkHeaderInfo(&in, &header);
 	if(header.type == ID_UVANIMDICT){
@@ -124,6 +126,11 @@ main(int argc, char *argv[])
 		}
 	}
 */
+	//FORLIST(lnk, c->lights){
+	//	Light *l = Light::fromClump(lnk);
+	//	printf("%p %p\n", l, lnk);
+	//	printf("%d %f %f %f\n", l->getType(), l->color.red, l->color.green, l->color.blue);
+	//}
 
 	int32 platform = findPlatform(c);
 	if(platform){
@@ -185,6 +192,9 @@ main(int argc, char *argv[])
 //	out.close();
 //	delete[] data;
 
+	if(currentUVAnimDictionary)
+		currentUVAnimDictionary->destroy();
+	//currentTexDictionary->destroy();
 	c->destroy();
 
 	return 0;

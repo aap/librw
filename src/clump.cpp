@@ -284,33 +284,6 @@ Clump::destroy(void)
 	free(this);
 }
 
-int32
-Clump::countAtomics(void)
-{
-	int32 n = 0;
-	FORLIST(l, this->atomics)
-		n++;
-	return n;
-}
-
-int32
-Clump::countLights(void)
-{
-	int32 n = 0;
-	FORLIST(l, this->lights)
-		n++;
-	return n;
-}
-
-int32
-Clump::countCameras(void)
-{
-	int32 n = 0;
-	FORLIST(l, this->cameras)
-		n++;
-	return n;
-}
-
 Clump*
 Clump::streamRead(Stream *stream)
 {
@@ -748,9 +721,10 @@ Light::create(int32 type)
 	assert(light != NULL);
 	light->object.init(Light::ID, type);
 	light->radius = 0.0f;
-	light->red = 1.0f;
-	light->green = 1.0f;
-	light->blue = 1.0f;
+	light->color.red = 1.0f;
+	light->color.green = 1.0f;
+	light->color.blue = 1.0f;
+	light->color.alpha = 1.0f;
 	light->minusCosAngle = 1.0f;
 	light->object.privateFlags = 1;
 	light->object.flags = LIGHTATOMICS | LIGHTWORLD;
@@ -781,9 +755,9 @@ Light::getAngle(void)
 void
 Light::setColor(float32 r, float32 g, float32 b)
 {
-	this->red = r;
-	this->green = g;
-	this->blue = b;
+	this->color.red = r;
+	this->color.green = g;
+	this->color.blue = b;
 	this->object.privateFlags = r == g && r == b;
 }
 
@@ -824,9 +798,9 @@ Light::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_LIGHT, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, sizeof(LightChunkData));
 	buf.radius = this->radius;
-	buf.red   = this->red;
-	buf.green = this->green;
-	buf.blue  = this->blue;
+	buf.red   = this->color.red;
+	buf.green = this->color.green;
+	buf.blue  = this->color.blue;
 	if(version >= 0x30300)
 		buf.minusCosAngle = this->minusCosAngle;
 	else
@@ -854,6 +828,12 @@ Camera::create(void)
 {
 	Camera *cam = (Camera*)malloc(PluginBase::s_size);
 	cam->object.init(Camera::ID, 0);
+	cam->viewWindow.set(1.0f, 1.0f);
+	cam->viewOffset.set(0.0f, 0.0f);
+	cam->nearPlane = 0.05f;
+	cam->farPlane = 10.0f;
+	cam->fogPlane = 5.0f;
+	cam->projection = 1;
 	cam->constructPlugins();
 	return cam;
 }
@@ -863,6 +843,13 @@ Camera::clone(void)
 {
 	Camera *cam = Camera::create();
 	cam->object.copy(&this->object);
+	cam->setFrame(this->getFrame());
+	cam->viewWindow = this->viewWindow;
+	cam->viewOffset = this->viewOffset;
+	cam->nearPlane = this->nearPlane;
+	cam->farPlane = this->farPlane;
+	cam->fogPlane = this->fogPlane;
+	cam->projection = this->projection;
 	cam->copyPlugins(this);
 	return cam;
 }
@@ -878,7 +865,7 @@ struct CameraChunkData
 {
 	V2d viewWindow;
 	V2d viewOffset;
-	float32 nearClip, farClip;
+	float32 nearPlane, farPlane;
 	float32 fogPlane;
 	int32 projection;
 };
@@ -892,8 +879,8 @@ Camera::streamRead(Stream *stream)
 	Camera *cam = Camera::create();
 	cam->viewWindow = buf.viewWindow;
 	cam->viewOffset = buf.viewOffset;
-	cam->nearClip = buf.nearClip;
-	cam->farClip = buf.farClip;
+	cam->nearPlane = buf.nearPlane;
+	cam->farPlane = buf.farPlane;
 	cam->fogPlane = buf.fogPlane;
 	cam->projection = buf.projection;
 	cam->streamReadPlugins(stream);
@@ -909,8 +896,8 @@ Camera::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRUCT, sizeof(CameraChunkData));
 	buf.viewWindow = this->viewWindow;
 	buf.viewOffset = this->viewOffset;
-	buf.nearClip = this->nearClip;
-	buf.farClip  = this->farClip;
+	buf.nearPlane = this->nearPlane;
+	buf.farPlane  = this->farPlane;
 	buf.fogPlane = this->fogPlane;
 	buf.projection = this->projection;
 	stream->write(&buf, sizeof(CameraChunkData));

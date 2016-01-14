@@ -8,14 +8,26 @@ struct RGBA
 	uint8 alpha;
 };
 
+struct RGBAf
+{
+	float32 red;
+	float32 green;
+	float32 blue;
+	float32 alpha;
+};
+
 struct V2d
 {
 	float32 x, y;
+	void set(float32 x, float32 y){
+		this->x = x; this->y = y; }
 };
 
 struct V3d
 {
 	float32 x, y, z;
+	void set(float32 x, float32 y, float32 z){
+		this->x = x; this->y = y; this->z = z; }
 };
 
 struct LLLink
@@ -34,6 +46,12 @@ struct LLLink
 
 #define LLLinkGetData(linkvar,type,entry)                           \
     ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
+
+// Have to be careful since the link might be deleted.
+#define FORLIST(_link, _list) \
+	for(LLLink *_next = NULL, *_link = (_list).link.next; \
+	_next = (_link)->next, (_link) != (_list).end(); \
+	(_link) = _next)
 
 struct LinkList
 {
@@ -60,13 +78,13 @@ struct LinkList
 	LLLink *end(void){
 		return &this->link;
 	}
+	int32 count(void){
+		int32 n = 0;
+		FORLIST(lnk, (*this))
+			n++;
+		return n;
+	}
 };
-
-// Have to be careful since the link might be deleted.
-#define FORLIST(_link, _list) \
-	for(LLLink *_next = NULL, *_link = (_list).link.next; \
-	_next = (_link)->next, (_link) != (_list).end(); \
-	(_link) = _next)
 
 struct Object
 {
@@ -544,7 +562,7 @@ struct Light : PluginBase<Light>
 	enum { ID = 3 };
 	ObjectWithFrame object;
 	float32 radius;
-	float32 red, green, blue;
+	RGBAf color;
 	float32 minusCosAngle;
 
 	// clump link handled by plugin in RW
@@ -560,6 +578,7 @@ struct Light : PluginBase<Light>
 	void setAngle(float32 angle);
 	float32 getAngle(void);
 	void setColor(float32 r, float32 g, float32 b);
+	int32 getType(void){ return this->object.subType; }
 	static Light *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -583,7 +602,7 @@ struct Camera : PluginBase<Camera>
 	ObjectWithFrame object;
 	V2d viewWindow;
 	V2d viewOffset;
-	float32 nearClip, farClip;
+	float32 nearPlane, farPlane;
 	float32 fogPlane;
 	int32 projection;
 
@@ -605,7 +624,7 @@ struct Camera : PluginBase<Camera>
 struct Clump : PluginBase<Clump>
 {
 	enum { ID = 2 };
-	ObjectWithFrame object;
+	Object object;
 	LinkList atomics;
 	LinkList lights;
 	LinkList cameras;
@@ -613,17 +632,17 @@ struct Clump : PluginBase<Clump>
 	static Clump *create(void);
 	Clump *clone(void);
 	void destroy(void);
-	int32 countAtomics(void);
+	int32 countAtomics(void) { return this->atomics.count(); }
 	void addAtomic(Atomic *a){
 		a->clump = this;
 		this->atomics.append(&a->inClump);
 	}
-	int32 countLights(void);
+	int32 countLights(void) { return this->lights.count(); }
 	void addLight(Light *l){
 		l->clump = this;
 		this->lights.append(&l->inClump);
 	}
-	int32 countCameras(void);
+	int32 countCameras(void) { return this->cameras.count(); }
 	void addCamera(Camera *c){
 		c->clump = this;
 		this->cameras.append(&c->inClump);
@@ -648,7 +667,7 @@ struct TexDictionary : PluginBase<TexDictionary>
 
 	static TexDictionary *create(void);
 	void destroy(void);
-	int32 count(void);
+	int32 count(void) { return this->textures.count(); }
 	void add(Texture *t){
 		t->dict = this;
 		this->textures.append(&t->inDict);
@@ -685,7 +704,8 @@ struct Animation
 	void *keyframes;
 	void *customData;
 
-	Animation(AnimInterpolatorInfo*, int32 numFrames, int32 flags, float duration);
+	static Animation *create(AnimInterpolatorInfo*, int32 numFrames, int32 flags, float duration);
+	void destroy(void);
 	static Animation *streamRead(Stream *stream);
 	static Animation *streamReadLegacy(Stream *stream);
 	bool streamWrite(Stream *stream);
@@ -708,23 +728,43 @@ struct UVAnimKeyFrame
 	float uv[6];
 };
 
+struct UVAnimDictionary;
+
+// RW does it differently...maybe we should implement RtDict
+// and make it more general?
+
 struct UVAnimCustomData
 {
 	char name[32];
 	int32 nodeToUVChannel[8];
-	// RW has a refcount
+	int32 refCount;
+
+	void destroy(Animation *anim);
 };
 
+// This should be more general probably
+struct UVAnimDictEntry
+{
+	Animation *anim;
+	LLLink inDict;
+	static UVAnimDictEntry *fromDict(LLLink *lnk){
+		return LLLinkGetData(lnk, UVAnimDictEntry, inDict); }
+};
+
+// This too
 struct UVAnimDictionary
 {
-	// TODO: linked list probably
-	int32 numAnims;
-	Animation **anims;
+	LinkList animations;
+
+	static UVAnimDictionary *create(void);
+	void destroy(void);
+	int32 count(void) { return this->animations.count(); }
+	void add(Animation *anim);
+	Animation *find(const char *name);
 
 	static UVAnimDictionary *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
-	Animation *find(const char *name);
 };
 
 extern UVAnimDictionary *currentUVAnimDictionary;
