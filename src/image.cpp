@@ -170,7 +170,7 @@ Texture*
 Texture::streamRead(Stream *stream)
 {
 	uint32 length;
-	char name[32], mask[32];
+	char name[128], mask[128];
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	uint32 filterAddressing = stream->readU32();
 	// TODO: if V addressing is 0, copy U
@@ -197,18 +197,22 @@ bool
 Texture::streamWrite(Stream *stream)
 {
 	int size;
+	char buf[36];
 	writeChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, 4);
 	stream->writeU32(this->filterAddressing);
 
-	// TODO: length can't be > 32
-	size = strlen(this->name)+4 & ~3;
+	memset(buf, 0, 36);
+	strncpy(buf, this->name, 32);
+	size = strlen(buf)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(this->name, size);
+	stream->write(buf, size);
 
-	size = strlen(this->mask)+4 & ~3;
+	memset(buf, 0, 36);
+	strncpy(buf, this->mask, 32);
+	size = strlen(buf)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(this->mask, size);
+	stream->write(buf, size);
 
 	this->streamWritePlugins(stream);
 	return true;
@@ -640,7 +644,7 @@ Raster::calculateNumLevels(int32 width, int32 height)
 Raster*
 Raster::createFromImage(Image *image)
 {
-	assert(0 && "unsupported atm");
+	assert(0 && "cannot create raster from image");
 	int32 format;
 	// TODO: make that into a function
 	if(image->depth == 32)

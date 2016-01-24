@@ -36,6 +36,42 @@ usage(void)
 	exit(1);
 }
 
+void
+dumpUVAnim(Animation *anim)
+{
+	UVAnimCustomData *cust = (UVAnimCustomData*)anim->customData;
+	printf(" %s", cust->name);
+	for(int i = 0; i < 8; i++)
+		printf(" %d", cust->nodeToUVChannel[i]);
+	printf("\n %d %x\n", anim->numFrames, anim->interpInfo->id);
+	UVAnimKeyFrame *kf = (UVAnimKeyFrame*)anim->keyframes;
+	for(int i = 0; i < anim->numFrames; i++){
+		printf(" %f\n", kf->time);
+		printf("  %f %f %f %f %f %f\n", kf->uv[0], kf->uv[1], kf->uv[2], kf->uv[3], kf->uv[4], kf->uv[5]);
+		kf++;
+	}
+}
+
+void
+dumpFrameHier(Frame *frame, int ind = 0)
+{
+	for(int i = 0; i < ind; i++)
+		printf("  ");
+	char *name = gta::getNodeName(frame);
+	HAnimData *hanim = HAnimData::get(frame);
+	printf("*%s %d %d %s\n", name[0] ? name : "---", frame->objectList.count(), hanim->id, hanim->hierarchy ? "HIERARCHY" : "");
+	if(hanim->hierarchy){
+		HAnimHierarchy *h = hanim->hierarchy;
+		for(int i = 0; i < h->numNodes; i++){
+			name = h->nodeInfo[i].frame ? gta::getNodeName(h->nodeInfo[i].frame) : "";
+			printf("\t\t%d %d\t%p %s\n", h->nodeInfo[i].id, h->nodeInfo[i].flags, h->nodeInfo[i].frame, name);
+		}
+	}
+	for(Frame *child = frame->child;
+	    child; child = child->next)
+		dumpFrameHier(child, ind+1);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -106,7 +142,10 @@ main(int argc, char *argv[])
 		currentUVAnimDictionary = dict;
 		readChunkHeaderInfo(&in, &header);
 	}
-	assert(header.type == ID_CLUMP);
+	if(header.type != ID_CLUMP){
+		in.close();
+		return 0;
+	}
 	debugFile = argv[0];
 	c = Clump::streamRead(&in);
 	assert(c != NULL);
@@ -130,6 +169,19 @@ main(int argc, char *argv[])
 	//	Light *l = Light::fromClump(lnk);
 	//	printf("%p %p\n", l, lnk);
 	//	printf("%d %f %f %f\n", l->getType(), l->color.red, l->color.green, l->color.blue);
+	//}
+
+	HAnimHierarchy *hier = HAnimHierarchy::find(c->getFrame());
+	if(hier)
+		hier->attach();
+	dumpFrameHier(c->getFrame());
+
+	//if(currentUVAnimDictionary){
+	//	FORLIST(lnk, currentUVAnimDictionary->animations){
+	//		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
+	//		Animation *anim = de->anim;
+	//		dumpUVAnim(anim);
+	//	}
 	//}
 
 	int32 platform = findPlatform(c);
@@ -192,10 +244,10 @@ main(int argc, char *argv[])
 //	out.close();
 //	delete[] data;
 
+	c->destroy();
 	if(currentUVAnimDictionary)
 		currentUVAnimDictionary->destroy();
-	//currentTexDictionary->destroy();
-	c->destroy();
+	currentTexDictionary->destroy();
 
 	return 0;
 }

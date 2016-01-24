@@ -233,6 +233,8 @@ static uint32
 getBatchSize(MatPipeline *pipe, uint32 vertCount)
 {
 	PipeAttribute *a;
+	if(vertCount == 0)
+		return 0;
 	uint32 size = 1;	// ITOP &c. at the end
 	for(uint i = 0; i < nelem(pipe->attribs); i++)
 		if((a = pipe->attribs[i]) && (a->attrib & AT_RW) == 0){
@@ -393,21 +395,22 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 				im.numAttribs++;
 			}
 	uint32 totalVerts = 0;
-	if(g->meshHeader->flags == 1){	// tristrip
-		im.numBatches = 0;
-		for(uint i = 0; i < m->numIndices; i += pipe->triStripCount-2){
-			im.numBatches++;
-			totalVerts += m->numIndices-i < pipe->triStripCount ?
-			              m->numIndices-i : pipe->triStripCount;
-		}
+	if(g->meshHeader->flags == MeshHeader::TRISTRIP){
+		im.numBatches = (m->numIndices-2) / (pipe->triStripCount-2);
 		im.batchVertCount = pipe->triStripCount;
-		im.lastBatchVertCount = totalVerts % pipe->triStripCount;
-	}else{				// trilist
+		im.lastBatchVertCount = (m->numIndices-2) % (pipe->triStripCount-2);
+		if(im.lastBatchVertCount){
+			im.numBatches++;
+			im.lastBatchVertCount += 2;
+		}
+	}else{
 		im.numBatches = (m->numIndices+pipe->triListCount-1) /
 		                 pipe->triListCount;
 		im.batchVertCount = pipe->triListCount;
 		im.lastBatchVertCount = m->numIndices % pipe->triListCount;
 	}
+	if(im.lastBatchVertCount == 0)
+		im.lastBatchVertCount = im.batchVertCount;
 
 	im.batchSize = getBatchSize(pipe, im.batchVertCount);
 	im.lastBatchSize = getBatchSize(pipe, im.lastBatchVertCount);
@@ -572,8 +575,10 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 			if((a = this->attribs[i]) && (a->attrib & AT_RW) == 0){
 				uint32 asz = attribSize(a->attrib);
 				p += 4;
-				if((p[-1] & 0xff004000) != a->attrib)
-					printf("unexpected unpack: %08x %08x\n", p[-1], a->attrib);
+				if((p[-1] & 0xff004000) != a->attrib){
+					fprintf(stderr, "unexpected unpack xx: %08x %08x\n", p[-1], a->attrib);
+					assert(0 && "unexpected unpack\n");
+				}
 				memcpy(datap[i], p, asz*nverts);
 				datap[i] += asz*(nverts-overlap);
 				p += QWC(asz*nverts)*4;

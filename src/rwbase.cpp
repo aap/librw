@@ -26,21 +26,55 @@ int32 build = 0xFFFF;
 char *debugFile = NULL;
 
 void
+matrixIdentify(float32 *mat)
+{
+	memset(mat, 0, 64);
+	mat[0] = 1.0f;
+	mat[5] = 1.0f;
+	mat[10] = 1.0f;
+	mat[16] = 1.0f;
+}
+
+void
 matrixMult(float32 *out, float32 *a, float32 *b)
 {
 	// TODO: replace with platform optimized code
 	#define L(i,j) out[i*4+j]
 	#define A(i,j) a[i*4+j]
 	#define B(i,j) b[i*4+j]
-			for(int i = 0; i < 4; i++)
-				for(int j = 0; j < 4; j++)
-					L(i,j) = A(0,j)*B(i,0)
-					       + A(1,j)*B(i,1)
-					       + A(2,j)*B(i,2)
-					       + A(3,j)*B(i,3);
+	for(int i = 0; i < 4; i++)
+		for(int j = 0; j < 4; j++)
+			L(i,j) = A(0,j)*B(i,0)
+			       + A(1,j)*B(i,1)
+			       + A(2,j)*B(i,2)
+			       + A(3,j)*B(i,3);
 	#undef L
 	#undef A
 	#undef B
+}
+
+void
+vecTrans(float32 *out, float32 *mat, float32 *vec)
+{
+	#define M(i,j) mat[i*4+j]
+	for(int i = 0; i < 4; i++)
+		out[i] = M(0,i)*vec[0]
+		       + M(1,i)*vec[1]
+		       + M(2,i)*vec[2]
+		       + M(3,i)*vec[3];
+	#undef M
+}
+
+void
+matrixTranspose(float32 *out, float32 *in)
+{
+	#define OUT(i,j) out[i*4+j]
+	#define IN(i,j) in[i*4+j]
+	for(int i = 0; i < 4; i++)
+		for(int j = 0; j < 4; j++)
+			OUT(i,j) = IN(j,i);
+	#undef IN
+	#undef OUT
 }
 
 void

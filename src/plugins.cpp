@@ -24,6 +24,101 @@ namespace rw {
 //
 
 int32 hAnimOffset;
+bool32 hAnimDoStream = 1;
+
+HAnimHierarchy*
+HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 flags, int32 maxKeySize)
+{
+	HAnimHierarchy *hier = (HAnimHierarchy*)malloc(sizeof(*hier));
+
+	hier->numNodes = numNodes;
+	hier->flags = flags;
+	hier->maxInterpKeyFrameSize = maxKeySize;
+	hier->parentFrame = NULL;
+	hier->parentHierarchy = hier;
+	if(hier->flags & 2)
+		hier->matrices = hier->matricesUnaligned = NULL;
+	else{
+		hier->matricesUnaligned =
+		  (float*) new uint8[hier->numNodes*64 + 15];
+		hier->matrices =
+		  (float*)((uintptr)hier->matricesUnaligned & ~0xF);
+	}
+	hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
+	for(int32 i = 0; i < hier->numNodes; i++){
+		hier->nodeInfo[i].id = nodeIDs[i];
+		hier->nodeInfo[i].index = i;
+		hier->nodeInfo[i].flags = nodeFlags[i];
+		hier->nodeInfo[i].frame = NULL;
+	}
+	return hier;
+}
+
+void
+HAnimHierarchy::destroy(void)
+{
+	delete[] (uint8*)this->matricesUnaligned;
+	delete[] this->nodeInfo;
+	free(this);
+}
+
+static Frame*
+findById(Frame *f, int32 id)
+{
+	if(f == NULL) return NULL;
+	HAnimData *hanim = HAnimData::get(f);
+	if(hanim->id >= 0 && hanim->id == id) return f;
+	Frame *ff = findById(f->next, id);
+	if(ff) return ff;
+	return findById(f->child, id);
+}
+
+void
+HAnimHierarchy::attachByIndex(int32 idx)
+{
+	int32 id = this->nodeInfo[idx].id;
+	Frame *f = findById(this->parentFrame, id);
+	this->nodeInfo[idx].frame = f;
+}
+
+void
+HAnimHierarchy::attach(void)
+{
+	for(int32 i = 0; i < this->numNodes; i++)
+		this->attachByIndex(i);
+}
+
+int32
+HAnimHierarchy::getIndex(int32 id)
+{
+	for(int32 i = 0; i < this->numNodes; i++)
+		if(this->nodeInfo[i].id == id)
+			return i;
+	return -1;
+}
+
+HAnimHierarchy*
+HAnimHierarchy::get(Frame *f)
+{
+	return HAnimData::get(f)->hierarchy;
+}
+
+HAnimHierarchy*
+HAnimHierarchy::find(Frame *f)
+{
+	if(f == NULL) return NULL;
+	HAnimHierarchy *hier = HAnimHierarchy::get(f);
+	if(hier) return hier;
+	hier = HAnimHierarchy::find(f->next);
+	if(hier) return hier;
+	return HAnimHierarchy::find(f->child);
+}
+
+HAnimData*
+HAnimData::get(Frame *f)
+{
+	return PLUGINOFFSET(HAnimData, f, hAnimOffset);
+}
 
 static void*
 createHAnim(void *object, int32 offset, int32)
@@ -38,12 +133,8 @@ static void*
 destroyHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
-	if(hanim->hierarchy){
-		HAnimHierarchy *hier = hanim->hierarchy;
-		delete[] (uint8*)hier->matricesUnaligned;
-		delete[] hier->nodeInfo;
-		delete hier;
-	}
+	if(hanim->hierarchy)
+		hanim->hierarchy->destroy();
 	hanim->id = -1;
 	hanim->hierarchy = NULL;
 	return object;
@@ -70,28 +161,20 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	hanim->id = stream->readI32();
 	numNodes = stream->readI32();
 	if(numNodes != 0){
-		HAnimHierarchy *hier = new HAnimHierarchy;
-		hanim->hierarchy = hier;
-		hier->numNodes = numNodes;
-		hier->flags = stream->readI32();
-		hier->maxInterpKeyFrameSize = stream->readI32();
-		hier->parentFrame = (Frame*)object;
-		hier->parentHierarchy = hier;
-		if(hier->flags & 2)
-			hier->matrices = hier->matricesUnaligned = NULL;
-		else{
-			hier->matricesUnaligned =
-			  (float*) new uint8[hier->numNodes*64 + 15];
-			hier->matrices =
-			  (float*)((uintptr)hier->matricesUnaligned & ~0xF);
+		int32 flags = stream->readI32();
+		int32 maxKeySize = stream->readI32();
+		int32 *nodeFlags = new int32[numNodes];
+		int32 *nodeIDs = new int32[numNodes];
+		for(int32 i = 0; i < numNodes; i++){
+			nodeIDs[i] = stream->readI32();
+			stream->readI32();	// index...unused
+			nodeFlags[i] = stream->readI32();
 		}
-		hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
-		for(int32 i = 0; i < hier->numNodes; i++){
-			hier->nodeInfo[i].id = stream->readI32();
-			hier->nodeInfo[i].index = stream->readI32();
-			hier->nodeInfo[i].flags = stream->readI32();
-			hier->nodeInfo[i].frame = NULL;
-		}
+		hanim->hierarchy = HAnimHierarchy::create(numNodes,
+			nodeFlags, nodeIDs, flags, maxKeySize);
+		hanim->hierarchy->parentFrame = (Frame*)object;
+		delete[] nodeFlags;
+		delete[] nodeIDs;
 	}
 }
 
@@ -121,8 +204,9 @@ getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	// TODO: version correct?
-	if(version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == NULL)
-		return -1;
+	if(!hAnimDoStream ||
+	   version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == NULL)
+		return 0;
 	if(hanim->hierarchy)
 		return 12 + 8 + hanim->hierarchy->numNodes*12;
 	return 12;
@@ -605,7 +689,7 @@ getSizeSkin(void *object, int32 offset, int32)
 static void
 skinRights(void *object, int32, int32, uint32)
 {
-	((Atomic*)object)->pipeline = skinGlobals.pipelines[rw::platform];
+	Skin::setPipeline((Atomic*)object, 1);
 }
 
 void
@@ -712,6 +796,13 @@ Skin::findUsedBones(int32 numVertices)
 			this->usedBones[this->numUsedBones++] = i;
 }
 
+void
+Skin::setPipeline(Atomic *a, int32 type)
+{
+	(void)type;
+	a->pipeline = skinGlobals.pipelines[rw::platform];
+}
+
 //
 // MatFX
 //
@@ -728,28 +819,22 @@ createAtomicMatFX(void *object, int32 offset, int32)
 static void*
 copyAtomicMatFX(void *dst, void *src, int32 offset, int32)
 {
-	*PLUGINOFFSET(int32, dst, offset) = *PLUGINOFFSET(int32, src, offset);
+	if(*PLUGINOFFSET(int32, src, offset))
+		MatFX::enableEffects((Atomic*)dst);
 	return dst;
 }
 
 static void
 readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
-	int32 flag;
-	stream->read(&flag, 4);
-//	printf("matfx: %d\n", flag);
-	*PLUGINOFFSET(int32, object, offset) = flag;
-	if(flag)
-		((Atomic*)object)->pipeline =
-			matFXGlobals.pipelines[rw::platform];
+	if(stream->readI32())
+		MatFX::enableEffects((Atomic*)object);
 }
 
 static void
 writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
-	int32 flag;
-	flag = *PLUGINOFFSET(int32, object, offset);
-	stream->writeI32(flag);
+	stream->writeI32(*PLUGINOFFSET(int32, object, offset));
 }
 
 static int32
@@ -827,6 +912,22 @@ MatFX::getEffectIndex(uint32 type)
 }
 
 void
+MatFX::setBumpTexture(Texture *t)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		this->fx[i].bump.tex = t;
+}
+
+void
+MatFX::setBumpCoefficient(float32 coef)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		this->fx[i].bump.coefficient = coef;
+}
+
+void
 MatFX::setEnvTexture(Texture *t)
 {
 	int32 i = this->getEffectIndex(ENVMAP);
@@ -840,6 +941,30 @@ MatFX::setEnvCoefficient(float32 coef)
 	int32 i = this->getEffectIndex(ENVMAP);
 	if(i >= 0)
 		this->fx[i].env.coefficient = coef;
+}
+
+void
+MatFX::setDualTexture(Texture *t)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		this->fx[i].dual.tex = t;
+}
+
+void
+MatFX::setDualSrcBlend(int32 blend)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		this->fx[i].dual.srcBlend = blend;
+}
+
+void
+MatFX::setDualDestBlend(int32 blend)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		this->fx[i].dual.dstBlend = blend;
 }
 
 static void*
@@ -1039,10 +1164,17 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 }
 
 void
+MatFX::enableEffects(Atomic *atomic)
+{
+	*PLUGINOFFSET(int32, atomic, matFXGlobals.atomicOffset) = 1;
+	atomic->pipeline = matFXGlobals.pipelines[rw::platform];
+}
+
+void
 registerMatFXPlugin(void)
 {
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	defpipe->pluginID = ID_MATFX;
+	defpipe->pluginID = 0; //ID_MATFX;
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		matFXGlobals.pipelines[i] = defpipe;

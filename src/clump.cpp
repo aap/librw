@@ -88,16 +88,21 @@ Frame::destroyHierarchy(void)
 }
 
 Frame*
-Frame::addChild(Frame *child)
+Frame::addChild(Frame *child, bool32 append)
 {
-	if(this->child == NULL)
+	if(append){
+		if(this->child == NULL)
+			this->child = child;
+		else{
+			Frame *f;
+			for(f = this->child; f->next; f = f->next);
+			f->next = child;
+		}
+		child->next = NULL;
+	}else{
+		child->next = this->child;
 		this->child = child;
-	else{
-		Frame *f;
-		for(f = this->child; f->next; f = f->next);
-		f->next = child;
 	}
-	child->next = NULL;
 	child->object.parent = this;
 	child->root = this->root;
 	return this;
@@ -364,7 +369,8 @@ Clump::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_CLUMP, size);
 	int32 numAtomics = this->countAtomics();
 	int32 numLights = this->countLights();
-	int buf[3] = { numAtomics, numLights, 0 };
+	int32 numCameras = this->countCameras();
+	int buf[3] = { numAtomics, numLights, numCameras };
 	size = version > 0x33000 ? 12 : 4;
 	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
@@ -372,7 +378,6 @@ Clump::streamWrite(Stream *stream)
 	int32 numFrames = this->getFrame()->count();
 	Frame **flist = new Frame*[numFrames];
 	makeFrameList(this->getFrame(), flist);
-
 	this->frameListStreamWrite(stream, flist, numFrames);
 
 	if(rw::version >= 0x30400){
@@ -550,6 +555,18 @@ Atomic::create(void)
 	atomic->geometry = NULL;
 	atomic->pipeline = NULL;
 	atomic->constructPlugins();
+
+	// flags:
+	// rpATOMICCOLLISIONTEST = 0x01, /**<A generic collision flag to indicate
+	// 			* that the atomic should be considered
+	// 			* in collision tests.
+	// 			*/
+	// rpATOMICRENDER = 0x04,      /**<The atomic is rendered if it is
+	// 			* in the view frustum.
+	// 			*/
+
+	// private flags:
+	// rpATOMICPRIVATEWORLDBOUNDDIRTY = 0x01
 	return atomic;
 }
 

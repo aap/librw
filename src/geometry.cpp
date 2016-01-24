@@ -41,7 +41,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 			for(int32 i = 0; i < geo->numTexCoordSets; i++)
 				geo->texCoords[i] =
 					new float32[2*geo->numVertices];
-		geo->triangles = new uint16[4*geo->numTriangles];
+		geo->triangles = new Triangle[geo->numTriangles];
 	}
 	geo->morphTargets = new MorphTarget[1];
 	MorphTarget *m = geo->morphTargets;
@@ -77,7 +77,7 @@ Geometry::destroy(void)
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			delete[] this->texCoords[i];
 		delete[] this->triangles;
-
+		
 		for(int32 i = 0; i < this->numMorphTargets; i++){
 			MorphTarget *m = &this->morphTargets[i];
 			delete[] m->vertices;
@@ -120,7 +120,14 @@ Geometry::streamRead(Stream *stream)
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
 			stream->read(geo->texCoords[i],
 				    2*geo->numVertices*4);
-		stream->read(geo->triangles, 4*geo->numTriangles*2);
+		for(int32 i = 0; i < geo->numTriangles; i++){
+			uint32 tribuf[2];
+			stream->read(tribuf, 8);
+			geo->triangles[i].v[0]  = tribuf[0] >> 16;
+			geo->triangles[i].v[1]  = tribuf[0];
+			geo->triangles[i].v[2]  = tribuf[1] >> 16;
+			geo->triangles[i].matId = tribuf[1];
+		}
 	}
 
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
@@ -200,7 +207,14 @@ Geometry::streamWrite(Stream *stream)
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			stream->write(this->texCoords[i],
 				    2*this->numVertices*4);
-		stream->write(this->triangles, 4*this->numTriangles*2);
+		for(int32 i = 0; i < this->numTriangles; i++){
+			uint32 tribuf[2];
+			tribuf[0] = this->triangles[i].v[0] << 16 |
+			            this->triangles[i].v[1];
+			tribuf[1] = this->triangles[i].v[2] << 16 |
+			            this->triangles[i].matId;
+			stream->write(tribuf, 8);
+		}
 	}
 
 	for(int32 i = 0; i < this->numMorphTargets; i++){
@@ -363,9 +377,9 @@ Geometry::generateTriangles(int8 *adc)
 	}
 
 	delete[] this->triangles;
-	this->triangles = new uint16[4*this->numTriangles];
+	this->triangles = new Triangle[this->numTriangles];
 
-	uint16 *f = this->triangles;
+	Triangle *tri = this->triangles;
 	m = header->mesh;
 	adcbits = adc;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -382,20 +396,62 @@ Geometry::generateTriangles(int8 *adc)
 				if(adc && adcbits[j+2] ||
 				   isDegenerate(&m->indices[j]))
 					continue;
-				*f++ = m->indices[j+1 + (j%2)];
-				*f++ = m->indices[j+0];
-				*f++ = matid;
-				*f++ = m->indices[j+2 - (j%2)];
+				tri->v[0] = m->indices[j+0];
+				tri->v[1] = m->indices[j+1 + (j%2)];
+				tri->v[2] = m->indices[j+2 - (j%2)];
+				tri->matId = matid;
+				tri++;
 			}
 		else
 			for(uint32 j = 0; j < m->numIndices-2; j+=3){
-				*f++ = m->indices[j+1];
-				*f++ = m->indices[j+0];
-				*f++ = matid;
-				*f++ = m->indices[j+2];
+				tri->v[0] = m->indices[j+0];
+				tri->v[1] = m->indices[j+1];
+				tri->v[2] = m->indices[j+2];
+				tri->matId = matid;
 			}
 		adcbits += m->numIndices;
 		m++;
+	}
+}
+
+void
+Geometry::buildMeshes(void)
+{
+	delete this->meshHeader;
+
+	Triangle *tri;
+	MeshHeader *h = new MeshHeader;
+	this->meshHeader = h;
+	if((this->geoflags & Geometry::TRISTRIP) == 0){
+		h->flags = 0;
+		h->totalIndices = this->numTriangles*3;
+		h->numMeshes = this->numMaterials;
+		h->mesh = new Mesh[h->numMeshes];
+		for(uint32 i = 0; i < h->numMeshes; i++){
+			h->mesh[i].material = this->materialList[i];
+			h->mesh[i].numIndices = 0;
+		}
+		// count indices per mesh
+		tri = this->triangles;
+		for(int32 i = 0; i < this->numTriangles; i++){
+			h->mesh[tri->matId].numIndices += 3;
+			tri++;
+		}
+		h->allocateIndices();
+		for(uint32 i = 0; i < h->numMeshes; i++)
+			h->mesh[i].numIndices = 0;
+		// same as above but fill with indices
+		tri = this->triangles;
+		for(int32 i = 0; i < this->numTriangles; i++){
+			uint32 idx = h->mesh[tri->matId].numIndices;
+			h->mesh[tri->matId].indices[idx++] = tri->v[0];
+			h->mesh[tri->matId].indices[idx++] = tri->v[1];
+			h->mesh[tri->matId].indices[idx++] = tri->v[2];
+			h->mesh[tri->matId].numIndices = idx;
+			tri++;
+		}
+	}else{
+		assert(0 && "can't tristrip\n");
 	}
 }
 

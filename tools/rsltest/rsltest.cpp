@@ -13,6 +13,7 @@ using namespace rw;
 #include "rsl.h"
 
 char *argv0;
+int32 atmOffset;
 
 void
 RslStream::relocate(void)
@@ -68,6 +69,33 @@ mapID(int32 id)
 	return id;
 }
 
+static RslFrame*
+findFrame(RslFrame *f, int32 id)
+{
+	if(f == NULL) return NULL;
+	if((f->nodeId & 0xFF) == (id & 0xFF))
+		return f;
+	RslFrame *ff = findFrame(f->next, id);
+	if(ff) return ff;
+	return findFrame(f->child, id);
+}
+
+static RslFrame*
+findChild(RslFrame *f)
+{
+	for(RslFrame *c = f->child; c; c = c->next)
+		if(c->nodeId < 0)
+			return c;
+	return NULL;
+}
+
+int32 nextId;
+
+struct Node {
+	int32 id;
+	int32 parent;
+};
+
 Frame*
 convertFrame(RslFrame *f)
 {
@@ -91,20 +119,46 @@ convertFrame(RslFrame *f)
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, rwf, hAnimOffset);
 	hanim->id = f->nodeId;
 	if(f->hier){
-		HAnimHierarchy *hier;
-		hanim->hierarchy = hier = new HAnimHierarchy;
-		hier->numNodes = f->hier->numNodes;
-		hier->flags = f->hier->flags;
-		hier->maxInterpKeyFrameSize = f->hier->maxKeyFrameSize;
-		hier->parentFrame = rwf;
-		hier->parentHierarchy = hier;
-		hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
-		for(int32 i = 0; i < hier->numNodes; i++){
-			hier->nodeInfo[i].id = mapID((uint8)f->hier->pNodeInfo[i].id);
-			hier->nodeInfo[i].index = f->hier->pNodeInfo[i].index;
-			hier->nodeInfo[i].flags = f->hier->pNodeInfo[i].flags;
-			hier->nodeInfo[i].frame = NULL;
+		int32 numNodes = f->hier->numNodes;
+		int32 *nodeFlags = new int32[numNodes];
+		int32 *nodeIDs = new int32[numNodes];
+
+		nextId = 2000;
+		Node *nodehier = new Node[numNodes];
+		int32 stack[100];
+		int32 sp = 0;
+		stack[sp] = -1;
+		// Match up nodes with frames to fix and assign IDs
+		// NOTE: assignment can only work reliably when not more
+		//       than one child node needs an ID
+		for(int32 i = 0; i < numNodes; i++){
+			RslHAnimNodeInfo *ni = &f->hier->pNodeInfo[i];
+			Node *n = &nodehier[i];
+			n->parent = stack[sp];
+			if(ni->flags & HAnimHierarchy::PUSH)
+				sp++;
+			stack[sp] = i;
+			RslFrame *ff = findFrame(f, (uint8)ni->id);
+			n->id = ff->nodeId;
+			if(n->id < 0){
+				ff = findFrame(f, nodehier[n->parent].id);
+				ff = findChild(ff);
+				n->id = ff->nodeId = nextId++;
+			}
+			//printf("%d %s %d %d\n", i, ff->name, n->id, n->parent);
+			if(ni->flags & HAnimHierarchy::POP)
+				sp--;
+
+			nodeFlags[i] = ni->flags;
+			nodeIDs[i] = n->id;
 		}
+
+		HAnimHierarchy *hier = HAnimHierarchy::create(numNodes, nodeFlags, nodeIDs, f->hier->flags, f->hier->maxKeyFrameSize);
+		hanim->hierarchy = hier;
+
+		delete[] nodeFlags;
+		delete[] nodeIDs;
+		delete[] nodehier;
 	}
 	return rwf;
 }
@@ -302,6 +356,8 @@ convertAtomic(RslAtomic *atomic)
 	Geometry *rwg = Geometry::create(0, 0, 0);
 	rwa->geometry = rwg;
 
+	*PLUGINOFFSET(RslAtomic*, rwa, atmOffset) = atomic;
+
 	rwg->numMaterials = g->matList.numMaterials;
 	rwg->materialList = new Material*[rwg->numMaterials];
 	for(int32 i = 0; i < rwg->numMaterials; i++)
@@ -447,6 +503,41 @@ makeTextures(RslAtomic *atomic, void*)
 	return atomic;
 }
 
+void
+moveAtomics(Frame *f)
+{
+	static char *names[] = { "", "hi_ok", "hi_dam" };
+	if(f == NULL) return;
+	int n = f->objectList.count();
+	if(n > 1){
+		char *oldname = gta::getNodeName(f);
+		ObjectWithFrame **objs = new ObjectWithFrame*[n];
+		int i = 0;
+		FORLIST(lnk, f->objectList){
+			ObjectWithFrame *obj = ObjectWithFrame::fromFrame(lnk);
+			assert(obj->type == Atomic::ID);
+			objs[i] = obj;
+			obj->setFrame(NULL);
+			i++;
+		}
+		for(i = 0; i < n; i++){
+			Frame *ff = Frame::create();
+			RslAtomic *rsla = *PLUGINOFFSET(RslAtomic*, objs[i], atmOffset);
+			char *name = gta::getNodeName(ff);
+			strncpy(name, oldname, 24);
+			char *end = strrchr(name, '_');
+			if(end){
+				*(++end) = '\0';
+				strcat(end, names[rsla->unk3&3]);
+			}
+			f->addChild(ff);
+			objs[i]->setFrame(ff);
+		}
+		delete[] objs;
+	}
+	moveAtomics(f->next);
+	moveAtomics(f->child);
+}
 
 
 
@@ -751,6 +842,7 @@ usage(void)
 	fprintf(stderr, "\t-v RW version, e.g. 33004 for 3.3.0.4\n");
 	fprintf(stderr, "\t-x extract textures to tga\n");
 	fprintf(stderr, "\t-s don't unswizzle textures\n");
+	fprintf(stderr, "\t-a fix Atomics placement inside hierarchy (mdl files)\n");
 	exit(1);
 }
 
@@ -758,11 +850,13 @@ int
 main(int argc, char *argv[])
 {
 	gta::attachPlugins();
+	atmOffset = Atomic::registerPlugin(sizeof(void*), 0x1000000, NULL, NULL, NULL);
 	rw::version = 0x34003;
 	rw::platform = PLATFORM_D3D8;
 
 	assert(sizeof(void*) == 4);
 	int extract = 0;
+	int fixAtomics = 0;
 
 	ARGBEGIN{
 	case 'v':
@@ -773,6 +867,9 @@ main(int argc, char *argv[])
 		break;
 	case 'x':
 		extract++;
+		break;
+	case 'a':
+		fixAtomics++;
 		break;
 	default:
 		usage();
@@ -906,6 +1003,8 @@ main(int argc, char *argv[])
 		}
 	writeDff:
 		rwc = convertClump(clump);
+		if(fixAtomics)
+			moveAtomics(rwc->getFrame());
 		if(argc > 1)
 			assert(stream.open(argv[1], "wb"));
 		else

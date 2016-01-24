@@ -301,11 +301,6 @@ registerUVAnimInterpolator(void)
 
 int32 uvAnimOffset;
 
-struct UVAnim
-{
-	AnimInterpolator *interp[8];
-};
-
 static void*
 createUVAnim(void *object, int32 offset, int32)
 {
@@ -367,7 +362,7 @@ makeDummyAnimation(const char *name)
 static void
 readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
-	UVAnim *uvanim = PLUGINOFFSET(UVAnim, object, offset);	
+	UVAnim *uvanim = PLUGINOFFSET(UVAnim, object, offset);
 	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
 	char name[32];
 	uint32 mask = stream->readI32();

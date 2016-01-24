@@ -153,7 +153,10 @@ extern int build;
 extern int platform;
 extern char *debugFile;
 
+void matrixIdentify(float32 *mat);
 void matrixMult(float32 *out, float32 *a, float32 *b);
+void vecTrans(float32 *out, float32 *mat, float32 *vec);
+void matrixTranspose(float32 *out, float32 *in);
 void matrixInvert(float32 *out, float32 *in);
 
 // 0x04000000	3.1

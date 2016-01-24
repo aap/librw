@@ -61,6 +61,9 @@ attachPlugins(void)
 	rw::ps2::registerNativeRaster();
 	rw::xbox::registerNativeRaster();
 	rw::d3d::registerNativeRaster();
+	int32 nativeRasterOffset = Raster::registerPlugin(sizeof(NativeRaster),
+		0x12340000 | PLATFORM_NULL, NULL, NULL, NULL);
+	Raster::nativeOffsets[PLATFORM_NULL] = nativeRasterOffset;
 
 	rw::registerMeshPlugin();
 	rw::registerNativeDataPlugin();
@@ -873,13 +876,6 @@ static bool hasColors2(uint32 id)
 	return id == 0x53f20083 || id == 0x53f2008f;
 }
 
-struct SaVert : ps2::Vertex {
-	float32 w[4];
-	uint8   i[4];
-	float32 t1[2];
-	uint8   c1[4];
-};
-
 static void
 saPreCB(MatPipeline *p, Geometry *geo)
 {
@@ -916,27 +912,28 @@ findSAVertex(Geometry *g, uint32 flags[], uint32 mask, SaVert *v)
 		cols1 = PLUGINOFFSET(ExtraVertColors, g, extraVertColorOffset)->nightColors;
 
 	for(int32 i = 0; i < g->numVertices; i++){
-		if(mask & flags[i] & 0x1 &&
+		uint32 flag = flags ? flags[i] : ~0;
+		if(mask & flag & 0x1 &&
 		   !(verts[0] == v->p[0] && verts[1] == v->p[1] && verts[2] == v->p[2]))
 			goto cont;
-		if(mask & flags[i] & 0x10 &&
+		if(mask & flag & 0x10 &&
 		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
 			goto cont;
-		if(mask & flags[i] & 0x100 &&
+		if(mask & flag & 0x100 &&
 		   !(cols0[0] == v->c[0] && cols0[1] == v->c[1] &&
 		     cols0[2] == v->c[2] && cols0[3] == v->c[3]))
 			goto cont;
-		if(mask & flags[i] & 0x200 &&
+		if(mask & flag & 0x200 &&
 		   !(cols1[0] == v->c1[0] && cols1[1] == v->c1[1] &&
 		     cols1[2] == v->c1[2] && cols1[3] == v->c1[3]))
 			goto cont;
-		if(mask & flags[i] & 0x1000 &&
+		if(mask & flag & 0x1000 &&
 		   !(tex0[0] == v->t[0] && tex0[1] == v->t[1]))
 			goto cont;
-		if(mask & flags[i] & 0x2000 &&
+		if(mask & flag & 0x2000 &&
 		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
 			goto cont;
-		if(mask & flags[i] & 0x10000 &&
+		if(mask & flag & 0x10000 &&
 		   !(wghts[0] == v->w[0] && wghts[1] == v->w[1] &&
 		     wghts[2] == v->w[2] && wghts[3] == v->w[3] &&
 		     inds[0] == v->i[0] && inds[1] == v->i[1] &&

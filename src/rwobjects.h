@@ -132,7 +132,7 @@ struct Frame : PluginBase<Frame>
 	Frame *cloneHierarchy(void);
 	void destroy(void);
 	void destroyHierarchy(void);
-	Frame *addChild(Frame *f);
+	Frame *addChild(Frame *f, bool32 append = 0);
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
 	Frame *getParent(void){
@@ -144,6 +144,13 @@ struct Frame : PluginBase<Frame>
 	void setHierarchyRoot(Frame *root);
 	Frame *cloneAndLink(Frame *clonedroot);
 	void purgeClone(void);
+
+	// private flags:
+	// #define rwFRAMEPRIVATEHIERARCHYSYNCLTM  0x01
+	// #define rwFRAMEPRIVATEHIERARCHYSYNCOBJ  0x02
+	// #define rwFRAMEPRIVATESUBTREESYNCLTM    0x04
+	// #define rwFRAMEPRIVATESUBTREESYNCOBJ    0x08
+	// #define rwFRAMEPRIVATESTATIC            0x10
 };
 
 Frame **makeFrameList(Frame *frame, Frame **flist);
@@ -191,15 +198,32 @@ struct HAnimHierarchy
 
 	// temporary
 	int32 maxInterpKeyFrameSize;
+
+	static HAnimHierarchy *create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 flags, int32 maxKeySize);
+	void destroy(void);
+	void attachByIndex(int32 id);
+	void attach(void);
+	int32 getIndex(int32 id);
+
+	static HAnimHierarchy *get(Frame *f);
+	static HAnimHierarchy *find(Frame *f);
+
+	enum NodeFlag {
+		POP = 1,
+		PUSH
+	};
 };
 
 struct HAnimData
 {
 	int32 id;
 	HAnimHierarchy *hierarchy;
+
+	static HAnimData *get(Frame *f);
 };
 
 extern int32 hAnimOffset;
+extern bool32 hAnimDoStream;
 void registerHAnimPlugin(void);
 
 struct Image
@@ -362,7 +386,7 @@ struct MatFX
 		NOTHING = 0,
 		BUMPMAP,
 		ENVMAP,
-		BUMPENVMAP,
+		BUMPENVMAP,	// BUMP | ENV
 		DUAL,
 		UVTRANSFORM,
 		DUALUVTRANSFORM
@@ -401,8 +425,15 @@ struct MatFX
 
 	void setEffects(uint32 flags);
 	int32 getEffectIndex(uint32 type);
+	void setBumpTexture(Texture *t);
+	void setBumpCoefficient(float32 coef);
 	void setEnvTexture(Texture *t);
 	void setEnvCoefficient(float32 coef);
+	void setDualTexture(Texture *t);
+	void setDualSrcBlend(int32 blend);
+	void setDualDestBlend(int32 blend);
+
+	static void enableEffects(Atomic *atomic);
 };
 
 struct MatFXGlobals
@@ -423,6 +454,9 @@ struct Mesh
 
 struct MeshHeader
 {
+	enum {
+		TRISTRIP = 1
+	};
 	uint32 flags;
 	uint16 numMeshes;
 	// RW has uint16 serialNum here
@@ -445,6 +479,12 @@ struct InstanceDataHeader
 	uint32 platform;
 };
 
+struct Triangle
+{
+	uint16 v[3];
+	uint16 matId;
+};
+
 struct Geometry : PluginBase<Geometry>
 {
 	enum { ID = 8 };
@@ -455,7 +495,7 @@ struct Geometry : PluginBase<Geometry>
 	int32 numMorphTargets;
 	int32 numTexCoordSets;
 
-	uint16 *triangles;
+	Triangle *triangles;
 	uint8 *colors;
 	float32 *texCoords[8];
 
@@ -481,6 +521,7 @@ struct Geometry : PluginBase<Geometry>
 	bool32 hasColoredMaterial(void);
 	void allocateData(void);
 	void generateTriangles(int8 *adc = NULL);
+	void buildMeshes(void);
 
 	enum Flags
 	{
@@ -515,6 +556,7 @@ struct Skin
 	void init(int32 numBones, int32 numUsedBones, int32 numVertices);
 	void findNumWeights(int32 numVertices);
 	void findUsedBones(int32 numVertices);
+	static void setPipeline(Atomic *a, int32 type);
 };
 
 struct SkinGlobals
@@ -768,6 +810,11 @@ struct UVAnimDictionary
 };
 
 extern UVAnimDictionary *currentUVAnimDictionary;
+
+struct UVAnim
+{
+	AnimInterpolator *interp[8];
+};
 
 extern int32 uvAnimOffset;
 
