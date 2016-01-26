@@ -153,7 +153,9 @@ extern int build;
 extern int platform;
 extern char *debugFile;
 
-void matrixIdentify(float32 *mat);
+void matrixIdentity(float32 *mat);
+int matrixEqual(float32 *m1, float32 *m2);
+int matrixIsIdentity(float32 *mat);
 void matrixMult(float32 *out, float32 *a, float32 *b);
 void vecTrans(float32 *out, float32 *mat, float32 *vec);
 void matrixTranspose(float32 *out, float32 *in);

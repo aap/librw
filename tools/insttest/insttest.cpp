@@ -65,6 +65,19 @@ dumpFrameHier(Frame *frame, int ind = 0)
 		for(int i = 0; i < h->numNodes; i++){
 			name = h->nodeInfo[i].frame ? gta::getNodeName(h->nodeInfo[i].frame) : "";
 			printf("\t\t%d %d\t%p %s\n", h->nodeInfo[i].id, h->nodeInfo[i].flags, h->nodeInfo[i].frame, name);
+
+				{
+				h->nodeInfo[i].frame->updateLTM();
+				float *mat = h->nodeInfo[i].frame->ltm;
+				printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+				       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+				       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+				       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n",
+					mat[0], mat[4], mat[8], mat[12],
+					mat[1], mat[5], mat[9], mat[13],
+					mat[2], mat[6], mat[10], mat[14],
+					mat[3], mat[7], mat[11], mat[15]);
+				}
 		}
 	}
 	for(Frame *child = frame->child;

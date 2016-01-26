@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 namespace rw {
 
 struct RGBA

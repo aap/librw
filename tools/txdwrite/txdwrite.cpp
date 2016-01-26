@@ -17,7 +17,6 @@ struct {
 	char *str;
 	uint32 val;
 } platforms[] = {
-	{ "mobile", PLATFORM_OGL },
 	{ "ps2",    PLATFORM_PS2 },
 	{ "xbox",   PLATFORM_XBOX },
 	{ "d3d8",   PLATFORM_D3D8 },
@@ -99,7 +98,7 @@ main(int argc, char *argv[])
 //	rw::platform = rw::PLATFORM_XBOX;
 //	rw::platform = rw::PLATFORM_D3D8;
 //	rw::platform = rw::PLATFORM_D3D9;
-	int outplatform = rw::PLATFORM_PS2;
+	int outplatform = rw::PLATFORM_XBOX;
 
 	char *s;
 	ARGBEGIN{
@@ -151,6 +150,7 @@ main(int argc, char *argv[])
 		}
 //	for(Texture *tex = txd->first; tex; tex = tex->next)
 //		tex->filterAddressing = (tex->filterAddressing&~0xF) | 0x2;
+	rw::platform = outplatform;
 
 	rw::StreamFile out;
 	if(argc > 1)

@@ -64,6 +64,7 @@ struct ExtraVertColors
 };
 
 extern int32 extraVertColorOffset;
+void allocateExtraVertColors(Geometry *g);
 void registerExtraVertColorPlugin(void);
 
 // Environment mat

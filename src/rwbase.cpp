@@ -26,13 +26,32 @@ int32 build = 0xFFFF;
 char *debugFile = NULL;
 
 void
-matrixIdentify(float32 *mat)
+matrixIdentity(float32 *mat)
 {
 	memset(mat, 0, 64);
 	mat[0] = 1.0f;
 	mat[5] = 1.0f;
 	mat[10] = 1.0f;
-	mat[16] = 1.0f;
+	mat[15] = 1.0f;
+}
+
+int
+matrixEqual(float32 *m1, float32 *m2)
+{
+	for(int i = 0; i < 16; i++)
+		if(m1[i] != m2[i])
+			return 0;
+	return 1;
+}
+
+int
+matrixIsIdentity(float32 *mat)
+{
+	for(int32 i = 0; i < 4; i++)
+		for(int32 j = 0; j < 4; j++)
+			if(mat[i*4+j] != (i == j ? 1.0f : 0.0))
+				return 0;
+	return 1;
 }
 
 void

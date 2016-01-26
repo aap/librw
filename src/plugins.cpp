@@ -203,7 +203,6 @@ static int32
 getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
-	// TODO: version correct?
 	if(!hAnimDoStream ||
 	   version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == NULL)
 		return 0;
@@ -593,6 +592,18 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		if(oldFormat)
 			stream->seek(4);	// skip 0xdeaddead
 		stream->read(&skin->inverseMatrices[i*16], 64);
+
+		//{
+		//float *mat = &skin->inverseMatrices[i*16];
+		//printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n",
+		//	mat[0], mat[4], mat[8], mat[12],
+		//	mat[1], mat[5], mat[9], mat[13],
+		//	mat[2], mat[6], mat[10], mat[14],
+		//	mat[3], mat[7], mat[11], mat[15]);
+		//}
 	}
 
 	if(oldFormat){
@@ -842,7 +853,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 {
 	int32 flag = *PLUGINOFFSET(int32, object, offset);
 	// TODO: not sure which version
-	return flag || rw::version < 0x35000 ? 4 : -1;
+	return flag || rw::version < 0x34000 ? 4 : 0;
 }
 
 // Material
