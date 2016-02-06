@@ -96,6 +96,7 @@ public:
 struct Vertex {
 	float32 p[3];
 	float32 t[2];
+	float32 t1[2];
 	uint8   c[4];
 	float32 n[3];
 };
@@ -155,10 +156,10 @@ void allocateADC(Geometry *geo);
 
 // IDs used by SA
 //    n   atomic   material
-//  1892  53f20080 53f20081	// ?
-//     1  53f20080 53f2008d	// triad_buddha01.dff
-// 56430  53f20082 53f20083	// world
-//    39  53f20082 53f2008f	// reflective world
+//  1892  53f20080 53f20081	// ?			   no night colors
+//     1  53f20080 53f2008d	// triad_buddha01.dff	   no night colors
+// 56430  53f20082 53f20083	// world		   night colors
+//    39  53f20082 53f2008f	// reflective world	   night colors
 //  6941  53f20084 53f20085	// vehicles
 //  3423  53f20084 53f20087	// vehicles
 //  4640  53f20084 53f2008b	// vehicles
@@ -167,6 +168,7 @@ void allocateADC(Geometry *geo);
 Pipeline *getPDSPipe(uint32 data);
 void registerPDSPipe(Pipeline *pipe);
 void registerPDSPlugin(int32 n);
+void registerPluginPDSPipes(void);
 
 // Native Texture and Raster
 

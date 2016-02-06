@@ -416,6 +416,82 @@ D3dRaster::getNumLevels(Raster*)
 #endif
 }
 
+void
+D3dRaster::fromImage(Raster *raster, Image *image)
+{
+	int32 format;
+	if(image->depth == 32)
+		format = Raster::C8888;
+	else if(image->depth == 24)
+		format = Raster::C888;
+	else if(image->depth == 16)
+		format = Raster::C1555;
+	else if(image->depth == 8)
+		format = Raster::PAL8 | Raster::C8888;
+	else if(image->depth == 4)
+		format = Raster::PAL4 | Raster::C8888;
+	else
+		return;
+	format |= 4;
+
+	raster->type = format & 0x7;
+	raster->flags = format & 0xF8;
+	raster->format = format & 0xFF00;
+	this->create(raster);
+
+	uint8 *in, *out;
+	int pallength = 0;
+	if(raster->format & Raster::PAL4)
+		pallength = 16;
+	else if(raster->format & Raster::PAL8)
+		pallength = 256;
+	if(pallength){
+		in = image->palette;
+		out = (uint8*)this->palette;
+		for(int32 i = 0; i < pallength; i++){
+			out[0] = in[2];
+			out[1] = in[1];
+			out[2] = in[0];
+			out[3] = in[3];
+			in += 4;
+			out += 4;
+		}
+	}
+
+	in = image->pixels;
+	out = raster->lock(0);
+	if(pallength)
+		memcpy(out, in, raster->width*raster->height);
+	else
+		for(int32 y = 0; y < image->height; y++)
+			for(int32 x = 0; x < image->width; x++)
+				switch(raster->format & 0xF00){
+				case Raster::C8888:
+					out[0] = in[2];
+					out[1] = in[1];
+					out[2] = in[0];
+					out[3] = in[3];
+					in += 4;
+					out += 4;
+					break;
+				case Raster::C888:
+					out[0] = in[2];
+					out[1] = in[1];
+					out[2] = in[0];
+					out[3] = 0xFF;
+					in += 3;
+					out += 4;
+					break;
+				case Raster::C1555:
+					out[0] = in[0];
+					out[1] = in[1];
+					in += 2;
+					out += 2;
+					break;
+				}
+	raster->unlock(0);
+}
+
 int32
 getLevelSize(Raster *raster, int32 level)
 {

@@ -3,8 +3,6 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwpipeline.h"
@@ -104,6 +102,8 @@ TexDictionary::streamGetSize(void)
 // Texture
 //
 
+bool32 loadTextures;
+
 Texture*
 Texture::create(Raster *raster)
 {
@@ -149,19 +149,22 @@ Texture::read(const char *name, const char *mask)
 	tex = Texture::create(NULL);
 	strncpy(tex->name, name, 32);
 	strncpy(tex->mask, mask, 32);
-//	char *n = (char*)malloc(strlen(name) + 5);
-//	strcpy(n, name);
-//	strcat(n, ".tga");
-//	Image *img = readTGA(n);
-//	free(n);
-//	if(img){
-//		//raster = Raster::createFromImage(img);
-//		raster = new Raster(0, 0, 0, 0x80);
-//		img->destroy();
-//	}else
+	Image *img = NULL;
+	if(loadTextures){
+		char *n = (char*)malloc(strlen(name) + 5);
+		strcpy(n, name);
+		strcat(n, ".tga");
+		img = readTGA(n);
+		free(n);
+		if(img){
+			raster = Raster::createFromImage(img);
+			img->destroy();
+		}else
+			raster = Raster::create(0, 0, 0, 0x80);
+	}else
 		raster = Raster::create(0, 0, 0, 0x80);
 	tex->raster = raster;
-	if(currentTexDictionary /*&& img*/)
+	if(currentTexDictionary)
 		currentTexDictionary->add(tex);
 	return tex;
 }
@@ -184,9 +187,9 @@ Texture::streamRead(Stream *stream)
 	stream->read(mask, length);
 
 	Texture *tex = Texture::read(name, mask);
-	tex->refCount++;
 	if(tex->refCount == 1)
 		tex->filterAddressing = filterAddressing;
+	tex->refCount++;	// TODO: RW doesn't do this, why?
 
 	tex->streamReadPlugins(stream);
 
@@ -640,36 +643,15 @@ Raster::calculateNumLevels(int32 width, int32 height)
 	return n;
 }
 
-// BAD BAD BAD BAD
 Raster*
 Raster::createFromImage(Image *image)
 {
-	assert(0 && "cannot create raster from image");
-	int32 format;
-	// TODO: make that into a function
-	if(image->depth == 32)
-		format = Raster::C8888;
-	else if(image->depth == 24)
-		format = Raster::C888;
-	else if(image->depth == 16)
-		format = Raster::C1555;
-	else if(image->depth == 8)
-		format = Raster::PAL8 | Raster::C8888;
-	else if(image->depth == 4)
-		format = Raster::PAL4 | Raster::C8888;
-	else
-		return NULL;
 	Raster *raster = Raster::create(image->width, image->height,
-	                                image->depth, format | 4 | 0x80);
-	raster->stride = image->stride;
-
-	raster->texels = new uint8[raster->stride*raster->height];
-	memcpy(raster->texels, image->pixels, raster->stride*raster->height);
-	if(image->palette){
-		int size = raster->depth == 4 ? 16 : 256;
-		raster->palette = new uint8[size*4];
-		memcpy(raster->palette, image->palette, size*4);
-	}
+	                                image->depth, 4 | 0x80);
+	int32 offset = nativeOffsets[raster->platform];
+	assert(offset != 0 && "unimplemented raster platform");
+	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
+	nr->fromImage(raster, image);
 	return raster;
 }
 

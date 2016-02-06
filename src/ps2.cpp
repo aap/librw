@@ -3,15 +3,11 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"
-
-using namespace std;
 
 namespace rw {
 namespace ps2 {
@@ -283,6 +279,34 @@ instanceUV(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 }
 
 uint32*
+instanceUV2(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
+{
+	uint16 j;
+	uint32 *d0 = (uint32*)g->texCoords[0];
+	uint32 *d1 = (uint32*)g->texCoords[1];
+	for(uint32 i = idx; i < idx+n; i++){
+		j = m->indices[i];
+		if(g->numTexCoordSets > 0){
+			*p++ = d0[j*2+0];
+			*p++ = d0[j*2+1];
+		}else{
+			*p++ = 0;
+			*p++ = 0;
+		}
+		if(g->numTexCoordSets > 1){
+			*p++ = d1[j*2+0];
+			*p++ = d1[j*2+1];
+		}else{
+			*p++ = 0;
+			*p++ = 0;
+		}
+	}
+	while((uintptr)p % 0x10)
+		*p++ = 0;
+	return p;
+}
+
+uint32*
 instanceRGBA(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
@@ -338,15 +362,18 @@ MatPipeline::dump(void)
 	if(this->platform != PLATFORM_PS2)
 		return;
 	PipeAttribute *a;
+	printf("%x %x\n", this->pluginID, this->pluginData);
 	for(uint i = 0; i < nelem(this->attribs); i++){
 		a = this->attribs[i];
 		if(a)
 			printf("%d %s: %x\n", i, a->name, a->attrib);
 	}
 	printf("stride: %x\n", this->inputStride);
+	printf("vertcount: %x\n", this->vifOffset/this->inputStride);
 	printf("triSCount: %x\n", this->triStripCount);
 	printf("triLCount: %x\n", this->triListCount);
 	printf("vifOffset: %x\n", this->vifOffset);
+	printf("\n");
 }
 
 void
@@ -506,20 +533,16 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
-				switch(i){
-				case 0:
+				if(a == &attribXYZ)
 					p = instanceXYZ(p, g, m, idx, nverts);
-					break;
-				case 1:
+				else if(a == &attribUV)
 					p = instanceUV(p, g, m, idx, nverts);
-					break;
-				case 2:
+				else if(a == &attribUV2)
+					p = instanceUV2(p, g, m, idx, nverts);
+				else if(a == &attribRGBA)
 					p = instanceRGBA(p, g, m, idx, nverts);
-					break;
-				case 3:
-					p = instanceNormal(p,g, m, idx, nverts);
-					break;
-				}
+				else if(a == &attribNormal)
+					p = instanceNormal(p, g, m, idx, nverts);
 			}
 		idx += g->meshHeader->flags == 1
 			? im.batchVertCount-2 : im.batchVertCount;
@@ -726,6 +749,7 @@ findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
 	float32 *verts = g->morphTargets[0].vertices;
 	float32 *tex = g->texCoords[0];
+	float32 *tex1 = g->texCoords[1];
 	float32 *norms = g->morphTargets[0].normals;
 	uint8 *cols = g->colors;
 
@@ -742,10 +766,14 @@ findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 		if(mask & flags[i] & 0x1000 &&
 		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
 			goto cont;
+		if(mask & flags[i] & 0x2000 &&
+		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
+			goto cont;
 		return i;
 	cont:
 		verts += 3;
 		tex += 2;
+		tex1 += 2;
 		norms += 3;
 		cols += 4;
 	}
@@ -763,10 +791,12 @@ insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 		memcpy(&geo->colors[i*4], v->c, 4);
 	if(mask & 0x1000)
 		memcpy(&geo->texCoords[0][i*2], v->t, 8);
+	if(mask & 0x2000)
+		memcpy(&geo->texCoords[1][i*2], v->t1, 8);
 }
 
 void
-defaultUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
 	float32 *verts     = (float32*)data[AT_XYZ];
 	float32 *texcoords = (float32*)data[AT_UV];
@@ -777,8 +807,9 @@ defaultUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uin
 		mask |= 0x10;
 	if(geo->geoflags & Geometry::PRELIT)
 		mask |= 0x100;
-	if(geo->numTexCoordSets > 0)
-		mask |= 0x1000;
+	for(int32 i = 0; i < geo->numTexCoordSets; i++)
+		mask |= 0x1000 << i;
+	int numUV = pipe->attribs[AT_UV] == &attribUV2 ? 2 : 1;
 
 	Vertex v;
 	for(uint32 i = 0; i < mesh->numIndices; i++){
@@ -793,6 +824,8 @@ defaultUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uin
 			memcpy(&v.c, colors, 4);
 		if(mask & 0x1000)
 			memcpy(&v.t, texcoords, 8);
+		if(mask & 0x2000)
+			memcpy(&v.t1, texcoords+2, 8);
 
 		int32 idx = findVertex(geo, flags, mask, &v);
 		if(idx < 0)
@@ -801,7 +834,7 @@ defaultUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uin
 		flags[idx] = mask;
 		insertVertex(geo, idx, mask, &v);
 		verts += 3;
-		texcoords += 2;
+		texcoords += 2*numUV;
 		colors += 4;
 		norms += 3;
 	}
@@ -1315,6 +1348,7 @@ static void
 atomicPDSRights(void *object, int32, int32, uint32 data)
 {
 	Atomic *a = (Atomic*)object;
+	//printf("atm pds: %x\n", data);
 	a->pipeline = (ObjPipeline*)getPDSPipe(data);
 }
 
@@ -1322,6 +1356,7 @@ static void
 materialPDSRights(void *object, int32, int32, uint32 data)
 {
 	Material *m = (Material*)object;
+	//printf("mat pds: %x\n", data);
 	m->pipeline = (ObjPipeline*)getPDSPipe(data);
 }
 
@@ -1338,6 +1373,73 @@ registerPDSPlugin(int32 n)
 	Material::setStreamRightsCallback(ID_PDS, materialPDSRights);
 }
 
+void
+registerPluginPDSPipes(void)
+{
+	// Skin
+	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+	pipe->pluginID = ID_PDS;
+	pipe->pluginData = 0x11001;		// rwPDS_G3_Generic_GrpMatPipeID
+	pipe->attribs[AT_XYZ] = &attribXYZ;
+	pipe->attribs[AT_UV] = &attribUV;
+	pipe->attribs[AT_RGBA] = &attribRGBA;
+	pipe->attribs[AT_NORMAL] = &attribNormal;
+	pipe->attribs[AT_NORMAL+1] = &attribWeights;
+	uint32 vertCount = MatPipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
+	pipe->setTriBufferSizes(5, vertCount);
+	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = skinUninstanceCB;
+	pipe->preUninstCB = skinPreCB;
+	pipe->postUninstCB = skinPostCB;
+	registerPDSPipe(pipe);
+
+	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe->pluginID = ID_PDS;
+	opipe->pluginData = 0x11002;		// rwPDS_G3_Skin_GrpAtmPipeID
+	opipe->groupPipeline = pipe;
+	registerPDSPipe(opipe);
+
+	// MatFX UV1
+	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe->pluginID = ID_PDS;
+	pipe->pluginData = 0x1100b;		// rwPDS_G3_MatfxUV1_GrpMatPipeID
+	pipe->attribs[AT_XYZ] = &attribXYZ;
+	pipe->attribs[AT_UV] = &attribUV;
+	pipe->attribs[AT_RGBA] = &attribRGBA;
+	pipe->attribs[AT_NORMAL] = &attribNormal;
+	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
+	pipe->setTriBufferSizes(4, vertCount);
+	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->uninstanceCB = defaultUninstanceCB;
+	registerPDSPipe(pipe);
+
+	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe->pluginID = ID_PDS;
+	opipe->pluginData = 0x1100d;		// rwPDS_G3_MatfxUV1_GrpAtmPipeID
+	opipe->groupPipeline = pipe;
+	registerPDSPipe(opipe);
+
+	// MatFX UV2
+	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe->pluginID = ID_PDS;
+	pipe->pluginData = 0x1100c;		// rwPDS_G3_MatfxUV2_GrpMatPipeID
+	pipe->attribs[AT_XYZ] = &attribXYZ;
+	pipe->attribs[AT_UV] = &attribUV2;
+	pipe->attribs[AT_RGBA] = &attribRGBA;
+	pipe->attribs[AT_NORMAL] = &attribNormal;
+	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
+	pipe->setTriBufferSizes(4, vertCount);
+	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->uninstanceCB = defaultUninstanceCB;
+	registerPDSPipe(pipe);
+
+	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe->pluginID = ID_PDS;
+	opipe->pluginData = 0x1100e;		// rwPDS_G3_MatfxUV2_GrpAtmPipeID
+	opipe->groupPipeline = pipe;
+	registerPDSPipe(opipe);
+}
 
 // misc stuff
 
@@ -1404,556 +1506,6 @@ sizedebug(InstanceData *inst)
 			break;
 		}
 	}
-}
-
-// Raster
-
-int32 nativeRasterOffset;
-
-#define MAXLEVEL(r) ((r)->tex1[1]>>18 & 0x3F)
-#define SETMAXLEVEL(r, l) ((r)->tex1[1] = (r)->tex1[1]&~0xFF0000 | l<<18)
-#define SETKL(r, val) ((r)->tex1[1] = (r)->tex1[1]&~0xFFFF | (uint16)(val))
-static bool32 noNewStyleRasters;
-
-// i don't really understand this, stolen from RW
-static void
-ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
-{
-	*minh = 1;
-	switch(psm){
-	case 0x00:
-	case 0x30:
-		*minw = 2; // 32 bit
-		break;
-	case 0x02:
-	case 0x0A:
-	case 0x32:
-	case 0x3A:
-		*minw = 4; // 16 bit
-		break;
-	case 0x01:
-	case 0x13:
-	case 0x14:
-	case 0x1B:
-	case 0x24:
-	case 0x2C:
-	case 0x31:
-		*minw = 8; // everything else
-		break;
-	}
-	if(flags & 0x2 && psm == 0x13){	// PSMT8
-		*minw = 16;
-		*minh = 4;
-	}
-	if(flags & 0x4 && psm == 0x14){	// PSMT4
-		*minw = 32;
-		*minh = 4;
-	}
-}
-
-void
-Ps2Raster::create(Raster *raster)
-{
-	int32 pageWidth, pageHeight;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	//printf("%x %x %x %x\n", raster->format, raster->flags, raster->type, noNewStyleRasters);
-	assert(raster->type == 4);	// Texture
-	switch(raster->depth){
-	case 4:
-		pageWidth = 128;
-		pageHeight = 128;
-		break;
-	case 8:
-		pageWidth = 128;
-		pageHeight = 64;
-		break;
-	case 16:
-		pageWidth = 64;
-		pageHeight = 64;
-		break;
-	case 32:
-		pageWidth = 64;
-		pageHeight = 32;
-		break;
-	default:
-		assert(0 && "unsupported depth");
-	}
-	int32 logw = 0, logh = 0;
-	int32 s;
-	for(s = 1; s < raster->width; s *= 2)
-		logw++;
-	for(s = 1; s < raster->height; s *= 2)
-		logh++;
-	SETKL(ras, 0xFC0);
-	//printf("%d %d %d %d\n", raster->width, logw, raster->height, logh);
-	ras->tex0[0] |= (raster->width < pageWidth ? pageWidth : raster->width)/64 << 14;
-	ras->tex0[0] |= logw << 26;
-	ras->tex0[0] |= logh << 30;
-	ras->tex0[1] |= logh >> 2;
-
-	int32 paletteWidth, paletteHeight, paletteDepth;
-	int32 palettePagewidth, palettePageheight;
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		switch(raster->format & 0xF00){
-		case Raster::C1555:
-			ras->tex0[1] |= 0xA << 19; // PSMCT16S
-			paletteDepth = 2;
-			palettePagewidth = palettePageheight = 64;
-			break;
-		case Raster::C8888:
-			// PSMCT32
-			paletteDepth = 4;
-			palettePagewidth = 64;
-			palettePageheight = 32;
-			break;
-		default:
-			assert(0 && "unsupported palette format\n");
-		}
-	if(raster->format & Raster::PAL4){
-		ras->tex0[0] |= 0x14 << 20;   // PSMT4
-		ras->tex0[1] |= 1<<29 | 1<<2; // CLD 1, TCC RGBA
-		paletteWidth = 8;
-		paletteHeight = 2;
-	}else if(raster->format & Raster::PAL8){
-		ras->tex0[0] |= 0x13 << 20;   // PSMT8
-		ras->tex0[1] |= 1<<29 | 1<<2; // CLD 1, TCC RGBA
-		paletteWidth = paletteHeight = 16;
-	}else{
-		paletteWidth = 0;
-		paletteHeight = 0;
-		paletteDepth = 0;
-		palettePagewidth = 0;
-		palettePageheight = 0;
-		switch(raster->format & 0xF00){
-		case Raster::C1555:
-			ras->tex0[0] |= 0xA << 20; // PSMCT16S
-			ras->tex0[1] |= 1 << 2;  // TCC RGBA
-			break;
-		case Raster::C8888:
-			// PSMCT32
-			ras->tex0[1] |= 1 << 2;  // TCC RGBA
-			break;
-		case Raster::C888:
-			ras->tex0[0] |= 1 << 20; // PSMCT24
-			break;
-		default:
-			assert(0 && "unsupported raster format\n");
-		}
-	}
-
-	raster->stride = raster->width*raster->depth/8;
-	if(raster->format & Raster::MIPMAP){
-		assert(0);
-	}else{
-		ras->texelSize = raster->stride*raster->depth+0xF & ~0xF;
-		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
-		ras->miptbp1[0] |= 1<<14;        // TBW1
-		ras->miptbp1[1] |= 1<<2 | 1<<22; // TBW2,3
-		ras->miptbp2[0] |= 1<<14;	 // TBW4
-		ras->miptbp2[1] |= 1<<2 | 1<<22; // TBW5,6
-		SETMAXLEVEL(ras, 0);
-		int32 nPagW = (raster->width + pageWidth-1)/pageWidth;
-		int32 nPagH = (raster->height + pageHeight-1)/pageHeight;
-		ras->gsSize = (nPagW*nPagH*0x800)&~0x7FF;
-		if(ras->paletteSize){
-			// BITBLTBUF DBP
-			if(pageWidth*nPagW > raster->width ||
-			   pageHeight*nPagH > raster->height)
-				ras->tex1[0] = (ras->gsSize >> 6) - 4;
-			else{
-				ras->tex1[0] = ras->gsSize >> 6;
-			}
-			nPagW = (paletteWidth + palettePagewidth-1)/palettePagewidth;
-			nPagH = (paletteHeight + palettePageheight-1)/palettePageheight;
-			ras->gsSize += (nPagW*nPagH*0x800)&~0x7FF;
-		}else
-			ras->tex1[0] = 0;
-	}
-
-	// allocate data and fill with GIF packets
-	ras->texelSize = ras->texelSize+0xF & ~0xF;
-	int32 numLevels = MAXLEVEL(ras)+1;
-	if(noNewStyleRasters ||
-	   (raster->width*raster->height*raster->depth & ~0x7F) >= 0x3FFF80){
-		assert(0);
-	}else{
-		ras->flags |= 1;	// include GIF packets
-		int32 psm = ras->tex0[0]>>20 & 0x3F;
-		//int32 cpsm = ras->tex0[1]>>19 & 0x3F;
-		if(psm == 0x13){	// PSMT8
-			ras->flags |= 2;
-			// TODO: stuff
-		}
-		if(psm == 0x14){	// PSMT4
-			// swizzle flag probably depends on version :/
-			if(rw::version > 0x31000)
-				ras->flags |= 4;
-			// TODO: stuff
-		}
-		ras->texelSize = 0x50*numLevels;	// GIF packets
-		int32 minW, minH;
-		ps2MinSize(psm, ras->flags, &minW, &minH);
-		int32 w = raster->width;
-		int32 h = raster->height;
-		int32 mipw, miph;
-		int32 n = numLevels;
-		while(n--){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
-			ras->texelSize += mipw*miph*raster->depth/8+0xF & ~0xF;
-			w /= 2;
-			h /= 2;
-		}
-		if(ras->paletteSize){
-			if(rw::version > 0x31000 && paletteHeight == 2)
-				paletteHeight = 3;
-			ras->paletteSize = 0x50 +
-			    paletteDepth*paletteWidth*paletteHeight;
-		}
-		// TODO: allocate space for more DMA packets
-		ras->dataSize = ras->paletteSize+ras->texelSize;
-		uint8 *data = new uint8[ras->dataSize];
-		assert(data);
-		ras->data = data;
-		raster->texels = data + 0x50;
-		if(ras->paletteSize)
-			raster->palette = data + ras->texelSize + 0x50;
-		uint32 *p = (uint32*)data;
-		w = raster->width;
-		h = raster->height;
-		for(n = 0; n < numLevels; n++){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
-
-			// GIF tag
-			*p++ = 3;          // NLOOP = 3
-			*p++ = 0x10000000; // NREG = 1
-			*p++ = 0xE;        // A+D
-			*p++ = 0;
-
-			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
-			*p++ = 0x51;
-			*p++ = 0;
-
-			// TRXREG
-			if(ras->flags & 2 && psm == 0x13 ||
-			   ras->flags & 4 && psm == 0x14){
-				*p++ = mipw/2;
-				*p++ = miph/2;
-			}else{
-				*p++ = mipw;
-				*p++ = miph;
-			}
-			*p++ = 0x52;
-			*p++ = 0;
-
-			// TRXDIR
-			*p++ = 0;	// host -> local
-			*p++ = 0;
-			*p++ = 0x53;
-			*p++ = 0;
-
-			// GIF tag
-			uint32 sz = mipw*miph*raster->depth/8 + 0xF >> 4;
-			*p++ = sz;
-			*p++ = 0x08000000; // IMAGE
-			*p++ = 0;
-			*p++ = 0;
-
-			p += sz*4;
-			w /= 2;
-			h /= 2;
-		}
-		if(ras->paletteSize){
-			p = (uint32*)(raster->palette - 0x50);
-			// GIF tag
-			*p++ = 3;          // NLOOP = 3
-			*p++ = 0x10000000; // NREG = 1
-			*p++ = 0xE;        // A+D
-			*p++ = 0;
-
-			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
-			*p++ = 0x51;
-			*p++ = 0;
-
-			// TRXREG
-			*p++ = paletteWidth;
-			*p++ = paletteHeight;
-			*p++ = 0x52;
-			*p++ = 0;
-
-			// TRXDIR
-			*p++ = 0;	// host -> local
-			*p++ = 0;
-			*p++ = 0x53;
-			*p++ = 0;
-
-			// GIF tag
-			uint32 sz = paletteSize - 0x50 + 0xF >> 4;
-			*p++ = sz;
-			*p++ = 0x08000000; // IMAGE
-			*p++ = 0;
-			*p++ = 0;
-
-		}
-	}
-}
-
-uint8*
-Ps2Raster::lock(Raster *raster, int32 level)
-{
-	// TODO
-	(void)raster;
-	(void)level;
-	return NULL;
-}
-
-void
-Ps2Raster::unlock(Raster *raster, int32 level)
-{
-	// TODO
-	(void)raster;
-	(void)level;
-}
-
-int32
-Ps2Raster::getNumLevels(Raster *raster)
-{
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	if(raster->texels == NULL) return 0;
-	if(raster->format & Raster::MIPMAP)
-		return MAXLEVEL(ras)+1;
-	return 1;
-}
-	
-static void*
-createNativeRaster(void *object, int32 offset, int32)
-{
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
-	new (raster) Ps2Raster;
-	raster->tex0[0] = 0;
-	raster->tex0[1] = 0;
-	raster->tex1[0] = 0;
-	raster->tex1[1] = 0;
-	raster->miptbp1[0] = 0;
-	raster->miptbp1[1] = 0;
-	raster->miptbp2[0] = 0;
-	raster->miptbp2[1] = 0;
-	raster->texelSize = 0;
-	raster->paletteSize = 0;
-	raster->gsSize = 0;
-	raster->flags = 0;
-	SETKL(raster, 0xFC0);
-
-	raster->dataSize = 0;
-	raster->data = NULL;
-	return object;
-}
-
-static void*
-destroyNativeRaster(void *object, int32 offset, int32)
-{
-	// TODO
-	(void)offset;
-	return object;
-}
-
-static void*
-copyNativeRaster(void *dst, void *src, int32 offset, int32)
-{
-	Ps2Raster *dstraster = PLUGINOFFSET(Ps2Raster, dst, offset);
-	Ps2Raster *srcraster = PLUGINOFFSET(Ps2Raster, src, offset);
-	*dstraster = *srcraster;
-	return dst;
-}
-
-static void
-readMipmap(Stream *stream, int32, void *object, int32 offset, int32)
-{
-	uint16 val = stream->readI32();
-	Texture *tex = (Texture*)object;
-	if(tex->raster == NULL)
-		return;
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
-	SETKL(raster, val);
-}
-
-static void
-writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
-{
-	Texture *tex = (Texture*)object;
-	assert(tex->raster);
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
-	stream->writeI32(raster->tex1[1]&0xFFFF);
-}
-
-static int32
-getSizeMipmap(void*, int32, int32)
-{
-	return rw::platform == PLATFORM_PS2 ? 4 : 0;
-}
-
-void
-registerNativeRaster(void)
-{
-	nativeRasterOffset = Raster::registerPlugin(sizeof(Ps2Raster),
-	                                            0x12340000 | PLATFORM_PS2, 
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
-	Raster::nativeOffsets[PLATFORM_PS2] = nativeRasterOffset;
-	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
-	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
-}
-
-struct StreamRasterExt
-{
-	int32 width;
-	int32 height;
-	int32 depth;
-	uint16 rasterFormat;
-	int16  type;
-	uint32 tex0[2];
-	uint32 tex1[2];
-	uint32 miptbp1[2];
-	uint32 miptbp2[2];
-	uint32 texelSize;
-	uint32 paletteSize;
-	uint32 gsSize;
-	uint32 mipmapVal;
-};
-
-Texture*
-readNativeTexture(Stream *stream)
-{
-	uint32 length, oldversion, version;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(stream->readU32() == 0x00325350);	// 'PS2\0'
-	Texture *tex = Texture::create(NULL);
-
-	// Texture
-	tex->filterAddressing = stream->readU32();
-	assert(findChunk(stream, ID_STRING, &length, NULL));
-	stream->read(tex->name, length);
-	assert(findChunk(stream, ID_STRING, &length, NULL));
-	stream->read(tex->mask, length);
-
-	// Raster
-	StreamRasterExt streamExt;
-	oldversion = rw::version;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
-	stream->read(&streamExt, 0x40);
-	Raster *raster;
-	noNewStyleRasters = streamExt.type < 2;
-	rw::version = version;
-	raster = Raster::create(streamExt.width, streamExt.height,
-	                        streamExt.depth, streamExt.rasterFormat,
-	                        PLATFORM_PS2);
-	noNewStyleRasters = 0;
-	rw::version = oldversion;
-	tex->raster = raster;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
-	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
-	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
-	ras->tex0[0] = streamExt.tex0[0];
-	ras->tex0[1] = streamExt.tex0[1];
-	ras->tex1[0] = streamExt.tex1[0];
-	ras->tex1[1] = ras->tex1[1]&~0xFF0000 | streamExt.tex1[1]<<16 & 0xFF0000;
-	ras->miptbp1[0] = streamExt.miptbp1[0];
-	ras->miptbp1[1] = streamExt.miptbp1[1];
-	ras->miptbp2[0] = streamExt.miptbp2[0];
-	ras->miptbp2[1] = streamExt.miptbp2[1];
-	ras->texelSize = streamExt.texelSize;
-	ras->paletteSize = streamExt.paletteSize;
-	ras->gsSize = streamExt.gsSize;
-	SETKL(ras, streamExt.mipmapVal);
-	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
-	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
-	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
-
-	assert(findChunk(stream, ID_STRUCT, &length, NULL));
-	if(streamExt.type < 2){
-		stream->read(raster->texels, length);
-	}else{
-		stream->read(raster->texels-0x50, ras->texelSize);
-		stream->read(raster->palette-0x50, ras->paletteSize);
-	}
-
-	tex->streamReadPlugins(stream);
-	return tex;
-}
-
-void
-writeNativeTexture(Texture *tex, Stream *stream)
-{
-	Raster *raster = tex->raster;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	int32 chunksize = getSizeNativeTexture(tex);
-	writeChunkHeader(stream, ID_TEXTURENATIVE, chunksize);
-	writeChunkHeader(stream, ID_STRUCT, 8);
-	stream->writeU32(FOURCC_PS2);
-	stream->writeU32(tex->filterAddressing);
-	int32 len = strlen(tex->name)+4 & ~3;
-	writeChunkHeader(stream, ID_STRING, len);
-	stream->write(tex->name, len);
-	len = strlen(tex->mask)+4 & ~3;
-	writeChunkHeader(stream, ID_STRING, len);
-	stream->write(tex->mask, len);
-
-	int32 sz = ras->texelSize + ras->paletteSize;
-	writeChunkHeader(stream, ID_STRUCT, 12 + 64 + 12 + sz);
-	writeChunkHeader(stream, ID_STRUCT, 64);
-	StreamRasterExt streamExt;
-	streamExt.width = raster->width;
-	streamExt.height = raster->height;
-	streamExt.depth = raster->depth;
-	streamExt.rasterFormat = raster->format | raster->type;
-	streamExt.type = 0;
-	if(ras->flags == 2 && raster->depth == 8)
-		streamExt.type = 1;
-	if(ras->flags & 1)
-		streamExt.type = 2;
-	streamExt.tex0[0] = ras->tex0[0];
-	streamExt.tex0[1] = ras->tex0[1];
-	streamExt.tex1[0] = ras->tex1[0];
-	streamExt.tex1[1] = ras->tex1[1]>>16 & 0xFF;
-	streamExt.miptbp1[0] = ras->miptbp1[0];
-	streamExt.miptbp1[1] = ras->miptbp1[1];
-	streamExt.miptbp2[0] = ras->miptbp2[0];
-	streamExt.miptbp2[1] = ras->miptbp2[1];
-	streamExt.texelSize = ras->texelSize;
-	streamExt.paletteSize = ras->paletteSize;
-	streamExt.gsSize = ras->gsSize;
-	streamExt.mipmapVal = ras->tex1[1]&0xFFFF;
-	stream->write(&streamExt, 64);
-
-	writeChunkHeader(stream, ID_STRUCT, sz);
-	if(streamExt.type < 2){
-		stream->write(raster->texels, sz);
-	}else{
-		stream->write(raster->texels-0x50, ras->texelSize);
-		stream->write(raster->palette-0x50, ras->paletteSize);
-	}
-	tex->streamWritePlugins(stream);
-}
-
-uint32
-getSizeNativeTexture(Texture *tex)
-{
-	uint32 size = 12 + 8;
-	size += 12 + strlen(tex->name)+4 & ~3;
-	size += 12 + strlen(tex->mask)+4 & ~3;
-	size += 12 + 12 + 64 + 12;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
-	size += ras->texelSize + ras->paletteSize;
-	size += 12 + tex->streamGetPluginSize();
-	return size;
 }
 
 }

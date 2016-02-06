@@ -3,8 +3,6 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwpipeline.h"
@@ -913,7 +911,16 @@ MatFX::setEffects(uint32 type)
 	}
 }
 
-int32
+uint32
+MatFX::getEffects(Material *m)
+{
+	MatFX *fx = *PLUGINOFFSET(MatFX*, m, matFXGlobals.materialOffset);
+	if(fx)
+		return fx->type;
+	return 0;
+}
+
+uint32
 MatFX::getEffectIndex(uint32 type)
 {
 	for(int i = 0; i < 2; i++)

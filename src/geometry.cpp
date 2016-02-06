@@ -4,8 +4,6 @@
 #include <cassert>
 #include <cmath>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplugin.h"
 #include "rwpipeline.h"

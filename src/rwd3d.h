@@ -83,6 +83,7 @@ struct D3dRaster : NativeRaster
 	virtual uint8 *lock(Raster *raster, int32 level);
 	virtual void unlock(Raster *raster, int32 level);
 	virtual int32 getNumLevels(Raster *raster);
+	virtual void fromImage(Raster *raster, Image *img);
 };
 
 int32 getLevelSize(Raster *raster, int32 level);

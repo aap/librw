@@ -115,6 +115,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_USING_V110_SDK71_;_CRT_SECURE_NO_WARNINGS;RW_D3D9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -192,17 +193,16 @@
     <ClCompile Include="src\d3d8.cpp" />
     <ClCompile Include="src\d3d9.cpp" />
     <ClCompile Include="src\geometry.cpp" />
-    <ClCompile Include="src\gtaplg.cpp" />
     <ClCompile Include="src\image.cpp" />
     <ClCompile Include="src\ogl.cpp" />
     <ClCompile Include="src\pipeline.cpp" />
     <ClCompile Include="src\plugins.cpp" />
     <ClCompile Include="src\ps2.cpp" />
+    <ClCompile Include="src\ps2raster.cpp" />
     <ClCompile Include="src\rwbase.cpp" />
     <ClCompile Include="src\xbox.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\gtaplg.h" />
     <ClInclude Include="src\rwbase.h" />
     <ClInclude Include="src\rwd3d.h" />
     <ClInclude Include="src\rwd3d8.h" />

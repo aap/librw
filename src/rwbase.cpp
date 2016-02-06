@@ -3,8 +3,6 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplugin.h"
 

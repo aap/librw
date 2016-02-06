@@ -51,7 +51,7 @@ struct LLLink
 
 // Have to be careful since the link might be deleted.
 #define FORLIST(_link, _list) \
-	for(LLLink *_next = NULL, *_link = (_list).link.next; \
+	for(rw::LLLink *_next = NULL, *_link = (_list).link.next; \
 	_next = (_link)->next, (_link) != (_list).end(); \
 	(_link) = _next)
 
@@ -303,18 +303,22 @@ struct Raster : PluginBase<Raster>
 	};
 };
 
-#define IGNORERASTERIMP 1
+extern bool32 loadTextures;
+
+#define IGNORERASTERIMP 0
 
 struct NativeRaster
 {
 	virtual void create(Raster*)
-		{ assert(IGNORERASTERIMP && "unimplemented"); };
+		{ assert(IGNORERASTERIMP && "NativeRaster::create unimplemented"); };
 	virtual uint8 *lock(Raster*, int32)
-		{ assert(IGNORERASTERIMP && "unimplemented"); return NULL; };
+		{ assert(IGNORERASTERIMP && "NativeRaster::lock unimplemented"); return NULL; };
 	virtual void unlock(Raster*, int32)
-		{ assert(IGNORERASTERIMP && "unimplemented"); };
+		{ assert(IGNORERASTERIMP && "NativeRaster::unlock unimplemented"); };
 	virtual int32 getNumLevels(Raster*)
-		{ assert(IGNORERASTERIMP && "unimplemented"); return 0; };
+		{ assert(IGNORERASTERIMP && "NativeRaster::getNumLevels unimplemented"); return 0; };
+	virtual void fromImage(Raster*, Image *img)
+		{ assert(IGNORERASTERIMP && "NativeRaster::fromImage unimplemented"); };
 };
 
 struct TexDictionary;
@@ -426,7 +430,8 @@ struct MatFX
 	uint32 type;
 
 	void setEffects(uint32 flags);
-	int32 getEffectIndex(uint32 type);
+	static uint32 getEffects(Material *m);
+	uint32 getEffectIndex(uint32 type);
 	void setBumpTexture(Texture *t);
 	void setBumpCoefficient(float32 coef);
 	void setEnvTexture(Texture *t);
