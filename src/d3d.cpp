@@ -550,6 +550,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	raster->palette = NULL;
 	raster->format = 0;
 	raster->hasAlpha = 0;
+	raster->customFormat = 0;
 	return object;
 }
 
@@ -569,6 +570,7 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	raster->palette = NULL;
 	raster->format = 0;
 	raster->hasAlpha = 0;
+	raster->customFormat = 0;
 	return dst;
 }
 

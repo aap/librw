@@ -78,6 +78,7 @@ struct D3dRaster : NativeRaster
 	void *palette;
 	uint32 format;
 	bool32 hasAlpha;
+	bool32 customFormat;
 
 	virtual void create(Raster *raster);
 	virtual uint8 *lock(Raster *raster, int32 level);

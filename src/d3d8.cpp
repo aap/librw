@@ -393,7 +393,7 @@ readNativeTexture(Stream *stream)
 	stream->read(tex->mask, 32);
 
 	// Raster
-	int32 format = stream->readI32();
+	uint32 format = stream->readU32();
 	bool32 hasAlpha = stream->readI32();
 	int32 width = stream->readU16();
 	int32 height = stream->readU16();
@@ -406,11 +406,13 @@ readNativeTexture(Stream *stream)
 	D3dRaster *ras;
 	if(compression){
 		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
+		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 		allocateDXT(raster, compression, numLevels, hasAlpha);
-	}else
+		ras->customFormat = 1;
+	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D8);
-
-	ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	}
 	tex->raster = raster;
 
 	// TODO: check if format supported and convert if necessary

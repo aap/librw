@@ -11,6 +11,7 @@
 #include "rwd3d.h"
 #include "rwxbox.h"
 #include "rwd3d8.h"
+#include "rwd3d9.h"
 
 #ifdef _WIN32
 /* srsly? */
@@ -243,14 +244,10 @@ Texture::streamReadNative(Stream *stream)
 		return ps2::readNativeTexture(stream);
 	if(platform == PLATFORM_D3D8)
 		return d3d8::readNativeTexture(stream);
+	if(platform == PLATFORM_D3D9)
+		return d3d9::readNativeTexture(stream);
 	if(platform == PLATFORM_XBOX)
 		return xbox::readNativeTexture(stream);
-
-//	if(rw::platform == PLATFORM_D3D8)
-//		return d3d8::readNativeTexture(stream);
-//	if(rw::platform == PLATFORM_XBOX)
-//		return xbox::readNativeTexture(stream);
-
 	assert(0 && "unsupported platform");
 	return NULL;
 }
@@ -262,6 +259,8 @@ Texture::streamWriteNative(Stream *stream)
 		ps2::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_D3D8)
 		d3d8::writeNativeTexture(this, stream);
+	else if(this->raster->platform == PLATFORM_D3D9)
+		d3d9::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_XBOX)
 		xbox::writeNativeTexture(this, stream);
 	else
@@ -275,6 +274,8 @@ Texture::streamGetSizeNative(void)
 		return ps2::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_D3D8)
 		return d3d8::getSizeNativeTexture(this);
+	if(this->raster->platform == PLATFORM_D3D9)
+		return d3d9::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_XBOX)
 		return xbox::getSizeNativeTexture(this);
 	assert(0 && "unsupported platform");
