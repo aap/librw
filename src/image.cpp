@@ -149,7 +149,8 @@ Texture::read(const char *name, const char *mask)
 	}
 	tex = Texture::create(NULL);
 	strncpy(tex->name, name, 32);
-	strncpy(tex->mask, mask, 32);
+	if(mask)
+		strncpy(tex->mask, mask, 32);
 	Image *img = NULL;
 	if(loadTextures){
 		char *n = (char*)malloc(strlen(name) + 5);

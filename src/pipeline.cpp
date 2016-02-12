@@ -16,6 +16,8 @@ using namespace std;
 
 namespace rw {
 
+void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);
+
 Pipeline::Pipeline(uint32 platform)
 {
 	this->pluginID = 0;
@@ -50,9 +52,10 @@ ObjPipeline::uninstance(Atomic*)
 }
 
 void
-ObjPipeline::render(Atomic*)
+ObjPipeline::render(Atomic *atomic)
 {
-	fprintf(stderr, "This pipeline can't render\n");
+	if(defaultRenderCBs[rw::platform])
+		defaultRenderCBs[rw::platform](atomic);
 }
 
 // helper functions

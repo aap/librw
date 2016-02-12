@@ -153,6 +153,8 @@ extern int build;
 extern int platform;
 extern char *debugFile;
 
+void initialize(void);
+
 void matrixIdentity(float32 *mat);
 int matrixEqual(float32 *m1, float32 *m2);
 int matrixIsIdentity(float32 *mat);

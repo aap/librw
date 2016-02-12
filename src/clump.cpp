@@ -18,6 +18,8 @@ using namespace std;
 
 namespace rw {
 
+LinkList Frame::dirtyList;
+
 Frame*
 Frame::create(void)
 {
@@ -27,15 +29,13 @@ Frame::create(void)
 	f->objectList.init();
 	f->child = NULL;
 	f->next = NULL;
-	f->root = NULL;
+	f->root = f;
 	for(int i = 0; i < 16; i++)
 		f->matrix[i] = 0.0f;
 	f->matrix[0] = 1.0f;
 	f->matrix[5] = 1.0f;
 	f->matrix[10] = 1.0f;
 	f->matrix[15] = 1.0f;
-	f->matflag = 0;
-	f->dirty = true;
 	f->constructPlugins();
 	return f;
 }
@@ -88,13 +88,15 @@ Frame::destroyHierarchy(void)
 Frame*
 Frame::addChild(Frame *child, bool32 append)
 {
+	Frame *c;
+	if(child->getParent())
+		child->removeChild();
 	if(append){
 		if(this->child == NULL)
 			this->child = child;
 		else{
-			Frame *f;
-			for(f = this->child; f->next; f = f->next);
-			f->next = child;
+			for(c = this->child; c->next; c = c->next);
+			c->next = child;
 		}
 		child->next = NULL;
 	}else{
@@ -103,6 +105,13 @@ Frame::addChild(Frame *child, bool32 append)
 	}
 	child->object.parent = this;
 	child->root = this->root;
+	for(c = child->child; c; c = c->next)
+		c->setHierarchyRoot(this);
+	if(child->object.privateFlags & Frame::HIERARCHYSYNC){
+		child->inDirtyList.remove();
+		child->object.privateFlags &= ~Frame::HIERARCHYSYNC;
+	}
+	this->updateObjects();
 	return this;
 }
 
@@ -110,19 +119,19 @@ Frame*
 Frame::removeChild(void)
 {
 	Frame *parent = this->getParent();
-	if(parent->child == this)
+	Frame *child = parent->child;
+	if(child == this)
 		parent->child = this->next;
 	else{
-		Frame *f;
-		for(f = parent->child; f; f = f->next)
-			if(f->next == this)
-				goto found;
-		// not found
-found:
-		f->next = f->next->next;
+		while(child->next != this)
+			child = child->next;
+		child->next = this->next;
 	}
-	this->object.parent = NULL;
-	this->next = this->root = NULL;
+	this->object.parent = this->next = NULL;
+	this->root = this;
+	for(child = this->child; child; child = child->next)
+		child->setHierarchyRoot(this);
+	this->updateObjects();
 	return this;
 }
 
@@ -150,35 +159,53 @@ Frame::count(void)
 	return count;
 }
 
-void
-Frame::updateLTM(void)
+static void
+syncRecurse(Frame *frame, uint8 flags)
 {
-	if(!this->dirty)
-		return;
-	Frame *parent = this->getParent();
-	if(parent){
-		parent->updateLTM();
-		matrixMult(this->ltm, parent->ltm, this->matrix);
-		this->dirty = false;
-	}else{
-		memcpy(this->ltm, this->matrix, 16*4);
-		this->dirty = false;
+	uint8 flg;
+	for(; frame; frame = frame->next){
+		flg = flags | frame->object.privateFlags;
+		if(flg & Frame::SUBTREESYNCLTM){
+			matrixMult(frame->ltm, frame->getParent()->ltm, frame->matrix);
+			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
+		}
+		syncRecurse(frame->child, flg);
 	}
 }
 
-static Frame*
-dirtyCB(Frame *f, void *)
+void
+Frame::syncHierarchyLTM(void)
 {
-	f->dirty = true;
-	f->forAllChildren(dirtyCB, NULL);
-	return f;
+	Frame *child;
+	uint8 flg;
+	if(this->object.privateFlags & Frame::SUBTREESYNCLTM)
+		memcpy(this->ltm, this->matrix, 64);
+	for(child = this->child; child; child = child->next){
+		flg = this->object.privateFlags | child->object.privateFlags;
+		if(flg & Frame::SUBTREESYNCLTM){
+			matrixMult(child->ltm, this->ltm, child->matrix);
+			child->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
+		}
+		syncRecurse(child, flg);
+	}
+	this->object.privateFlags &= ~Frame::SYNCLTM;
+}
+
+float*
+Frame::getLTM(void)
+{
+	if(this->root->object.privateFlags & Frame::HIERARCHYSYNCLTM)
+		this->root->syncHierarchyLTM();
+	return this->ltm;
 }
 
 void
-Frame::setDirty(void)
+Frame::updateObjects(void)
 {
-	this->dirty = true;
-	this->forAllChildren(dirtyCB, NULL);
+	if((this->root->object.privateFlags & HIERARCHYSYNC) == 0)
+		Frame::dirtyList.add(&this->inDirtyList);
+	this->root->object.privateFlags |= HIERARCHYSYNC;
+	this->object.privateFlags |= SUBTREESYNC;
 }
 
 void
@@ -493,7 +520,7 @@ Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 		f->matrix[13] = buf.pos[1];
 		f->matrix[14] = buf.pos[2];
 		f->matrix[15] = 1.0f;
-		f->matflag = buf.matflag;
+		//f->matflag = buf.matflag;
 		if(buf.parent >= 0)
 			frameList[buf.parent]->addChild(f);
 	}
@@ -533,7 +560,7 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 		buf.pos[2] = f->matrix[14];
 		buf.parent = findPointer(f->getParent(), (void**)frameList,
 		                         numFrames);
-		buf.matflag = f->matflag;
+		buf.matflag = 0; //f->matflag;
 		stream->write(&buf, sizeof(buf));
 	}
 	for(int32 i = 0; i < numFrames; i++)
@@ -552,6 +579,7 @@ Atomic::create(void)
 	atomic->object.init(Atomic::ID, 0);
 	atomic->geometry = NULL;
 	atomic->pipeline = NULL;
+	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->constructPlugins();
 
 	// flags:
@@ -670,21 +698,9 @@ Atomic::getPipeline(void)
 }
 
 void
-Atomic::init(void)
+Atomic::defaultRenderCB(Atomic *atomic)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
-		defaultPipelines[i] = defpipe;
-	defaultPipelines[PLATFORM_PS2] =
-		ps2::makeDefaultPipeline();
-	defaultPipelines[PLATFORM_OGL] =
-		gl::makeDefaultPipeline();
-	defaultPipelines[PLATFORM_XBOX] =
-		xbox::makeDefaultPipeline();
-	defaultPipelines[PLATFORM_D3D8] =
-		d3d8::makeDefaultPipeline();
-	defaultPipelines[PLATFORM_D3D9] =
-		d3d9::makeDefaultPipeline();
+	atomic->getPipeline()->render(atomic);
 }
 
 // Atomic Rights plugin

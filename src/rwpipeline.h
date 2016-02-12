@@ -25,10 +25,12 @@ class ObjPipeline : public Pipeline
 {
 public:
 	ObjPipeline(uint32 platform) : Pipeline(platform) {}
-	virtual void instance(Atomic *atomic);
-	virtual void uninstance(Atomic *atomic);
-	virtual void render(Atomic *atomic);
+	virtual void instance(Atomic *atomic);		// TODO?: make these callbacks instead of virtual
+	virtual void uninstance(Atomic *atomic);	// TODO?: make these callbacks instead of virtual
+	virtual void render(Atomic *atomic);		// TODO?: make these callbacks instead of virtual
 };
+
+extern void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);
 
 void findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, int32 *numVertices);
 

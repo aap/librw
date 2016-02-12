@@ -237,9 +237,8 @@ Ps2Raster::create(Raster *raster)
 			if(pageWidth*nPagW > raster->width ||
 			   pageHeight*nPagH > raster->height)
 				ras->tex1[0] = (ras->gsSize >> 6) - 4;
-			else{
+			else
 				ras->tex1[0] = ras->gsSize >> 6;
-			}
 			nPagW = (paletteWidth + palettePagewidth-1)/palettePagewidth;
 			nPagH = (paletteHeight + palettePageheight-1)/palettePageheight;
 			ras->gsSize += (nPagW*nPagH*0x800)&~0x7FF;

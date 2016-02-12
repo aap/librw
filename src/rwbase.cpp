@@ -5,6 +5,13 @@
 
 #include "rwbase.h"
 #include "rwplugin.h"
+#include "rwpipeline.h"
+#include "rwobjects.h"
+#include "rwps2.h"
+#include "rwogl.h"
+#include "rwxbox.h"
+#include "rwd3d8.h"
+#include "rwd3d9.h"
 
 using namespace std;
 
@@ -22,6 +29,27 @@ int32 build = 0xFFFF;
 	int32 platform = PLATFORM_NULL;
 #endif
 char *debugFile = NULL;
+
+void
+initialize(void)
+{
+	// Atomic pipelines
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		defaultPipelines[i] = defpipe;
+	defaultPipelines[PLATFORM_PS2] =
+		ps2::makeDefaultPipeline();
+	defaultPipelines[PLATFORM_OGL] =
+		gl::makeDefaultPipeline();
+	defaultPipelines[PLATFORM_XBOX] =
+		xbox::makeDefaultPipeline();
+	defaultPipelines[PLATFORM_D3D8] =
+		d3d8::makeDefaultPipeline();
+	defaultPipelines[PLATFORM_D3D9] =
+		d3d9::makeDefaultPipeline();
+
+	Frame::dirtyList.init();
+}
 
 void
 matrixIdentity(float32 *mat)

@@ -115,9 +115,20 @@ struct Object
 struct Frame : PluginBase<Frame>
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
-
 	enum { ID = 0 };
+	enum {	// private flags
+		HIERARCHYSYNCLTM = 0x01,
+		HIERARCHYSYNCOBJ = 0x02,
+		HIERARCHYSYNC    = HIERARCHYSYNCLTM  | HIERARCHYSYNCOBJ,
+		SUBTREESYNCLTM   = 0x04,
+		SUBTREESYNCOBJ   = 0x08,
+		SUBTREESYNC      = SUBTREESYNCLTM | SUBTREESYNCOBJ,
+		SYNCLTM          = HIERARCHYSYNCLTM | SUBTREESYNCLTM,
+		SYNCOBJ          = HIERARCHYSYNCOBJ | SUBTREESYNCOBJ,
+	};
+
 	Object object;
+	LLLink inDirtyList;
 	LinkList objectList;
 	float32	matrix[16];
 	float32	ltm[16];
@@ -126,9 +137,7 @@ struct Frame : PluginBase<Frame>
 	Frame *next;
 	Frame *root;
 
-	// temporary
-	int32 matflag;
-	bool dirty;
+	static LinkList dirtyList;
 
 	static Frame *create(void);
 	Frame *cloneHierarchy(void);
@@ -140,9 +149,10 @@ struct Frame : PluginBase<Frame>
 	Frame *getParent(void){
 		return (Frame*)this->object.parent; }
 	int32 count(void);
-	void updateLTM(void);
-	void setDirty(void);
+	float *getLTM(void);
+	void updateObjects(void);
 
+	void syncHierarchyLTM(void);
 	void setHierarchyRoot(Frame *root);
 	Frame *cloneAndLink(Frame *clonedroot);
 	void purgeClone(void);
@@ -578,12 +588,15 @@ struct Clump;
 
 struct Atomic : PluginBase<Atomic>
 {
+	typedef void (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
+
 	ObjectWithFrame object;
 	Geometry *geometry;
 	Clump *clump;
 	LLLink inClump;
 	ObjPipeline *pipeline;
+	RenderCB renderCB;
 
 	static Atomic *create(void);
 	Atomic *clone(void);
@@ -598,8 +611,9 @@ struct Atomic : PluginBase<Atomic>
 	Frame **frameList, int32 numframes);
 	uint32 streamGetSize(void);
 	ObjPipeline *getPipeline(void);
+	void render(void) { this->renderCB(this); }
 
-	static void init(void);
+	static void defaultRenderCB(Atomic *atomic);
 };
 
 extern ObjPipeline *defaultPipelines[NUM_PLATFORMS];
