@@ -260,13 +260,10 @@ registerNativeDataPlugin(void)
 	                               getSizeNativeData);
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform),
-   instanceCB(NULL), uninstanceCB(NULL) { }
-
-void
-ObjPipeline::instance(Atomic *atomic)
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -313,12 +310,13 @@ ObjPipeline::instance(Atomic *atomic)
 
 	memset(&header->vertexStream, 0, 2*sizeof(VertexStream));
 
-	this->instanceCB(geo, header);
+	pipe->instanceCB(geo, header);
 }
 
-void
-ObjPipeline::uninstance(Atomic *atomic)
+static void
+uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
@@ -343,9 +341,18 @@ ObjPipeline::uninstance(Atomic *atomic)
 	}
 	unlockIndices(header->indexBuffer);
 
-	this->uninstanceCB(geo, header);
+	pipe->uninstanceCB(geo, header);
 	geo->generateTriangles();
 	destroyNativeData(geo, 0, 0);
+}
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform)
+{
+	this->impl.instance = d3d9::instance;
+	this->impl.uninstance = d3d9::uninstance;
+	this->instanceCB = NULL;
+	this->uninstanceCB = NULL;
 }
 
 void

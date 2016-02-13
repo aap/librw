@@ -140,18 +140,15 @@ registerNativeDataPlugin(void)
 	                               getSizeNativeData);
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform),
-   instanceCB(NULL), uninstanceCB(NULL) { }
-
-void
-ObjPipeline::instance(Atomic *atomic)
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	enum {
 		D3DPT_TRIANGLELIST    =  5,
 		D3DPT_TRIANGLESTRIP   =  6,
 	};
 
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -195,12 +192,13 @@ ObjPipeline::instance(Atomic *atomic)
 	}
 	header->end = inst;
 
-	this->instanceCB(geo, header);
+	pipe->instanceCB(geo, header);
 }
 
-void
-ObjPipeline::uninstance(Atomic *atomic)
+static void
+uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
@@ -220,10 +218,20 @@ ObjPipeline::uninstance(Atomic *atomic)
 		inst++;
 	}
 
-	this->uninstanceCB(geo, header);
+	pipe->uninstanceCB(geo, header);
 	geo->generateTriangles();
 	destroyNativeData(geo, 0, 0);
 }
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform)
+{
+	this->impl.instance = xbox::instance;
+	this->impl.uninstance = xbox::uninstance;
+	this->instanceCB = NULL;
+	this->uninstanceCB = NULL;
+}
+
 
 int v3dFormatMap[] = {
 	-1, VERT_BYTE3, VERT_SHORT3, VERT_NORMSHORT3, VERT_COMPNORM, VERT_FLOAT3

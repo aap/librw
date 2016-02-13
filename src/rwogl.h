@@ -51,8 +51,6 @@ public:
 	void (*uninstanceCB)(Geometry *g);
 
 	ObjPipeline(uint32 platform);
-	virtual void instance(Atomic *atomic);
-	virtual void uninstance(Atomic *atomic);
 };
 
 ObjPipeline *makeDefaultPipeline(void);

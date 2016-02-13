@@ -59,6 +59,12 @@ void fixDmaOffsets(InstanceData *inst);
 void unfixDmaOffsets(InstanceData *inst);
 //
 
+struct PipeAttribute
+{
+	const char *name;
+	uint32 attrib;
+};
+
 class MatPipeline : public rw::Pipeline
 {
 public:
@@ -70,6 +76,13 @@ public:
 	void (*uninstanceCB)(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
 	void (*preUninstCB)(MatPipeline*, Geometry*);
 	void (*postUninstCB)(MatPipeline*, Geometry*);
+	// RW has more:
+	//  instanceTestCB()
+	//  resEntryAllocCB()
+	//  bridgeCB()
+	//  postMeshCB()
+	//  vu1code
+	//  primtype
 
 	static uint32 getVertCount(uint32 top, uint32 inAttribs,
 	                           uint32 outAttribs, uint32 outBufs) {
@@ -77,7 +90,7 @@ public:
 	}
 
 	MatPipeline(uint32 platform);
-	virtual void dump(void);
+	void dump(void);
 	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
 	void instance(Geometry *g, InstanceData *inst, Mesh *m);
 	uint8 *collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]);
@@ -87,10 +100,13 @@ class ObjPipeline : public rw::ObjPipeline
 {
 public:
 	MatPipeline *groupPipeline;
+	// RW has more:
+	//  setupCB()
+	//  finalizeCB()
+	//  lightOffset
+	//  lightSize
 
 	ObjPipeline(uint32 platform);
-	virtual void instance(Atomic *atomic);
-	virtual void uninstance(Atomic *atomic);
 };
 
 struct Vertex {
@@ -153,17 +169,6 @@ void unconvertADC(Geometry *geo);
 void allocateADC(Geometry *geo);
 
 // PDS plugin
-
-// IDs used by SA
-//    n   atomic   material
-//  1892  53f20080 53f20081	// ?			   no night colors
-//     1  53f20080 53f2008d	// triad_buddha01.dff	   no night colors
-// 56430  53f20082 53f20083	// world		   night colors
-//    39  53f20082 53f2008f	// reflective world	   night colors
-//  6941  53f20084 53f20085	// vehicles
-//  3423  53f20084 53f20087	// vehicles
-//  4640  53f20084 53f2008b	// vehicles
-//   418  53f20088 53f20089	// peds
 
 Pipeline *getPDSPipe(uint32 data);
 void registerPDSPipe(Pipeline *pipe);

@@ -40,8 +40,6 @@ public:
 	void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
 
 	ObjPipeline(uint32 platform);
-	virtual void instance(Atomic *atomic);
-	virtual void uninstance(Atomic *atomic);
 };
 
 ObjPipeline *makeDefaultPipeline(void);

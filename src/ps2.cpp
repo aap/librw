@@ -611,12 +611,10 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	return raw;
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform), groupPipeline(NULL) { }
-
-void
-ObjPipeline::instance(Atomic *atomic)
+static void
+objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -631,8 +629,8 @@ ObjPipeline::instance(Atomic *atomic)
 		InstanceData *instance = &header->instanceMeshes[i];
 
 		MatPipeline *m;
-		m = this->groupPipeline ?
-		    this->groupPipeline :
+		m = pipe->groupPipeline ?
+		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL)
 			m = defaultMatPipe;
@@ -642,7 +640,7 @@ ObjPipeline::instance(Atomic *atomic)
 	geo->geoflags |= Geometry::NATIVE;
 }
 
-void
+static void
 printVertCounts(InstanceData *inst, int flag)
 {
 	uint32 *d = (uint32*)inst->data;
@@ -671,9 +669,10 @@ printVertCounts(InstanceData *inst, int flag)
 	}
 }
 
-void
-ObjPipeline::uninstance(Atomic *atomic)
+static void
+objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
@@ -691,8 +690,8 @@ ObjPipeline::uninstance(Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geo->meshHeader->mesh[i];
 		MatPipeline *m;
-		m = this->groupPipeline ?
-		    this->groupPipeline :
+		m = pipe->groupPipeline ?
+		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL) m = defaultMatPipe;
 		if(m->preUninstCB) m->preUninstCB(m, geo);
@@ -702,8 +701,8 @@ ObjPipeline::uninstance(Atomic *atomic)
 		Mesh *mesh = &geo->meshHeader->mesh[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 		MatPipeline *m;
-		m = this->groupPipeline ?
-		    this->groupPipeline :
+		m = pipe->groupPipeline ?
+		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL) m = defaultMatPipe;
 
@@ -716,8 +715,8 @@ ObjPipeline::uninstance(Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geo->meshHeader->mesh[i];
 		MatPipeline *m;
-		m = this->groupPipeline ?
-		    this->groupPipeline :
+		m = pipe->groupPipeline ?
+		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == NULL) m = defaultMatPipe;
 		if(m->postUninstCB) m->postUninstCB(m, geo);
@@ -742,6 +741,14 @@ ObjPipeline::uninstance(Atomic *atomic)
 		printVertCounts(instance, geo->meshHeader->flags);
 	}
 */
+}
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform)
+{
+	this->groupPipeline = NULL;
+	this->impl.instance = objInstance;
+	this->impl.uninstance = objUninstance;
 }
 
 int32

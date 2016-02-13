@@ -1,11 +1,5 @@
 namespace rw {
 
-struct PipeAttribute
-{
-	const char *name;
-	uint32 attrib;
-};
-
 struct Atomic;
 
 class Pipeline
@@ -16,18 +10,23 @@ public:
 	int32 platform;
 
 	Pipeline(uint32 platform);
-	Pipeline(Pipeline *p);
-	~Pipeline(void);
-	virtual void dump(void);
 };
 
 class ObjPipeline : public Pipeline
 {
 public:
-	ObjPipeline(uint32 platform) : Pipeline(platform) {}
-	virtual void instance(Atomic *atomic);		// TODO?: make these callbacks instead of virtual
-	virtual void uninstance(Atomic *atomic);	// TODO?: make these callbacks instead of virtual
-	virtual void render(Atomic *atomic);		// TODO?: make these callbacks instead of virtual
+	ObjPipeline(uint32 platform);
+	// not the most beautiful way of doing things but still
+	// better than virtual methods (i hope?).
+	struct {
+		void (*instance)(ObjPipeline *pipe, Atomic *atomic);
+		void (*uninstance)(ObjPipeline *pipe, Atomic *atomic);
+		void (*render)(ObjPipeline *pipe, Atomic *atomic);
+	} impl;
+	// just for convenience
+	void instance(Atomic *atomic) { this->impl.instance(this, atomic); }
+	void uninstance(Atomic *atomic) { this->impl.uninstance(this, atomic); }
+	void render(Atomic *atomic) { this->impl.render(this, atomic); }
 };
 
 extern void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);

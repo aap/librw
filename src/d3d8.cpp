@@ -196,13 +196,10 @@ registerNativeDataPlugin(void)
 }
 
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform),
-   instanceCB(NULL), uninstanceCB(NULL) { }
-
-void
-ObjPipeline::instance(Atomic *atomic)
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -240,15 +237,16 @@ ObjPipeline::instance(Atomic *atomic)
 				indices[j] = mesh->indices[j] - inst->minVert;
 		unlockIndices(inst->indexBuffer);
 
-		this->instanceCB(geo, inst);
+		pipe->instanceCB(geo, inst);
 		mesh++;
 		inst++;
 	}
 }
 
-void
-ObjPipeline::uninstance(Atomic *atomic)
+static void
+uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
@@ -270,12 +268,21 @@ ObjPipeline::uninstance(Atomic *atomic)
 				mesh->indices[j] = indices[j] + inst->minVert;
 		unlockIndices(inst->indexBuffer);
 
-		this->uninstanceCB(geo, inst);
+		pipe->uninstanceCB(geo, inst);
 		mesh++;
 		inst++;
 	}
 	geo->generateTriangles();
 	destroyNativeData(geo, 0, 0);
+}
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform)
+{
+	this->impl.instance = d3d8::instance;
+	this->impl.uninstance = d3d8::uninstance;
+	this->instanceCB = NULL;
+	this->uninstanceCB = NULL;
 }
 
 void

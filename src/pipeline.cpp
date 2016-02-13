@@ -18,6 +18,8 @@ namespace rw {
 
 void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);
 
+static void nothing(ObjPipeline *, Atomic*) {}
+
 Pipeline::Pipeline(uint32 platform)
 {
 	this->pluginID = 0;
@@ -25,38 +27,20 @@ Pipeline::Pipeline(uint32 platform)
 	this->platform = platform;
 }
 
-Pipeline::Pipeline(Pipeline *)
+ObjPipeline::ObjPipeline(uint32 platform)
+ : Pipeline(platform)
 {
-	assert(0 && "Can't copy pipeline");
+	this->impl.instance = nothing;
+	this->impl.uninstance = nothing;
+	this->impl.render = nothing;
 }
 
-Pipeline::~Pipeline(void)
-{
-}
-
-void
-Pipeline::dump(void)
-{
-}
-
-void
-ObjPipeline::instance(Atomic*)
-{
-	fprintf(stderr, "This pipeline can't instance\n");
-}
-
-void
-ObjPipeline::uninstance(Atomic*)
-{
-	fprintf(stderr, "This pipeline can't uninstance\n");
-}
-
-void
-ObjPipeline::render(Atomic *atomic)
-{
-	if(defaultRenderCBs[rw::platform])
-		defaultRenderCBs[rw::platform](atomic);
-}
+//void
+//ObjPipeline::render(Atomic *atomic)
+//{
+//	if(defaultRenderCBs[rw::platform])
+//		defaultRenderCBs[rw::platform](atomic);
+//}
 
 // helper functions
 

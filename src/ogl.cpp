@@ -284,13 +284,10 @@ printPipeinfo(Atomic *a)
 	printf("\n");
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform), numCustomAttribs(0),
-   instanceCB(NULL), uninstanceCB(NULL) { }
-
-void
-ObjPipeline::instance(Atomic *atomic)
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if(geo->geoflags & Geometry::NATIVE)
 		return;
@@ -300,7 +297,7 @@ ObjPipeline::instance(Atomic *atomic)
 	header->vbo = 0;
 	header->ibo = 0;
 	header->numAttribs =
-		this->numCustomAttribs + 1 + (geo->numTexCoordSets > 0);
+		pipe->numCustomAttribs + 1 + (geo->numTexCoordSets > 0);
 	if(geo->geoflags & Geometry::PRELIT)
 		header->numAttribs++;
 	if(geo->geoflags & Geometry::NORMALS)
@@ -353,8 +350,8 @@ ObjPipeline::instance(Atomic *atomic)
 		firstCustom++;
 	}
 
-	if(this->instanceCB)
-		offset += this->instanceCB(geo, firstCustom, offset);
+	if(pipe->instanceCB)
+		offset += pipe->instanceCB(geo, firstCustom, offset);
 	else{
 		header->dataSize = offset*geo->numVertices;
 		header->data = new uint8[header->dataSize];
@@ -414,9 +411,10 @@ ObjPipeline::instance(Atomic *atomic)
 	geo->geoflags |= Geometry::NATIVE;
 }
 
-void
-ObjPipeline::uninstance(Atomic *atomic)
+static void
+uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
@@ -477,12 +475,22 @@ ObjPipeline::uninstance(Atomic *atomic)
 		}
 	}
 
-	if(this->uninstanceCB)
-		uninstanceCB(geo);
+	if(pipe->uninstanceCB)
+		pipe->uninstanceCB(geo);
 
 	geo->generateTriangles();
 
 	destroyNativeData(geo, 0, 0);
+}
+
+ObjPipeline::ObjPipeline(uint32 platform)
+ : rw::ObjPipeline(platform)
+{
+	this->numCustomAttribs = 0;
+	this->impl.instance = gl::instance;
+	this->impl.uninstance = gl::uninstance;
+	this->instanceCB = NULL;
+	this->uninstanceCB = NULL;
 }
 
 ObjPipeline*
