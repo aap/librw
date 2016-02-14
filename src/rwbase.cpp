@@ -66,22 +66,43 @@ initialize(void)
 float32
 V3d::length(void)
 {
-	return sqrt(this->x*this->x+this->y*this->y+this->z*this->z);
+	return sqrt(x*x + y*y + z*z);
 }
 
 V3d
 V3d::normalize(void)
 {
-	return V3d::scale(this, 1.0f/this->length());
+	return this->scale(1.0f/this->length());
+}
+
+float32
+Quat::length(void)
+{
+	return sqrt(w*w + x*x + y*y + z*z);
+}
+
+Quat
+Quat::normalize(void)
+{
+	return this->scale(1.0f/this->length());
+}
+
+Quat
+Quat::mult(const Quat &q)
+{
+	return Quat(w*q.w - x*q.x - y*q.y - z*q.z,
+	            w*q.x + x*q.w + y*q.z - z*q.y,
+	            w*q.y + y*q.w + z*q.x - x*q.z,
+	            w*q.z + z*q.w + x*q.y - y*q.x);
 }
 
 V3d
-V3d::cross(V3d *a, V3d *b)
+V3d::cross(const V3d &v)
 {
 	V3d res;
-	res.x = a->y*b->z - a->z*b->y;
-	res.y = a->z*b->x - a->x*b->z;
-	res.z = a->x*b->y - a->y*b->x;
+	res.x = this->y*v.z - this->z*v.y;
+	res.y = this->z*v.x - this->x*v.z;
+	res.z = this->x*v.y - this->y*v.x;
 	return res;
 }
 

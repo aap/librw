@@ -60,39 +60,56 @@ struct V2d
 struct V3d
 {
 	float32 x, y, z;
+	V3d(void) : x(0.0f), y(0.0f), z(0.0f) {}
+	V3d(float32 x, float32 y, float32 z) : x(x), y(y), z(z) {}
 	void set(float32 x, float32 y, float32 z){
 		this->x = x; this->y = y; this->z = z; }
-	static V3d sub(V3d *a, V3d *b){
+	V3d sub(const V3d &v){
 		V3d res;
-		res.x = a->x - b->x;
-		res.y = a->y - b->y;
-		res.z = a->z - b->z;
+		res.x = x - v.x;
+		res.y = y - v.y;
+		res.z = z - v.z;
 		return res;
 	}
-	static V3d add(V3d *a, V3d *b){
+	V3d add(const V3d &v){
 		V3d res;
-		res.x = a->x + b->x;
-		res.y = a->y + b->y;
-		res.z = a->z + b->z;
+		res.x = x + v.x;
+		res.y = y + v.y;
+		res.z = z + v.z;
 		return res;
 	}
-	static V3d scale(V3d *a, float32 r){
+	V3d scale(float32 r){
 		V3d res;
-		res.x = a->x*r;
-		res.y = a->y*r;
-		res.z = a->z*r;
+		res.x = x*r;
+		res.y = y*r;
+		res.z = z*r;
 		return res;
 	}
 	float32 length(void);
 	V3d normalize(void);
-	static V3d cross(V3d *a, V3d *b);
+	V3d cross(const V3d &b);
 };
 
 struct Quat
 {
 	float32 w, x, y, z;
+	Quat(void) : w(0.0f), x(0.0f), y(0.0f), z(0.0f) {}
+	Quat(float32 w, float32 x, float32 y, float32 z) : w(w), x(x), y(y), z(z) {}
+	Quat(float32 w, V3d vec) : w(w), x(vec.x), y(vec.y), z(vec.z) {}
+	Quat(V3d vec) : w(0.0f), x(vec.x), y(vec.y), z(vec.z) {}
 	void set(float32 w, float32 x, float32 y, float32 z){
 		this->w = w; this->x = x; this->y = y; this->z = z; }
+	V3d vec(void){ return V3d(x, y, z); }
+	Quat sub(const Quat &q){
+		return Quat(w-q.w, x-q.x, y-q.y, z-q.z); }
+	Quat add(const Quat &q){
+		return Quat(w+q.w, x+q.x, y+q.y, z+q.z); }
+	Quat scale(float32 r){
+		return Quat(w*r, x*r, y*r, z*r); }
+	Quat conj(void){ return Quat(w, -x, -y, -z); }
+	float32 length(void);
+	Quat normalize(void);
+	Quat mult(const Quat &q);
 };
 
 struct Matrix
