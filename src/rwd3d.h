@@ -95,5 +95,10 @@ void setTexels(Raster *raster, void *texels, int32 level);
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);
 
+// Rendering
+
+void setTexture(Texture *tex);
+void setMaterial(Material *mat);
+
 }
 }

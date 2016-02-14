@@ -29,8 +29,6 @@ public:
 	void render(Atomic *atomic) { this->impl.render(this, atomic); }
 };
 
-extern void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);
-
 void findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, int32 *numVertices);
 
 // everything xbox, d3d8 and d3d9 may want to use

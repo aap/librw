@@ -191,7 +191,10 @@
     <ClCompile Include="src\clump.cpp" />
     <ClCompile Include="src\d3d.cpp" />
     <ClCompile Include="src\d3d8.cpp" />
+    <ClCompile Include="src\d3d8render.cpp" />
     <ClCompile Include="src\d3d9.cpp" />
+    <ClCompile Include="src\d3d9render.cpp" />
+    <ClCompile Include="src\d3ddriver.cpp" />
     <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\image.cpp" />
     <ClCompile Include="src\ogl.cpp" />

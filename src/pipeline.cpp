@@ -16,8 +16,6 @@ using namespace std;
 
 namespace rw {
 
-void (*defaultRenderCBs[rw::NUM_PLATFORMS])(Atomic*);
-
 static void nothing(ObjPipeline *, Atomic*) {}
 
 Pipeline::Pipeline(uint32 platform)
@@ -34,13 +32,6 @@ ObjPipeline::ObjPipeline(uint32 platform)
 	this->impl.uninstance = nothing;
 	this->impl.render = nothing;
 }
-
-//void
-//ObjPipeline::render(Atomic *atomic)
-//{
-//	if(defaultRenderCBs[rw::platform])
-//		defaultRenderCBs[rw::platform](atomic);
-//}
 
 // helper functions
 

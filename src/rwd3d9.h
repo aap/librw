@@ -63,9 +63,14 @@ class ObjPipeline : public rw::ObjPipeline
 public:
 	void (*instanceCB)(Geometry *geo, InstanceDataHeader *header);
 	void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
+	void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
 
 	ObjPipeline(uint32 platform);
 };
+
+void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
+void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
+void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
 
 ObjPipeline *makeDefaultPipeline(void);
 

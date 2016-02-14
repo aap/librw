@@ -10,8 +10,6 @@
 #include "rwd3d.h"
 #include "rwd3d9.h"
 
-using namespace std;
-
 namespace rw {
 namespace d3d9 {
 using namespace d3d;
@@ -346,13 +344,28 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	destroyNativeData(geo, 0, 0);
 }
 
+static void
+render(rw::ObjPipeline *rwpipe, Atomic *atomic)
+{
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
+	Geometry *geo = atomic->geometry;
+	if((geo->geoflags & Geometry::NATIVE) == 0)
+		pipe->instance(atomic);
+	assert(geo->instData != NULL);
+	assert(geo->instData->platform == PLATFORM_D3D9);
+	if(pipe->renderCB)
+		pipe->renderCB(atomic, (InstanceDataHeader*)geo->instData);
+}
+
 ObjPipeline::ObjPipeline(uint32 platform)
  : rw::ObjPipeline(platform)
 {
 	this->impl.instance = d3d9::instance;
 	this->impl.uninstance = d3d9::uninstance;
+	this->impl.render = d3d9::render;
 	this->instanceCB = NULL;
 	this->uninstanceCB = NULL;
+	this->renderCB = NULL;
 }
 
 void
@@ -494,6 +507,7 @@ makeDefaultPipeline(void)
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->renderCB = defaultRenderCB;
 	return pipe;
 }
 
@@ -503,6 +517,7 @@ makeSkinPipeline(void)
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->renderCB = defaultRenderCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;
@@ -514,6 +529,7 @@ makeMatFXPipeline(void)
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->renderCB = defaultRenderCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;
