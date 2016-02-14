@@ -30,12 +30,8 @@ Frame::create(void)
 	f->child = NULL;
 	f->next = NULL;
 	f->root = f;
-	for(int i = 0; i < 16; i++)
-		f->matrix[i] = 0.0f;
-	f->matrix[0] = 1.0f;
-	f->matrix[5] = 1.0f;
-	f->matrix[10] = 1.0f;
-	f->matrix[15] = 1.0f;
+	f->matrix.setIdentity();
+	f->ltm.setIdentity();
 	f->constructPlugins();
 	return f;
 }
@@ -166,7 +162,7 @@ syncRecurse(Frame *frame, uint8 flags)
 	for(; frame; frame = frame->next){
 		flg = flags | frame->object.privateFlags;
 		if(flg & Frame::SUBTREESYNCLTM){
-			matrixMult(frame->ltm, frame->getParent()->ltm, frame->matrix);
+			Matrix::mult(&frame->ltm, &frame->getParent()->ltm, &frame->matrix);
 			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
 		}
 		syncRecurse(frame->child, flg);
@@ -179,11 +175,11 @@ Frame::syncHierarchyLTM(void)
 	Frame *child;
 	uint8 flg;
 	if(this->object.privateFlags & Frame::SUBTREESYNCLTM)
-		memcpy(this->ltm, this->matrix, 64);
+		this->ltm = this->matrix;
 	for(child = this->child; child; child = child->next){
 		flg = this->object.privateFlags | child->object.privateFlags;
 		if(flg & Frame::SUBTREESYNCLTM){
-			matrixMult(child->ltm, this->ltm, child->matrix);
+			Matrix::mult(&child->ltm, &this->ltm, &child->matrix);
 			child->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
 		}
 		syncRecurse(child, flg);
@@ -191,12 +187,12 @@ Frame::syncHierarchyLTM(void)
 	this->object.privateFlags &= ~Frame::SYNCLTM;
 }
 
-float*
+Matrix*
 Frame::getLTM(void)
 {
 	if(this->root->object.privateFlags & Frame::HIERARCHYSYNCLTM)
 		this->root->syncHierarchyLTM();
-	return this->ltm;
+	return &this->ltm;
 }
 
 void
@@ -224,7 +220,8 @@ Frame::cloneAndLink(Frame *clonedroot)
 	if(clonedroot == NULL)
 		clonedroot = frame;
 	frame->object.copy(&this->object);
-	memcpy(frame->matrix, this->matrix, sizeof(this->matrix));
+	frame->matrix = this->matrix;
+	//memcpy(frame->matrix, this->matrix, sizeof(this->matrix));
 	frame->root = clonedroot;
 	this->root = frame;	// Remember cloned frame
 	for(Frame *child = this->child; child; child = child->next){
@@ -447,8 +444,7 @@ Clump::streamWrite(Stream *stream)
 
 struct FrameStreamData
 {
-	float32 mat[9];
-	float32 pos[3];
+	V3d right, up, at, pos;
 	int32 parent;
 	int32 matflag;
 };
@@ -490,6 +486,16 @@ Clump::streamGetSize(void)
 	return size;
 }
 
+void
+Clump::render(void)
+{
+	Atomic *a;
+	FORLIST(lnk, this->atomics){
+		a = Atomic::fromClump(lnk);
+		if(a->object.flags & Atomic::RENDER)
+			a->render();
+	}
+}
 
 void
 Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
@@ -504,22 +510,14 @@ Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 		Frame *f;
 		frameList[i] = f = Frame::create();
 		stream->read(&buf, sizeof(buf));
-		f->matrix[0] = buf.mat[0];
-		f->matrix[1] = buf.mat[1];
-		f->matrix[2] = buf.mat[2];
-		f->matrix[3] = 0.0f;
-		f->matrix[4] = buf.mat[3];
-		f->matrix[5] = buf.mat[4];
-		f->matrix[6] = buf.mat[5];
-		f->matrix[7] = 0.0f;
-		f->matrix[8] = buf.mat[6];
-		f->matrix[9] = buf.mat[7];
-		f->matrix[10] = buf.mat[8];
-		f->matrix[11] = 0.0f;
-		f->matrix[12] = buf.pos[0];
-		f->matrix[13] = buf.pos[1];
-		f->matrix[14] = buf.pos[2];
-		f->matrix[15] = 1.0f;
+		f->matrix.right = buf.right;
+		f->matrix.rightw = 0.0f;
+		f->matrix.up = buf.up;
+		f->matrix.upw = 0.0f;
+		f->matrix.at = buf.at;
+		f->matrix.atw = 0.0f;
+		f->matrix.pos = buf.pos;
+		f->matrix.posw = 1.0f;
 		//f->matflag = buf.matflag;
 		if(buf.parent >= 0)
 			frameList[buf.parent]->addChild(f);
@@ -546,18 +544,10 @@ Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
 	stream->writeU32(numFrames);
 	for(int32 i = 0; i < numFrames; i++){
 		Frame *f = frameList[i];
-		buf.mat[0] = f->matrix[0];
-		buf.mat[1] = f->matrix[1];
-		buf.mat[2] = f->matrix[2];
-		buf.mat[3] = f->matrix[4];
-		buf.mat[4] = f->matrix[5];
-		buf.mat[5] = f->matrix[6];
-		buf.mat[6] = f->matrix[8];
-		buf.mat[7] = f->matrix[9];
-		buf.mat[8] = f->matrix[10];
-		buf.pos[0] = f->matrix[12];
-		buf.pos[1] = f->matrix[13];
-		buf.pos[2] = f->matrix[14];
+		buf.right = f->matrix.right;
+		buf.up = f->matrix.up;
+		buf.at = f->matrix.at;
+		buf.pos = f->matrix.pos;
 		buf.parent = findPointer(f->getParent(), (void**)frameList,
 		                         numFrames);
 		buf.matflag = 0; //f->matflag;
@@ -580,16 +570,8 @@ Atomic::create(void)
 	atomic->geometry = NULL;
 	atomic->pipeline = NULL;
 	atomic->renderCB = Atomic::defaultRenderCB;
+	atomic->object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
 	atomic->constructPlugins();
-
-	// flags:
-	// rpATOMICCOLLISIONTEST = 0x01, /**<A generic collision flag to indicate
-	// 			* that the atomic should be considered
-	// 			* in collision tests.
-	// 			*/
-	// rpATOMICRENDER = 0x04,      /**<The atomic is rendered if it is
-	// 			* in the view frustum.
-	// 			*/
 
 	// private flags:
 	// rpATOMICPRIVATEWORLDBOUNDDIRTY = 0x01
@@ -638,6 +620,7 @@ Atomic::streamReadClump(Stream *stream,
 		atomic->geometry = Geometry::streamRead(stream);
 	}else
 		atomic->geometry = geometryList[buf[1]];
+	atomic->object.flags = buf[2];
 
 	atomicRights[0] = 0;
 	atomic->streamReadPlugins(stream);
@@ -649,7 +632,7 @@ Atomic::streamReadClump(Stream *stream,
 bool
 Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 {
-	int32 buf[4] = { 0, 0, 5, 0 };
+	int32 buf[4] = { 0, 0, 0, 0 };
 	Clump *c = this->clump;
 	if(c == NULL)
 		return false;
@@ -658,6 +641,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 	buf[0] = findPointer(this->getFrame(), (void**)frameList, numFrames);
 
 	if(version < 0x30400){
+		buf[1] = this->object.flags;
 		stream->write(buf, sizeof(int[3]));
 		this->geometry->streamWrite(stream);
 	}else{
@@ -669,6 +653,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 		}
 		return false;
 	foundgeo:
+		buf[2] = this->object.flags;
 		stream->write(buf, sizeof(buf));
 	}
 
@@ -864,7 +849,7 @@ Camera::create(void)
 	cam->nearPlane = 0.05f;
 	cam->farPlane = 10.0f;
 	cam->fogPlane = 5.0f;
-	cam->projection = 1;
+	cam->projection = Camera::PERSPECTIVE;
 	cam->constructPlugins();
 	return cam;
 }
@@ -940,6 +925,58 @@ uint32
 Camera::streamGetSize(void)
 {
 	return 12 + sizeof(CameraChunkData) + 12 + this->streamGetPluginSize();
+}
+
+void
+Camera::updateProjectionMatrix(void)
+{
+	float32 invwx = 1.0f/this->viewWindow.x;
+	float32 invwy = 1.0f/this->viewWindow.y;
+	float32 invz = 1.0f/(this->farPlane-this->nearPlane);
+	if(rw::platform == PLATFORM_D3D8 || rw::platform == PLATFORM_D3D9 ||
+	   rw::platform == PLATFORM_XBOX){
+		// is this all really correct?
+		this->projMat[0] = invwx;
+		this->projMat[1] = 0.0f;
+		this->projMat[2] = 0.0f;
+		this->projMat[3] = 0.0f;
+
+		this->projMat[4] = 0.0f;
+		this->projMat[5] = invwy;
+		this->projMat[6] = 0.0f;
+		this->projMat[7] = 0.0f;
+
+		if(this->projection == PERSPECTIVE){
+			this->projMat[8] = this->viewOffset.x*invwx;
+			this->projMat[9] = this->viewOffset.y*invwy;
+			this->projMat[10] = this->farPlane*invz;
+			this->projMat[11] = 1.0f;
+
+			this->projMat[12] = 0.0f;
+			this->projMat[13] = 0.0f;
+			this->projMat[14] = -this->nearPlane*this->projMat[10];
+			this->projMat[15] = 0.0f;
+		}else{
+			this->projMat[8] = 0.0f;
+			this->projMat[9] = 0.0f;
+			this->projMat[10] = invz;
+			this->projMat[11] = 0.0f;
+
+			this->projMat[12] = this->viewOffset.x*invwx;
+			this->projMat[13] = this->viewOffset.y*invwy;
+			this->projMat[14] = -this->nearPlane*this->projMat[10];
+			this->projMat[15] = 1.0f;
+		}
+	}
+}
+
+void
+Camera::setFOV(float32 fov, float32 ratio)
+{
+	float32 a = tan(fov*3.14159f/360.0f);
+	this->viewWindow.x = a;
+	this->viewWindow.y = a/ratio;
+	this->viewOffset.set(0.0f, 0.0f);
 }
 
 }

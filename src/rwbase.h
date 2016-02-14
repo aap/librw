@@ -34,6 +34,93 @@ typedef uint32 uint;
 
 #define nelem(A) (sizeof(A) / sizeof A[0])
 
+struct RGBA
+{
+	uint8 red;
+	uint8 green;
+	uint8 blue;
+	uint8 alpha;
+};
+
+struct RGBAf
+{
+	float32 red;
+	float32 green;
+	float32 blue;
+	float32 alpha;
+};
+
+struct V2d
+{
+	float32 x, y;
+	void set(float32 x, float32 y){
+		this->x = x; this->y = y; }
+};
+
+struct V3d
+{
+	float32 x, y, z;
+	void set(float32 x, float32 y, float32 z){
+		this->x = x; this->y = y; this->z = z; }
+	static V3d sub(V3d *a, V3d *b){
+		V3d res;
+		res.x = a->x - b->x;
+		res.y = a->y - b->y;
+		res.z = a->z - b->z;
+		return res;
+	}
+	static V3d add(V3d *a, V3d *b){
+		V3d res;
+		res.x = a->x + b->x;
+		res.y = a->y + b->y;
+		res.z = a->z + b->z;
+		return res;
+	}
+	static V3d scale(V3d *a, float32 r){
+		V3d res;
+		res.x = a->x*r;
+		res.y = a->y*r;
+		res.z = a->z*r;
+		return res;
+	}
+	float32 length(void);
+	V3d normalize(void);
+	static V3d cross(V3d *a, V3d *b);
+};
+
+struct Quat
+{
+	float32 w, x, y, z;
+	void set(float32 w, float32 x, float32 y, float32 z){
+		this->w = w; this->x = x; this->y = y; this->z = z; }
+};
+
+struct Matrix
+{
+	V3d right;
+	float32 rightw;
+	V3d up;
+	float32 upw;
+	V3d at;
+	float32 atw;
+	V3d pos;
+	float32 posw;
+
+	void setIdentity(void);
+	// not very pretty :/
+	static void mult(Matrix *m1, Matrix *m2, Matrix *m3);
+	static void invert(Matrix *m1, Matrix *m2);
+};
+
+void matrixIdentity(float32 *mat);
+int matrixEqual(float32 *m1, float32 *m2);
+int matrixIsIdentity(float32 *mat);
+void matrixMult(float32 *out, float32 *a, float32 *b);
+void vecTrans(float32 *out, float32 *mat, float32 *vec);
+void matrixTranspose(float32 *out, float32 *in);
+void matrixInvert(float32 *out, float32 *in);
+void matrixPrint(float32 *mat);
+
 class Stream
 {
 public:
@@ -154,14 +241,6 @@ extern int platform;
 extern char *debugFile;
 
 void initialize(void);
-
-void matrixIdentity(float32 *mat);
-int matrixEqual(float32 *m1, float32 *m2);
-int matrixIsIdentity(float32 *mat);
-void matrixMult(float32 *out, float32 *a, float32 *b);
-void vecTrans(float32 *out, float32 *mat, float32 *vec);
-void matrixTranspose(float32 *out, float32 *in);
-void matrixInvert(float32 *out, float32 *in);
 
 // 0x04000000	3.1
 // 0x08000000	3.2

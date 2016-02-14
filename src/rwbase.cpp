@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
+#include <cmath>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -30,6 +31,8 @@ int32 build = 0xFFFF;
 #endif
 char *debugFile = NULL;
 
+static Matrix identMat;
+
 void
 initialize(void)
 {
@@ -49,6 +52,55 @@ initialize(void)
 		d3d9::makeDefaultPipeline();
 
 	Frame::dirtyList.init();
+
+	identMat.right.set(1.0f, 0.0f, 0.0f);
+	identMat.rightw = 0.0f;
+	identMat.up.set(0.0f, 1.0f, 0.0f);
+	identMat.upw = 0.0f;
+	identMat.at.set(0.0f, 0.0f, 1.0f);
+	identMat.atw = 0.0f;
+	identMat.pos.set(0.0f, 0.0f, 0.0f);
+	identMat.posw = 1.0f;
+}
+
+float32
+V3d::length(void)
+{
+	return sqrt(this->x*this->x+this->y*this->y+this->z*this->z);
+}
+
+V3d
+V3d::normalize(void)
+{
+	return V3d::scale(this, 1.0f/this->length());
+}
+
+V3d
+V3d::cross(V3d *a, V3d *b)
+{
+	V3d res;
+	res.x = a->y*b->z - a->z*b->y;
+	res.y = a->z*b->x - a->x*b->z;
+	res.z = a->x*b->y - a->y*b->x;
+	return res;
+}
+
+void
+Matrix::setIdentity(void)
+{
+	*this = identMat;
+}
+
+void 
+Matrix::mult(Matrix *m1, Matrix *m2, Matrix *m3)
+{
+	matrixMult((float32*)m1, (float32*)m2, (float32*)m3);
+}
+
+void
+Matrix::invert(Matrix *m1, Matrix *m2)
+{
+	matrixInvert((float32*)m1, (float32*)m2);
 }
 
 void
@@ -230,6 +282,19 @@ matrixInvert(float32 *out, float32 *m)
 	det = 1.0f / det;
 	for(i = 0; i < 16; i++)
 		out[i] = inv[i] * det;
+}
+
+void
+matrixPrint(float32 *mat)
+{
+	printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n",
+		mat[0], mat[4], mat[8], mat[12],
+		mat[1], mat[5], mat[9], mat[13],
+		mat[2], mat[6], mat[10], mat[14],
+		mat[3], mat[7], mat[11], mat[15]);
 }
 
 int32

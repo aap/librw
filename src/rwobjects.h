@@ -2,36 +2,6 @@
 
 namespace rw {
 
-struct RGBA
-{
-	uint8 red;
-	uint8 green;
-	uint8 blue;
-	uint8 alpha;
-};
-
-struct RGBAf
-{
-	float32 red;
-	float32 green;
-	float32 blue;
-	float32 alpha;
-};
-
-struct V2d
-{
-	float32 x, y;
-	void set(float32 x, float32 y){
-		this->x = x; this->y = y; }
-};
-
-struct V3d
-{
-	float32 x, y, z;
-	void set(float32 x, float32 y, float32 z){
-		this->x = x; this->y = y; this->z = z; }
-};
-
 struct LLLink
 {
 	LLLink *next;
@@ -130,8 +100,10 @@ struct Frame : PluginBase<Frame>
 	Object object;
 	LLLink inDirtyList;
 	LinkList objectList;
-	float32	matrix[16];
-	float32	ltm[16];
+	Matrix matrix;
+	Matrix ltm;
+	//float32	matrix[16];
+	//float32	ltm[16];
 
 	Frame *child;
 	Frame *next;
@@ -149,7 +121,7 @@ struct Frame : PluginBase<Frame>
 	Frame *getParent(void){
 		return (Frame*)this->object.parent; }
 	int32 count(void);
-	float *getLTM(void);
+	Matrix *getLTM(void);
 	void updateObjects(void);
 
 	void syncHierarchyLTM(void);
@@ -590,6 +562,10 @@ struct Atomic : PluginBase<Atomic>
 {
 	typedef void (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
+	enum {
+		COLLISIONTEST = 0x01,	// unused here
+		RENDER = 0x04
+	};
 
 	ObjectWithFrame object;
 	Geometry *geometry;
@@ -662,12 +638,15 @@ struct Light : PluginBase<Light>
 struct Camera : PluginBase<Camera>
 {
 	enum { ID = 4 };
+	enum { PERSPECTIVE = 1, PARALLEL };
+
 	ObjectWithFrame object;
 	V2d viewWindow;
 	V2d viewOffset;
 	float32 nearPlane, farPlane;
 	float32 fogPlane;
 	int32 projection;
+	float32 projMat[16];
 
 	Clump *clump;
 	LLLink inClump;
@@ -682,6 +661,10 @@ struct Camera : PluginBase<Camera>
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
+
+	void updateProjectionMatrix(void);
+	// fov in degrees
+	void setFOV(float32 fov, float32 ratio);
 };
 
 struct Clump : PluginBase<Clump>
@@ -717,6 +700,7 @@ struct Clump : PluginBase<Clump>
 	static Clump *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
+	void render(void);
 
 	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
