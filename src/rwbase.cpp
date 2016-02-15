@@ -63,47 +63,21 @@ initialize(void)
 	identMat.posw = 1.0f;
 }
 
-float32
-V3d::length(void)
+Quat
+mult(const Quat &q, const Quat &p)
 {
-	return sqrt(x*x + y*y + z*z);
+	return Quat(q.w*p.w - q.x*p.x - q.y*p.y - q.z*p.z,
+	            q.w*p.x + q.x*p.w + q.y*p.z - q.z*p.y,
+	            q.w*p.y + q.y*p.w + q.z*p.x - q.x*p.z,
+	            q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
 }
 
 V3d
-V3d::normalize(void)
+cross(const V3d &a, const V3d &b)
 {
-	return this->scale(1.0f/this->length());
-}
-
-float32
-Quat::length(void)
-{
-	return sqrt(w*w + x*x + y*y + z*z);
-}
-
-Quat
-Quat::normalize(void)
-{
-	return this->scale(1.0f/this->length());
-}
-
-Quat
-Quat::mult(const Quat &q)
-{
-	return Quat(w*q.w - x*q.x - y*q.y - z*q.z,
-	            w*q.x + x*q.w + y*q.z - z*q.y,
-	            w*q.y + y*q.w + z*q.x - x*q.z,
-	            w*q.z + z*q.w + x*q.y - y*q.x);
-}
-
-V3d
-V3d::cross(const V3d &v)
-{
-	V3d res;
-	res.x = this->y*v.z - this->z*v.y;
-	res.y = this->z*v.x - this->x*v.z;
-	res.z = this->x*v.y - this->y*v.x;
-	return res;
+	return V3d(a.y*b.z - a.z*b.y,
+	           a.z*b.x - a.x*b.z,
+	           a.x*b.y - a.y*b.x);
 }
 
 void

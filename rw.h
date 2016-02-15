@@ -1,3 +1,6 @@
+#include <cstdio>
+#include <cmath>
+
 #include "src/rwbase.h"
 #include "src/rwplugin.h"
 #include "src/rwpipeline.h"

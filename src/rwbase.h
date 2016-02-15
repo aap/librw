@@ -1,6 +1,7 @@
 #ifndef RW_PS2
 #include <stdint.h>
 #endif
+#include <cmath>
 
 namespace rw {
 
@@ -53,9 +54,17 @@ struct RGBAf
 struct V2d
 {
 	float32 x, y;
+	V2d(void) : x(0.0f), y(0.0f) {}
+	V2d(float32 x, float32 y) : x(x), y(y) {}
 	void set(float32 x, float32 y){
 		this->x = x; this->y = y; }
 };
+
+inline V2d add(const V2d &a, const V2d &b) { return V2d(a.x+b.x, a.y+b.y); }
+inline V2d sub(const V2d &a, const V2d &b) { return V2d(a.x-b.x, a.y-b.y); }
+inline V2d scale(const V2d &a, float32 r) { return V2d(a.x*r, a.y*r); }
+inline float32 length(const V2d &v) { return sqrt(v.x*v.x + v.y*v.y); }
+inline V2d normalize(const V2d &v) { return scale(v, 1.0f/length(v)); }
 
 struct V3d
 {
@@ -64,31 +73,15 @@ struct V3d
 	V3d(float32 x, float32 y, float32 z) : x(x), y(y), z(z) {}
 	void set(float32 x, float32 y, float32 z){
 		this->x = x; this->y = y; this->z = z; }
-	V3d sub(const V3d &v){
-		V3d res;
-		res.x = x - v.x;
-		res.y = y - v.y;
-		res.z = z - v.z;
-		return res;
-	}
-	V3d add(const V3d &v){
-		V3d res;
-		res.x = x + v.x;
-		res.y = y + v.y;
-		res.z = z + v.z;
-		return res;
-	}
-	V3d scale(float32 r){
-		V3d res;
-		res.x = x*r;
-		res.y = y*r;
-		res.z = z*r;
-		return res;
-	}
-	float32 length(void);
-	V3d normalize(void);
-	V3d cross(const V3d &b);
 };
+
+inline V3d add(const V3d &a, const V3d &b) { return V3d(a.x+b.x, a.y+b.y, a.z+b.z); }
+inline V3d sub(const V3d &a, const V3d &b) { return V3d(a.x-b.x, a.y-b.y, a.z-b.z); }
+inline V3d scale(const V3d &a, float32 r) { return V3d(a.x*r, a.y*r, a.z*r); }
+inline float32 length(const V3d &v) { return sqrt(v.x*v.x + v.y*v.y + v.z*v.z); }
+inline V3d normalize(const V3d &v) { return scale(v, 1.0f/length(v)); }
+inline V3d setlength(const V3d &v, float32 l) { return scale(v, l/length(v)); }
+V3d cross(const V3d &a, const V3d &b);
 
 struct Quat
 {
@@ -97,20 +90,22 @@ struct Quat
 	Quat(float32 w, float32 x, float32 y, float32 z) : w(w), x(x), y(y), z(z) {}
 	Quat(float32 w, V3d vec) : w(w), x(vec.x), y(vec.y), z(vec.z) {}
 	Quat(V3d vec) : w(0.0f), x(vec.x), y(vec.y), z(vec.z) {}
+	static Quat rotation(float32 angle, const V3d &axis){
+		return Quat(cos(angle/2.0f), scale(axis, sin(angle/2.0f))); }
 	void set(float32 w, float32 x, float32 y, float32 z){
 		this->w = w; this->x = x; this->y = y; this->z = z; }
 	V3d vec(void){ return V3d(x, y, z); }
-	Quat sub(const Quat &q){
-		return Quat(w-q.w, x-q.x, y-q.y, z-q.z); }
-	Quat add(const Quat &q){
-		return Quat(w+q.w, x+q.x, y+q.y, z+q.z); }
-	Quat scale(float32 r){
-		return Quat(w*r, x*r, y*r, z*r); }
-	Quat conj(void){ return Quat(w, -x, -y, -z); }
-	float32 length(void);
-	Quat normalize(void);
-	Quat mult(const Quat &q);
 };
+
+inline Quat add(const Quat &q, const Quat &p) { return Quat(q.w+p.w, q.x+p.x, q.y+p.y, q.z+p.z); }
+inline Quat sub(const Quat &q, const Quat &p) { return Quat(q.w-p.w, q.x-p.x, q.y-p.y, q.z-p.z); }
+inline Quat scale(const Quat &q, float32 r) { return Quat(q.w*r, q.x*r, q.y*r, q.z*r); }
+inline float32 length(const Quat &q) { return sqrt(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z); }
+inline Quat normalize(const Quat &q) { return scale(q, 1.0f/length(q)); }
+inline Quat conj(const Quat &q) { return Quat(q.w, -q.x, -q.y, -q.z); }
+Quat mult(const Quat &q, const Quat &p);
+
+inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, Quat(v)), conj(q)).vec(); }
 
 struct Matrix
 {
