@@ -380,26 +380,50 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	s->dynamicLock = 0;
 
 	int i = 0;
-	dcl[i++] = {0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0};
-	uint32 stride = 12;
+	dcl[i].stream = 0;
+	dcl[i].offset = 0;
+	dcl[i].type = D3DDECLTYPE_FLOAT3;
+	dcl[i].method = D3DDECLMETHOD_DEFAULT;
+	dcl[i].usage = D3DDECLUSAGE_POSITION;
+	dcl[i].usageIndex = 0;
+	i++;
+	uint16 stride = 12;
 	s->geometryFlags |= 0x2;
 
 	bool isPrelit = (geo->geoflags & Geometry::PRELIT) != 0;
 	if(isPrelit){
-		dcl[i++] = {0, stride, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0};
+		dcl[i].stream = 0;
+		dcl[i].offset = stride;
+		dcl[i].type = D3DDECLTYPE_D3DCOLOR;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_COLOR;
+		dcl[i].usageIndex = 0;
+		i++;
 		s->geometryFlags |= 0x8;
 		stride += 4;
 	}
 
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		dcl[i++] = {0, stride, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, n};
+		dcl[i].stream = 0;
+		dcl[i].offset = stride;
+		dcl[i].type = D3DDECLTYPE_FLOAT2;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
+		dcl[i].usageIndex = (uint8)n;
+		i++;
 		s->geometryFlags |= 0x10 << n;
 		stride += 8;
 	}
 
 	bool hasNormals = (geo->geoflags & Geometry::NORMALS) != 0;
 	if(hasNormals){
-		dcl[i++] = {0, stride, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0};
+		dcl[i].stream = 0;
+		dcl[i].offset = stride;
+		dcl[i].type = D3DDECLTYPE_FLOAT3;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_NORMAL;
+		dcl[i].usageIndex = 0;
+		i++;
 		s->geometryFlags |= 0x4;
 		stride += 12;
 	}
