@@ -31,7 +31,12 @@ int32 build = 0xFFFF;
 #endif
 char *debugFile = NULL;
 
-static Matrix identMat;
+static Matrix identMat = {
+	{ 1.0f, 0.0f, 0.0f}, 0.0f,
+	{ 0.0f, 1.0f, 0.0f}, 0.0f,
+	{ 0.0f, 0.0f, 1.0f}, 0.0f,
+	{ 0.0f, 0.0f, 0.0f}, 1.0f
+};
 
 void
 initialize(void)
@@ -52,15 +57,6 @@ initialize(void)
 		d3d9::makeDefaultPipeline();
 
 	Frame::dirtyList.init();
-
-	identMat.right.set(1.0f, 0.0f, 0.0f);
-	identMat.rightw = 0.0f;
-	identMat.up.set(0.0f, 1.0f, 0.0f);
-	identMat.upw = 0.0f;
-	identMat.at.set(0.0f, 0.0f, 1.0f);
-	identMat.atw = 0.0f;
-	identMat.pos.set(0.0f, 0.0f, 0.0f);
-	identMat.posw = 1.0f;
 }
 
 Quat
@@ -86,6 +82,32 @@ Matrix::setIdentity(void)
 	*this = identMat;
 }
 
+V3d
+Matrix::transPoint(const V3d &p)
+{
+	V3d res = this->pos;
+	res = add(res, scale(this->right, p.x));
+	res = add(res, scale(this->up, p.y));
+	res = add(res, scale(this->at, p.z));
+	return res;
+}
+
+V3d
+Matrix::transVec(const V3d &v)
+{
+	V3d res;
+	res = scale(this->right, v.x);
+	res = add(res, scale(this->up, v.y));
+	res = add(res, scale(this->at, v.z));
+	return res;
+}
+
+bool32
+Matrix::isIdentity(void)
+{
+	return matrixIsIdentity((float32*)this);
+}
+
 void 
 Matrix::mult(Matrix *m1, Matrix *m2, Matrix *m3)
 {
@@ -96,6 +118,18 @@ void
 Matrix::invert(Matrix *m1, Matrix *m2)
 {
 	matrixInvert((float32*)m1, (float32*)m2);
+}
+
+void
+Matrix::transpose(Matrix *m1, Matrix *m2)
+{
+	matrixTranspose((float32*)m1, (float32*)m2);
+}
+
+bool32
+equal(const Matrix &m1, const Matrix &m2)
+{
+	return matrixEqual((float32*)&m1, (float32*)&m2);
 }
 
 void

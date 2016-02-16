@@ -102,8 +102,6 @@ struct Frame : PluginBase<Frame>
 	LinkList objectList;
 	Matrix matrix;
 	Matrix ltm;
-	//float32	matrix[16];
-	//float32	ltm[16];
 
 	Frame *child;
 	Frame *next;
@@ -128,13 +126,6 @@ struct Frame : PluginBase<Frame>
 	void setHierarchyRoot(Frame *root);
 	Frame *cloneAndLink(Frame *clonedroot);
 	void purgeClone(void);
-
-	// private flags:
-	// #define rwFRAMEPRIVATEHIERARCHYSYNCLTM  0x01
-	// #define rwFRAMEPRIVATEHIERARCHYSYNCOBJ  0x02
-	// #define rwFRAMEPRIVATESUBTREESYNCLTM    0x04
-	// #define rwFRAMEPRIVATESUBTREESYNCOBJ    0x08
-	// #define rwFRAMEPRIVATESTATIC            0x10
 };
 
 Frame **makeFrameList(Frame *frame, Frame **flist);

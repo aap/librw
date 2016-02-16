@@ -82,6 +82,7 @@ inline float32 length(const V3d &v) { return sqrt(v.x*v.x + v.y*v.y + v.z*v.z); 
 inline V3d normalize(const V3d &v) { return scale(v, 1.0f/length(v)); }
 inline V3d setlength(const V3d &v, float32 l) { return scale(v, l/length(v)); }
 V3d cross(const V3d &a, const V3d &b);
+inline float32 dot(const V3d &a, const V3d &b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
 
 struct Quat
 {
@@ -104,7 +105,6 @@ inline float32 length(const Quat &q) { return sqrt(q.w*q.w + q.x*q.x + q.y*q.y +
 inline Quat normalize(const Quat &q) { return scale(q, 1.0f/length(q)); }
 inline Quat conj(const Quat &q) { return Quat(q.w, -q.x, -q.y, -q.z); }
 Quat mult(const Quat &q, const Quat &p);
-
 inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, Quat(v)), conj(q)).vec(); }
 
 struct Matrix
@@ -119,9 +119,13 @@ struct Matrix
 	float32 posw;
 
 	void setIdentity(void);
+	V3d transPoint(const V3d &p);
+	V3d transVec(const V3d &v);
+	bool32 isIdentity(void);
 	// not very pretty :/
 	static void mult(Matrix *m1, Matrix *m2, Matrix *m3);
 	static void invert(Matrix *m1, Matrix *m2);
+	static void transpose(Matrix *m1, Matrix *m2);
 };
 
 void matrixIdentity(float32 *mat);
@@ -132,6 +136,7 @@ void vecTrans(float32 *out, float32 *mat, float32 *vec);
 void matrixTranspose(float32 *out, float32 *in);
 void matrixInvert(float32 *out, float32 *in);
 void matrixPrint(float32 *mat);
+bool32 equal(const Matrix &m1, const Matrix &m2);
 
 class Stream
 {
