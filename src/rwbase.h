@@ -124,8 +124,22 @@ struct Matrix
 	bool32 isIdentity(void);
 	// not very pretty :/
 	static void mult(Matrix *m1, Matrix *m2, Matrix *m3);
-	static void invert(Matrix *m1, Matrix *m2);
+	static bool32 invert(Matrix *m1, Matrix *m2);
 	static void transpose(Matrix *m1, Matrix *m2);
+};
+
+struct Matrix3
+{
+	V3d right, up, at;
+
+	void setIdentity(void);
+	V3d transVec(const V3d &v);
+	bool32 isIdentity(void);
+	float32 determinant(void);
+	// not very pretty :/
+	static void mult(Matrix3 *m1, Matrix3 *m2, Matrix3 *m3);
+	static bool32 invert(Matrix3 *m1, Matrix3 *m2);
+	static void transpose(Matrix3 *m1, Matrix3 *m2);
 };
 
 void matrixIdentity(float32 *mat);
@@ -134,7 +148,7 @@ int matrixIsIdentity(float32 *mat);
 void matrixMult(float32 *out, float32 *a, float32 *b);
 void vecTrans(float32 *out, float32 *mat, float32 *vec);
 void matrixTranspose(float32 *out, float32 *in);
-void matrixInvert(float32 *out, float32 *in);
+bool32 matrixInvert(float32 *out, float32 *in);
 void matrixPrint(float32 *mat);
 bool32 equal(const Matrix &m1, const Matrix &m2);
 

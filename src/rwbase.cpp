@@ -31,11 +31,19 @@ int32 build = 0xFFFF;
 #endif
 char *debugFile = NULL;
 
+// TODO: comparison tolerances
+
 static Matrix identMat = {
 	{ 1.0f, 0.0f, 0.0f}, 0.0f,
 	{ 0.0f, 1.0f, 0.0f}, 0.0f,
 	{ 0.0f, 0.0f, 1.0f}, 0.0f,
 	{ 0.0f, 0.0f, 0.0f}, 1.0f
+};
+
+static Matrix3 identMat3 = {
+	{ 1.0f, 0.0f, 0.0f},
+	{ 0.0f, 1.0f, 0.0f},
+	{ 0.0f, 0.0f, 1.0f}
 };
 
 void
@@ -114,16 +122,96 @@ Matrix::mult(Matrix *m1, Matrix *m2, Matrix *m3)
 	matrixMult((float32*)m1, (float32*)m2, (float32*)m3);
 }
 
-void
+bool32
 Matrix::invert(Matrix *m1, Matrix *m2)
 {
-	matrixInvert((float32*)m1, (float32*)m2);
+	return matrixInvert((float32*)m1, (float32*)m2);
 }
 
 void
 Matrix::transpose(Matrix *m1, Matrix *m2)
 {
 	matrixTranspose((float32*)m1, (float32*)m2);
+}
+
+	
+void
+Matrix3::setIdentity(void)
+{
+	*this = identMat3;
+}
+
+V3d
+Matrix3::transVec(const V3d &v)
+{
+	V3d res;
+	res = scale(this->right, v.x);
+	res = add(res, scale(this->up, v.y));
+	res = add(res, scale(this->at, v.z));
+	return res;
+}
+
+bool32
+Matrix3::isIdentity(void)
+{
+	return right.x == 1.0f && right.y == 0.0f && right.z == 0.0f &&
+	       up.x == 0.0f    && up.y == 1.0f    && up.z == 0.0f &&
+	       at.x == 0.0f    && at.y == 0.0f    && at.z == 1.0f;
+}
+
+float32
+Matrix3::determinant(void)
+{
+	return right.x*(up.y*at.z    - up.z*at.y)
+	       +  up.x*(at.y*right.z - at.z*right.y)
+	       +  at.x*(right.y*up.z - right.z*up.y);
+}
+
+void
+mult(Matrix3 *m1, Matrix3 *m2, Matrix3 *m3)
+{
+	m1->right.x = m2->right.x*m3->right.x + m2->up.x*m3->right.y + m2->at.x*m3->right.z;
+	m1->right.y = m2->right.x*m3->up.x    + m2->up.x*m3->up.y    + m2->at.x*m3->up.z;
+	m1->right.z = m2->right.x*m3->at.x    + m2->up.x*m3->at.y    + m2->at.x*m3->at.z;
+	m1->up.x    = m2->right.y*m3->right.x + m2->up.y*m3->right.y + m2->at.y*m3->right.z;
+	m1->up.y    = m2->right.y*m3->up.x    + m2->up.y*m3->up.y    + m2->at.y*m3->up.z;
+	m1->up.z    = m2->right.y*m3->at.x    + m2->up.y*m3->at.y    + m2->at.y*m3->at.z;
+	m1->at.x    = m2->right.z*m3->right.x + m2->up.z*m3->right.y + m2->at.z*m3->right.z;
+	m1->at.y    = m2->right.z*m3->up.x    + m2->up.z*m3->up.y    + m2->at.z*m3->up.z;
+	m1->at.z    = m2->right.z*m3->at.x    + m2->up.z*m3->at.y    + m2->at.z*m3->at.z;
+}
+
+bool32
+invert(Matrix3 *m1, Matrix3 *m2)
+{
+	float32 invdet = m2->determinant();
+	if(invdet == 0.0f)
+		return 0;
+	invdet = 1.0f/invdet;
+	m1->right.x = invdet*(m2->up.y * m2->at.z - m2->up.z * m2->at.y);
+	m1->right.y = invdet*(m2->at.y * m2->right.z - m2->at.z * m2->right.y);
+	m1->right.z = invdet*(m2->right.y * m2->up.z - m2->right.z * m2->up.y);
+	m1->up.x = invdet*(m2->up.z * m2->at.x - m1->up.x * m2->at.z);
+	m1->up.y = invdet*(m2->at.z * m2->right.x - m2->at.x * m2->right.z);
+	m1->up.z = invdet*(m2->right.z * m1->up.x - m2->right.x * m2->up.z);
+	m1->at.x = invdet*(m2->up.x * m2->at.y - m2->up.y * m2->at.x);
+	m1->at.y = invdet*(m2->at.x * m2->right.y - m2->at.y * m2->right.x);
+	m1->at.z = invdet*(m2->right.x * m2->up.y - m2->right.y * m2->up.x);
+	return 1;
+}
+
+void
+transpose(Matrix3 *m1, Matrix3 *m2)
+{
+	m1->right.x = m2->right.x;
+	m1->right.y = m2->up.x;
+	m1->right.z = m2->at.x;
+	m1->up.x = m2->right.y;
+	m1->up.y = m2->up.y;
+	m1->up.z = m2->at.y;
+	m1->at.x = m2->right.z;
+	m1->at.y = m2->up.z;
+	m1->at.z = m2->at.z;
 }
 
 bool32
@@ -203,7 +291,7 @@ matrixTranspose(float32 *out, float32 *in)
 	#undef OUT
 }
 
-void
+bool32
 matrixInvert(float32 *out, float32 *m)
 {
 	float32 inv[16], det;
@@ -307,10 +395,11 @@ matrixInvert(float32 *out, float32 *m)
 	          m[8] * m[2] * m[5];
 	det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
 	if(det == 0)
-		return;
+		return 0;
 	det = 1.0f / det;
 	for(i = 0; i < 16; i++)
 		out[i] = inv[i] * det;
+	return 1;
 }
 
 void
