@@ -568,6 +568,7 @@ Atomic::create(void)
 	assert(atomic != NULL);
 	atomic->object.init(Atomic::ID, 0);
 	atomic->geometry = NULL;
+	atomic->clump = NULL;
 	atomic->pipeline = NULL;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
@@ -599,6 +600,8 @@ Atomic::destroy(void)
 	this->destructPlugins();
 	if(this->geometry)
 		this->geometry->destroy();
+	if(this->clump)
+		this->inClump.remove();
 	this->setFrame(NULL);
 	free(this);
 }
