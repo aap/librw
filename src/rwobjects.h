@@ -318,6 +318,9 @@ struct Texture : PluginBase<Texture>
 	void streamWriteNative(Stream *stream);
 	uint32 streamGetSizeNative(void);
 
+	static Texture *(*findCB)(const char *name);
+	static Texture *(*readCB)(const char *name, const char *mask);
+
 	enum FilterMode {
 		NEAREST = 1,
 		LINEAR,
@@ -449,7 +452,7 @@ struct MeshHeader
 
 struct MorphTarget
 {
-	float32 boundingSphere[4];
+	Sphere boundingSphere;
 	float32 *vertices;
 	float32 *normals;
 };

@@ -105,6 +105,12 @@ TexDictionary::streamGetSize(void)
 
 bool32 loadTextures;
 
+static Texture *defaultFindCB(const char *name);
+static Texture *defaultReadCB(const char *name, const char *mask);
+
+Texture *(*Texture::findCB)(const char *name) = defaultFindCB;
+Texture *(*Texture::readCB)(const char *name, const char *mask) = defaultReadCB;
+
 Texture*
 Texture::create(Raster *raster)
 {
@@ -135,7 +141,36 @@ Texture::destroy(void)
 	}
 }
 
-// TODO: do this properly, pretty ugly right now
+static Texture*
+defaultFindCB(const char *name)
+{
+	if(currentTexDictionary)
+		return currentTexDictionary->find(name);
+	// TODO: RW searches *all* TXDs otherwise
+	return NULL;
+}
+
+static Texture*
+defaultReadCB(const char *name, const char *mask)
+{
+	Texture *tex;
+	Image *img;
+	char *n = (char*)malloc(strlen(name) + 5);
+	strcpy(n, name);
+	strcat(n, ".tga");
+	img = readTGA(n);
+	free(n);
+	if(img){
+		tex = Texture::create(Raster::createFromImage(img));
+		strncpy(tex->name, name, 32);
+		if(mask)
+			strncpy(tex->mask, mask, 32);
+		img->destroy();
+		return tex;
+	}else
+		return NULL;
+}
+
 Texture*
 Texture::read(const char *name, const char *mask)
 {
@@ -143,31 +178,28 @@ Texture::read(const char *name, const char *mask)
 	Raster *raster = NULL;
 	Texture *tex;
 
-	if(currentTexDictionary && (tex = currentTexDictionary->find(name))){
+	if(tex = Texture::findCB(name)){
 		tex->refCount++;
 		return tex;
 	}
-	tex = Texture::create(NULL);
-	strncpy(tex->name, name, 32);
-	if(mask)
-		strncpy(tex->mask, mask, 32);
-	Image *img = NULL;
 	if(loadTextures){
-		char *n = (char*)malloc(strlen(name) + 5);
-		strcpy(n, name);
-		strcat(n, ".tga");
-		img = readTGA(n);
-		free(n);
-		if(img){
-			raster = Raster::createFromImage(img);
-			img->destroy();
-		}else
-			raster = Raster::create(0, 0, 0, 0x80);
-	}else
+		tex = Texture::readCB(name, mask);
+		if(tex == NULL)
+			goto dummytex;
+	}else{
+	dummytex:
+		tex = Texture::create(NULL);
+		strncpy(tex->name, name, 32);
+		if(mask)
+			strncpy(tex->mask, mask, 32);
 		raster = Raster::create(0, 0, 0, 0x80);
-	tex->raster = raster;
-	if(currentTexDictionary)
+		tex->raster = raster;
+	}
+	if(currentTexDictionary){
+		if(tex->dict)
+			tex->inDict.remove();
 		currentTexDictionary->add(tex);
+	}
 	return tex;
 }
 
@@ -386,7 +418,7 @@ Image::getFilename(const char *name)
 {
 	FILE *f;
 	char *s, *p = searchPaths;
-	int len = strlen(name)+1;
+	size_t len = strlen(name)+1;
 	if(numSearchPaths == 0){
 		f = fopen(name, "rb");
 		if(f){

@@ -152,6 +152,12 @@ bool32 matrixInvert(float32 *out, float32 *in);
 void matrixPrint(float32 *mat);
 bool32 equal(const Matrix &m1, const Matrix &m2);
 
+struct Sphere
+{
+	V3d center;
+	float32 radius;
+};
+
 class Stream
 {
 public:

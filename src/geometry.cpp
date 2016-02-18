@@ -43,10 +43,8 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	}
 	geo->morphTargets = new MorphTarget[1];
 	MorphTarget *m = geo->morphTargets;
-	m->boundingSphere[0] = 0.0f;
-	m->boundingSphere[1] = 0.0f;
-	m->boundingSphere[2] = 0.0f;
-	m->boundingSphere[3] = 0.0f;
+	m->boundingSphere.center.set(0.0f, 0.0f, 0.0f);
+	m->boundingSphere.radius = 0.0f;
 	m->vertices = NULL;
 	m->normals = NULL;
 	if(!(geo->geoflags & NATIVE) && geo->numVertices){
@@ -130,7 +128,7 @@ Geometry::streamRead(Stream *stream)
 
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
-		stream->read(m->boundingSphere, 4*4);
+		stream->read(&m->boundingSphere, 4*4);
 		int32 hasVertices = stream->readI32();
 		int32 hasNormals = stream->readI32();
 		if(hasVertices)
@@ -217,7 +215,7 @@ Geometry::streamWrite(Stream *stream)
 
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		stream->write(m->boundingSphere, 4*4);
+		stream->write(&m->boundingSphere, 4*4);
 		if(!(this->geoflags & NATIVE)){
 			stream->writeI32(m->vertices != NULL);
 			stream->writeI32(m->normals != NULL);
@@ -288,25 +286,21 @@ Geometry::calculateBoundingSphere(void)
 {
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		float32 min[3] = {  1000000.0f,  1000000.0f,  1000000.0f };
-		float32 max[3] = { -1000000.0f, -1000000.0f, -1000000.0f };
+		V3d min( 1000000.0f,  1000000.0f,  1000000.0f);
+		V3d max(-1000000.0f, -1000000.0f, -1000000.0f);
 		float32 *v = m->vertices;
 		for(int32 j = 0; j < this->numVertices; j++){
-			if(v[0] > max[0]) max[0] = v[0];
-			if(v[0] < min[0]) min[0] = v[0];
-			if(v[1] > max[1]) max[1] = v[1];
-			if(v[1] < min[1]) min[1] = v[1];
-			if(v[2] > max[2]) max[2] = v[2];
-			if(v[2] < min[2]) min[2] = v[2];
+			if(v[0] > max.x) max.x = v[0];
+			if(v[0] < min.x) min.x = v[0];
+			if(v[1] > max.y) max.y = v[1];
+			if(v[1] < min.y) min.y = v[1];
+			if(v[2] > max.z) max.z = v[2];
+			if(v[2] < min.z) min.z = v[2];
 			v += 3;
 		}
-		m->boundingSphere[0] = (min[0] + max[0])/2.0f;
-		m->boundingSphere[1] = (min[1] + max[1])/2.0f;
-		m->boundingSphere[2] = (min[2] + max[2])/2.0f;
-		max[0] -= m->boundingSphere[0];
-		max[1] -= m->boundingSphere[1];
-		max[2] -= m->boundingSphere[2];
-		m->boundingSphere[3] = sqrt(max[0]*max[0] + max[1]*max[1] + max[2]*max[2]);
+		m->boundingSphere.center = scale(add(min, max), 1/2.0f);
+		max = sub(max, m->boundingSphere.center);
+		m->boundingSphere.radius = length(max);
 	}
 }
 
