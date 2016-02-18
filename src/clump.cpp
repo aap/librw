@@ -568,14 +568,14 @@ Atomic::create(void)
 	assert(atomic != NULL);
 	atomic->object.init(Atomic::ID, 0);
 	atomic->geometry = NULL;
+	atomic->worldBoundingSphere.center.set(0.0f, 0.0f, 0.0f);
+	atomic->worldBoundingSphere.radius = 0.0f;
+	atomic->setFrame(NULL);
 	atomic->clump = NULL;
 	atomic->pipeline = NULL;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
 	atomic->constructPlugins();
-
-	// private flags:
-	// rpATOMICPRIVATEWORLDBOUNDDIRTY = 0x01
 	return atomic;
 }
 
@@ -604,6 +604,22 @@ Atomic::destroy(void)
 		this->inClump.remove();
 	this->setFrame(NULL);
 	free(this);
+}
+
+Sphere*
+Atomic::getWorldBoundingSphere(void)
+{
+	Sphere *s = &this->worldBoundingSphere;
+	if(!this->getFrame()->dirty() &&
+	   (this->object.privateFlags & WORLDBOUNDDIRTY) == 0)
+		return s;
+	Matrix *ltm = this->getFrame()->getLTM();
+	// TODO: support scaling
+	s->center = ltm->transPoint(s->center);
+	// TODO: if we ever support morphing, fix this:
+	s->radius = this->geometry->morphTargets[0].boundingSphere.radius;
+	this->object.privateFlags &= ~WORLDBOUNDDIRTY;
+	return s;
 }
 
 static uint32 atomicRights[2];

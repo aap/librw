@@ -119,6 +119,8 @@ struct Frame : PluginBase<Frame>
 	Frame *getParent(void){
 		return (Frame*)this->object.parent; }
 	int32 count(void);
+	bool32 dirty(void) {
+		return !!(this->root->object.privateFlags & HIERARCHYSYNC); }
 	Matrix *getLTM(void);
 	void updateObjects(void);
 
@@ -558,11 +560,14 @@ struct Atomic : PluginBase<Atomic>
 	enum { ID = 1 };
 	enum {
 		COLLISIONTEST = 0x01,	// unused here
-		RENDER = 0x04
+		RENDER = 0x04,
+	// private
+		WORLDBOUNDDIRTY = 0x01
 	};
 
 	ObjectWithFrame object;
 	Geometry *geometry;
+	Sphere worldBoundingSphere;
 	Clump *clump;
 	LLLink inClump;
 	ObjPipeline *pipeline;
@@ -571,17 +576,21 @@ struct Atomic : PluginBase<Atomic>
 	static Atomic *create(void);
 	Atomic *clone(void);
 	void destroy(void);
-	void setFrame(Frame *f) { this->object.setFrame(f); }
+	void setFrame(Frame *f) {
+		this->object.setFrame(f);
+		this->object.privateFlags |= WORLDBOUNDDIRTY;
+	}
 	Frame *getFrame(void) { return (Frame*)this->object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
+	ObjPipeline *getPipeline(void);
+	Sphere *getWorldBoundingSphere(void);
 	static Atomic *streamReadClump(Stream *stream,
-	Frame **frameList, Geometry **geometryList);
+		Frame **frameList, Geometry **geometryList);
+	void render(void) { this->renderCB(this); }
 	bool streamWriteClump(Stream *stream,
 	Frame **frameList, int32 numframes);
 	uint32 streamGetSize(void);
-	ObjPipeline *getPipeline(void);
-	void render(void) { this->renderCB(this); }
 
 	static void defaultRenderCB(Atomic *atomic);
 };
