@@ -84,6 +84,24 @@ cross(const V3d &a, const V3d &b)
 	           a.x*b.y - a.y*b.x);
 }
 
+Matrix
+Matrix::makeRotation(const Quat &q)
+{
+	Matrix res;
+	res.right.x = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
+	res.right.y = 2*q.w*q.z + 2*q.x*q.y;
+	res.right.z = 2*q.x*q.z - 2*q.w*q.y;
+	res.up.x    = 2*q.x*q.y - 2*q.w*q.z;
+	res.up.y    = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
+	res.up.z    = 2*q.w*q.x + 2*q.y*q.z;
+	res.at.x    = 2*q.w*q.y + 2*q.x*q.z;
+	res.at.y    = 2*q.y*q.z - 2*q.w*q.x;
+	res.at.z    = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
+	res.rightw = res.upw = res.atw = 0.0f;
+	res.posw = 1.0f;
+	return res;
+}
+
 void
 Matrix::setIdentity(void)
 {
@@ -134,6 +152,22 @@ Matrix::transpose(Matrix *m1, Matrix *m2)
 	matrixTranspose((float32*)m1, (float32*)m2);
 }
 
+
+Matrix3
+Matrix3::makeRotation(const Quat &q)
+{
+	Matrix3 res;
+	res.right.x = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
+	res.right.y = 2*q.w*q.z + 2*q.x*q.y;
+	res.right.z = 2*q.x*q.z - 2*q.w*q.y;
+	res.up.x    = 2*q.x*q.y - 2*q.w*q.z;
+	res.up.y    = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
+	res.up.z    = 2*q.w*q.x + 2*q.y*q.z;
+	res.at.x    = 2*q.w*q.y + 2*q.x*q.z;
+	res.at.y    = 2*q.y*q.z - 2*q.w*q.x;
+	res.at.z    = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
+	return res;
+}
 	
 void
 Matrix3::setIdentity(void)

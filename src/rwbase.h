@@ -118,6 +118,7 @@ struct Matrix
 	V3d pos;
 	float32 posw;
 
+	static Matrix makeRotation(const Quat &q);
 	void setIdentity(void);
 	V3d transPoint(const V3d &p);
 	V3d transVec(const V3d &v);
@@ -132,6 +133,7 @@ struct Matrix3
 {
 	V3d right, up, at;
 
+	static Matrix3 makeRotation(const Quat &q);
 	void setIdentity(void);
 	V3d transVec(const V3d &v);
 	bool32 isIdentity(void);
