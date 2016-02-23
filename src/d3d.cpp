@@ -420,18 +420,25 @@ void
 D3dRaster::fromImage(Raster *raster, Image *image)
 {
 	int32 format;
-	if(image->depth == 32)
-		format = Raster::C8888;
-	else if(image->depth == 24)
+	switch(image->depth){
+	case 32:
+		format = image->hasAlpha() ? Raster::C8888 : Raster::C888;
+		break;
+	case 24:
 		format = Raster::C888;
-	else if(image->depth == 16)
+		break;
+	case 16:
 		format = Raster::C1555;
-	else if(image->depth == 8)
+		break;
+	case 8:
 		format = Raster::PAL8 | Raster::C8888;
-	else if(image->depth == 4)
+		break;
+	case 4:
 		format = Raster::PAL4 | Raster::C8888;
-	else
+		break;
+	default:
 		return;
+	}
 	format |= 4;
 
 	raster->type = format & 0x7;
@@ -458,11 +465,13 @@ D3dRaster::fromImage(Raster *raster, Image *image)
 		}
 	}
 
+	int32 inc = image->depth/8;
 	in = image->pixels;
 	out = raster->lock(0);
 	if(pallength)
 		memcpy(out, in, raster->width*raster->height);
 	else
+		// TODO: stride
 		for(int32 y = 0; y < image->height; y++)
 			for(int32 x = 0; x < image->width; x++)
 				switch(raster->format & 0xF00){
@@ -471,7 +480,7 @@ D3dRaster::fromImage(Raster *raster, Image *image)
 					out[1] = in[1];
 					out[2] = in[0];
 					out[3] = in[3];
-					in += 4;
+					in += inc;
 					out += 4;
 					break;
 				case Raster::C888:
@@ -479,7 +488,7 @@ D3dRaster::fromImage(Raster *raster, Image *image)
 					out[1] = in[1];
 					out[2] = in[0];
 					out[3] = 0xFF;
-					in += 3;
+					in += inc;
 					out += 4;
 					break;
 				case Raster::C1555:

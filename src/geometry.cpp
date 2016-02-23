@@ -447,6 +447,65 @@ Geometry::buildMeshes(void)
 	}
 }
 
+// HAS to be called with an existing mesh
+void
+Geometry::removeUnusedMaterials(void)
+{
+	if(this->meshHeader == NULL)
+		return;
+	MeshHeader *mh = this->meshHeader;
+	int32 *map = new int32[this->numMaterials];
+	Material **matlist = new Material*[this->numMaterials];
+	int32 numMaterials = 0;
+	/* Build new material list and map */
+	for(uint32 i = 0; i < mh->numMeshes; i++){
+		Mesh *m = &mh->mesh[i];
+		if(m->numIndices <= 0)
+			continue;
+		matlist[numMaterials] = m->material;
+		int32 oldid = findPointer((void*)m->material,
+		                          (void**)this->materialList,
+		                          this->numMaterials);
+		map[oldid] = numMaterials;
+		numMaterials++;
+	}
+	delete[] this->materialList;
+	this->materialList = matlist;
+	this->numMaterials = numMaterials;
+	/* Build new meshes */
+	MeshHeader *newmh = new MeshHeader;
+	newmh->flags = mh->flags;
+	newmh->numMeshes = numMaterials;
+	newmh->mesh = new Mesh[newmh->numMeshes];
+	newmh->totalIndices = mh->totalIndices;
+	Mesh *newm = newmh->mesh;
+	for(uint32 i = 0; i < mh->numMeshes; i++){
+		Mesh *oldm = &mh->mesh[i];
+		if(oldm->numIndices <= 0)
+			continue;
+		newm->numIndices = oldm->numIndices;
+		newm->material = oldm->material;
+		newm++;
+	}
+	newmh->allocateIndices();
+	/* Copy indices */
+	newm = newmh->mesh;
+	for(uint32 i = 0; i < mh->numMeshes; i++){
+		Mesh *oldm = &mh->mesh[i];
+		if(oldm->numIndices <= 0)
+			continue;
+		memcpy(newm->indices, oldm->indices,
+		       oldm->numIndices*sizeof(*oldm->indices));
+		newm++;
+	}
+	delete this->meshHeader;
+	this->meshHeader = newmh;
+	/* Remap triangle material IDs */
+	for(int32 i = 0; i < this->numTriangles; i++)
+		this->triangles[i].matId = map[this->triangles[i].matId];
+	delete[] map;
+}
+
 //
 // Material
 //

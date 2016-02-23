@@ -168,7 +168,7 @@ Matrix3::makeRotation(const Quat &q)
 	res.at.z    = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
 	return res;
 }
-	
+
 void
 Matrix3::setIdentity(void)
 {

@@ -191,6 +191,11 @@ PipeAttribute attribXYZ = {
 	AT_V3_32
 };
 
+PipeAttribute attribXYZW = {
+	"XYZW",
+	AT_V4_32
+};
+
 PipeAttribute attribUV = {
 	"UV",
 	AT_V2_32
@@ -253,6 +258,23 @@ instanceXYZ(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 	}
 	while((uintptr)p % 0x10)
 		*p++ = 0;
+	return p;
+}
+
+uint32*
+instanceXYZW(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
+{
+	uint16 j;
+	uint32 *d = (uint32*)g->morphTargets[0].vertices;
+	int8 *adcbits = getADCbitsForMesh(g, m);
+	for(uint32 i = idx; i < idx+n; i++){
+		j = m->indices[i];
+		*p++ = d[j*3+0];
+		*p++ = d[j*3+1];
+		*p++ = d[j*3+2];
+		*p++ = adcbits && adcbits[i] ? 0x8000 : 0;
+	}
+	// don't need to pad
 	return p;
 }
 
@@ -393,7 +415,55 @@ brokenout:
 	this->triStripCount = (stripCount-2)/4*4+2;
 }
 
-uint32 markcnt = 0xf790;
+// Instance format:
+//  no broken out clusters
+//  ======================
+//  DMAret [FLUSH; MSKPATH3 || FLUSH; FLUSH] {
+//  	foreach batch {
+//  		foreach cluster {
+//  			MARK/0; STMOD; STCYCL; UNPACK
+//  			unpack-data
+//  		}
+//  		ITOP; MSCALF/MSCNT;                      // if first/not-first
+//  		0/FLUSH; 0/MSKPATH3 || 0/FLUSH; 0/FLUSH  // if not-last/last
+//  	}
+//  }
+//
+//  broken out clusters
+//  ===================
+//  foreach batch {
+//  	foreach broken out cluster {
+//  		DMAref [STCYCL; UNPACK] -> pointer into unpack-data
+//  		DMAcnt (empty)
+//  	}
+//  	DMAcnt/ret {
+//  		foreach cluster {
+//  			MARK/0; STMOD; STCYCL; UNPACK
+//  			unpack-data
+//  		}
+//  		ITOP; MSCALF/MSCNT;                      // if first/not-first
+//  		0/FLUSH; 0/MSKPATH3 || 0/FLUSH; 0/FLUSH  // if not-last/last
+//  	}
+//  }
+//  unpack-data for broken out clusters
+
+uint32 markcnt = 0;
+
+enum {
+	DMAcnt       = 0x10000000,
+	DMAref       = 0x30000000,
+	DMAret       = 0x60000000,
+
+	VIF_NOP      = 0,
+	VIF_STCYCL   = 0x01000100,	// WL = 1
+	VIF_ITOP     = 0x04000000,
+	VIF_STMOD    = 0x05000000,
+	VIF_MSKPATH3 = 0x06000000,
+	VIF_MARK     = 0x07000000,
+	VIF_FLUSH    = 0x11000000,
+	VIF_MSCALF   = 0x15000000,
+	VIF_MSCNT    = 0x17000000,
+};
 
 struct InstMeshInfo
 {
@@ -401,7 +471,9 @@ struct InstMeshInfo
 	uint32 batchVertCount, lastBatchVertCount;
 	uint32 numBatches;
 	uint32 batchSize, lastBatchSize;
-	uint32 size, size2, stride;
+	uint32 size;	// size of DMA chain without broken out data
+	uint32 size2;	// size of broken out data
+	uint32 vertexSize;
 	uint32 attribPos[10];
 };
 
@@ -412,16 +484,15 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 	InstMeshInfo im;
 	im.numAttribs = 0;
 	im.numBrokenAttribs = 0;
-	im.stride = 0;
+	im.vertexSize = 0;
 	for(uint i = 0; i < nelem(pipe->attribs); i++)
 		if(a = pipe->attribs[i])
 			if(a->attrib & AT_RW)
 				im.numBrokenAttribs++;
 			else{
-				im.stride += attribSize(a->attrib);
+				im.vertexSize += attribSize(a->attrib);
 				im.numAttribs++;
 			}
-	uint32 totalVerts = 0;
 	if(g->meshHeader->flags == MeshHeader::TRISTRIP){
 		im.numBatches = (m->numIndices-2) / (pipe->triStripCount-2);
 		im.batchVertCount = pipe->triStripCount;
@@ -430,7 +501,7 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 			im.numBatches++;
 			im.lastBatchVertCount += 2;
 		}
-	}else{
+	}else{	// TRILIST; nothing else supported yet
 		im.numBatches = (m->numIndices+pipe->triListCount-1) /
 		                 pipe->triListCount;
 		im.batchVertCount = pipe->triListCount;
@@ -441,7 +512,6 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 
 	im.batchSize = getBatchSize(pipe, im.batchVertCount);
 	im.lastBatchSize = getBatchSize(pipe, im.lastBatchVertCount);
-	im.size = 0;
 	if(im.numBrokenAttribs == 0)
 		im.size = 1 + im.batchSize*(im.numBatches-1) + im.lastBatchSize;
 	else
@@ -477,13 +547,16 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 		if((a = this->attribs[i]) && a->attrib & AT_RW)
 			dp[i] = inst->data + im.attribPos[i]*0x10;
 
+	// TODO: not sure if this is correct
+	uint32 msk_flush = rw::version >= 0x35000 ? VIF_FLUSH : VIF_MSKPATH3;
+
 	uint32 idx = 0;
 	uint32 *p = (uint32*)inst->data;
 	if(im.numBrokenAttribs == 0){
-		*p++ = 0x60000000 | im.size-1;
+		*p++ = DMAret | im.size-1;
 		*p++ = 0;
-		*p++ = 0x11000000;	// FLUSH
-		*p++ = 0x06000000;	// MSKPATH3; SA: FLUSH
+		*p++ = VIF_FLUSH;
+		*p++ = msk_flush;
 	}
 	for(uint32 j = 0; j < im.numBatches; j++){
 		uint32 nverts, bsize;
@@ -497,44 +570,46 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 		for(uint i = 0; i < nelem(this->attribs); i++)
 			if((a = this->attribs[i]) && a->attrib & AT_RW){
 				uint32 atsz = attribSize(a->attrib);
-				*p++ = 0x30000000 | QWC(nverts*atsz);
+				*p++ = DMAref | QWC(nverts*atsz);
 				*p++ = im.attribPos[i];
-				*p++ = 0x01000100 |
-					this->inputStride;	// STCYCL
+				*p++ = VIF_STCYCL | this->inputStride;
 				// Round up nverts so UNPACK will fit exactly into the DMA packet
 				//  (can't pad with zeroes in broken out sections).
 				// TODO: check for clash with vifOffset somewhere
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | (QWC(nverts*atsz)<<4)/atsz << 16 | i; // UNPACK
 
-				*p++ = 0x10000000;
+				*p++ = DMAcnt;
 				*p++ = 0x0;
-				*p++ = 0x0;
-				*p++ = 0x0;
+				*p++ = VIF_NOP;
+				*p++ = VIF_NOP;
 
 				im.attribPos[i] += g->meshHeader->flags == 1 ?
 					QWC((im.batchVertCount-2)*atsz) :
 					QWC(im.batchVertCount*atsz);
 			}
 		if(im.numBrokenAttribs){
-			*p++ = (j < im.numBatches-1 ? 0x10000000 : 0x60000000) |
-			       bsize;
+			*p++ = (j < im.numBatches-1 ? DMAcnt : DMAret) | bsize;
 			*p++ = 0x0;
-			*p++ = 0x0;
-			*p++ = 0x0;
+			*p++ = VIF_NOP;
+			*p++ = VIF_NOP;
 		}
 
 		for(uint i = 0; i < nelem(this->attribs); i++)
 			if((a = this->attribs[i]) && (a->attrib & AT_RW) == 0){
-				*p++ = 0x07000000 | markcnt++; // MARK (SA: NOP)
-				*p++ = 0x05000000;		// STMOD
-				*p++ = 0x01000100 |
-					this->inputStride;	// STCYCL
+				if(rw::version >= 0x35000)
+					*p++ = VIF_NOP;
+				else
+					*p++ = VIF_MARK | markcnt++;
+				*p++ = VIF_STMOD;
+				*p++ = VIF_STCYCL | this->inputStride;
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
 				if(a == &attribXYZ)
 					p = instanceXYZ(p, g, m, idx, nverts);
+				else if(a == &attribXYZW)
+					p = instanceXYZW(p, g, m, idx, nverts);
 				else if(a == &attribUV)
 					p = instanceUV(p, g, m, idx, nverts);
 				else if(a == &attribUV2)
@@ -547,14 +622,14 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 		idx += g->meshHeader->flags == 1
 			? im.batchVertCount-2 : im.batchVertCount;
 
-		*p++ = 0x04000000 | nverts;	// ITOP
-		*p++ = j == 0 ? 0x15000000 : 0x17000000;
+		*p++ = VIF_ITOP | nverts;
+		*p++ = j == 0 ? VIF_MSCALF : VIF_MSCNT;
 		if(j < im.numBatches-1){
-			*p++ = 0x0;
-			*p++ = 0x0;
+			*p++ = VIF_NOP;
+			*p++ = VIF_NOP;
 		}else{
-			*p++ = 0x11000000;	// FLUSH
-			*p++ = 0x06000000;	// MSKPATH3; SA: FLUSH
+			*p++ = VIF_FLUSH;
+			*p++ = msk_flush;
 		}
 	}
 
@@ -568,7 +643,8 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	PipeAttribute *a;
 	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
-	uint8 *raw = im.stride*m->numIndices ? new uint8[im.stride*m->numIndices] : NULL;
+	uint8 *raw = im.vertexSize*m->numIndices ?
+		new uint8[im.vertexSize*m->numIndices] : NULL;
 	uint8 *dp = raw;
 	for(uint i = 0; i < nelem(this->attribs); i++)
 		if(a = this->attribs[i])
@@ -722,12 +798,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		if(m->postUninstCB) m->postUninstCB(m, geo);
 	}
 
-	int8 *bits = NULL;
-	if(adcOffset){
-		ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
-		if(adc->adcFormatted)
-			bits = adc->adcBits;
-	}
+	int8 *bits = getADCbits(geo);
 	geo->generateTriangles(bits);
 	delete[] flags;
 	destroyNativeData(geo, 0, 0);
@@ -803,6 +874,18 @@ insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 }
 
 void
+genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+{
+//extern PipeAttribute attribXYZ;
+//extern PipeAttribute attribXYZW;
+//extern PipeAttribute attribUV;
+//extern PipeAttribute attribUV2;
+//extern PipeAttribute attribRGBA;
+//extern PipeAttribute attribNormal;
+//extern PipeAttribute attribWeights;
+}
+
+void
 defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
 	float32 *verts     = (float32*)data[AT_XYZ];
@@ -871,9 +954,6 @@ makeDefaultPipeline(void)
 	}
 	return defaultObjPipe;
 }
-
-static void skinInstanceCB(MatPipeline*, Geometry*, Mesh*, uint8**);
-static void skinUninstanceCB(MatPipeline*, Geometry*, uint32*, Mesh*, uint8**);
 
 ObjPipeline*
 makeSkinPipeline(void)
@@ -1026,7 +1106,7 @@ instanceSkinData(Geometry*, Mesh *m, Skin *skin, uint32 *data)
 	}
 }
 
-static void
+void
 skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
@@ -1095,7 +1175,7 @@ insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v)
 	}
 }
 
-static void
+void
 skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
 	float32 *verts     = (float32*)data[AT_XYZ];
@@ -1170,6 +1250,30 @@ skinPostCB(MatPipeline*, Geometry *geo)
 // ADC
 
 int32 adcOffset;
+
+int8*
+getADCbits(Geometry *geo)
+{
+	int8 *bits = NULL;
+	if(adcOffset){
+		ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
+		if(adc->adcFormatted)
+			bits = adc->adcBits;
+	}
+	return bits;
+}
+
+int8*
+getADCbitsForMesh(Geometry *geo, Mesh *mesh)
+{
+	int8 *bits = getADCbits(geo);
+	if(bits == NULL)
+		return NULL;
+	int32 n = mesh - geo->meshHeader->mesh;
+	for(int32 i = 0; i < n; i++)
+		bits += geo->meshHeader->mesh[i].numIndices;
+	return bits;
+}
 
 // TODO
 void
@@ -1324,130 +1428,6 @@ registerADCPlugin(void)
 	                               getSizeADC);
 }
 
-
-// PDS plugin
-
-struct PdsGlobals
-{
-	Pipeline **pipes;
-	int32 maxPipes;
-	int32 numPipes;
-};
-PdsGlobals pdsGlobals;
-
-Pipeline*
-getPDSPipe(uint32 data)
-{
-	for(int32 i = 0; i < pdsGlobals.numPipes; i++)
-		if(pdsGlobals.pipes[i]->pluginData == data)
-			return pdsGlobals.pipes[i];
-	return NULL;
-}
-
-void
-registerPDSPipe(Pipeline *pipe)
-{
-	assert(pdsGlobals.numPipes < pdsGlobals.maxPipes);
-	pdsGlobals.pipes[pdsGlobals.numPipes++] = pipe;
-}
-
-static void
-atomicPDSRights(void *object, int32, int32, uint32 data)
-{
-	Atomic *a = (Atomic*)object;
-	//printf("atm pds: %x\n", data);
-	a->pipeline = (ObjPipeline*)getPDSPipe(data);
-}
-
-static void
-materialPDSRights(void *object, int32, int32, uint32 data)
-{
-	Material *m = (Material*)object;
-	//printf("mat pds: %x\n", data);
-	m->pipeline = (ObjPipeline*)getPDSPipe(data);
-}
-
-void
-registerPDSPlugin(int32 n)
-{
-	pdsGlobals.maxPipes = n;
-	pdsGlobals.numPipes = 0;
-	pdsGlobals.pipes = new Pipeline*[n];
-	Atomic::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
-	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
-
-	Material::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
-	Material::setStreamRightsCallback(ID_PDS, materialPDSRights);
-}
-
-void
-registerPluginPDSPipes(void)
-{
-	// Skin
-	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
-	pipe->pluginID = ID_PDS;
-	pipe->pluginData = 0x11001;		// rwPDS_G3_Generic_GrpMatPipeID
-	pipe->attribs[AT_XYZ] = &attribXYZ;
-	pipe->attribs[AT_UV] = &attribUV;
-	pipe->attribs[AT_RGBA] = &attribRGBA;
-	pipe->attribs[AT_NORMAL] = &attribNormal;
-	pipe->attribs[AT_NORMAL+1] = &attribWeights;
-	uint32 vertCount = MatPipeline::getVertCount(VU_Lights-0x100, 5, 3, 2);
-	pipe->setTriBufferSizes(5, vertCount);
-	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->instanceCB = skinInstanceCB;
-	pipe->uninstanceCB = skinUninstanceCB;
-	pipe->preUninstCB = skinPreCB;
-	pipe->postUninstCB = skinPostCB;
-	registerPDSPipe(pipe);
-
-	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
-	opipe->pluginID = ID_PDS;
-	opipe->pluginData = 0x11002;		// rwPDS_G3_Skin_GrpAtmPipeID
-	opipe->groupPipeline = pipe;
-	registerPDSPipe(opipe);
-
-	// MatFX UV1
-	pipe = new MatPipeline(PLATFORM_PS2);
-	pipe->pluginID = ID_PDS;
-	pipe->pluginData = 0x1100b;		// rwPDS_G3_MatfxUV1_GrpMatPipeID
-	pipe->attribs[AT_XYZ] = &attribXYZ;
-	pipe->attribs[AT_UV] = &attribUV;
-	pipe->attribs[AT_RGBA] = &attribRGBA;
-	pipe->attribs[AT_NORMAL] = &attribNormal;
-	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
-	pipe->setTriBufferSizes(4, vertCount);
-	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	registerPDSPipe(pipe);
-
-	opipe = new ObjPipeline(PLATFORM_PS2);
-	opipe->pluginID = ID_PDS;
-	opipe->pluginData = 0x1100d;		// rwPDS_G3_MatfxUV1_GrpAtmPipeID
-	opipe->groupPipeline = pipe;
-	registerPDSPipe(opipe);
-
-	// MatFX UV2
-	pipe = new MatPipeline(PLATFORM_PS2);
-	pipe->pluginID = ID_PDS;
-	pipe->pluginData = 0x1100c;		// rwPDS_G3_MatfxUV2_GrpMatPipeID
-	pipe->attribs[AT_XYZ] = &attribXYZ;
-	pipe->attribs[AT_UV] = &attribUV2;
-	pipe->attribs[AT_RGBA] = &attribRGBA;
-	pipe->attribs[AT_NORMAL] = &attribNormal;
-	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
-	pipe->setTriBufferSizes(4, vertCount);
-	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	registerPDSPipe(pipe);
-
-	opipe = new ObjPipeline(PLATFORM_PS2);
-	opipe->pluginID = ID_PDS;
-	opipe->pluginData = 0x1100e;		// rwPDS_G3_MatfxUV2_GrpAtmPipeID
-	opipe->groupPipeline = pipe;
-	registerPDSPipe(opipe);
-}
-
 // misc stuff
 
 void
@@ -1456,20 +1436,17 @@ printDMA(InstanceData *inst)
 	uint32 *tag = (uint32*)inst->data;
 	for(;;){
 		switch(tag[0]&0x70000000){
-		// DMAcnt
-		case 0x10000000:
+		case DMAcnt:
 			printf("%08x %08x\n", tag[0], tag[1]);
 			tag += (1+(tag[0]&0xFFFF))*4;
 			break;
 
-		// DMAref
-		case 0x30000000:
+		case DMAref:
 			printf("%08x %08x\n", tag[0], tag[1]);
 			tag += 4;
 			break;
 
-		// DMAret
-		case 0x60000000:
+		case DMAret:
 			printf("%08x %08x\n", tag[0], tag[1]);
 			return;
 		}
@@ -1486,19 +1463,16 @@ sizedebug(InstanceData *inst)
 	uint32 *last = NULL;
 	for(;;){
 		switch(tag[0]&0x70000000){
-		// DMAcnt
-		case 0x10000000:
+		case DMAcnt:
 			tag += (1+(tag[0]&0xFFFF))*4;
 			break;
 
-		// DMAref
-		case 0x30000000:
+		case DMAref:
 			last = base + tag[1]*4 + (tag[0]&0xFFFF)*4;
 			tag += 4;
 			break;
 
-		// DMAret
-		case 0x60000000:
+		case DMAret:
 			tag += (1+(tag[0]&0xFFFF))*4;
 			uint32 diff;
 			if(!last)

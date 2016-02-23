@@ -198,6 +198,7 @@
     <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\image.cpp" />
     <ClCompile Include="src\ogl.cpp" />
+    <ClCompile Include="src\pds.cpp" />
     <ClCompile Include="src\pipeline.cpp" />
     <ClCompile Include="src\plugins.cpp" />
     <ClCompile Include="src\ps2.cpp" />

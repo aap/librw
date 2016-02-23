@@ -38,6 +38,7 @@ enum PS2Attribs {
 	AT_RW		= 0x6
 };
 
+// Not really types as in RW but offsets
 enum PS2AttibTypes {
 	AT_XYZ		= 0,
 	AT_UV		= 1,
@@ -64,6 +65,14 @@ struct PipeAttribute
 	const char *name;
 	uint32 attrib;
 };
+
+extern PipeAttribute attribXYZ;
+extern PipeAttribute attribXYZW;
+extern PipeAttribute attribUV;
+extern PipeAttribute attribUV2;
+extern PipeAttribute attribRGBA;
+extern PipeAttribute attribNormal;
+extern PipeAttribute attribWeights;
 
 class MatPipeline : public rw::Pipeline
 {
@@ -122,6 +131,10 @@ void insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v);
 extern ObjPipeline *defaultObjPipe;
 extern MatPipeline *defaultMatPipe;
 
+void defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
+void skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data);
+void skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
+
 ObjPipeline *makeDefaultPipeline(void);
 ObjPipeline *makeSkinPipeline(void);
 ObjPipeline *makeMatFXPipeline(void);
@@ -164,6 +177,8 @@ struct ADCData
 extern int32 adcOffset;
 void registerADCPlugin(void);
 
+int8 *getADCbits(Geometry *geo);
+int8 *getADCbitsForMesh(Geometry *geo, Mesh *mesh);
 void convertADC(Geometry *g);
 void unconvertADC(Geometry *geo);
 void allocateADC(Geometry *geo);

@@ -379,6 +379,27 @@ Image::setPalette(uint8 *palette)
 	this->flags |= 2;
 }
 
+bool32
+Image::hasAlpha(void)
+{
+	uint8 ret = 0xFF;
+	uint8 *pixels = this->pixels;
+	if(this->depth == 24)
+		return 0;
+	// TODO: palettized textures
+	if(this->depth == 32){
+		for(int y = 0; y < this->height; y++){
+			uint8 *line = pixels;
+			for(int x = 0; x < this->width; x++){
+				ret &= line[3];
+				line += 4;
+			}
+			pixels += this->stride;
+		}
+	}
+	return ret != 0xFF;
+}
+
 static char *searchPaths = NULL;
 int numSearchPaths = 0;
 

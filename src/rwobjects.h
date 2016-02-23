@@ -218,6 +218,7 @@ struct Image
 	void free(void);
 	void setPixels(uint8 *pixels);
 	void setPalette(uint8 *palette);
+	bool32 hasAlpha(void);
 
 	static void setSearchPath(const char*);
 	static void printSearchPath(void);
@@ -507,6 +508,7 @@ struct Geometry : PluginBase<Geometry>
 	void allocateData(void);
 	void generateTriangles(int8 *adc = NULL);
 	void buildMeshes(void);
+	void removeUnusedMaterials(void);
 
 	enum Flags
 	{
