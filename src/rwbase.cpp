@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 #include <cmath>
+#include <cctype>
 
 #include "rwbase.h"
 #include "rwplugin.h"
@@ -65,6 +66,22 @@ initialize(void)
 		d3d9::makeDefaultPipeline();
 
 	Frame::dirtyList.init();
+}
+
+// lazy implementation
+int
+strncmp_ci(const char *s1, const char *s2, int n)
+{
+	char c1, c2;
+	while(n--){
+		c1 = tolower(*s1);
+		c2 = tolower(*s2);
+		if(c1 != c2)
+			return c1 - c2;
+		s1++;
+		s2++;
+	}
+	return 0;
 }
 
 Quat

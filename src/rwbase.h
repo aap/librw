@@ -281,6 +281,8 @@ extern char *debugFile;
 
 void initialize(void);
 
+int strncmp_ci(const char *s1, const char *s2, int n);
+
 // 0x04000000	3.1
 // 0x08000000	3.2
 // 0x0C000000	3.3

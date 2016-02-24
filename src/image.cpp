@@ -53,7 +53,7 @@ TexDictionary::find(const char *name)
 {
 	FORLIST(lnk, this->textures){
 		Texture *tex = Texture::fromDict(lnk);
-		if(strncmp(tex->name, name, 32) == 0)
+		if(strncmp_ci(tex->name, name, 32) == 0)
 			return tex;
 	}
 	return NULL;

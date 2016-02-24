@@ -227,7 +227,7 @@ UVAnimDictionary::find(const char *name)
 	FORLIST(lnk, this->animations){
 		Animation *anim = UVAnimDictEntry::fromDict(lnk)->anim;
 		UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
-		if(strncmp(custom->name, name, 32) == 0)	// strncmp correct?
+		if(strncmp_ci(custom->name, name, 32) == 0)
 			return anim;
 	}
 	return NULL;
