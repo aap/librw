@@ -615,8 +615,8 @@ Atomic::getWorldBoundingSphere(void)
 		return s;
 	Matrix *ltm = this->getFrame()->getLTM();
 	// TODO: support scaling
-	s->center = ltm->transPoint(s->center);
 	// TODO: if we ever support morphing, fix this:
+	s->center = ltm->transPoint(this->geometry->morphTargets[0].boundingSphere.center);
 	s->radius = this->geometry->morphTargets[0].boundingSphere.radius;
 	this->object.privateFlags &= ~WORLDBOUNDDIRTY;
 	return s;
