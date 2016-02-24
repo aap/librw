@@ -763,6 +763,7 @@ Light::create(int32 type)
 	light->minusCosAngle = 1.0f;
 	light->object.privateFlags = 1;
 	light->object.flags = LIGHTATOMICS | LIGHTWORLD;
+	light->clump = NULL;
 	light->inClump.init();
 	light->constructPlugins();
 	return light;
@@ -772,6 +773,8 @@ void
 Light::destroy(void)
 {
 	this->destructPlugins();
+	if(this->clump)
+		this->inClump.remove();
 	free(this);
 }
 
@@ -869,6 +872,8 @@ Camera::create(void)
 	cam->farPlane = 10.0f;
 	cam->fogPlane = 5.0f;
 	cam->projection = Camera::PERSPECTIVE;
+	cam->clump = NULL;
+	cam->inClump.init();
 	cam->constructPlugins();
 	return cam;
 }
@@ -893,6 +898,8 @@ void
 Camera::destroy(void)
 {
 	this->destructPlugins();
+	if(this->clump)
+		this->inClump.remove();
 	free(this);
 }
 

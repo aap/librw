@@ -405,6 +405,54 @@ makeMatFXPipeline(void)
 
 // Native Texture and Raster
 
+// only handles 4 and 8 bit textures right now
+Raster*
+readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format, int32 numLevels)
+{
+	uint8 palette[256*4];
+	uint8 *data;
+
+	Image *img = Image::create(width, height, 32);
+	img->allocate();
+
+	if(format & Raster::PAL4)
+		stream->read(palette, 4*32);
+	else if(format & Raster::PAL8)
+		stream->read(palette, 4*256);
+
+	// Only read one mipmap
+	for(int32 i = 0; i < numLevels; i++){
+		uint32 size = stream->readU32();
+		if(i == 0){
+			data = new uint8[size];
+			stream->read(data, size);
+		}else
+			stream->seek(size);
+	}
+
+	if(format & (Raster::PAL4 | Raster::PAL8)){
+		uint8 *idx = data;
+		uint8 *pixels = img->pixels;
+		for(int y = 0; y < img->height; y++){
+			uint8 *line = pixels;
+			for(int x = 0; x < img->width; x++){
+				line[0] = palette[*idx*4+0];
+				line[1] = palette[*idx*4+1];
+				line[2] = palette[*idx*4+2];
+				line[3] = palette[*idx*4+3];
+				line += 4;
+				idx++;
+			}
+			pixels += img->stride;
+		}
+	}
+
+	delete[] data;
+	Raster *ras = Raster::createFromImage(img);
+	img->destroy();
+	return ras;
+}
+
 Texture*
 readNativeTexture(Stream *stream)
 {
@@ -427,6 +475,16 @@ readNativeTexture(Stream *stream)
 	int32 type = stream->readU8();
 	int32 compression = stream->readU8();
 
+	int32 pallength = 0;
+	if(format & Raster::PAL4 || format & Raster::PAL8){
+		pallength = format & Raster::PAL4 ? 32 : 256;
+		if(!d3d::isP8supported){
+			tex->raster = readAsImage(stream, width, height, depth, format|type, numLevels);
+			tex->streamReadPlugins(stream);
+			return tex;
+		}
+	}
+
 	Raster *raster;
 	D3dRaster *ras;
 	if(compression){
@@ -442,10 +500,8 @@ readNativeTexture(Stream *stream)
 
 	// TODO: check if format supported and convert if necessary
 
-	if(raster->format & Raster::PAL4)
-		stream->read(ras->palette, 4*32);
-	else if(raster->format & Raster::PAL8)
-		stream->read(ras->palette, 4*256);
+	if(pallength != 0)
+		stream->read(ras->palette, 4*pallength);
 
 	uint32 size;
 	uint8 *data;

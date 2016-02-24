@@ -5,6 +5,8 @@
 namespace rw {
 namespace d3d {
 
+extern bool32 isP8supported;
+
 #ifdef RW_D3D9
 extern IDirect3DDevice9 *device;
 #else

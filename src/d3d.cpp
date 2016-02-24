@@ -16,6 +16,8 @@ using namespace std;
 namespace rw {
 namespace d3d {
 
+bool32 isP8supported = 1;
+
 #ifdef RW_D3D9
 IDirect3DDevice9 *device = NULL;
 #else
