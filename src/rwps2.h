@@ -124,6 +124,9 @@ struct Vertex {
 	float32 t1[2];
 	uint8   c[4];
 	float32 n[3];
+	// skin
+	float32 w[4];
+	uint8   i[4];
 };
 
 void insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v);
@@ -131,9 +134,11 @@ void insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v);
 extern ObjPipeline *defaultObjPipe;
 extern MatPipeline *defaultMatPipe;
 
-void defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
+void genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
+void genericPreCB(MatPipeline *pipe, Geometry *geo);	// skin and ADC
+//void defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
 void skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data);
-void skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
+//void skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[]);
 
 ObjPipeline *makeDefaultPipeline(void);
 ObjPipeline *makeSkinPipeline(void);
@@ -142,13 +147,8 @@ void dumpPipeline(rw::Pipeline *pipe);
 
 // Skin plugin
 
-struct SkinVertex : Vertex {
-	float32 w[4];
-	uint8   i[4];
-};
-
-void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v);
-int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v);
+void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, Vertex *v);
+int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v);
 
 void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);

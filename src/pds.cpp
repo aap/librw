@@ -40,16 +40,16 @@ static void
 atomicPDSRights(void *object, int32, int32, uint32 data)
 {
 	Atomic *a = (Atomic*)object;
-	//printf("atm pds: %x\n", data);
 	a->pipeline = (ObjPipeline*)getPDSPipe(data);
+//	printf("atm pds: %x %x %x\n", data, a->pipeline->pluginID, a->pipeline->pluginData);
 }
 
 static void
 materialPDSRights(void *object, int32, int32, uint32 data)
 {
 	Material *m = (Material*)object;
-	//printf("mat pds: %x\n", data);
 	m->pipeline = (ObjPipeline*)getPDSPipe(data);
+//	printf("mat pds: %x %x %x\n", data, m->pipeline->pluginID, m->pipeline->pluginData);
 }
 
 void
@@ -81,7 +81,7 @@ registerPluginPDSPipes(void)
 	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->instanceCB = skinInstanceCB;
-	pipe->uninstanceCB = skinUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
 	pipe->preUninstCB = skinPreCB;
 	pipe->postUninstCB = skinPostCB;
 	registerPDSPipe(pipe);
@@ -104,7 +104,7 @@ registerPluginPDSPipes(void)
 	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3_MatfxUV1_GrpAtmPipeID
@@ -125,7 +125,7 @@ registerPluginPDSPipes(void)
 	vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3_MatfxUV2_GrpAtmPipeID
@@ -141,14 +141,12 @@ registerPluginPDSPipes(void)
 	opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x50001;
-	opipe->groupPipeline = pipe;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3x_Skin_AtmPipeID
 	opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x5000b;
-	opipe->groupPipeline = pipe;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3xd_A4D_MatPipeID
@@ -161,8 +159,8 @@ registerPluginPDSPipes(void)
 	vertCount = 0x50;
 	pipe->setTriBufferSizes(3, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	// TODO:
-	//pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
+	pipe->preUninstCB = genericPreCB;
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3xd_A4DSkin_MatPipeID
@@ -176,8 +174,10 @@ registerPluginPDSPipes(void)
 	vertCount = 0x30;
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	// TODO:
-	//pipe->uninstanceCB = skinUninstanceCB;
+	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
+	pipe->preUninstCB = genericPreCB;
+	pipe->postUninstCB = skinPostCB;
 	registerPDSPipe(pipe);
 }
 

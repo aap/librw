@@ -675,7 +675,7 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 				uint32 asz = attribSize(a->attrib);
 				p += 4;
 				if((p[-1] & 0xff004000) != a->attrib){
-					fprintf(stderr, "unexpected unpack xx: %08x %08x\n", p[-1], a->attrib);
+					fprintf(stderr, "unexpected unpack: %08x %08x\n", p[-1], a->attrib);
 					assert(0 && "unexpected unpack\n");
 				}
 				memcpy(datap[i], p, asz*nverts);
@@ -822,6 +822,7 @@ ObjPipeline::ObjPipeline(uint32 platform)
 	this->impl.uninstance = objUninstance;
 }
 
+/*
 int32
 findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
@@ -857,6 +858,7 @@ findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 	}
 	return -1;
 }
+*/
 
 void
 insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
@@ -874,17 +876,99 @@ insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 }
 
 void
-genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+genericPreCB(MatPipeline *pipe, Geometry *geo)
 {
-//extern PipeAttribute attribXYZ;
-//extern PipeAttribute attribXYZW;
-//extern PipeAttribute attribUV;
-//extern PipeAttribute attribUV2;
-//extern PipeAttribute attribRGBA;
-//extern PipeAttribute attribNormal;
-//extern PipeAttribute attribWeights;
+	PipeAttribute *a;
+	for(int32 i = 0; i < nelem(pipe->attribs); i++)
+		if(a = pipe->attribs[i])
+			if(a == &attribXYZW){
+				allocateADC(geo);
+				break;
+			}
+	skinPreCB(pipe, geo);
 }
 
+void
+genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
+{
+	float32 *xyz = NULL, *xyzw = NULL;
+	float32 *uv = NULL, *uv2 = NULL;
+	uint8 *rgba = NULL;
+	int8 *normals = NULL;
+	uint32 *weights = NULL;
+	int8 *adc = NULL;
+	Skin *skin = NULL;
+	if(skinGlobals.offset)
+		skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+
+	PipeAttribute *a;
+	for(int32 i = 0; i < nelem(pipe->attribs); i++)
+		if(a = pipe->attribs[i]){
+			if(a == &attribXYZ) xyz = (float32*)data[i];
+			else if(a == &attribXYZW) xyzw = (float32*)data[i];
+			else if(a == &attribUV) uv = (float32*)data[i];
+			else if(a == &attribUV2) uv2 = (float32*)data[i];
+			else if(a == &attribRGBA) rgba = data[i];
+			else if(a == &attribNormal) normals = (int8*)data[i];
+			else if(a == &attribWeights) weights = (uint32*)data[i];
+		}
+
+	uint32 mask = 0x1;	// vertices
+	if(normals && geo->geoflags & Geometry::NORMALS)
+		mask |= 0x10;
+	if(rgba && geo->geoflags & Geometry::PRELIT)
+		mask |= 0x100;
+	if((uv || uv2) && geo->numTexCoordSets > 0)
+		mask |= 0x1000;
+	if(uv2 && geo->numTexCoordSets > 1)
+		mask |= 0x2000;
+	if(weights && skin)
+		mask |= 0x10000;
+	if(xyzw)
+		adc = getADCbitsForMesh(geo, mesh);
+
+	Vertex v;
+	for(uint32 i = 0; i < mesh->numIndices; i++){
+		if(mask & 0x1)
+			memcpy(&v.p, xyz ? xyz : xyzw, 12);
+		if(mask & 0x10){
+			// TODO: figure out scaling :/
+			v.n[0] = normals[0]/128.0f;
+			v.n[1] = normals[1]/128.0f;
+			v.n[2] = normals[2]/128.0f;
+		}
+		if(mask & 0x100)
+			memcpy(&v.c, rgba, 4);
+		if(mask & 0x1000)
+			memcpy(&v.t, uv ? uv : uv2, 8);
+		if(mask & 0x2000)
+			memcpy(&v.t1, uv2 + 2, 8);
+		if(mask & 0x10000)
+			for(int j = 0; j < 4; j++){
+				((uint32*)v.w)[j] = weights[j] & ~0x3FF;
+				v.i[j] = (weights[j] & 0x3FF) >> 2;
+				if(v.i[j]) v.i[j]--;
+				if(v.w[j] == 0.0f) v.i[j] = 0;
+			}
+		int32 idx = findVertexSkin(geo, flags, mask, &v);
+		if(idx < 0)
+			idx = geo->numVertices++;
+		mesh->indices[i] = idx;
+		if(adc)
+			adc[i] = xyzw[3] != 0.0f;
+		flags[idx] = mask;
+		insertVertexSkin(geo, idx, mask, &v);
+		if(xyz) xyz += 3;
+		if(xyzw) xyzw += 4;
+		if(uv) uv += 2;
+		if(uv2) uv2 += 4;
+		rgba += 4;
+		normals += 3;
+		weights += 4;
+	}
+}
+
+/*
 void
 defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
@@ -931,6 +1015,7 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 		norms += 3;
 	}
 }
+*/
 
 #undef QWC
 
@@ -946,7 +1031,7 @@ makeDefaultPipeline(void)
 		uint32 vertCount = MatPipeline::getVertCount(VU_Lights,4,3,2);
 		pipe->setTriBufferSizes(4, vertCount);
 		pipe->vifOffset = pipe->inputStride*vertCount;
-		pipe->uninstanceCB = defaultUninstanceCB;
+		pipe->uninstanceCB = genericUninstanceCB;
 		defaultMatPipe = pipe;
 	}
 
@@ -972,7 +1057,7 @@ makeSkinPipeline(void)
 	pipe->setTriBufferSizes(5, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->instanceCB = skinInstanceCB;
-	pipe->uninstanceCB = skinUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
 	pipe->preUninstCB = skinPreCB;
 	pipe->postUninstCB = skinPostCB;
 
@@ -996,7 +1081,7 @@ makeMatFXPipeline(void)
 	uint32 vertCount = MatPipeline::getVertCount(0x3C5, 4, 3, 3);
 	pipe->setTriBufferSizes(4, vertCount);
 	pipe->vifOffset = pipe->inputStride*vertCount;
-	pipe->uninstanceCB = defaultUninstanceCB;
+	pipe->uninstanceCB = genericUninstanceCB;
 
 	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 	opipe->pluginID = ID_MATFX;
@@ -1119,7 +1204,7 @@ skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
 
 // TODO: call base function perhaps?
 int32
-findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v)
+findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
 	float32 *wghts = NULL;
@@ -1131,6 +1216,7 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v)
 
 	float32 *verts = g->morphTargets[0].vertices;
 	float32 *tex = g->texCoords[0];
+	float32 *tex1 = g->texCoords[1];
 	float32 *norms = g->morphTargets[0].normals;
 	uint8 *cols = g->colors;
 
@@ -1147,6 +1233,9 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v)
 			goto cont;
 		if(mask & flag & 0x1000 &&
 		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
+			goto cont;
+		if(mask & flag & 0x2000 &&
+		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
 			goto cont;
 		if(mask & flag & 0x10000 &&
 		   !(wghts[0] == v->w[0] && wghts[1] == v->w[1] &&
@@ -1167,7 +1256,7 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, SkinVertex *v)
 }
 
 void
-insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v)
+insertVertexSkin(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
 	insertVertex(geo, i, mask, v);
@@ -1177,6 +1266,7 @@ insertVertexSkin(Geometry *geo, int32 i, uint32 mask, SkinVertex *v)
 	}
 }
 
+/*
 void
 skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
@@ -1194,7 +1284,7 @@ skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 
 		mask |= 0x1000;
 	mask |= 0x10000;
 
-	SkinVertex v;
+	Vertex v;
 	for(uint32 i = 0; i < mesh->numIndices; i++){
 		if(mask & 0x1)
 			memcpy(&v.p, verts, 12);
@@ -1226,6 +1316,7 @@ skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 
 		wghts += 4;
 	}
 }
+*/
 
 void
 skinPreCB(MatPipeline*, Geometry *geo)
@@ -1245,8 +1336,10 @@ void
 skinPostCB(MatPipeline*, Geometry *geo)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-	skin->findNumWeights(geo->numVertices);
-	skin->findUsedBones(geo->numVertices);
+	if(skin){
+		skin->findNumWeights(geo->numVertices);
+		skin->findUsedBones(geo->numVertices);
+	}
 }
 
 // ADC
