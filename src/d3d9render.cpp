@@ -32,16 +32,14 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		if(inst->material->texture)
-			setTexture(inst->material->texture);
-		else
-			device->SetTexture(0, NULL);
-		setMaterial(inst->material);
-		device->SetRenderState(D3DRS_AMBIENT, D3DCOLOR_ARGB(0xFF, 0x40, 0x40, 0x40));
-		device->SetRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
-		device->SetRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
+		d3d::setTexture(0, inst->material->texture);
+		d3d::setMaterial(inst->material);
+		d3d::setRenderState(D3DRS_AMBIENT, D3DCOLOR_ARGB(0xFF, 0x40, 0x40, 0x40));
+		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
+		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->geoflags & Geometry::PRELIT)
-			device->SetRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
+			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
+		d3d::flushCache();
 		device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
 		                             0, inst->numVertices,
 		                             inst->startIndex, inst->numPrimitives);

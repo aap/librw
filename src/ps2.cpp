@@ -910,8 +910,10 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 			v.n[1] = norms[1]/127.0f;
 			v.n[2] = norms[2]/127.0f;
 		}
-		if(mask & 0x100)
+		if(mask & 0x100){
 			memcpy(&v.c, colors, 4);
+			//v.c[3] = 0xFF;
+		}
 		if(mask & 0x1000)
 			memcpy(&v.t, texcoords, 8);
 		if(mask & 0x2000)

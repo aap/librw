@@ -400,6 +400,7 @@ Geometry::generateTriangles(int8 *adc)
 				tri->v[1] = m->indices[j+1];
 				tri->v[2] = m->indices[j+2];
 				tri->matId = matid;
+				tri++;
 			}
 		adcbits += m->numIndices;
 		m++;
