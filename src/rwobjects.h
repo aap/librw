@@ -585,11 +585,12 @@ struct Atomic : PluginBase<Atomic>
 	Frame *getFrame(void) { return (Frame*)this->object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
-	ObjPipeline *getPipeline(void);
+	void removeFromClump(void);
 	Sphere *getWorldBoundingSphere(void);
+	ObjPipeline *getPipeline(void);
+	void render(void) { this->renderCB(this); }
 	static Atomic *streamReadClump(Stream *stream,
 		Frame **frameList, Geometry **geometryList);
-	void render(void) { this->renderCB(this); }
 	bool streamWriteClump(Stream *stream,
 	Frame **frameList, int32 numframes);
 	uint32 streamGetSize(void);

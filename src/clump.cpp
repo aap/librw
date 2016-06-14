@@ -606,6 +606,15 @@ Atomic::destroy(void)
 	free(this);
 }
 
+void
+Atomic::removeFromClump(void)
+{
+	if(this->clump){
+		this->inClump.remove();
+		this->clump = NULL;
+	}
+}
+
 Sphere*
 Atomic::getWorldBoundingSphere(void)
 {
