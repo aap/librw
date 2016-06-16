@@ -352,9 +352,10 @@ deleteObject(void *object)
 
 int32 nativeRasterOffset;
 
-void
-D3dRaster::create(Raster *raster)
+static void
+rasterCreate(Raster *raster)
 {
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	static uint32 formatMap[] = {
 		0,
 		D3DFMT_A1R5G5B5,
@@ -384,45 +385,49 @@ D3dRaster::create(Raster *raster)
 	uint32 format;
 	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
 		format = D3DFMT_P8;
-		this->palette = new uint8[4*256];
+		natras->palette = new uint8[4*256];
 	}else
 		format = formatMap[(raster->format >> 8) & 0xF];
-	this->format = 0;
-	this->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
+	natras->format = 0;
+	natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
 	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
-	this->texture = createTexture(raster->width, raster->height,
-	                              raster->format & Raster::MIPMAP ? levels : 1,
-	                              format);
+	natras->texture = createTexture(raster->width, raster->height,
+	                                raster->format & Raster::MIPMAP ? levels : 1,
+	                                format);
 }
 
-uint8*
-D3dRaster::lock(Raster*, int32 level)
+static uint8*
+rasterLock(Raster *raster, int32 level)
 {
-	return lockTexture(this->texture, level);
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	return lockTexture(natras->texture, level);
 }
 
-void
-D3dRaster::unlock(Raster*, int32 level)
+static void
+rasterUnlock(Raster *raster, int32 level)
 {
-	unlockTexture(this->texture, level);
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	unlockTexture(natras->texture, level);
 }
 
-int32
-D3dRaster::getNumLevels(Raster*)
+static int32
+rasterNumLevels(Raster *raster)
 {
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 #ifdef RW_D3D9
-	IDirect3DTexture9 *tex = (IDirect3DTexture9*)this->texture;
+	IDirect3DTexture9 *tex = (IDirect3DTexture9*)natras->texture;
 	return tex->GetLevelCount();
 #else
-	RasterLevels *levels = (RasterLevels*)this->texture;
+	RasterLevels *levels = (RasterLevels*)natras->texture;
 	return levels->numlevels;
 #endif
 }
 
-void
-D3dRaster::fromImage(Raster *raster, Image *image)
+static void
+rasterFromImage(Raster *raster, Image *image)
 {
 	int32 format;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	switch(image->depth){
 	case 32:
 		format = image->hasAlpha() ? Raster::C8888 : Raster::C888;
@@ -447,7 +452,7 @@ D3dRaster::fromImage(Raster *raster, Image *image)
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
 	raster->format = format & 0xFF00;
-	this->create(raster);
+	rasterCreate(raster);
 
 	uint8 *in, *out;
 	int pallength = 0;
@@ -457,7 +462,7 @@ D3dRaster::fromImage(Raster *raster, Image *image)
 		pallength = 256;
 	if(pallength){
 		in = image->palette;
-		out = (uint8*)this->palette;
+		out = (uint8*)natras->palette;
 		for(int32 i = 0; i < pallength; i++){
 			out[0] = in[2];
 			out[1] = in[1];
@@ -595,7 +600,18 @@ registerNativeRaster(void)
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
 	engine[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
+	engine[PLATFORM_D3D8].rasterCreate = rasterCreate;
+	engine[PLATFORM_D3D8].rasterLock = rasterLock;
+	engine[PLATFORM_D3D8].rasterUnlock = rasterUnlock;
+	engine[PLATFORM_D3D8].rasterNumLevels = rasterNumLevels;
+	engine[PLATFORM_D3D8].rasterFromImage = rasterFromImage;
+
 	engine[PLATFORM_D3D9].rasterNativeOffset = nativeRasterOffset;
+	engine[PLATFORM_D3D9].rasterCreate = rasterCreate;
+	engine[PLATFORM_D3D9].rasterLock = rasterLock;
+	engine[PLATFORM_D3D9].rasterUnlock = rasterUnlock;
+	engine[PLATFORM_D3D9].rasterNumLevels = rasterNumLevels;
+	engine[PLATFORM_D3D9].rasterFromImage = rasterFromImage;
 }
 
 }

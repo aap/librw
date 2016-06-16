@@ -1,6 +1,8 @@
 namespace rw {
 namespace d3d9 {
 
+void initializePlatform(void);
+
 struct VertexElement
 {
 	uint16   stream;

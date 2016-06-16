@@ -1,6 +1,8 @@
 namespace rw {
 namespace d3d8 {
 
+void initializePlatform(void);
+
 struct InstanceData
 {
 	uint32    minVert;

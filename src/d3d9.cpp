@@ -7,6 +7,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwd3d.h"
 #include "rwd3d9.h"
 
@@ -20,6 +21,12 @@ using namespace d3d;
 #endif
 
 #define NUMDECLELT 12
+
+void
+initializePlatform(void)
+{
+	engine[PLATFORM_D3D9].defaultPipeline = makeDefaultPipeline();
+}
 
 void*
 createVertexDeclaration(VertexElement *elements)

@@ -13,4 +13,4 @@
 #include "src/rwd3d.h"
 #include "src/rwd3d8.h"
 #include "src/rwd3d9.h"
-#include "src/rwogl.h"
+#include "src/rwwdgl.h"

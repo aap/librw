@@ -7,8 +7,9 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwplugins.h"
-#include "rwogl.h"
+#include "rwwdgl.h"
 
 #ifdef RW_OPENGL
 #include <GL/glew.h>
@@ -17,7 +18,14 @@
 using namespace std;
 
 namespace rw {
-namespace gl {
+namespace wdgl {
+
+void
+initializePlatform(void)
+{
+	engine[PLATFORM_WDGL].defaultPipeline = makeDefaultPipeline();
+}
+
 
 // VC
 //   8733 0 0 0 3
@@ -209,7 +217,7 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_OGL);
+	assert(geometry->instData->platform == PLATFORM_WDGL);
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = NULL;
@@ -226,7 +234,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
-	header->platform = PLATFORM_OGL;
+	header->platform = PLATFORM_WDGL;
 	header->vbo = 0;
 	header->ibo = 0;
 	header->numAttribs = stream->readU32();
@@ -242,7 +250,7 @@ void
 writeNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_OGL);
+	assert(geometry->instData->platform == PLATFORM_WDGL);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	stream->writeU32(header->numAttribs);
 	stream->write(header->attribs, header->numAttribs*sizeof(AttribDesc));
@@ -253,7 +261,7 @@ int32
 getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_OGL);
+	assert(geometry->instData->platform == PLATFORM_WDGL);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	return 4 + header->numAttribs*sizeof(AttribDesc) + header->dataSize;
 }
@@ -273,7 +281,7 @@ void
 printPipeinfo(Atomic *a)
 {
 	Geometry *g = a->geometry;
-	if(g->instData == NULL || g->instData->platform != PLATFORM_OGL)
+	if(g->instData == NULL || g->instData->platform != PLATFORM_WDGL)
 		return;
 	int32 plgid = 0;
 	if(a->pipeline)
@@ -294,7 +302,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
-	header->platform = PLATFORM_OGL;
+	header->platform = PLATFORM_WDGL;
 	header->vbo = 0;
 	header->ibo = 0;
 	header->numAttribs =
@@ -420,7 +428,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != NULL);
-	assert(geo->instData->platform == PLATFORM_OGL);
+	assert(geo->instData->platform == PLATFORM_WDGL);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
 
@@ -488,8 +496,8 @@ ObjPipeline::ObjPipeline(uint32 platform)
  : rw::ObjPipeline(platform)
 {
 	this->numCustomAttribs = 0;
-	this->impl.instance = gl::instance;
-	this->impl.uninstance = gl::uninstance;
+	this->impl.instance = wdgl::instance;
+	this->impl.uninstance = wdgl::uninstance;
 	this->instanceCB = NULL;
 	this->uninstanceCB = NULL;
 }
@@ -497,7 +505,7 @@ ObjPipeline::ObjPipeline(uint32 platform)
 ObjPipeline*
 makeDefaultPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
 	return pipe;
 }
 
@@ -509,7 +517,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	uint32 vers;
 	Geometry *geometry = (Geometry*)object;
 	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(stream->readU32() == PLATFORM_OGL);
+	assert(stream->readU32() == PLATFORM_WDGL);
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
@@ -522,7 +530,7 @@ void
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	writeChunkHeader(stream, ID_STRUCT, len-12);
-	stream->writeU32(PLATFORM_OGL);
+	stream->writeU32(PLATFORM_WDGL);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	stream->writeI32(skin->numBones);
 	stream->write(skin->inverseMatrices, skin->numBones*64);
@@ -636,7 +644,7 @@ skinUninstanceCB(Geometry *geo)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	pipe->numCustomAttribs = 2;
@@ -648,7 +656,7 @@ makeSkinPipeline(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_OGL);
+	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;
@@ -690,7 +698,7 @@ void
 registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
-	                                            0x12340000 | PLATFORM_OGL, 
+	                                            0x12340000 | PLATFORM_WDGL, 
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);

@@ -10,10 +10,10 @@
 #include "rwplugins.h"
 #include "rwps2.h"
 #include "rwps2plg.h"
-#include "rwogl.h"
 #include "rwxbox.h"
 #include "rwd3d8.h"
 #include "rwd3d9.h"
+#include "rwwdgl.h"
 
 using namespace std;
 
@@ -336,7 +336,7 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 		stream->write(buf, 8);
 		if(geo->geoflags & Geometry::NATIVE){
 			assert(geo->instData != NULL);
-			if(geo->instData->platform == PLATFORM_OGL)
+			if(geo->instData->platform == PLATFORM_WDGL)
 				stream->write(mesh->indices,
 				            mesh->numIndices*2);
 		}else{
@@ -363,7 +363,7 @@ getSizeMesh(void *object, int32, int32)
 	int32 size = 12 + geo->meshHeader->numMeshes*8;
 	if(geo->geoflags & Geometry::NATIVE){
 		assert(geo->instData != NULL);
-		if(geo->instData->platform == PLATFORM_OGL)
+		if(geo->instData->platform == PLATFORM_WDGL)
 			size += geo->meshHeader->totalIndices*2;
 	}else{
 		size += geo->meshHeader->totalIndices*4;
@@ -407,8 +407,8 @@ destroyNativeData(void *object, int32 offset, int32 size)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::destroyNativeData(object, offset, size);
-	if(geometry->instData->platform == PLATFORM_OGL)
-		return gl::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_WDGL)
+		return wdgl::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_XBOX)
 		return xbox::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_D3D8)
@@ -446,7 +446,7 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		}
 	}else{
 		stream->seek(-12);
-		gl::readNativeData(stream, len, object, o, s);
+		wdgl::readNativeData(stream, len, object, o, s);
 	}
 }
 
@@ -458,8 +458,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		return;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		ps2::writeNativeData(stream, len, object, o, s);
-	else if(geometry->instData->platform == PLATFORM_OGL)
-		gl::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_WDGL)
+		wdgl::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		xbox::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_D3D8)
@@ -476,8 +476,8 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 		return -1;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::getSizeNativeData(object, offset, size);
-	else if(geometry->instData->platform == PLATFORM_OGL)
-		return gl::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_WDGL)
+		return wdgl::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
 		return xbox::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_D3D8)
@@ -558,8 +558,8 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		// TODO: function pointers
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::readNativeSkin(stream, len, object, offset);
-		else if(geometry->instData->platform == PLATFORM_OGL)
-			gl::readNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_WDGL)
+			wdgl::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_XBOX)
 			xbox::readNativeSkin(stream, len, object, offset);
 		else
@@ -625,8 +625,8 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			ps2::writeNativeSkin(stream, len, object, offset);
-		else if(geometry->instData->platform == PLATFORM_OGL)
-			gl::writeNativeSkin(stream, len, object, offset);
+		else if(geometry->instData->platform == PLATFORM_WDGL)
+			wdgl::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_XBOX)
 			xbox::writeNativeSkin(stream, len, object, offset);
 		else
@@ -672,8 +672,8 @@ getSizeSkin(void *object, int32 offset, int32)
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
 			return ps2::getSizeNativeSkin(object, offset);
-		if(geometry->instData->platform == PLATFORM_OGL)
-			return gl::getSizeNativeSkin(object, offset);
+		if(geometry->instData->platform == PLATFORM_WDGL)
+			return wdgl::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_XBOX)
 			return xbox::getSizeNativeSkin(object, offset);
 		if(geometry->instData->platform == PLATFORM_D3D8)
@@ -713,8 +713,8 @@ registerSkinPlugin(void)
 		skinGlobals.pipelines[i] = defpipe;
 	skinGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_OGL] =
-		gl::makeSkinPipeline();
+	skinGlobals.pipelines[PLATFORM_WDGL] =
+		wdgl::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_D3D8] =
@@ -1200,8 +1200,8 @@ registerMatFXPlugin(void)
 		matFXGlobals.pipelines[i] = defpipe;
 	matFXGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeMatFXPipeline();
-	matFXGlobals.pipelines[PLATFORM_OGL] =
-		gl::makeMatFXPipeline();
+	matFXGlobals.pipelines[PLATFORM_WDGL] =
+		wdgl::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_D3D8] =

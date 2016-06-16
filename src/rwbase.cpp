@@ -12,10 +12,10 @@
 #include "rwplugins.h"
 #include "rwengine.h"
 #include "rwps2.h"
-#include "rwogl.h"
 #include "rwxbox.h"
 #include "rwd3d8.h"
 #include "rwd3d9.h"
+#include "rwwdgl.h"
 
 using namespace std;
 
@@ -26,7 +26,7 @@ int32 build = 0xFFFF;
 #ifdef RW_PS2
 	int32 platform = PLATFORM_PS2;
 #elif RW_OPENGL
-	int32 platform = PLATFORM_OGL;
+	int32 platform = PLATFORM_WDGL;
 #elif RW_D3D9
 	int32 platform = PLATFORM_D3D9;
 #else
@@ -52,7 +52,10 @@ static Matrix3 identMat3 = {
 void
 initialize(void)
 {
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
+		engine[i].defaultPipeline = defpipe;
+
 		engine[i].rasterCreate = null::rasterCreate;
 		engine[i].rasterLock = null::rasterLock;
 		engine[i].rasterUnlock = null::rasterUnlock;
@@ -60,20 +63,13 @@ initialize(void)
 		engine[i].rasterFromImage = null::rasterFromImage;
 	}
 
-	// Atomic pipelines
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	for(uint i = 0; i < NUM_PLATFORMS; i++)
-		engine[i].defaultPipeline = defpipe;
-	engine[PLATFORM_PS2].defaultPipeline =
-		ps2::makeDefaultPipeline();
-	engine[PLATFORM_OGL].defaultPipeline =
-		gl::makeDefaultPipeline();
-	engine[PLATFORM_XBOX].defaultPipeline =
-		xbox::makeDefaultPipeline();
-	engine[PLATFORM_D3D8].defaultPipeline =
-		d3d8::makeDefaultPipeline();
-	engine[PLATFORM_D3D9].defaultPipeline =
-		d3d9::makeDefaultPipeline();
+
+	ps2::initializePlatform();
+	xbox::initializePlatform();
+	d3d8::initializePlatform();
+	d3d9::initializePlatform();
+
+	wdgl::initializePlatform();
 
 	Frame::dirtyList.init();
 }

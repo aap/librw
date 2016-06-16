@@ -10,10 +10,10 @@
 #include "rwobjects.h"
 #include "rwengine.h"
 #include "rwps2.h"
-#include "rwogl.h"
 #include "rwxbox.h"
 #include "rwd3d8.h"
 #include "rwd3d9.h"
+#include "rwwdgl.h"
 
 using namespace std;
 

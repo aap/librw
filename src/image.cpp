@@ -644,13 +644,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->texels = raster->palette = NULL;
 	raster->constructPlugins();
 
-	int32 offset = engine[raster->platform].rasterNativeOffset;
-	assert(offset != 0 && "unimplemented raster platform");
-printf("%X %d\n", offset, raster->platform);
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
-printf("%p\n", nr);
-	nr->create(raster);
-printf("created\n");
+	engine[raster->platform].rasterCreate(raster);
 	return raster;
 }
 
@@ -666,28 +660,19 @@ Raster::destroy(void)
 uint8*
 Raster::lock(int32 level)
 {
-	int32 offset = engine[this->platform].rasterNativeOffset;
-	assert(offset != 0 && "unimplemented raster platform");
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
-	return nr->lock(this, level);
+	return engine[this->platform].rasterLock(this, level);
 }
 
 void
 Raster::unlock(int32 level)
 {
-	int32 offset = engine[this->platform].rasterNativeOffset;
-	assert(offset != 0 && "unimplemented raster platform");
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
-	nr->unlock(this, level);
+	engine[this->platform].rasterUnlock(this, level);
 }
 
 int32
 Raster::getNumLevels(void)
 {
-	int32 offset = engine[this->platform].rasterNativeOffset;
-	assert(offset != 0 && "unimplemented raster platform");
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
-	return nr->getNumLevels(this);
+	return engine[this->platform].rasterNumLevels(this);
 }
 
 int32
@@ -705,10 +690,7 @@ Raster::createFromImage(Image *image)
 {
 	Raster *raster = Raster::create(image->width, image->height,
 	                                image->depth, 4 | 0x80);
-	int32 offset = engine[raster->platform].rasterNativeOffset;
-	assert(offset != 0 && "unimplemented raster platform");
-	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
-	nr->fromImage(raster, image);
+	engine[raster->platform].rasterFromImage(raster, image);
 	return raster;
 }
 

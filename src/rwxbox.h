@@ -1,6 +1,8 @@
 namespace rw {
 namespace xbox {
 
+void initializePlatform(void);
+
 struct InstanceData
 {
 	uint32 minVert;
@@ -66,18 +68,13 @@ void registerVertexFormatPlugin(void);
 
 // Native Texture and Raster
 
-struct XboxRaster : NativeRaster
+struct XboxRaster
 {
 	void *texture;
 	void *palette;
 	uint32 format;
 	bool32 hasAlpha;
 	bool32 unknownFlag;
-
-	virtual void create(Raster *raster);
-	virtual uint8 *lock(Raster *raster, int32 level);
-	virtual void unlock(Raster *raster, int32 level);
-	virtual int32 getNumLevels(Raster *raster);
 };
 
 int32 getLevelSize(Raster *raster, int32 level);

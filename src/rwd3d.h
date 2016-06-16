@@ -74,19 +74,13 @@ void deleteObject(void *object);
 
 // Native Texture and Raster
 
-struct D3dRaster : NativeRaster
+struct D3dRaster
 {
 	void *texture;
 	void *palette;
 	uint32 format;
 	bool32 hasAlpha;
 	bool32 customFormat;
-
-	virtual void create(Raster *raster);
-	virtual uint8 *lock(Raster *raster, int32 level);
-	virtual void unlock(Raster *raster, int32 level);
-	virtual int32 getNumLevels(Raster *raster);
-	virtual void fromImage(Raster *raster, Image *img);
 };
 
 int32 getLevelSize(Raster *raster, int32 level);

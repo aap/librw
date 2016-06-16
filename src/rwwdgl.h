@@ -1,7 +1,9 @@
 namespace rw {
-namespace gl {
+namespace wdgl {
 
 // NOTE: This is not really RW OpenGL! It's specific to WarDrum's GTA ports
+
+void initializePlatform(void);
 
 struct AttribDesc
 {

@@ -226,20 +226,6 @@ extern bool32 loadTextures;
 
 #define IGNORERASTERIMP 0
 
-struct NativeRaster
-{
-	virtual void create(Raster*)
-		{ assert(IGNORERASTERIMP && "NativeRaster::create unimplemented"); };
-	virtual uint8 *lock(Raster*, int32)
-		{ assert(IGNORERASTERIMP && "NativeRaster::lock unimplemented"); return NULL; };
-	virtual void unlock(Raster*, int32)
-		{ assert(IGNORERASTERIMP && "NativeRaster::unlock unimplemented"); };
-	virtual int32 getNumLevels(Raster*)
-		{ assert(IGNORERASTERIMP && "NativeRaster::getNumLevels unimplemented"); return 0; };
-	virtual void fromImage(Raster*, Image *img)
-		{ assert(IGNORERASTERIMP && "NativeRaster::fromImage unimplemented"); };
-};
-
 struct TexDictionary;
 
 struct Texture : PluginBase<Texture>

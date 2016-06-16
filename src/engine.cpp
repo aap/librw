@@ -9,7 +9,7 @@
 
 namespace rw {
 
-Engine engines[NUM_PLATFORMS];
+Engine engine[NUM_PLATFORMS];
 
 namespace null {
 
@@ -33,7 +33,7 @@ rasterUnlock(Raster*, int32)
 }
 
 int32
-rasterNumLevels(Raster*, int32)
+rasterNumLevels(Raster*)
 {
 	assert(0 && "rasterNumLevels not implemented");
 	return 0;

@@ -7,12 +7,19 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwplugins.h"
 #include "rwps2.h"
 #include "rwps2plg.h"
 
 namespace rw {
 namespace ps2 {
+
+void
+initializePlatform(void)
+{
+	engine[PLATFORM_PS2].defaultPipeline = makeDefaultPipeline();
+}
 
 ObjPipeline *defaultObjPipe;
 MatPipeline *defaultMatPipe;

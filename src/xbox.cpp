@@ -18,6 +18,12 @@ using namespace std;
 namespace rw {
 namespace xbox {
 
+void
+initializePlatform(void)
+{
+	engine[PLATFORM_XBOX].defaultPipeline = makeDefaultPipeline();
+}
+
 void*
 destroyNativeData(void *object, int32, int32)
 {
@@ -753,9 +759,10 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 	return levels;
 }
 
-void
-XboxRaster::create(Raster *raster)
+static void
+rasterCreate(Raster *raster)
 {
+	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	static uint32 formatMap[] = {
 		D3DFMT_UNKNOWN,
 		D3DFMT_A1R5G5B5,
@@ -791,33 +798,35 @@ XboxRaster::create(Raster *raster)
 	uint32 format;
 	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
 		format = D3DFMT_P8;
-		this->palette = new uint8[4*256];
+		natras->palette = new uint8[4*256];
 	}else
 		format = formatMap[(raster->format >> 8) & 0xF];
-	this->format = 0;
-	this->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
+	natras->format = 0;
+	natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
 	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
-	this->texture = createTexture(raster->width, raster->height,
-	                              raster->format & Raster::MIPMAP ? levels : 1,
-	                              format);
+	natras->texture = createTexture(raster->width, raster->height,
+	                                raster->format & Raster::MIPMAP ? levels : 1,
+	                                format);
 }
 
-uint8*
-XboxRaster::lock(Raster*, int32 level)
+static uint8*
+rasterLock(Raster *raster, int32 level)
 {
-	RasterLevels *levels = (RasterLevels*)this->texture;
+	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	RasterLevels *levels = (RasterLevels*)natras->texture;
 	return levels->levels[level].data;
 }
 
-void
-XboxRaster::unlock(Raster*, int32)
+static void
+rasterUnlock(Raster*, int32)
 {
 }
 
-int32
-XboxRaster::getNumLevels(Raster*)
+static int32
+rasterNumLevels(Raster *raster)
 {
-	RasterLevels *levels = (RasterLevels*)this->texture;
+	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	RasterLevels *levels = (RasterLevels*)natras->texture;
 	return levels->numlevels;
 }
 
@@ -870,6 +879,10 @@ registerNativeRaster(void)
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
 	engine[PLATFORM_XBOX].rasterNativeOffset = nativeRasterOffset;
+	engine[PLATFORM_XBOX].rasterCreate = rasterCreate;
+	engine[PLATFORM_XBOX].rasterLock = rasterLock;
+	engine[PLATFORM_XBOX].rasterUnlock = rasterUnlock;
+	engine[PLATFORM_XBOX].rasterNumLevels = rasterNumLevels;
 }
 
 Texture*

@@ -7,6 +7,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwd3d.h"
 #include "rwd3d8.h"
 
@@ -15,6 +16,12 @@ using namespace std;
 namespace rw {
 namespace d3d8 {
 using namespace d3d;
+
+void
+initializePlatform(void)
+{
+	engine[PLATFORM_D3D8].defaultPipeline = makeDefaultPipeline();
+}
 
 uint32
 makeFVFDeclaration(uint32 flags, int32 numTex)

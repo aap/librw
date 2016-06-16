@@ -68,8 +68,8 @@ struct dword
 
 #define ALIGN64(x) ((x) + 0x3F & ~0x3F)
 
-void
-Ps2Raster::create(Raster *raster)
+static void
+rasterCreate(Raster *raster)
 {
 	uint64 bufferWidth[7], bufferBase[7];
 	int32 pageWidth, pageHeight;
@@ -370,7 +370,7 @@ Ps2Raster::create(Raster *raster)
 			*p++ = 0;
 
 			// GIF tag
-			uint32 sz = paletteSize - 0x50 + 0xF >> 4;
+			uint32 sz = ras->paletteSize - 0x50 + 0xF >> 4;
 			*p++ = sz;
 			*p++ = 0x08000000; // IMAGE
 			*p++ = 0;
@@ -379,8 +379,8 @@ Ps2Raster::create(Raster *raster)
 	}
 }
 
-uint8*
-Ps2Raster::lock(Raster *raster, int32 level)
+static uint8*
+rasterLock(Raster *raster, int32 level)
 {
 	// TODO
 	(void)raster;
@@ -388,16 +388,16 @@ Ps2Raster::lock(Raster *raster, int32 level)
 	return NULL;
 }
 
-void
-Ps2Raster::unlock(Raster *raster, int32 level)
+static void
+rasterUnlock(Raster *raster, int32 level)
 {
 	// TODO
 	(void)raster;
 	(void)level;
 }
 
-int32
-Ps2Raster::getNumLevels(Raster *raster)
+static int32
+rasterNumLevels(Raster *raster)
 {
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 	if(raster->texels == NULL) return 0;
@@ -482,6 +482,11 @@ registerNativeRaster(void)
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
 	engine[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
+	engine[PLATFORM_PS2].rasterCreate = rasterCreate;
+	engine[PLATFORM_PS2].rasterLock = rasterLock;
+	engine[PLATFORM_PS2].rasterUnlock = rasterUnlock;
+	engine[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
+
 	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
 }

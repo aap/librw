@@ -227,7 +227,7 @@ enum Platform
 {
 	PLATFORM_NULL = 0,
 	// D3D7
-	PLATFORM_OGL  = 2,	// TODO: remove, this is really WarDrum GL
+	PLATFORM_GL   = 2,
 	// MAC
 	PLATFORM_PS2  = 4,
 	PLATFORM_XBOX = 5,
@@ -236,9 +236,11 @@ enum Platform
 	PLATFORM_D3D8 = 8,
 	PLATFORM_D3D9 = 9,
 
-	// non stock-RW platforms
+	// non-stock-RW platforms
 
-	PLATFORM_GL3  = 10,
+	PLATFORM_WDGL = 10,	// WarDrum OpenGL
+	PLATFORM_GL3  = 11,	// my GL3 implementation
+
 	NUM_PLATFORMS,
 
 	FOURCC_PS2 = 0x00325350		// 'PS2\0'

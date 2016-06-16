@@ -1,6 +1,8 @@
 namespace rw {
 namespace ps2 {
 
+void initializePlatform(void);
+
 struct InstanceData
 {
 	// 0 - addresses in ref tags need fixing
@@ -176,7 +178,7 @@ void registerPluginPDSPipes(void);
 
 // Native Texture and Raster
 
-struct Ps2Raster : NativeRaster
+struct Ps2Raster
 {
 	uint32 tex0[2];
 	uint32 tex1[2];
@@ -189,11 +191,6 @@ struct Ps2Raster : NativeRaster
 
 	uint8 *data;	//tmp
 	uint32 dataSize;
-
-	virtual void create(Raster *raster);
-	virtual uint8 *lock(Raster *raster, int32 level);
-	virtual void unlock(Raster *raster, int32 level);
-	virtual int32 getNumLevels(Raster *raster);
 };
 
 extern int32 nativeRasterOffset;
