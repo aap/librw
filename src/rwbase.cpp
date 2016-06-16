@@ -6,6 +6,7 @@
 #include <cctype>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -20,6 +21,8 @@
 using namespace std;
 
 namespace rw {
+
+#define PLUGIN_ID 0
 
 int32 version = 0x36003;
 int32 build = 0xFFFF;
@@ -665,7 +668,11 @@ StreamFile*
 StreamFile::open(const char *path, const char *mode)
 {
 	this->file = fopen(path, mode);
-	return this->file ? this : NULL;
+	if(this->file == NULL){
+		RWERROR((ERR_FILE, path));
+		return NULL;
+	}
+	return this;
 }
 
 void
@@ -758,10 +765,8 @@ findPointer(void *p, void **list, int32 num)
 	int i;
 	for(i = 0; i < num; i++)
 		if(list[i] == p)
-			goto found;
+			return i;
 	return -1;
-found:
-	return i;
 }
 
 uint8*

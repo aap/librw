@@ -33,6 +33,8 @@ typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
 
+#define nil NULL
+
 #define nelem(A) (sizeof(A) / sizeof A[0])
 
 struct RGBA
@@ -283,6 +285,16 @@ enum PluginID
 	ID_NATIVEDATA    = 0x510,
 	ID_VERTEXFMT     = 0x511,
 };
+
+#define ECODE(c, s) c,
+
+enum Errors
+{
+	ERR_NONE = 0x80000000,
+#include "base.err"
+};
+
+#undef ECODE
 
 extern int version;
 extern int build;

@@ -1,5 +1,6 @@
 #include <cstdio>
-#include <assert.h>
+#include <cstdlib>
+#include <cassert>
 
 #include "rwbase.h"
 #include "rwplg.h"

@@ -1,266 +1,18 @@
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <cassert>
-#include <cmath>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwengine.h"
-#include "rwps2.h"
-#include "rwxbox.h"
-#include "rwd3d8.h"
-#include "rwd3d9.h"
-#include "rwwdgl.h"
 
 using namespace std;
 
+#define PLUGIN_ID 2
+
 namespace rw {
-
-LinkList Frame::dirtyList;
-
-Frame*
-Frame::create(void)
-{
-	Frame *f = (Frame*)malloc(PluginBase::s_size);
-	assert(f != NULL);
-	f->object.init(Frame::ID, 0);
-	f->objectList.init();
-	f->child = NULL;
-	f->next = NULL;
-	f->root = f;
-	f->matrix.setIdentity();
-	f->ltm.setIdentity();
-	f->constructPlugins();
-	return f;
-}
-
-Frame*
-Frame::cloneHierarchy(void)
-{
-	Frame *frame = this->cloneAndLink(NULL);
-	frame->purgeClone();
-	return frame;
-}
-
-void
-Frame::destroy(void)
-{
-	this->destructPlugins();
-	Frame *parent = this->getParent();
-	Frame *child;
-	if(parent){
-		// remove from child list
-		child = parent->child;
-		if(child == this)
-			parent->child = this->next;
-		else{
-			for(child = child->next; child != this; child = child->next)
-				;
-			child->next = this->next;
-		}
-		this->object.parent = NULL;
-		// Doesn't seem to make much sense, blame criterion.
-		this->setHierarchyRoot(this);
-	}
-	for(Frame *f = this->child; f; f = f->next)
-		f->object.parent = NULL;
-	free(this);
-}
-
-void
-Frame::destroyHierarchy(void)
-{
-	Frame *next;
-	for(Frame *child = this->child; child; child = next){
-		next = child->next;
-		child->destroyHierarchy();
-	}
-	this->destructPlugins();
-	free(this);
-}
-
-Frame*
-Frame::addChild(Frame *child, bool32 append)
-{
-	Frame *c;
-	if(child->getParent())
-		child->removeChild();
-	if(append){
-		if(this->child == NULL)
-			this->child = child;
-		else{
-			for(c = this->child; c->next; c = c->next);
-			c->next = child;
-		}
-		child->next = NULL;
-	}else{
-		child->next = this->child;
-		this->child = child;
-	}
-	child->object.parent = this;
-	child->root = this->root;
-	for(c = child->child; c; c = c->next)
-		c->setHierarchyRoot(this);
-	if(child->object.privateFlags & Frame::HIERARCHYSYNC){
-		child->inDirtyList.remove();
-		child->object.privateFlags &= ~Frame::HIERARCHYSYNC;
-	}
-	this->updateObjects();
-	return this;
-}
-
-Frame*
-Frame::removeChild(void)
-{
-	Frame *parent = this->getParent();
-	Frame *child = parent->child;
-	if(child == this)
-		parent->child = this->next;
-	else{
-		while(child->next != this)
-			child = child->next;
-		child->next = this->next;
-	}
-	this->object.parent = this->next = NULL;
-	this->root = this;
-	for(child = this->child; child; child = child->next)
-		child->setHierarchyRoot(this);
-	this->updateObjects();
-	return this;
-}
-
-Frame*
-Frame::forAllChildren(Callback cb, void *data)
-{
-	for(Frame *f = this->child; f; f = f->next)
-		cb(f, data);
-	return this;
-}
-
-static Frame*
-countCB(Frame *f, void *count)
-{
-	(*(int32*)count)++;
-	f->forAllChildren(countCB, count);
-	return f;
-}
-
-int32
-Frame::count(void)
-{
-	int32 count = 1;
-	this->forAllChildren(countCB, (void*)&count);
-	return count;
-}
-
-static void
-syncRecurse(Frame *frame, uint8 flags)
-{
-	uint8 flg;
-	for(; frame; frame = frame->next){
-		flg = flags | frame->object.privateFlags;
-		if(flg & Frame::SUBTREESYNCLTM){
-			Matrix::mult(&frame->ltm, &frame->getParent()->ltm, &frame->matrix);
-			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
-		}
-		syncRecurse(frame->child, flg);
-	}
-}
-
-void
-Frame::syncHierarchyLTM(void)
-{
-	Frame *child;
-	uint8 flg;
-	if(this->object.privateFlags & Frame::SUBTREESYNCLTM)
-		this->ltm = this->matrix;
-	for(child = this->child; child; child = child->next){
-		flg = this->object.privateFlags | child->object.privateFlags;
-		if(flg & Frame::SUBTREESYNCLTM){
-			Matrix::mult(&child->ltm, &this->ltm, &child->matrix);
-			child->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
-		}
-		syncRecurse(child, flg);
-	}
-	this->object.privateFlags &= ~Frame::SYNCLTM;
-}
-
-Matrix*
-Frame::getLTM(void)
-{
-	if(this->root->object.privateFlags & Frame::HIERARCHYSYNCLTM)
-		this->root->syncHierarchyLTM();
-	return &this->ltm;
-}
-
-void
-Frame::updateObjects(void)
-{
-	if((this->root->object.privateFlags & HIERARCHYSYNC) == 0)
-		Frame::dirtyList.add(&this->inDirtyList);
-	this->root->object.privateFlags |= HIERARCHYSYNC;
-	this->object.privateFlags |= SUBTREESYNC;
-}
-
-void
-Frame::setHierarchyRoot(Frame *root)
-{
-	this->root = root;
-	for(Frame *child = this->child; child; child = child->next)
-		child->setHierarchyRoot(root);
-}
-
-// Clone a frame hierarchy. Link cloned frames into Frame::root of the originals.
-Frame*
-Frame::cloneAndLink(Frame *clonedroot)
-{
-	Frame *frame = Frame::create();
-	if(clonedroot == NULL)
-		clonedroot = frame;
-	frame->object.copy(&this->object);
-	frame->matrix = this->matrix;
-	//memcpy(frame->matrix, this->matrix, sizeof(this->matrix));
-	frame->root = clonedroot;
-	this->root = frame;	// Remember cloned frame
-	for(Frame *child = this->child; child; child = child->next){
-		Frame *clonedchild = child->cloneAndLink(clonedroot);
-		clonedchild->next = frame->child;
-		frame->child = clonedchild;
-		clonedchild->object.parent = frame;
-	}
-	frame->copyPlugins(this);
-	return frame;
-}
-
-// Remove links to cloned frames from hierarchy.
-void
-Frame::purgeClone(void)
-{
-	Frame *parent = this->getParent();
-	this->setHierarchyRoot(parent ? parent->root : this);
-}
-
-static Frame*
-sizeCB(Frame *f, void *size)
-{
-	*(int32*)size += f->streamGetPluginSize();
-	f->forAllChildren(sizeCB, size);
-	return f;
-}
-
-Frame**
-makeFrameList(Frame *frame, Frame **flist)
-{
-	*flist++ = frame;
-	if(frame->next)
-		flist = makeFrameList(frame->next, flist);
-	if(frame->child)
-		flist = makeFrameList(frame->child, flist);
-	return flist;
-}
 
 //
 // Clump
@@ -270,7 +22,10 @@ Clump*
 Clump::create(void)
 {
 	Clump *clump = (Clump*)malloc(PluginBase::s_size);
-	assert(clump != NULL);
+	if(clump == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
 	clump->object.init(Clump::ID, 0);
 	clump->atomics.init();
 	clump->lights.init();
@@ -318,8 +73,14 @@ Clump::streamRead(Stream *stream)
 	uint32 length, version;
 	int32 buf[3];
 	Clump *clump;
-	assert(findChunk(stream, ID_STRUCT, &length, &version));
+
+	if(!findChunk(stream, ID_STRUCT, &length, &version)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	clump = Clump::create();
+	if(clump == nil)
+		return nil;
 	stream->read(buf, length);
 	int32 numAtomics = buf[0];
 	int32 numLights = 0;
@@ -339,31 +100,68 @@ Clump::streamRead(Stream *stream)
 	if(version >= 0x30400){
 		// Geometry list
 		int32 numGeometries = 0;
-		assert(findChunk(stream, ID_GEOMETRYLIST, NULL, NULL));
-		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+		if(!findChunk(stream, ID_GEOMETRYLIST, nil, nil)){
+			RWERROR((ERR_CHUNK, "GEOMETRYLIST"));
+			// TODO: free
+			return nil;
+		}
+		if(!findChunk(stream, ID_STRUCT, nil, nil)){
+			RWERROR((ERR_CHUNK, "STRUCT"));
+			// TODO: free
+			return nil;
+		}
 		numGeometries = stream->readI32();
 		if(numGeometries)
 			geometryList = new Geometry*[numGeometries];
 		for(int32 i = 0; i < numGeometries; i++){
-			assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
+			if(!findChunk(stream, ID_GEOMETRY, nil, nil)){
+				RWERROR((ERR_CHUNK, "GEOMETRY"));
+				// TODO: free
+				return nil;
+			}
 			geometryList[i] = Geometry::streamRead(stream);
+			if(geometryList[i] == nil){
+				// TODO: free
+				return nil;
+			}
 		}
 	}
 
 	// Atomics
+	Atomic *a;
 	for(int32 i = 0; i < numAtomics; i++){
-		assert(findChunk(stream, ID_ATOMIC, NULL, NULL));
-		Atomic *a = Atomic::streamReadClump(stream, frameList, geometryList);
+		if(!findChunk(stream, ID_ATOMIC, nil, nil)){
+			RWERROR((ERR_CHUNK, "ATOMIC"));
+			// TODO: free
+			return nil;
+		}
+		a = Atomic::streamReadClump(stream, frameList, geometryList);
+		if(a == nil){
+			// TODO: free
+			return nil;
+		}
 		clump->addAtomic(a);
 	}
 
 	// Lights
 	for(int32 i = 0; i < numLights; i++){
 		int32 frm;
-		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+		if(!findChunk(stream, ID_STRUCT, nil, nil)){
+			RWERROR((ERR_CHUNK, "STRUCT"));
+			// TODO: free
+			return nil;
+		}
 		frm = stream->readI32();
-		assert(findChunk(stream, ID_LIGHT, NULL, NULL));
+		if(!findChunk(stream, ID_LIGHT, nil, nil)){
+			RWERROR((ERR_CHUNK, "LIGHT"));
+			// TODO: free
+			return nil;
+		}
 		Light *l = Light::streamRead(stream);
+		if(l == nil){
+			// TODO: free
+			return nil;
+		}
 		l->setFrame(frameList[frm]);
 		clump->addLight(l);
 	}
@@ -371,10 +169,22 @@ Clump::streamRead(Stream *stream)
 	// Cameras
 	for(int32 i = 0; i < numCameras; i++){
 		int32 frm;
-		assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+		if(!findChunk(stream, ID_STRUCT, nil, nil)){
+			RWERROR((ERR_CHUNK, "STRUCT"));
+			// TODO: free
+			return nil;
+		}
 		frm = stream->readI32();
-		assert(findChunk(stream, ID_CAMERA, NULL, NULL));
+		if(!findChunk(stream, ID_CAMERA, nil, nil)){
+			RWERROR((ERR_CHUNK, "CAMERA"));
+			// TODO: free
+			return nil;
+		}
 		Camera *cam = Camera::streamRead(stream);
+		if(cam == nil){
+			// TODO: free
+			return nil;
+		}
 		cam->setFrame(frameList[frm]);
 		clump->addCamera(cam);
 	}
@@ -450,6 +260,14 @@ struct FrameStreamData
 	int32 matflag;
 };
 
+static Frame*
+sizeCB(Frame *f, void *size)
+{
+	*(int32*)size += f->streamGetPluginSize();
+	f->forAllChildren(sizeCB, size);
+	return f;
+}
+
 uint32
 Clump::streamGetSize(void)
 {
@@ -498,13 +316,19 @@ Clump::render(void)
 	}
 }
 
-void
+bool
 Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 {
 	FrameStreamData buf;
 	int32 numFrames = 0;
-	assert(findChunk(stream, ID_FRAMELIST, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_FRAMELIST, nil, nil)){
+		RWERROR((ERR_CHUNK, "FRAMELIST"));
+		return 0;
+	}
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return 0;
+	}
 	numFrames = stream->readI32();
 	Frame **frameList = new Frame*[numFrames];
 	for(int32 i = 0; i < numFrames; i++){
@@ -527,6 +351,7 @@ Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
 		frameList[i]->streamReadPlugins(stream);
 	*nf = numFrames;
 	*flp = frameList;
+	return 1;
 }
 
 void
@@ -566,14 +391,17 @@ Atomic*
 Atomic::create(void)
 {
 	Atomic *atomic = (Atomic*)malloc(PluginBase::s_size);
-	assert(atomic != NULL);
+	if(atomic == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
 	atomic->object.object.init(Atomic::ID, 0);
-	atomic->geometry = NULL;
+	atomic->geometry = nil;
 	atomic->worldBoundingSphere.center.set(0.0f, 0.0f, 0.0f);
 	atomic->worldBoundingSphere.radius = 0.0f;
-	atomic->setFrame(NULL);
-	atomic->clump = NULL;
-	atomic->pipeline = NULL;
+	atomic->setFrame(nil);
+	atomic->clump = nil;
+	atomic->pipeline = nil;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
 	atomic->constructPlugins();
@@ -603,7 +431,7 @@ Atomic::destroy(void)
 		this->geometry->destroy();
 	if(this->clump)
 		this->inClump.remove();
-	this->setFrame(NULL);
+	this->setFrame(nil);
 	free(this);
 }
 
@@ -612,7 +440,7 @@ Atomic::removeFromClump(void)
 {
 	if(this->clump){
 		this->inClump.remove();
-		this->clump = NULL;
+		this->clump = nil;
 	}
 }
 
@@ -640,13 +468,26 @@ Atomic::streamReadClump(Stream *stream,
 {
 	int32 buf[4];
 	uint32 version;
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
+	if(!findChunk(stream, ID_STRUCT, nil, &version)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	stream->read(buf, version < 0x30400 ? 12 : 16);
 	Atomic *atomic = Atomic::create();
+	if(atomic == nil)
+		return nil;
 	atomic->setFrame(frameList[buf[0]]);
 	if(version < 0x30400){
-		assert(findChunk(stream, ID_GEOMETRY, NULL, NULL));
+		if(!findChunk(stream, ID_GEOMETRY, nil, nil)){
+			RWERROR((ERR_CHUNK, "STRUCT"));
+			// TODO: free
+			return nil;
+		}
 		atomic->geometry = Geometry::streamRead(stream);
+		if(atomic->geometry == nil){
+			// TODO: free
+			return nil;
+		}
 	}else
 		atomic->geometry = geometryList[buf[1]];
 	atomic->object.object.flags = buf[2];
@@ -663,7 +504,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 {
 	int32 buf[4] = { 0, 0, 0, 0 };
 	Clump *c = this->clump;
-	if(c == NULL)
+	if(c == nil)
 		return false;
 	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, rw::version < 0x30400 ? 12 : 16);
@@ -737,7 +578,7 @@ static int32
 getSizeAtomicRights(void *object, int32, int32)
 {
 	Atomic *atomic = (Atomic*)object;
-	if(atomic->pipeline == NULL || atomic->pipeline->pluginID == 0)
+	if(atomic->pipeline == nil || atomic->pipeline->pluginID == 0)
 		return -1;
 	return 8;
 }
@@ -745,272 +586,11 @@ getSizeAtomicRights(void *object, int32, int32)
 void
 registerAtomicRightsPlugin(void)
 {
-	Atomic::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
+	Atomic::registerPlugin(0, ID_RIGHTTORENDER, nil, nil, nil);
 	Atomic::registerPluginStream(ID_RIGHTTORENDER,
 	                             readAtomicRights,
 	                             writeAtomicRights,
 	                             getSizeAtomicRights);
-}
-
-
-//
-// Light
-//
-
-Light*
-Light::create(int32 type)
-{
-	Light *light = (Light*)malloc(PluginBase::s_size);
-	assert(light != NULL);
-	light->object.object.init(Light::ID, type);
-	light->radius = 0.0f;
-	light->color.red = 1.0f;
-	light->color.green = 1.0f;
-	light->color.blue = 1.0f;
-	light->color.alpha = 1.0f;
-	light->minusCosAngle = 1.0f;
-	light->object.object.privateFlags = 1;
-	light->object.object.flags = LIGHTATOMICS | LIGHTWORLD;
-	light->clump = NULL;
-	light->inClump.init();
-	light->constructPlugins();
-	return light;
-}
-
-void
-Light::destroy(void)
-{
-	this->destructPlugins();
-	if(this->clump)
-		this->inClump.remove();
-	free(this);
-}
-
-void
-Light::setAngle(float32 angle)
-{
-	this->minusCosAngle = -cos(angle);
-}
-
-float32
-Light::getAngle(void)
-{
-	return acos(-this->minusCosAngle);
-}
-
-void
-Light::setColor(float32 r, float32 g, float32 b)
-{
-	this->color.red = r;
-	this->color.green = g;
-	this->color.blue = b;
-	this->object.object.privateFlags = r == g && r == b;
-}
-
-struct LightChunkData
-{
-	float32 radius;
-	float32 red, green, blue;
-	float32 minusCosAngle;
-	uint16 flags;
-	uint16 type;
-};
-
-Light*
-Light::streamRead(Stream *stream)
-{
-	uint32 version;
-	LightChunkData buf;
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
-	stream->read(&buf, sizeof(LightChunkData));
-	Light *light = Light::create(buf.type);
-	light->radius = buf.radius;
-	light->setColor(buf.red, buf.green, buf.blue);
-	float32 a = buf.minusCosAngle;
-	if(version >= 0x30300)
-		light->minusCosAngle = a;
-	else
-		// tan -> -cos
-		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
-	light->object.object.flags = (uint8)buf.flags;
-	light->streamReadPlugins(stream);
-	return light;
-}
-
-bool
-Light::streamWrite(Stream *stream)
-{
-	LightChunkData buf;
-	writeChunkHeader(stream, ID_LIGHT, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, sizeof(LightChunkData));
-	buf.radius = this->radius;
-	buf.red   = this->color.red;
-	buf.green = this->color.green;
-	buf.blue  = this->color.blue;
-	if(version >= 0x30300)
-		buf.minusCosAngle = this->minusCosAngle;
-	else
-		buf.minusCosAngle = tan(acos(-this->minusCosAngle));
-	buf.flags = this->object.object.flags;
-	buf.type = this->object.object.subType;
-	stream->write(&buf, sizeof(LightChunkData));
-
-	this->streamWritePlugins(stream);
-	return true;
-}
-
-uint32
-Light::streamGetSize(void)
-{
-	return 12 + sizeof(LightChunkData) + 12 + this->streamGetPluginSize();
-}
-
-//
-// Camera
-//
-
-Camera*
-Camera::create(void)
-{
-	Camera *cam = (Camera*)malloc(PluginBase::s_size);
-	cam->object.object.init(Camera::ID, 0);
-	cam->viewWindow.set(1.0f, 1.0f);
-	cam->viewOffset.set(0.0f, 0.0f);
-	cam->nearPlane = 0.05f;
-	cam->farPlane = 10.0f;
-	cam->fogPlane = 5.0f;
-	cam->projection = Camera::PERSPECTIVE;
-	cam->clump = NULL;
-	cam->inClump.init();
-	cam->constructPlugins();
-	return cam;
-}
-
-Camera*
-Camera::clone(void)
-{
-	Camera *cam = Camera::create();
-	cam->object.object.copy(&this->object.object);
-	cam->setFrame(this->getFrame());
-	cam->viewWindow = this->viewWindow;
-	cam->viewOffset = this->viewOffset;
-	cam->nearPlane = this->nearPlane;
-	cam->farPlane = this->farPlane;
-	cam->fogPlane = this->fogPlane;
-	cam->projection = this->projection;
-	cam->copyPlugins(this);
-	return cam;
-}
-
-void
-Camera::destroy(void)
-{
-	this->destructPlugins();
-	if(this->clump)
-		this->inClump.remove();
-	free(this);
-}
-
-struct CameraChunkData
-{
-	V2d viewWindow;
-	V2d viewOffset;
-	float32 nearPlane, farPlane;
-	float32 fogPlane;
-	int32 projection;
-};
-
-Camera*
-Camera::streamRead(Stream *stream)
-{
-	CameraChunkData buf;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	stream->read(&buf, sizeof(CameraChunkData));
-	Camera *cam = Camera::create();
-	cam->viewWindow = buf.viewWindow;
-	cam->viewOffset = buf.viewOffset;
-	cam->nearPlane = buf.nearPlane;
-	cam->farPlane = buf.farPlane;
-	cam->fogPlane = buf.fogPlane;
-	cam->projection = buf.projection;
-	cam->streamReadPlugins(stream);
-	return cam;
-
-}
-
-bool
-Camera::streamWrite(Stream *stream)
-{
-	CameraChunkData buf;
-	writeChunkHeader(stream, ID_CAMERA, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, sizeof(CameraChunkData));
-	buf.viewWindow = this->viewWindow;
-	buf.viewOffset = this->viewOffset;
-	buf.nearPlane = this->nearPlane;
-	buf.farPlane  = this->farPlane;
-	buf.fogPlane = this->fogPlane;
-	buf.projection = this->projection;
-	stream->write(&buf, sizeof(CameraChunkData));
-	this->streamWritePlugins(stream);
-	return true;
-}
-
-uint32
-Camera::streamGetSize(void)
-{
-	return 12 + sizeof(CameraChunkData) + 12 + this->streamGetPluginSize();
-}
-
-void
-Camera::updateProjectionMatrix(void)
-{
-	float32 invwx = 1.0f/this->viewWindow.x;
-	float32 invwy = 1.0f/this->viewWindow.y;
-	float32 invz = 1.0f/(this->farPlane-this->nearPlane);
-	if(rw::platform == PLATFORM_D3D8 || rw::platform == PLATFORM_D3D9 ||
-	   rw::platform == PLATFORM_XBOX){
-		// is this all really correct?
-		this->projMat[0] = invwx;
-		this->projMat[1] = 0.0f;
-		this->projMat[2] = 0.0f;
-		this->projMat[3] = 0.0f;
-
-		this->projMat[4] = 0.0f;
-		this->projMat[5] = invwy;
-		this->projMat[6] = 0.0f;
-		this->projMat[7] = 0.0f;
-
-		if(this->projection == PERSPECTIVE){
-			this->projMat[8] = this->viewOffset.x*invwx;
-			this->projMat[9] = this->viewOffset.y*invwy;
-			this->projMat[10] = this->farPlane*invz;
-			this->projMat[11] = 1.0f;
-
-			this->projMat[12] = 0.0f;
-			this->projMat[13] = 0.0f;
-			this->projMat[14] = -this->nearPlane*this->projMat[10];
-			this->projMat[15] = 0.0f;
-		}else{
-			this->projMat[8] = 0.0f;
-			this->projMat[9] = 0.0f;
-			this->projMat[10] = invz;
-			this->projMat[11] = 0.0f;
-
-			this->projMat[12] = this->viewOffset.x*invwx;
-			this->projMat[13] = this->viewOffset.y*invwy;
-			this->projMat[14] = -this->nearPlane*this->projMat[10];
-			this->projMat[15] = 1.0f;
-		}
-	}
-}
-
-void
-Camera::setFOV(float32 fov, float32 ratio)
-{
-	float32 a = tan(fov*3.14159f/360.0f);
-	this->viewWindow.x = a;
-	this->viewWindow.y = a/ratio;
-	this->viewOffset.set(0.0f, 0.0f);
 }
 
 }

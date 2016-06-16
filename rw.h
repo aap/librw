@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "src/rwbase.h"
+#include "src/rwerror.h"
 #include "src/rwplg.h"
 #include "src/rwpipeline.h"
 #include "src/rwobjects.h"

@@ -5,9 +5,12 @@
 #include <cmath>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+
+#define PLUGIN_ID 2
 
 using namespace std;
 
@@ -17,7 +20,10 @@ Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
 	Geometry *geo = (Geometry*)malloc(PluginBase::s_size);
-	assert(geo != NULL);
+	if(geo == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
 	geo->object.init(Geometry::ID, 0);
 	geo->geoflags = flags & 0xFF00FFFF;
 	geo->numTexCoordSets = (flags & 0xFF0000) >> 16;
@@ -28,10 +34,10 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	geo->numVertices = numVerts;
 	geo->numMorphTargets = 1;
 
-	geo->colors = NULL;
+	geo->colors = nil;
 	for(int32 i = 0; i < geo->numTexCoordSets; i++)
-		geo->texCoords[i] = NULL;
-	geo->triangles = NULL;
+		geo->texCoords[i] = nil;
+	geo->triangles = nil;
 	if(!(geo->geoflags & NATIVE) && geo->numVertices){
 		if(geo->geoflags & PRELIT)
 			geo->colors = new uint8[4*geo->numVertices];
@@ -45,23 +51,22 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	MorphTarget *m = geo->morphTargets;
 	m->boundingSphere.center.set(0.0f, 0.0f, 0.0f);
 	m->boundingSphere.radius = 0.0f;
-	m->vertices = NULL;
-	m->normals = NULL;
+	m->vertices = nil;
+	m->normals = nil;
 	if(!(geo->geoflags & NATIVE) && geo->numVertices){
 		m->vertices = new float32[3*geo->numVertices];
 		if(geo->geoflags & NORMALS)
 			m->normals = new float32[3*geo->numVertices];
 	}
 	geo->numMaterials = 0;
-	geo->materialList = NULL;
-	geo->meshHeader = NULL;
-	geo->instData = NULL;
+	geo->materialList = nil;
+	geo->meshHeader = nil;
+	geo->instData = nil;
 	geo->refCount = 1;
 
 	geo->constructPlugins();
 	return geo;
 }
-
 
 void
 Geometry::destroy(void)
@@ -101,10 +106,15 @@ Geometry::streamRead(Stream *stream)
 {
 	uint32 version;
 	GeoStreamData buf;
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
+	if(!findChunk(stream, ID_STRUCT, nil, &version)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	stream->read(&buf, sizeof(buf));
 	Geometry *geo = Geometry::create(buf.numVertices,
 	                                 buf.numTriangles, buf.flags);
+	if(geo == nil)
+		return nil;
 	geo->addMorphTargets(buf.numMorphTargets-1);
 	// skip surface properties
 	if(version < 0x34000)
@@ -137,13 +147,25 @@ Geometry::streamRead(Stream *stream)
 			stream->read(m->normals, 3*geo->numVertices*4);
 	}
 
-	assert(findChunk(stream, ID_MATLIST, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_MATLIST, nil, nil)){
+		RWERROR((ERR_CHUNK, "MATLIST"));
+		// TODO: free
+		return nil;
+	}
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		// TODO: free
+		return nil;
+	}
 	geo->numMaterials = stream->readI32();
 	geo->materialList = new Material*[geo->numMaterials];
 	stream->seek(geo->numMaterials*4);	// unused (-1)
 	for(int32 i = 0; i < geo->numMaterials; i++){
-		assert(findChunk(stream, ID_MATERIAL, NULL, NULL));
+		if(!findChunk(stream, ID_MATERIAL, nil, nil)){
+			RWERROR((ERR_CHUNK, "MATERIAL"));
+			// TODO: free
+			return nil;
+		}
 		geo->materialList[i] = Material::streamRead(stream);
 	}
 
@@ -217,8 +239,8 @@ Geometry::streamWrite(Stream *stream)
 		MorphTarget *m = &this->morphTargets[i];
 		stream->write(&m->boundingSphere, 4*4);
 		if(!(this->geoflags & NATIVE)){
-			stream->writeI32(m->vertices != NULL);
-			stream->writeI32(m->normals != NULL);
+			stream->writeI32(m->vertices != nil);
+			stream->writeI32(m->normals != nil);
 			if(m->vertices)
 				stream->write(m->vertices,
 				             3*this->numVertices*4);
@@ -270,8 +292,8 @@ Geometry::addMorphTargets(int32 n)
 	this->morphTargets = morphTargets;
 	for(int32 i = this->numMorphTargets; i < n; i++){
 		MorphTarget *m = &morphTargets[i];
-		m->vertices = NULL;
-		m->normals = NULL;
+		m->vertices = nil;
+		m->normals = nil;
 		if(!(this->geoflags & NATIVE)){
 			m->vertices = new float32[3*this->numVertices];
 			if(this->geoflags & NORMALS)
@@ -344,7 +366,7 @@ void
 Geometry::generateTriangles(int8 *adc)
 {
 	MeshHeader *header = this->meshHeader;
-	assert(header != NULL);
+	assert(header != nil);
 
 	this->numTriangles = 0;
 	Mesh *m = header->mesh;
@@ -452,7 +474,7 @@ Geometry::buildMeshes(void)
 void
 Geometry::removeUnusedMaterials(void)
 {
-	if(this->meshHeader == NULL)
+	if(this->meshHeader == nil)
 		return;
 	MeshHeader *mh = this->meshHeader;
 	int32 *map = new int32[this->numMaterials];
@@ -515,13 +537,16 @@ Material*
 Material::create(void)
 {
 	Material *mat = (Material*)malloc(PluginBase::s_size);
-	assert(mat != NULL);
-	mat->texture = NULL;
+	if(mat == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
+	mat->texture = nil;
 	memset(&mat->color, 0xFF, 4);
 	mat->surfaceProps.ambient = 1.0f;
 	mat->surfaceProps.specular = 1.0f;
 	mat->surfaceProps.diffuse = 1.0f;
-	mat->pipeline = NULL;
+	mat->pipeline = nil;
 	mat->refCount = 1;
 	mat->constructPlugins();
 	return mat;
@@ -531,6 +556,10 @@ Material*
 Material::clone(void)
 {
 	Material *mat = Material::create();
+	if(mat == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
 	mat->color = this->color;
 	mat->surfaceProps = this->surfaceProps;
 	if(this->texture){
@@ -570,9 +599,14 @@ Material::streamRead(Stream *stream)
 	uint32 length, version;
 	MatStreamData buf;
 
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
+	if(!findChunk(stream, ID_STRUCT, nil, &version)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	stream->read(&buf, sizeof(buf));
 	Material *mat = Material::create();
+	if(mat == nil)
+		return nil;
 	mat->color = buf.color;
 	if(version < 0x30400){
 		mat->surfaceProps.ambient = 1.0f;
@@ -586,8 +620,16 @@ Material::streamRead(Stream *stream)
 		mat->surfaceProps.diffuse = surfaceProps[2];
 	}
 	if(buf.textured){
-		assert(findChunk(stream, ID_TEXTURE, &length, NULL));
+		if(!findChunk(stream, ID_TEXTURE, &length, nil)){
+			RWERROR((ERR_CHUNK, "TEXTURE"));
+			// TODO: free
+			return nil;
+		}
 		mat->texture = Texture::streamRead(stream);
+		if(mat->texture == nil){
+			// TODO: fre
+			return nil;
+		}
 	}
 
 	materialRights[0] = 0;
@@ -609,7 +651,7 @@ Material::streamWrite(Stream *stream)
 	buf.color = this->color;
 	buf.flags = 0;
 	buf.unused = 0;
-	buf.textured = this->texture != NULL;
+	buf.textured = this->texture != nil;
 	stream->write(&buf, sizeof(buf));
 
 	if(rw::version >= 0x30400){
@@ -663,7 +705,7 @@ static int32
 getSizeMaterialRights(void *object, int32, int32)
 {
 	Material *material = (Material*)object;
-	if(material->pipeline == NULL || material->pipeline->pluginID == 0)
+	if(material->pipeline == nil || material->pipeline->pluginID == 0)
 		return -1;
 	return 8;
 }
@@ -671,7 +713,7 @@ getSizeMaterialRights(void *object, int32, int32)
 void
 registerMaterialRightsPlugin(void)
 {
-	Material::registerPlugin(0, ID_RIGHTTORENDER, NULL, NULL, NULL);
+	Material::registerPlugin(0, ID_RIGHTTORENDER, nil, nil, nil);
 	Material::registerPluginStream(ID_RIGHTTORENDER,
 	                               readMaterialRights,
 	                               writeMaterialRights,

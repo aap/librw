@@ -1,0 +1,8 @@
+ECODE(ERR_GENERAL,
+      "General Error")
+ECODE(ERR_ALLOC,
+      "Couldn't allocate 0x%X bytes")
+ECODE(ERR_FILE,
+      "Couldn't open file %s")
+ECODE(ERR_CHUNK,
+      "Couldn't find chunk %s")

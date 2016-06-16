@@ -544,7 +544,7 @@ struct Clump : PluginBase<Clump>
 	uint32 streamGetSize(void);
 	void render(void);
 
-	void frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
+	bool frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
 	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 

@@ -205,13 +205,13 @@ PluginBase<T>::getPluginOffset(uint32 id)
 template <typename T> void*
 PluginBase<T>::operator new(size_t)
 {
-	assert(0);
+	abort();
 	return NULL;
 }
 
 template <typename T> void
 PluginBase<T>::operator delete(void *p)
 {
-	assert(0);
+	abort();
 }
 }
