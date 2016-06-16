@@ -6,9 +6,10 @@
 #include <new>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwd3d.h"
 
 using namespace std;
@@ -593,8 +594,8 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	Raster::nativeOffsets[PLATFORM_D3D8] = nativeRasterOffset;
-	Raster::nativeOffsets[PLATFORM_D3D9] = nativeRasterOffset;
+	engine[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
+	engine[PLATFORM_D3D9].rasterNativeOffset = nativeRasterOffset;
 }
 
 }

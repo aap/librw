@@ -4,7 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwps2.h"

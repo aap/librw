@@ -6,9 +6,11 @@
 #include <new>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
+#include "rwplugins.h"
 #include "rwxbox.h"
 
 using namespace std;
@@ -867,7 +869,7 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	Raster::nativeOffsets[PLATFORM_XBOX] = nativeRasterOffset;
+	engine[PLATFORM_XBOX].rasterNativeOffset = nativeRasterOffset;
 }
 
 Texture*

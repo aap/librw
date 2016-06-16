@@ -4,9 +4,10 @@
 #include <cassert>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwps2.h"
 #include "rwd3d.h"
 #include "rwxbox.h"
@@ -628,8 +629,6 @@ writeTGA(Image *image, const char *filename)
 // Raster
 //
 
-int32 Raster::nativeOffsets[NUM_PLATFORMS];
-
 Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
@@ -645,10 +644,13 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->texels = raster->palette = NULL;
 	raster->constructPlugins();
 
-	int32 offset = nativeOffsets[raster->platform];
+	int32 offset = engine[raster->platform].rasterNativeOffset;
 	assert(offset != 0 && "unimplemented raster platform");
+printf("%X %d\n", offset, raster->platform);
 	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
+printf("%p\n", nr);
 	nr->create(raster);
+printf("created\n");
 	return raster;
 }
 
@@ -664,7 +666,7 @@ Raster::destroy(void)
 uint8*
 Raster::lock(int32 level)
 {
-	int32 offset = nativeOffsets[this->platform];
+	int32 offset = engine[this->platform].rasterNativeOffset;
 	assert(offset != 0 && "unimplemented raster platform");
 	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
 	return nr->lock(this, level);
@@ -673,7 +675,7 @@ Raster::lock(int32 level)
 void
 Raster::unlock(int32 level)
 {
-	int32 offset = nativeOffsets[this->platform];
+	int32 offset = engine[this->platform].rasterNativeOffset;
 	assert(offset != 0 && "unimplemented raster platform");
 	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
 	nr->unlock(this, level);
@@ -682,7 +684,7 @@ Raster::unlock(int32 level)
 int32
 Raster::getNumLevels(void)
 {
-	int32 offset = nativeOffsets[this->platform];
+	int32 offset = engine[this->platform].rasterNativeOffset;
 	assert(offset != 0 && "unimplemented raster platform");
 	NativeRaster *nr = PLUGINOFFSET(NativeRaster, this, offset);
 	return nr->getNumLevels(this);
@@ -703,7 +705,7 @@ Raster::createFromImage(Image *image)
 {
 	Raster *raster = Raster::create(image->width, image->height,
 	                                image->depth, 4 | 0x80);
-	int32 offset = nativeOffsets[raster->platform];
+	int32 offset = engine[raster->platform].rasterNativeOffset;
 	assert(offset != 0 && "unimplemented raster platform");
 	NativeRaster *nr = PLUGINOFFSET(NativeRaster, raster, offset);
 	nr->fromImage(raster, image);

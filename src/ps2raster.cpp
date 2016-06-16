@@ -6,9 +6,10 @@
 #include <new>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwps2.h"
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -480,7 +481,7 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	Raster::nativeOffsets[PLATFORM_PS2] = nativeRasterOffset;
+	engine[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
 	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
 }

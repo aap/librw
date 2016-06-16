@@ -160,6 +160,10 @@ struct Sphere
 	float32 radius;
 };
 
+/*
+ * Streams
+ */
+
 class Stream
 {
 public:
@@ -223,7 +227,7 @@ enum Platform
 {
 	PLATFORM_NULL = 0,
 	// D3D7
-	PLATFORM_OGL  = 2,
+	PLATFORM_OGL  = 2,	// TODO: remove, this is really WarDrum GL
 	// MAC
 	PLATFORM_PS2  = 4,
 	PLATFORM_XBOX = 5,
@@ -231,6 +235,10 @@ enum Platform
 	// SOFTRAS
 	PLATFORM_D3D8 = 8,
 	PLATFORM_D3D9 = 9,
+
+	// non stock-RW platforms
+
+	PLATFORM_GL3  = 10,
 	NUM_PLATFORMS,
 
 	FOURCC_PS2 = 0x00325350		// 'PS2\0'

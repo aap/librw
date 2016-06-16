@@ -10,7 +10,8 @@ SRC := $(wildcard $(SRCDIR)/*.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 INC := -I/usr/local/include
-CFLAGS=-Wall -Wextra -g $(BUILDDEF) -Wno-parentheses #-Wconversion
+CFLAGS=-Wall -Wextra -g $(BUILDDEF) -Wno-parentheses -Wno-invalid-offsetof -fno-diagnostics-show-caret
+ #-Wconversion
 LIB=librw-$(BUILD).a
 
 $(LIB): $(OBJ)

@@ -5,9 +5,10 @@
 #include <cmath>
 
 #include "rwbase.h"
-#include "rwplugin.h"
+#include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwps2.h"
 #include "rwogl.h"
 #include "rwxbox.h"
@@ -492,7 +493,7 @@ Clump::render(void)
 	Atomic *a;
 	FORLIST(lnk, this->atomics){
 		a = Atomic::fromClump(lnk);
-		if(a->object.flags & Atomic::RENDER)
+		if(a->object.object.flags & Atomic::RENDER)
 			a->render();
 	}
 }
@@ -566,7 +567,7 @@ Atomic::create(void)
 {
 	Atomic *atomic = (Atomic*)malloc(PluginBase::s_size);
 	assert(atomic != NULL);
-	atomic->object.init(Atomic::ID, 0);
+	atomic->object.object.init(Atomic::ID, 0);
 	atomic->geometry = NULL;
 	atomic->worldBoundingSphere.center.set(0.0f, 0.0f, 0.0f);
 	atomic->worldBoundingSphere.radius = 0.0f;
@@ -574,7 +575,7 @@ Atomic::create(void)
 	atomic->clump = NULL;
 	atomic->pipeline = NULL;
 	atomic->renderCB = Atomic::defaultRenderCB;
-	atomic->object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
+	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
 	atomic->constructPlugins();
 	return atomic;
 }
@@ -583,8 +584,8 @@ Atomic*
 Atomic::clone()
 {
 	Atomic *atomic = Atomic::create();
-	atomic->object.copy(&this->object);
-	atomic->object.privateFlags |= 1;
+	atomic->object.object.copy(&this->object.object);
+	atomic->object.object.privateFlags |= 1;
 	if(this->geometry){
 		atomic->geometry = this->geometry;
 		atomic->geometry->refCount++;
@@ -611,14 +612,14 @@ Atomic::getWorldBoundingSphere(void)
 {
 	Sphere *s = &this->worldBoundingSphere;
 	if(!this->getFrame()->dirty() &&
-	   (this->object.privateFlags & WORLDBOUNDDIRTY) == 0)
+	   (this->object.object.privateFlags & WORLDBOUNDDIRTY) == 0)
 		return s;
 	Matrix *ltm = this->getFrame()->getLTM();
 	// TODO: support scaling
 	// TODO: if we ever support morphing, fix this:
 	s->center = ltm->transPoint(this->geometry->morphTargets[0].boundingSphere.center);
 	s->radius = this->geometry->morphTargets[0].boundingSphere.radius;
-	this->object.privateFlags &= ~WORLDBOUNDDIRTY;
+	this->object.object.privateFlags &= ~WORLDBOUNDDIRTY;
 	return s;
 }
 
@@ -639,7 +640,7 @@ Atomic::streamReadClump(Stream *stream,
 		atomic->geometry = Geometry::streamRead(stream);
 	}else
 		atomic->geometry = geometryList[buf[1]];
-	atomic->object.flags = buf[2];
+	atomic->object.object.flags = buf[2];
 
 	atomicRights[0] = 0;
 	atomic->streamReadPlugins(stream);
@@ -660,7 +661,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 	buf[0] = findPointer(this->getFrame(), (void**)frameList, numFrames);
 
 	if(version < 0x30400){
-		buf[1] = this->object.flags;
+		buf[1] = this->object.object.flags;
 		stream->write(buf, sizeof(int[3]));
 		this->geometry->streamWrite(stream);
 	}else{
@@ -672,7 +673,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 		}
 		return false;
 	foundgeo:
-		buf[2] = this->object.flags;
+		buf[2] = this->object.object.flags;
 		stream->write(buf, sizeof(buf));
 	}
 
@@ -691,14 +692,12 @@ Atomic::streamGetSize(void)
 	return size;
 }
 
-ObjPipeline *defaultPipelines[NUM_PLATFORMS];
-
 ObjPipeline*
 Atomic::getPipeline(void)
 {
 	return this->pipeline ?
 		this->pipeline :
-		defaultPipelines[platform];
+		engine[platform].defaultPipeline;
 }
 
 void
@@ -754,15 +753,15 @@ Light::create(int32 type)
 {
 	Light *light = (Light*)malloc(PluginBase::s_size);
 	assert(light != NULL);
-	light->object.init(Light::ID, type);
+	light->object.object.init(Light::ID, type);
 	light->radius = 0.0f;
 	light->color.red = 1.0f;
 	light->color.green = 1.0f;
 	light->color.blue = 1.0f;
 	light->color.alpha = 1.0f;
 	light->minusCosAngle = 1.0f;
-	light->object.privateFlags = 1;
-	light->object.flags = LIGHTATOMICS | LIGHTWORLD;
+	light->object.object.privateFlags = 1;
+	light->object.object.flags = LIGHTATOMICS | LIGHTWORLD;
 	light->clump = NULL;
 	light->inClump.init();
 	light->constructPlugins();
@@ -796,7 +795,7 @@ Light::setColor(float32 r, float32 g, float32 b)
 	this->color.red = r;
 	this->color.green = g;
 	this->color.blue = b;
-	this->object.privateFlags = r == g && r == b;
+	this->object.object.privateFlags = r == g && r == b;
 }
 
 struct LightChunkData
@@ -824,7 +823,7 @@ Light::streamRead(Stream *stream)
 	else
 		// tan -> -cos
 		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
-	light->object.flags = (uint8)buf.flags;
+	light->object.object.flags = (uint8)buf.flags;
 	light->streamReadPlugins(stream);
 	return light;
 }
@@ -843,8 +842,8 @@ Light::streamWrite(Stream *stream)
 		buf.minusCosAngle = this->minusCosAngle;
 	else
 		buf.minusCosAngle = tan(acos(-this->minusCosAngle));
-	buf.flags = this->object.flags;
-	buf.type = this->object.subType;
+	buf.flags = this->object.object.flags;
+	buf.type = this->object.object.subType;
 	stream->write(&buf, sizeof(LightChunkData));
 
 	this->streamWritePlugins(stream);
@@ -865,7 +864,7 @@ Camera*
 Camera::create(void)
 {
 	Camera *cam = (Camera*)malloc(PluginBase::s_size);
-	cam->object.init(Camera::ID, 0);
+	cam->object.object.init(Camera::ID, 0);
 	cam->viewWindow.set(1.0f, 1.0f);
 	cam->viewOffset.set(0.0f, 0.0f);
 	cam->nearPlane = 0.05f;
@@ -882,7 +881,7 @@ Camera*
 Camera::clone(void)
 {
 	Camera *cam = Camera::create();
-	cam->object.copy(&this->object);
+	cam->object.object.copy(&this->object.object);
 	cam->setFrame(this->getFrame());
 	cam->viewWindow = this->viewWindow;
 	cam->viewOffset = this->viewOffset;

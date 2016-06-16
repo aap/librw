@@ -132,13 +132,14 @@ struct Frame : PluginBase<Frame>
 
 Frame **makeFrameList(Frame *frame, Frame **flist);
 
-struct ObjectWithFrame : Object
+struct ObjectWithFrame
 {
+	Object object;
 	LLLink inFrame;
 	void setFrame(Frame *f){
-		if(this->parent)
+		if(this->object.parent)
 			this->inFrame.remove();
-		this->parent = f;
+		this->object.parent = f;
 		if(f)
 			f->objectList.add(&this->inFrame);
 	}
@@ -146,62 +147,6 @@ struct ObjectWithFrame : Object
 		return LLLinkGetData(lnk, ObjectWithFrame, inFrame);
 	}
 };
-
-struct HAnimKeyFrame
-{
-	HAnimKeyFrame *prev;
-	float time;
-	float q[4];
-	float t[3];
-};
-
-struct HAnimNodeInfo
-{
-	int32 id;
-	int32 index;
-	int32 flags;
-	Frame *frame;
-};
-
-struct HAnimHierarchy
-{
-	int32 flags;
-	int32 numNodes;
-	float *matrices;
-	float *matricesUnaligned;
-	HAnimNodeInfo *nodeInfo;
-	Frame *parentFrame;
-	HAnimHierarchy *parentHierarchy;	// mostly unused
-
-	// temporary
-	int32 maxInterpKeyFrameSize;
-
-	static HAnimHierarchy *create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 flags, int32 maxKeySize);
-	void destroy(void);
-	void attachByIndex(int32 id);
-	void attach(void);
-	int32 getIndex(int32 id);
-
-	static HAnimHierarchy *get(Frame *f);
-	static HAnimHierarchy *find(Frame *f);
-
-	enum NodeFlag {
-		POP = 1,
-		PUSH
-	};
-};
-
-struct HAnimData
-{
-	int32 id;
-	HAnimHierarchy *hierarchy;
-
-	static HAnimData *get(Frame *f);
-};
-
-extern int32 hAnimOffset;
-extern bool32 hAnimDoStream;
-void registerHAnimPlugin(void);
 
 struct Image
 {
@@ -249,8 +194,6 @@ struct Raster : PluginBase<Raster>
 	int32 stride;
 	uint8 *texels;
 	uint8 *palette;
-
-	static int32 nativeOffsets[NUM_PLATFORMS];
 
 	static Raster *create(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
 	void destroy(void);
@@ -340,6 +283,7 @@ struct Texture : PluginBase<Texture>
 	};
 };
 
+
 struct SurfaceProperties
 {
 	float32 ambient;
@@ -364,72 +308,6 @@ struct Material : PluginBase<Material>
 };
 
 void registerMaterialRightsPlugin(void);
-
-struct MatFX
-{
-	enum {
-		NOTHING = 0,
-		BUMPMAP,
-		ENVMAP,
-		BUMPENVMAP,	// BUMP | ENV
-		DUAL,
-		UVTRANSFORM,
-		DUALUVTRANSFORM
-	};
-	struct Bump {
-		Frame   *frame;
-		Texture *bumpedTex;
-		Texture *tex;
-		float    coefficient;
-	};
-	struct Env {
-		Frame   *frame;
-		Texture *tex;
-		float    coefficient;
-		int32    fbAlpha;
-	};
-	struct Dual {
-		Texture *tex;
-		int32    srcBlend;
-		int32    dstBlend;
-	};
-	struct UVtransform {
-		float *baseTransform;
-		float *dualTransform;
-	};
-	struct {
-		uint32 type;
-		union {
-			Bump bump;
-			Env  env;
-			Dual dual;
-			UVtransform uvtransform;
-		};
-	} fx[2];
-	uint32 type;
-
-	void setEffects(uint32 flags);
-	static uint32 getEffects(Material *m);
-	uint32 getEffectIndex(uint32 type);
-	void setBumpTexture(Texture *t);
-	void setBumpCoefficient(float32 coef);
-	void setEnvTexture(Texture *t);
-	void setEnvCoefficient(float32 coef);
-	void setDualTexture(Texture *t);
-	void setDualSrcBlend(int32 blend);
-	void setDualDestBlend(int32 blend);
-
-	static void enableEffects(Atomic *atomic);
-};
-
-struct MatFXGlobals
-{
-	int32 atomicOffset;
-	int32 materialOffset;
-	ObjPipeline *pipelines[NUM_PLATFORMS];
-};
-extern MatFXGlobals matFXGlobals;
-void registerMatFXPlugin(void);
 
 struct Mesh
 {
@@ -528,32 +406,6 @@ struct Geometry : PluginBase<Geometry>
 void registerMeshPlugin(void);
 void registerNativeDataPlugin(void);
 
-struct Skin
-{
-	int32 numBones;
-	int32 numUsedBones;
-	int32 numWeights;
-	uint8 *usedBones;
-	float *inverseMatrices;
-	uint8 *indices;
-	float *weights;
-	uint8 *data;	// only used by delete
-	void *platformData; // a place to store platform specific stuff
-
-	void init(int32 numBones, int32 numUsedBones, int32 numVertices);
-	void findNumWeights(int32 numVertices);
-	void findUsedBones(int32 numVertices);
-	static void setPipeline(Atomic *a, int32 type);
-};
-
-struct SkinGlobals
-{
-	int32 offset;
-	ObjPipeline *pipelines[NUM_PLATFORMS];
-};
-extern SkinGlobals skinGlobals;
-void registerSkinPlugin(void);
-
 struct Clump;
 
 struct Atomic : PluginBase<Atomic>
@@ -580,9 +432,9 @@ struct Atomic : PluginBase<Atomic>
 	void destroy(void);
 	void setFrame(Frame *f) {
 		this->object.setFrame(f);
-		this->object.privateFlags |= WORLDBOUNDDIRTY;
+		this->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	}
-	Frame *getFrame(void) { return (Frame*)this->object.parent; }
+	Frame *getFrame(void) { return (Frame*)this->object.object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
 	ObjPipeline *getPipeline(void);
@@ -596,8 +448,6 @@ struct Atomic : PluginBase<Atomic>
 
 	static void defaultRenderCB(Atomic *atomic);
 };
-
-extern ObjPipeline *defaultPipelines[NUM_PLATFORMS];
 
 void registerAtomicRightsPlugin(void);
 
@@ -616,13 +466,13 @@ struct Light : PluginBase<Light>
 	static Light *create(int32 type);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
-	Frame *getFrame(void){ return (Frame*)this->object.parent; }
+	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
 	static Light *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Light, inClump); }
 	void setAngle(float32 angle);
 	float32 getAngle(void);
 	void setColor(float32 r, float32 g, float32 b);
-	int32 getType(void){ return this->object.subType; }
+	int32 getType(void){ return this->object.object.subType; }
 	static Light *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -660,7 +510,7 @@ struct Camera : PluginBase<Camera>
 	Camera *clone(void);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
-	Frame *getFrame(void){ return (Frame*)this->object.parent; }
+	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
 	static Camera *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Camera, inClump); }
 	static Camera *streamRead(Stream *stream);
