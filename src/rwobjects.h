@@ -130,6 +130,15 @@ struct Frame : PluginBase<Frame>
 	void purgeClone(void);
 };
 
+struct FrameList_
+{
+	int32 numFrames;
+	Frame **frames;
+
+	FrameList_ *streamRead(Stream *stream);
+	void streamWrite(Stream *stream);
+	static uint32 streamGetSize(Frame *f);
+};
 Frame **makeFrameList(Frame *frame, Frame **flist);
 
 struct ObjectWithFrame
@@ -288,6 +297,7 @@ struct Material : PluginBase<Material>
 	static Material *create(void);
 	Material *clone(void);
 	void destroy(void);
+	void setTexture(Texture *tex);
 	static Material *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -424,13 +434,13 @@ struct Atomic : PluginBase<Atomic>
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
 	void removeFromClump(void);
+	void setGeometry(Geometry *geo);
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
 	void render(void) { this->renderCB(this); }
 	static Atomic *streamReadClump(Stream *stream,
-		Frame **frameList, Geometry **geometryList);
-	bool streamWriteClump(Stream *stream,
-	Frame **frameList, int32 numframes);
+		FrameList_ *frameList, Geometry **geometryList);
+	bool streamWriteClump(Stream *stream, FrameList_ *frmlst);
 	uint32 streamGetSize(void);
 
 	static void defaultRenderCB(Atomic *atomic);
@@ -543,9 +553,6 @@ struct Clump : PluginBase<Clump>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	void render(void);
-
-	bool frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf);
-	void frameListStreamWrite(Stream *stream, Frame **flp, int32 nf);
 };
 
 struct TexDictionary : PluginBase<TexDictionary>

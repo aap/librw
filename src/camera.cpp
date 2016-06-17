@@ -15,9 +15,9 @@ Camera*
 Camera::create(void)
 {
 	Camera *cam = (Camera*)malloc(PluginBase::s_size);
-	if(cam == NULL){
+	if(cam == nil){
 		RWERROR((ERR_ALLOC, PluginBase::s_size));
-		return NULL;
+		return nil;
 	}
 	cam->object.object.init(Camera::ID, 0);
 	cam->viewWindow.set(1.0f, 1.0f);
@@ -26,7 +26,7 @@ Camera::create(void)
 	cam->farPlane = 10.0f;
 	cam->fogPlane = 5.0f;
 	cam->projection = Camera::PERSPECTIVE;
-	cam->clump = NULL;
+	cam->clump = nil;
 	cam->inClump.init();
 	cam->constructPlugins();
 	return cam;
@@ -36,8 +36,8 @@ Camera*
 Camera::clone(void)
 {
 	Camera *cam = Camera::create();
-	if(cam == NULL)
-		return NULL;
+	if(cam == nil)
+		return nil;
 	cam->object.object.copy(&this->object.object);
 	cam->setFrame(this->getFrame());
 	cam->viewWindow = this->viewWindow;
@@ -72,9 +72,9 @@ Camera*
 Camera::streamRead(Stream *stream)
 {
 	CameraChunkData buf;
-	if(!findChunk(stream, ID_STRUCT, NULL, NULL)){
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
-		return NULL;
+		return nil;
 	}
 	stream->read(&buf, sizeof(CameraChunkData));
 	Camera *cam = Camera::create();
@@ -84,9 +84,10 @@ Camera::streamRead(Stream *stream)
 	cam->farPlane = buf.farPlane;
 	cam->fogPlane = buf.fogPlane;
 	cam->projection = buf.projection;
-	cam->streamReadPlugins(stream);
-	return cam;
-
+	if(cam->streamReadPlugins(stream))
+		return cam;
+	cam->destroy();
+	return nil;
 }
 
 bool

@@ -15,9 +15,9 @@ Light*
 Light::create(int32 type)
 {
 	Light *light = (Light*)malloc(PluginBase::s_size);
-	if(light == NULL){
+	if(light == nil){
 		RWERROR((ERR_ALLOC, PluginBase::s_size));
-		return NULL;
+		return nil;
 	}
 	light->object.object.init(Light::ID, type);
 	light->radius = 0.0f;
@@ -28,7 +28,7 @@ Light::create(int32 type)
 	light->minusCosAngle = 1.0f;
 	light->object.object.privateFlags = 1;
 	light->object.object.flags = LIGHTATOMICS | LIGHTWORLD;
-	light->clump = NULL;
+	light->clump = nil;
 	light->inClump.init();
 	light->constructPlugins();
 	return light;
@@ -79,14 +79,14 @@ Light::streamRead(Stream *stream)
 	uint32 version;
 	LightChunkData buf;
 
-	if(!findChunk(stream, ID_STRUCT, NULL, &version)){
+	if(!findChunk(stream, ID_STRUCT, nil, &version)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
-		return NULL;
+		return nil;
 	}
 	stream->read(&buf, sizeof(LightChunkData));
 	Light *light = Light::create(buf.type);
-	if(light == NULL)
-		return NULL;
+	if(light == nil)
+		return nil;
 	light->radius = buf.radius;
 	light->setColor(buf.red, buf.green, buf.blue);
 	float32 a = buf.minusCosAngle;
@@ -96,8 +96,10 @@ Light::streamRead(Stream *stream)
 		// tan -> -cos
 		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
 	light->object.object.flags = (uint8)buf.flags;
-	light->streamReadPlugins(stream);
-	return light;
+	if(light->streamReadPlugins(stream))
+		return light;
+	light->destroy();
+	return nil;
 }
 
 bool

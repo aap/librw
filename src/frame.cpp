@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cassert>
 #include <cmath>
 
 #include "rwbase.h"
@@ -10,11 +9,6 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwengine.h"
-#include "rwps2.h"
-#include "rwxbox.h"
-#include "rwd3d8.h"
-#include "rwd3d9.h"
-#include "rwwdgl.h"
 
 #define PLUGIN_ID 0
 
@@ -246,6 +240,100 @@ Frame::purgeClone(void)
 {
 	Frame *parent = this->getParent();
 	this->setHierarchyRoot(parent ? parent->root : this);
+}
+
+struct FrameStreamData
+{
+	V3d right, up, at, pos;
+	int32 parent;
+	int32 matflag;
+};
+
+FrameList_*
+FrameList_::streamRead(Stream *stream)
+{
+	FrameStreamData buf;
+	this->numFrames = 0;
+	this->frames = nil;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
+	this->numFrames = stream->readI32();
+	Frame **frameList = (Frame**)malloc(this->numFrames*sizeof(Frame*));
+	if(frameList == nil){
+		RWERROR((ERR_ALLOC, this->numFrames*sizeof(Frame*)));
+		return nil;
+	}
+	for(int32 i = 0; i < this->numFrames; i++){
+		Frame *f;
+		stream->read(&buf, sizeof(buf));
+		frameList[i] = f = Frame::create();
+		if(f == nil){
+			// TODO: clean up frames?
+			free(this->frames);
+			return nil;
+		}
+		f->matrix.right = buf.right;
+		f->matrix.rightw = 0.0f;
+		f->matrix.up = buf.up;
+		f->matrix.upw = 0.0f;
+		f->matrix.at = buf.at;
+		f->matrix.atw = 0.0f;
+		f->matrix.pos = buf.pos;
+		f->matrix.posw = 1.0f;
+		//f->matflag = buf.matflag;
+		if(buf.parent >= 0)
+			frameList[buf.parent]->addChild(f);
+	}
+	for(int32 i = 0; i < this->numFrames; i++)
+		frameList[i]->streamReadPlugins(stream);
+	return this;
+}
+
+void
+FrameList_::streamWrite(Stream *stream)
+{
+	FrameStreamData buf;
+
+	int size = 0, structsize = 0;
+	structsize = 4 + this->numFrames*sizeof(FrameStreamData);
+	size += 12 + structsize;
+	for(int32 i = 0; i < this->numFrames; i++)
+		size += 12 + this->frames[i]->streamGetPluginSize();
+
+	writeChunkHeader(stream, ID_FRAMELIST, size);
+	writeChunkHeader(stream, ID_STRUCT, structsize);
+	stream->writeU32(this->numFrames);
+	for(int32 i = 0; i < this->numFrames; i++){
+		Frame *f = this->frames[i];
+		buf.right = f->matrix.right;
+		buf.up = f->matrix.up;
+		buf.at = f->matrix.at;
+		buf.pos = f->matrix.pos;
+		buf.parent = findPointer(f->getParent(), (void**)this->frames,
+		                         this->numFrames);
+		buf.matflag = 0; //f->matflag;
+		stream->write(&buf, sizeof(buf));
+	}
+	for(int32 i = 0; i < this->numFrames; i++)
+		this->frames[i]->streamWritePlugins(stream);
+}
+
+static Frame*
+sizeCB(Frame *f, void *size)
+{
+	*(int32*)size += f->streamGetPluginSize();
+	f->forAllChildren(sizeCB, size);
+	return f;
+}
+
+uint32
+FrameList_::streamGetSize(Frame *f)
+{
+	int32 numFrames = f->count();
+	uint32 size = 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
+	sizeCB(f, (void*)&size);
 }
 
 Frame**

@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -78,9 +79,6 @@ Clump::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	clump = Clump::create();
-	if(clump == nil)
-		return nil;
 	stream->read(buf, length);
 	int32 numAtomics = buf[0];
 	int32 numLights = 0;
@@ -89,41 +87,51 @@ Clump::streamRead(Stream *stream)
 		numLights = buf[1];
 		numCameras = buf[2];
 	}
+	clump = Clump::create();
+	if(clump == nil)
+		return nil;
 
 	// Frame list
-	Frame **frameList;
-	int32 numFrames;
-	clump->frameListStreamRead(stream, &frameList, &numFrames);
-	clump->setFrame(frameList[0]);
+	FrameList_ frmlst;
+	frmlst.frames = nil;
+	if(!findChunk(stream, ID_FRAMELIST, nil, nil)){
+		RWERROR((ERR_CHUNK, "FRAMELIST"));
+		goto fail;
+	}
+	if(frmlst.streamRead(stream) == nil)
+		goto fail;
+	clump->setFrame(frmlst.frames[0]);
 
-	Geometry **geometryList = 0;
+	// Geometry list
+	int32 numGeometries = 0;
+	Geometry **geometryList = nil;
 	if(version >= 0x30400){
-		// Geometry list
-		int32 numGeometries = 0;
 		if(!findChunk(stream, ID_GEOMETRYLIST, nil, nil)){
 			RWERROR((ERR_CHUNK, "GEOMETRYLIST"));
-			// TODO: free
-			return nil;
+			goto fail;
 		}
 		if(!findChunk(stream, ID_STRUCT, nil, nil)){
 			RWERROR((ERR_CHUNK, "STRUCT"));
-			// TODO: free
-			return nil;
+			goto fail;
 		}
 		numGeometries = stream->readI32();
-		if(numGeometries)
-			geometryList = new Geometry*[numGeometries];
+		if(numGeometries){
+			size_t sz = numGeometries*sizeof(Geometry*);
+			geometryList = (Geometry**)malloc(sz);
+			if(geometryList == nil){
+				RWERROR((ERR_ALLOC, sz));
+				goto fail;
+			}
+			memset(geometryList, 0, sz);
+		}
 		for(int32 i = 0; i < numGeometries; i++){
 			if(!findChunk(stream, ID_GEOMETRY, nil, nil)){
 				RWERROR((ERR_CHUNK, "GEOMETRY"));
-				// TODO: free
-				return nil;
+				goto failgeo;
 			}
 			geometryList[i] = Geometry::streamRead(stream);
-			if(geometryList[i] == nil){
-				// TODO: free
-				return nil;
-			}
+			if(geometryList[i] == nil)
+				goto failgeo;
 		}
 	}
 
@@ -132,67 +140,70 @@ Clump::streamRead(Stream *stream)
 	for(int32 i = 0; i < numAtomics; i++){
 		if(!findChunk(stream, ID_ATOMIC, nil, nil)){
 			RWERROR((ERR_CHUNK, "ATOMIC"));
-			// TODO: free
-			return nil;
+			goto failgeo;
 		}
-		a = Atomic::streamReadClump(stream, frameList, geometryList);
-		if(a == nil){
-			// TODO: free
-			return nil;
-		}
+		a = Atomic::streamReadClump(stream, &frmlst, geometryList);
+		if(a == nil)
+			goto failgeo;
 		clump->addAtomic(a);
 	}
 
 	// Lights
+	int32 frm;
+	Light *l;
 	for(int32 i = 0; i < numLights; i++){
-		int32 frm;
 		if(!findChunk(stream, ID_STRUCT, nil, nil)){
 			RWERROR((ERR_CHUNK, "STRUCT"));
-			// TODO: free
-			return nil;
+			goto failgeo;
 		}
 		frm = stream->readI32();
 		if(!findChunk(stream, ID_LIGHT, nil, nil)){
 			RWERROR((ERR_CHUNK, "LIGHT"));
-			// TODO: free
-			return nil;
+			goto failgeo;
 		}
-		Light *l = Light::streamRead(stream);
-		if(l == nil){
-			// TODO: free
-			return nil;
-		}
-		l->setFrame(frameList[frm]);
+		l = Light::streamRead(stream);
+		if(l == nil)
+			goto failgeo;
+		l->setFrame(frmlst.frames[frm]);
 		clump->addLight(l);
 	}
 
 	// Cameras
+	Camera *cam;
 	for(int32 i = 0; i < numCameras; i++){
-		int32 frm;
 		if(!findChunk(stream, ID_STRUCT, nil, nil)){
 			RWERROR((ERR_CHUNK, "STRUCT"));
-			// TODO: free
-			return nil;
+			goto failgeo;
 		}
 		frm = stream->readI32();
 		if(!findChunk(stream, ID_CAMERA, nil, nil)){
 			RWERROR((ERR_CHUNK, "CAMERA"));
-			// TODO: free
-			return nil;
+			goto failgeo;
 		}
-		Camera *cam = Camera::streamRead(stream);
-		if(cam == nil){
-			// TODO: free
-			return nil;
-		}
-		cam->setFrame(frameList[frm]);
+		cam = Camera::streamRead(stream);
+		if(cam == nil)
+			goto failgeo;
+		cam->setFrame(frmlst.frames[frm]);
 		clump->addCamera(cam);
 	}
 
-	delete[] frameList;
+	for(int32 i = 0; i < numGeometries; i++)
+		if(geometryList[i])
+			geometryList[i]->destroy();
+	free(geometryList);
+	free(frmlst.frames);
+	if(clump->streamReadPlugins(stream))
+		return clump;
 
-	clump->streamReadPlugins(stream);
-	return clump;
+failgeo:
+	for(int32 i = 0; i < numGeometries; i++)
+		if(geometryList[i])
+			geometryList[i]->destroy();
+	free(geometryList);
+fail:
+	free(frmlst.frames);
+	clump->destroy();
+	return nil;
 }
 
 bool
@@ -208,10 +219,11 @@ Clump::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRUCT, size);
 	stream->write(buf, size);
 
-	int32 numFrames = this->getFrame()->count();
-	Frame **flist = new Frame*[numFrames];
-	makeFrameList(this->getFrame(), flist);
-	this->frameListStreamWrite(stream, flist, numFrames);
+	FrameList_ frmlst;
+	frmlst.numFrames = this->getFrame()->count();
+	frmlst.frames = (Frame**)malloc(frmlst.numFrames*sizeof(Frame*));
+	makeFrameList(this->getFrame(), frmlst.frames);
+	frmlst.streamWrite(stream);
 
 	if(rw::version >= 0x30400){
 		size = 12+4;
@@ -225,11 +237,11 @@ Clump::streamWrite(Stream *stream)
 	}
 
 	FORLIST(lnk, this->atomics)
-		Atomic::fromClump(lnk)->streamWriteClump(stream, flist, numFrames);
+		Atomic::fromClump(lnk)->streamWriteClump(stream, &frmlst);
 
 	FORLIST(lnk, this->lights){
 		Light *l = Light::fromClump(lnk);
-		int frm = findPointer(l->getFrame(), (void**)flist, numFrames);
+		int frm = findPointer(l->getFrame(), (void**)frmlst.frames, frmlst.numFrames);
 		if(frm < 0)
 			return false;
 		writeChunkHeader(stream, ID_STRUCT, 4);
@@ -239,7 +251,7 @@ Clump::streamWrite(Stream *stream)
 
 	FORLIST(lnk, this->cameras){
 		Camera *c = Camera::fromClump(lnk);
-		int frm = findPointer(c->getFrame(), (void**)flist, numFrames);
+		int frm = findPointer(c->getFrame(), (void**)frmlst.frames, frmlst.numFrames);
 		if(frm < 0)
 			return false;
 		writeChunkHeader(stream, ID_STRUCT, 4);
@@ -247,25 +259,10 @@ Clump::streamWrite(Stream *stream)
 		c->streamWrite(stream);
 	}
 
-	delete[] flist;
+	free(frmlst.frames);
 
 	this->streamWritePlugins(stream);
 	return true;
-}
-
-struct FrameStreamData
-{
-	V3d right, up, at, pos;
-	int32 parent;
-	int32 matflag;
-};
-
-static Frame*
-sizeCB(Frame *f, void *size)
-{
-	*(int32*)size += f->streamGetPluginSize();
-	f->forAllChildren(sizeCB, size);
-	return f;
 }
 
 uint32
@@ -278,9 +275,7 @@ Clump::streamGetSize(void)
 		size += 8;	// numLights, numCameras
 
 	// Frame list
-	int32 numFrames = this->getFrame()->count();
-	size += 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
-	sizeCB(this->getFrame(), (void*)&size);
+	size += FrameList_::streamGetSize(this->getFrame());
 
 	if(rw::version >= 0x30400){
 		// Geometry list
@@ -316,73 +311,6 @@ Clump::render(void)
 	}
 }
 
-bool
-Clump::frameListStreamRead(Stream *stream, Frame ***flp, int32 *nf)
-{
-	FrameStreamData buf;
-	int32 numFrames = 0;
-	if(!findChunk(stream, ID_FRAMELIST, nil, nil)){
-		RWERROR((ERR_CHUNK, "FRAMELIST"));
-		return 0;
-	}
-	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"));
-		return 0;
-	}
-	numFrames = stream->readI32();
-	Frame **frameList = new Frame*[numFrames];
-	for(int32 i = 0; i < numFrames; i++){
-		Frame *f;
-		frameList[i] = f = Frame::create();
-		stream->read(&buf, sizeof(buf));
-		f->matrix.right = buf.right;
-		f->matrix.rightw = 0.0f;
-		f->matrix.up = buf.up;
-		f->matrix.upw = 0.0f;
-		f->matrix.at = buf.at;
-		f->matrix.atw = 0.0f;
-		f->matrix.pos = buf.pos;
-		f->matrix.posw = 1.0f;
-		//f->matflag = buf.matflag;
-		if(buf.parent >= 0)
-			frameList[buf.parent]->addChild(f);
-	}
-	for(int32 i = 0; i < numFrames; i++)
-		frameList[i]->streamReadPlugins(stream);
-	*nf = numFrames;
-	*flp = frameList;
-	return 1;
-}
-
-void
-Clump::frameListStreamWrite(Stream *stream, Frame **frameList, int32 numFrames)
-{
-	FrameStreamData buf;
-
-	int size = 0, structsize = 0;
-	structsize = 4 + numFrames*sizeof(FrameStreamData);
-	size += 12 + structsize;
-	for(int32 i = 0; i < numFrames; i++)
-		size += 12 + frameList[i]->streamGetPluginSize();
-
-	writeChunkHeader(stream, ID_FRAMELIST, size);
-	writeChunkHeader(stream, ID_STRUCT, structsize);
-	stream->writeU32(numFrames);
-	for(int32 i = 0; i < numFrames; i++){
-		Frame *f = frameList[i];
-		buf.right = f->matrix.right;
-		buf.up = f->matrix.up;
-		buf.at = f->matrix.at;
-		buf.pos = f->matrix.pos;
-		buf.parent = findPointer(f->getParent(), (void**)frameList,
-		                         numFrames);
-		buf.matflag = 0; //f->matflag;
-		stream->write(&buf, sizeof(buf));
-	}
-	for(int32 i = 0; i < numFrames; i++)
-		frameList[i]->streamWritePlugins(stream);
-}
-
 //
 // Atomic
 //
@@ -412,12 +340,12 @@ Atomic*
 Atomic::clone()
 {
 	Atomic *atomic = Atomic::create();
+	if(atomic == nil)
+		return nil;
 	atomic->object.object.copy(&this->object.object);
 	atomic->object.object.privateFlags |= 1;
-	if(this->geometry){
-		atomic->geometry = this->geometry;
-		atomic->geometry->refCount++;
-	}
+	if(this->geometry)
+		atomic->setGeometry(this->geometry);
 	atomic->pipeline = this->pipeline;
 	atomic->copyPlugins(this);
 	return atomic;
@@ -444,6 +372,17 @@ Atomic::removeFromClump(void)
 	}
 }
 
+void
+Atomic::setGeometry(Geometry *geo)
+{
+	if(this->geometry)
+		this->geometry->destroy();
+	if(geo)
+		geo->refCount++;
+	this->geometry = geo;
+	// TODO: bounding stuff
+}
+
 Sphere*
 Atomic::getWorldBoundingSphere(void)
 {
@@ -464,7 +403,7 @@ static uint32 atomicRights[2];
 
 Atomic*
 Atomic::streamReadClump(Stream *stream,
-                        Frame **frameList, Geometry **geometryList)
+                        FrameList_ *frameList, Geometry **geometryList)
 {
 	int32 buf[4];
 	uint32 version;
@@ -476,31 +415,36 @@ Atomic::streamReadClump(Stream *stream,
 	Atomic *atomic = Atomic::create();
 	if(atomic == nil)
 		return nil;
-	atomic->setFrame(frameList[buf[0]]);
+	atomic->setFrame(frameList->frames[buf[0]]);
+	Geometry *g;
 	if(version < 0x30400){
 		if(!findChunk(stream, ID_GEOMETRY, nil, nil)){
 			RWERROR((ERR_CHUNK, "STRUCT"));
-			// TODO: free
-			return nil;
+			goto fail;
 		}
-		atomic->geometry = Geometry::streamRead(stream);
-		if(atomic->geometry == nil){
-			// TODO: free
-			return nil;
-		}
+		g = Geometry::streamRead(stream);
+		if(g == nil)
+			goto fail;
+		atomic->setGeometry(g);
+		g->destroy();
 	}else
-		atomic->geometry = geometryList[buf[1]];
+		atomic->setGeometry(geometryList[buf[1]]);
 	atomic->object.object.flags = buf[2];
 
 	atomicRights[0] = 0;
-	atomic->streamReadPlugins(stream);
+	if(!atomic->streamReadPlugins(stream))
+		goto fail;
 	if(atomicRights[0])
 		atomic->assertRights(atomicRights[0], atomicRights[1]);
 	return atomic;
+
+fail:
+	atomic->destroy();
+	return nil;
 }
 
 bool
-Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
+Atomic::streamWriteClump(Stream *stream, FrameList_ *frmlst)
 {
 	int32 buf[4] = { 0, 0, 0, 0 };
 	Clump *c = this->clump;
@@ -508,7 +452,7 @@ Atomic::streamWriteClump(Stream *stream, Frame **frameList, int32 numFrames)
 		return false;
 	writeChunkHeader(stream, ID_ATOMIC, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, rw::version < 0x30400 ? 12 : 16);
-	buf[0] = findPointer(this->getFrame(), (void**)frameList, numFrames);
+	buf[0] = findPointer(this->getFrame(), (void**)frmlst->frames, frmlst->numFrames);
 
 	if(version < 0x30400){
 		buf[1] = this->object.object.flags;
@@ -579,7 +523,7 @@ getSizeAtomicRights(void *object, int32, int32)
 {
 	Atomic *atomic = (Atomic*)object;
 	if(atomic->pipeline == nil || atomic->pipeline->pluginID == 0)
-		return -1;
+		return 0;
 	return 8;
 }
 

@@ -36,7 +36,7 @@ struct PluginBase
 	void constructPlugins(void);
 	void destructPlugins(void);
 	void copyPlugins(T *t);
-	void streamReadPlugins(Stream *stream);
+	bool streamReadPlugins(Stream *stream);
 	void streamWritePlugins(Stream *stream);
 	int streamGetPluginSize(void);
 	void assertRights(uint32 pluginID, uint32 data);
@@ -81,15 +81,16 @@ PluginBase<T>::copyPlugins(T *t)
 			p->copy((void*)this, (void*)t, p->offset, p->size);
 }
 
-template <typename T> void
+template <typename T> bool
 PluginBase<T>::streamReadPlugins(Stream *stream)
 {
 	int32 length;
 	ChunkHeaderInfo header;
 	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, NULL))
-		return;
+		return false;
 	while(length > 0){
-		readChunkHeaderInfo(stream, &header);
+		if(!readChunkHeaderInfo(stream, &header))
+			return false;
 		length -= 12;
 		for(Plugin *p = this->s_plugins; p; p = p->next)
 			if(p->id == header.type && p->read){
@@ -102,6 +103,7 @@ PluginBase<T>::streamReadPlugins(Stream *stream)
 cont:
 		length -= header.length;
 	}
+	return true;
 }
 
 template <typename T> void

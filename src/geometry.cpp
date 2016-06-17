@@ -87,7 +87,8 @@ Geometry::destroy(void)
 		delete[] this->morphTargets;
 		delete this->meshHeader;
 		for(int32 i = 0; i < this->numMaterials; i++)
-			this->materialList[i]->destroy();
+			if(this->materialList[i])
+				this->materialList[i]->destroy();
 		delete[] this->materialList;
 		free(this);
 	}
@@ -149,29 +150,32 @@ Geometry::streamRead(Stream *stream)
 
 	if(!findChunk(stream, ID_MATLIST, nil, nil)){
 		RWERROR((ERR_CHUNK, "MATLIST"));
-		// TODO: free
-		return nil;
+		goto fail;
 	}
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
-		// TODO: free
-		return nil;
+		goto fail;
 	}
 	geo->numMaterials = stream->readI32();
 	geo->materialList = new Material*[geo->numMaterials];
-	stream->seek(geo->numMaterials*4);	// unused (-1)
+	stream->seek(geo->numMaterials*4);	// material indices...but always -1
+	Material *m;
 	for(int32 i = 0; i < geo->numMaterials; i++){
 		if(!findChunk(stream, ID_MATERIAL, nil, nil)){
 			RWERROR((ERR_CHUNK, "MATERIAL"));
-			// TODO: free
-			return nil;
+			goto fail;
 		}
-		geo->materialList[i] = Material::streamRead(stream);
+		m = Material::streamRead(stream);
+		if(m == nil)
+			goto fail;
+		geo->materialList[i] = m;
 	}
+	if(geo->streamReadPlugins(stream))
+		return geo;
 
-	geo->streamReadPlugins(stream);
-
-	return geo;
+fail:
+	geo->destroy();
+	return nil;
 }
 
 static uint32
@@ -562,10 +566,8 @@ Material::clone(void)
 	}
 	mat->color = this->color;
 	mat->surfaceProps = this->surfaceProps;
-	if(this->texture){
-		mat->texture = this->texture;
-		mat->texture->refCount++;
-	}
+	if(this->texture)
+		mat->setTexture(this->texture);
 	mat->pipeline = this->pipeline;
 	mat->copyPlugins(this);
 	return mat;
@@ -581,6 +583,16 @@ Material::destroy(void)
 			this->texture->destroy();
 		free(this);
 	}
+}
+
+void
+Material::setTexture(Texture *tex)
+{
+	if(this->texture)
+		this->texture->destroy();
+	if(tex)
+		tex->refCount++;
+	this->texture = tex;
 }
 
 struct MatStreamData
@@ -622,21 +634,24 @@ Material::streamRead(Stream *stream)
 	if(buf.textured){
 		if(!findChunk(stream, ID_TEXTURE, &length, nil)){
 			RWERROR((ERR_CHUNK, "TEXTURE"));
-			// TODO: free
-			return nil;
+			goto fail;
 		}
-		mat->texture = Texture::streamRead(stream);
-		if(mat->texture == nil){
-			// TODO: fre
-			return nil;
-		}
+		Texture *t = Texture::streamRead(stream);
+		if(t == nil)
+			goto fail;
+		mat->setTexture(t);
 	}
 
 	materialRights[0] = 0;
-	mat->streamReadPlugins(stream);
+	if(!mat->streamReadPlugins(stream))
+		goto fail;
 	if(materialRights[0])
 		mat->assertRights(materialRights[0], materialRights[1]);
 	return mat;
+
+fail:
+	mat->destroy();
+	return nil;
 }
 
 bool
