@@ -6,3 +6,7 @@ ECODE(ERR_FILE,
       "Couldn't open file %s")
 ECODE(ERR_CHUNK,
       "Couldn't find chunk %s")
+ECODE(ERR_VERSION,
+      "Unsupported version %X")
+ECODE(ERR_PLATFORM,
+      "Unsupported platform %d")

@@ -1,14 +1,11 @@
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <cmath>
 
 #include "rwbase.h"
 #include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
-#include "rwengine.h"
 
 #define PLUGIN_ID 0
 
@@ -260,15 +257,15 @@ FrameList_::streamRead(Stream *stream)
 		return nil;
 	}
 	this->numFrames = stream->readI32();
-	Frame **frameList = (Frame**)malloc(this->numFrames*sizeof(Frame*));
-	if(frameList == nil){
+	this->frames = (Frame**)malloc(this->numFrames*sizeof(Frame*));
+	if(this->frames == nil){
 		RWERROR((ERR_ALLOC, this->numFrames*sizeof(Frame*)));
 		return nil;
 	}
 	for(int32 i = 0; i < this->numFrames; i++){
 		Frame *f;
 		stream->read(&buf, sizeof(buf));
-		frameList[i] = f = Frame::create();
+		this->frames[i] = f = Frame::create();
 		if(f == nil){
 			// TODO: clean up frames?
 			free(this->frames);
@@ -284,10 +281,10 @@ FrameList_::streamRead(Stream *stream)
 		f->matrix.posw = 1.0f;
 		//f->matflag = buf.matflag;
 		if(buf.parent >= 0)
-			frameList[buf.parent]->addChild(f);
+			this->frames[buf.parent]->addChild(f);
 	}
 	for(int32 i = 0; i < this->numFrames; i++)
-		frameList[i]->streamReadPlugins(stream);
+		this->frames[i]->streamReadPlugins(stream);
 	return this;
 }
 
@@ -334,6 +331,7 @@ FrameList_::streamGetSize(Frame *f)
 	int32 numFrames = f->count();
 	uint32 size = 12 + 12 + 4 + numFrames*(sizeof(FrameStreamData)+12);
 	sizeCB(f, (void*)&size);
+	return size;
 }
 
 Frame**

@@ -32,8 +32,8 @@ uint32 makeFVFDeclaration(uint32 flags, int32 numTex);
 int32 getStride(uint32 flags, int32 numTex);
 
 void *destroyNativeData(void *object, int32, int32);
-void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
-void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 

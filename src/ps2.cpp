@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -11,6 +12,8 @@
 #include "rwplugins.h"
 #include "rwps2.h"
 #include "rwps2plg.h"
+
+#define PLUGIN_ID 2
 
 namespace rw {
 namespace ps2 {
@@ -28,8 +31,9 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_PS2);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_PS2)
+		return object;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++)
 		delete[] header->instanceMeshes[i].data;
@@ -38,16 +42,24 @@ destroyNativeData(void *object, int32, int32)
 	return object;
 }
 
-void
+Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(stream->readU32() == PLATFORM_PS2);
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_PS2){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_PS2;
-	assert(geometry->meshHeader != NULL);
+	assert(geometry->meshHeader != nil);
 	header->numMeshes = geometry->meshHeader->numMeshes;
 	header->instanceMeshes = new InstanceData[header->numMeshes];
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -66,15 +78,17 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		instance->material = geometry->meshHeader->mesh[i].material;
 //		sizedebug(instance);
 	}
+	return stream;
 }
 
-void
+Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_PS2);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_PS2)
+		return stream;
 	stream->writeU32(PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -87,6 +101,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		stream->write(buf, 8);
 		stream->write(instance->data, instance->dataSize);
 	}
+	return stream;
 }
 
 int32
@@ -94,8 +109,9 @@ getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	int32 size = 16;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_PS2);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_PS2)
+		return 0;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
@@ -109,7 +125,7 @@ void
 registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, destroyNativeData, NULL);
+	                         nil, destroyNativeData, nil);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
 	                               readNativeData,
 	                               writeNativeData,
@@ -380,11 +396,11 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 }
 
 MatPipeline::MatPipeline(uint32 platform)
- : rw::Pipeline(platform), instanceCB(NULL), uninstanceCB(NULL),
-   preUninstCB(NULL), postUninstCB(NULL)
+ : rw::Pipeline(platform), instanceCB(nil), uninstanceCB(nil),
+   preUninstCB(nil), postUninstCB(nil)
 {
 	for(int i = 0; i < 10; i++)
-		this->attribs[i] = NULL;
+		this->attribs[i] = nil;
 }
 
 void
@@ -653,7 +669,7 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
 	uint8 *raw = im.vertexSize*m->numIndices ?
-		new uint8[im.vertexSize*m->numIndices] : NULL;
+		new uint8[im.vertexSize*m->numIndices] : nil;
 	uint8 *dp = raw;
 	for(uint i = 0; i < nelem(this->attribs); i++)
 		if(a = this->attribs[i])
@@ -706,7 +722,7 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_PS2;
-	assert(geo->meshHeader != NULL);
+	assert(geo->meshHeader != nil);
 	header->numMeshes = geo->meshHeader->numMeshes;
 	header->instanceMeshes = new InstanceData[header->numMeshes];
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -717,7 +733,7 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
-		if(m == NULL)
+		if(m == nil)
 			m = defaultMatPipe;
 		m->instance(geo, instance, mesh);
 		instance->material = mesh->material;
@@ -761,7 +777,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
-	assert(geo->instData != NULL);
+	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	// highest possible number of vertices
@@ -778,7 +794,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
-		if(m == NULL) m = defaultMatPipe;
+		if(m == nil) m = defaultMatPipe;
 		if(m->preUninstCB) m->preUninstCB(m, geo);
 	}
 	geo->numVertices = 0;
@@ -789,9 +805,9 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
-		if(m == NULL) m = defaultMatPipe;
+		if(m == nil) m = defaultMatPipe;
 
-		uint8 *data[nelem(m->attribs)] = { NULL };
+		uint8 *data[nelem(m->attribs)] = { nil };
 		uint8 *raw = m->collectData(geo, instance, mesh, data);
 		assert(m->uninstanceCB);
 		m->uninstanceCB(m, geo, flags, mesh, data);
@@ -803,7 +819,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
 		    (MatPipeline*)mesh->material->pipeline;
-		if(m == NULL) m = defaultMatPipe;
+		if(m == nil) m = defaultMatPipe;
 		if(m->postUninstCB) m->postUninstCB(m, geo);
 	}
 
@@ -811,7 +827,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	geo->generateTriangles(bits);
 	delete[] flags;
 	destroyNativeData(geo, 0, 0);
-	geo->instData = NULL;
+	geo->instData = nil;
 /*
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geo->meshHeader->mesh[i];
@@ -826,7 +842,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 ObjPipeline::ObjPipeline(uint32 platform)
  : rw::ObjPipeline(platform)
 {
-	this->groupPipeline = NULL;
+	this->groupPipeline = nil;
 	this->impl.instance = objInstance;
 	this->impl.uninstance = objUninstance;
 }
@@ -900,13 +916,13 @@ genericPreCB(MatPipeline *pipe, Geometry *geo)
 void
 genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 *data[])
 {
-	float32 *xyz = NULL, *xyzw = NULL;
-	float32 *uv = NULL, *uv2 = NULL;
-	uint8 *rgba = NULL;
-	int8 *normals = NULL;
-	uint32 *weights = NULL;
-	int8 *adc = NULL;
-	Skin *skin = NULL;
+	float32 *xyz = nil, *xyzw = nil;
+	float32 *uv = nil, *uv2 = nil;
+	uint8 *rgba = nil;
+	int8 *normals = nil;
+	uint32 *weights = nil;
+	int8 *adc = nil;
+	Skin *skin = nil;
 	if(skinGlobals.offset)
 		skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
 
@@ -1031,7 +1047,7 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 ObjPipeline*
 makeDefaultPipeline(void)
 {
-	if(defaultMatPipe == NULL){
+	if(defaultMatPipe == nil){
 		MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
 		pipe->attribs[AT_XYZ] = &attribXYZ;
 		pipe->attribs[AT_UV] = &attribUV;
@@ -1044,7 +1060,7 @@ makeDefaultPipeline(void)
 		defaultMatPipe = pipe;
 	}
 
-	if(defaultObjPipe == NULL){
+	if(defaultObjPipe == nil){
 		ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
 		defaultObjPipe = opipe;
 	}
@@ -1101,14 +1117,21 @@ makeMatFXPipeline(void)
 
 // Skin
 
-void
+Stream*
 readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
 	uint8 header[4];
-	uint32 vers;
 	Geometry *geometry = (Geometry*)object;
-	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(stream->readU32() == PLATFORM_PS2);
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_PS2){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
 	stream->read(header, 4);
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
@@ -1140,9 +1163,10 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 		// last 3 ints are split data as in the other formats
 		// TODO: what are the other 4?
 		stream->seek(7*4);
+	return stream;
 }
 
-void
+Stream*
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	uint8 header[4];
@@ -1170,13 +1194,14 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 		uint32 buffer[7] = { 0, 0, 0, 0, 0, 0, 0 };
 		stream->write(buffer, 7*4);
 	}
+	return stream;
 }
 
 int32
 getSizeNativeSkin(void *object, int32 offset)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return -1;
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	// not sure which version introduced the new format
@@ -1206,7 +1231,7 @@ void
 skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return;
 	instanceSkinData(g, m, skin, (uint32*)data[4]);
 }
@@ -1216,8 +1241,8 @@ int32
 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-	float32 *wghts = NULL;
-	uint8 *inds = NULL;
+	float32 *wghts = nil;
+	uint8 *inds = nil;
 	if(skin){
 		wghts = skin->weights;
 		inds = skin->indices;
@@ -1331,7 +1356,7 @@ void
 skinPreCB(MatPipeline*, Geometry *geo)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return;
 	uint8 *data = skin->data;
 	float *invMats = skin->inverseMatrices;
@@ -1358,7 +1383,7 @@ int32 adcOffset;
 int8*
 getADCbits(Geometry *geo)
 {
-	int8 *bits = NULL;
+	int8 *bits = nil;
 	if(adcOffset){
 		ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
 		if(adc->adcFormatted)
@@ -1371,8 +1396,8 @@ int8*
 getADCbitsForMesh(Geometry *geo, Mesh *mesh)
 {
 	int8 *bits = getADCbits(geo);
-	if(bits == NULL)
-		return NULL;
+	if(bits == nil)
+		return nil;
 	int32 n = mesh - geo->meshHeader->mesh;
 	for(int32 i = 0; i < n; i++)
 		bits += geo->meshHeader->mesh[i].numIndices;
@@ -1430,7 +1455,7 @@ unconvertADC(Geometry *g)
 	g->meshHeader = h;
 	adc->adcFormatted = 0;
 	delete[] adc->adcBits;
-	adc->adcBits = NULL;
+	adc->adcBits = nil;
 	adc->numBits = 0;
 }
 
@@ -1477,24 +1502,28 @@ destroyADC(void *object, int32 offset, int32)
 	return object;
 }
 
-static void
+static Stream*
 readADC(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
-	assert(findChunk(stream, ID_ADC, NULL, NULL));
+	if(!findChunk(stream, ID_ADC, nil, nil)){
+		RWERROR((ERR_CHUNK, "ADC"));
+		return nil;
+	}
 	adc->numBits = stream->readI32();
 	adc->adcFormatted = 1;
 	if(adc->numBits == 0){
-		adc->adcBits = NULL;
+		adc->adcBits = nil;
 		adc->numBits = 0;
-		return;
+		return stream;
 	}
 	int32 size = adc->numBits+3 & ~3;
 	adc->adcBits = new int8[size];
 	stream->read(adc->adcBits, size);
+	return stream;
 }
 
-static void
+static Stream*
 writeADC(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
@@ -1502,11 +1531,12 @@ writeADC(Stream *stream, int32 len, void *object, int32 offset, int32)
 	writeChunkHeader(stream, ID_ADC, len-12);
 	if(geometry->geoflags & Geometry::NATIVE){
 		stream->writeI32(0);
-		return;
+		return stream;
 	}
 	stream->writeI32(adc->numBits);
 	int32 size = adc->numBits+3 & ~3;
 	stream->write(adc->adcBits, size);
+	return stream;
 }
 
 static int32
@@ -1564,7 +1594,7 @@ sizedebug(InstanceData *inst)
 		return;
 	uint32 *base = (uint32*)inst->data;
 	uint32 *tag = (uint32*)inst->data;
-	uint32 *last = NULL;
+	uint32 *last = nil;
 	for(;;){
 		switch(tag[0]&0x70000000){
 		case DMAcnt:

@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -19,7 +20,7 @@
 #define strdup _strdup
 #endif
 
-using namespace std;
+#define PLUGIN_ID 0
 
 namespace rw {
 
@@ -33,7 +34,10 @@ TexDictionary*
 TexDictionary::create(void)
 {
 	TexDictionary *dict = (TexDictionary*)malloc(PluginBase::s_size);
-	assert(dict != NULL);
+	if(dict == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
 	dict->object.init(TexDictionary::ID, 0);
 	dict->textures.init();
 	dict->constructPlugins();
@@ -57,24 +61,38 @@ TexDictionary::find(const char *name)
 		if(strncmp_ci(tex->name, name, 32) == 0)
 			return tex;
 	}
-	return NULL;
+	return nil;
 }
 
 TexDictionary*
 TexDictionary::streamRead(Stream *stream)
 {
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	int32 numTex = stream->readI16();
 	stream->readI16();	// some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
 	                        //                   6 = ps2, 8 = xbox)
 	TexDictionary *txd = TexDictionary::create();
+	if(txd == nil)
+		return nil;
+	Texture *tex;
 	for(int32 i = 0; i < numTex; i++){
-		assert(findChunk(stream, ID_TEXTURENATIVE, NULL, NULL));
-		Texture *tex = Texture::streamReadNative(stream);
+		if(!findChunk(stream, ID_TEXTURENATIVE, nil, nil)){
+			RWERROR((ERR_CHUNK, "TEXTURENATIVE"));
+			goto fail;
+		}
+		tex = Texture::streamReadNative(stream);
+		if(tex == nil)
+			goto fail;
 		txd->add(tex);
 	}
-	txd->streamReadPlugins(stream);
-	return txd;
+	if(txd->streamReadPlugins(stream))
+		return txd;
+fail:
+	txd->destroy();
+	return nil;
 }
 
 void
@@ -116,8 +134,11 @@ Texture*
 Texture::create(Raster *raster)
 {
 	Texture *tex = (Texture*)malloc(PluginBase::s_size);
-	assert(tex != NULL);
-	tex->dict = NULL;
+	if(tex == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
+	tex->dict = nil;
 	tex->inDict.init();
 	memset(tex->name, 0, 32);
 	memset(tex->mask, 0, 32);
@@ -148,7 +169,7 @@ defaultFindCB(const char *name)
 	if(currentTexDictionary)
 		return currentTexDictionary->find(name);
 	// TODO: RW searches *all* TXDs otherwise
-	return NULL;
+	return nil;
 }
 
 static Texture*
@@ -169,14 +190,14 @@ defaultReadCB(const char *name, const char *mask)
 		img->destroy();
 		return tex;
 	}else
-		return NULL;
+		return nil;
 }
 
 Texture*
 Texture::read(const char *name, const char *mask)
 {
 	(void)mask;
-	Raster *raster = NULL;
+	Raster *raster = nil;
 	Texture *tex;
 
 	if(tex = Texture::findCB(name)){
@@ -185,11 +206,13 @@ Texture::read(const char *name, const char *mask)
 	}
 	if(loadTextures){
 		tex = Texture::readCB(name, mask);
-		if(tex == NULL)
+		if(tex == nil)
 			goto dummytex;
 	}else{
 	dummytex:
-		tex = Texture::create(NULL);
+		tex = Texture::create(nil);
+		if(tex == nil)
+			return nil;
 		strncpy(tex->name, name, 32);
 		if(mask)
 			strncpy(tex->mask, mask, 32);
@@ -209,26 +232,38 @@ Texture::streamRead(Stream *stream)
 {
 	uint32 length;
 	char name[128], mask[128];
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	uint32 filterAddressing = stream->readU32();
 	// TODO: if V addressing is 0, copy U
 	// if using mipmap filter mode, set automipmapping,
 	// if 0x10000 is set, set mipmapping
 
-	assert(findChunk(stream, ID_STRING, &length, NULL));
+	if(!findChunk(stream, ID_STRING, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRING"));
+		return nil;
+	}
 	stream->read(name, length);
 
-	assert(findChunk(stream, ID_STRING, &length, NULL));
+	if(!findChunk(stream, ID_STRING, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRING"));
+		return nil;
+	}
 	stream->read(mask, length);
 
 	Texture *tex = Texture::read(name, mask);
+	if(tex == nil)
+		return nil;
 	if(tex->refCount == 1)
 		tex->filterAddressing = filterAddressing;
 	tex->refCount++;	// TODO: RW doesn't do this, why?
 
-	tex->streamReadPlugins(stream);
-
-	return tex;
+	if(tex->streamReadPlugins(stream))
+		return tex;
+	tex->destroy();
+	return nil;
 }
 
 bool
@@ -271,7 +306,10 @@ Texture::streamGetSize(void)
 Texture*
 Texture::streamReadNative(Stream *stream)
 {
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	uint32 platform = stream->readU32();
 	stream->seek(-16);
 	if(platform == FOURCC_PS2)
@@ -283,7 +321,7 @@ Texture::streamReadNative(Stream *stream)
 	if(platform == PLATFORM_XBOX)
 		return xbox::readNativeTexture(stream);
 	assert(0 && "unsupported platform");
-	return NULL;
+	return nil;
 }
 
 void
@@ -323,15 +361,18 @@ Texture::streamGetSizeNative(void)
 Image*
 Image::create(int32 width, int32 height, int32 depth)
 {
-	Image *img = (Image*)malloc(sizeof(*img));
-	assert(img != NULL);
+	Image *img = (Image*)malloc(sizeof(Image));
+	if(img == nil){
+		RWERROR((ERR_ALLOC, sizeof(Image)));
+		return nil;
+	}
 	img->flags = 0;
 	img->width = width;
 	img->height = height;
 	img->depth = depth;
 	img->stride = 0;
-	img->pixels = NULL;
-	img->palette = NULL;
+	img->pixels = nil;
+	img->palette = nil;
 	return img;
 }
 
@@ -345,12 +386,12 @@ Image::destroy(void)
 void
 Image::allocate(void)
 {
-	if(this->pixels == NULL){
+	if(this->pixels == nil){
 		this->stride = this->width*(this->depth==4 ? 1 : this->depth/8);
 		this->pixels = new uint8[this->stride*this->height];
 		this->flags |= 1;
 	}
-	if(this->palette == NULL){
+	if(this->palette == nil){
 		if(this->depth == 4 || this->depth == 8)
 			this->palette = new uint8[(this->depth==4? 16 : 256)*4];
 		this->flags |= 2;
@@ -401,7 +442,7 @@ Image::hasAlpha(void)
 	return ret != 0xFF;
 }
 
-static char *searchPaths = NULL;
+static char *searchPaths = nil;
 int numSearchPaths = 0;
 
 void
@@ -413,7 +454,7 @@ Image::setSearchPath(const char *path)
 	if(path)
 		searchPaths = p = strdup(path);
 	else{
-		searchPaths = NULL;
+		searchPaths = nil;
 		return;
 	}
 	while(p && *p){
@@ -448,11 +489,14 @@ Image::getFilename(const char *name)
 			printf("found %s\n", name);
 			return strdup(name);
 		}
-		return NULL;
+		return nil;
 	}else
 		for(int i = 0; i < numSearchPaths; i++){
 			s = (char*)malloc(strlen(p)+len);
-			assert(s != NULL);
+			if(s == nil){
+				RWERROR((ERR_ALLOC, strlen(p)+len));
+				return nil;
+			}
 			strcpy(s, p);
 			strcat(s, name);
 			f = fopen(s, "r");
@@ -464,7 +508,7 @@ Image::getFilename(const char *name)
 			::free(s);
 			p += strlen(p) + 1;
 		}
-	return NULL;
+	return nil;
 }
 
 //
@@ -504,11 +548,11 @@ readTGA(const char *afilename)
 	char *filename;
 	int depth = 0, palDepth = 0;
 	filename = Image::getFilename(afilename);
-	if(filename == NULL)
-		return NULL;
+	if(filename == nil)
+		return nil;
 	uint32 length;
 	uint8 *data = getFileContents(filename, &length);
-	assert(data != NULL);
+	assert(data != nil);
 	free(filename);
 	StreamMemory file;
 	file.open(data, length);
@@ -528,8 +572,8 @@ readTGA(const char *afilename)
 
 	image = Image::create(header.width, header.height, depth);
 	image->allocate();
-	uint8 *palette = header.colorMapType ? image->palette : NULL;
-	uint8 (*color)[4] = NULL;
+	uint8 *palette = header.colorMapType ? image->palette : nil;
+	uint8 (*color)[4] = nil;
 	if(palette){
 		int maxlen = depth == 4 ? 16 : 256;
 		color = (uint8(*)[4])palette;
@@ -579,10 +623,13 @@ writeTGA(Image *image, const char *filename)
 {
 	TGAHeader header;
 	StreamFile file;
-	assert(file.open(filename, "wb"));
+	if(!file.open(filename, "wb")){
+		RWERROR((ERR_FILE, filename));
+		return;
+	}
 	header.IDlen = 0;
-	header.imageType = image->palette != NULL ? 1 : 2;
-	header.colorMapType = image->palette != NULL;
+	header.imageType = image->palette != nil ? 1 : 2;
+	header.colorMapType = image->palette != nil;
 	header.colorMapOrigin = 0;
 	header.colorMapLength = image->depth == 4 ? 16 :
 	                        image->depth == 8 ? 256 : 0;
@@ -596,7 +643,7 @@ writeTGA(Image *image, const char *filename)
 	file.write(&header, sizeof(header));
 
 	uint8 *pixels = image->pixels;
-	uint8 *palette = header.colorMapType ? image->palette : NULL;
+	uint8 *palette = header.colorMapType ? image->palette : nil;
 	uint8 (*color)[4] = (uint8(*)[4])palette;;
 	if(palette)
 		for(int i = 0; i < header.colorMapLength; i++){
@@ -633,7 +680,7 @@ Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
 	Raster *raster = (Raster*)malloc(PluginBase::s_size);
-	assert(raster != NULL);
+	assert(raster != nil);
 	raster->platform = platform ? platform : rw::platform;
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
@@ -641,7 +688,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->width = width;
 	raster->height = height;
 	raster->depth = depth;
-	raster->texels = raster->palette = NULL;
+	raster->texels = raster->palette = nil;
 	raster->constructPlugins();
 
 	engine[raster->platform].rasterCreate(raster);

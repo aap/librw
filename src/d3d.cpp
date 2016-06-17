@@ -3,8 +3,6 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
@@ -562,7 +560,6 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	D3dRaster *raster = PLUGINOFFSET(D3dRaster, object, offset);
-	new (raster) D3dRaster;
 	raster->texture = NULL;
 	raster->palette = NULL;
 	raster->format = 0;

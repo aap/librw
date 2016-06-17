@@ -55,8 +55,8 @@ void *createVertexDeclaration(VertexElement *elements);
 uint32 getDeclaration(void *declaration, VertexElement *elements);
 
 void *destroyNativeData(void *object, int32, int32);
-void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
-void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 

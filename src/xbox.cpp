@@ -3,9 +3,8 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -13,7 +12,7 @@
 #include "rwplugins.h"
 #include "rwxbox.h"
 
-using namespace std;
+#define PLUGIN_ID 2
 
 namespace rw {
 namespace xbox {
@@ -28,8 +27,9 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_XBOX);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_XBOX)
+		return object;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = NULL;
@@ -40,14 +40,25 @@ destroyNativeData(void *object, int32, int32)
 	return object;
 }
 
-void
+Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	uint32 vers;
-	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(stream->readU32() == PLATFORM_XBOX);
-	assert(vers >= 0x35000 && "can't handle native Xbox data < 0x35000");
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_XBOX){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
+	if(vers < 0x35000){
+		RWERROR((ERR_VERSION, vers));
+		return nil;
+	}
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_XBOX;
@@ -86,15 +97,17 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 	header->vertexBuffer = new uint8[header->stride*header->numVertices];
 	stream->read(header->vertexBuffer, header->stride*header->numVertices);
+	return stream;
 }
 
-void
+Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_XBOX);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_XBOX)
+		return stream;
 	stream->writeU32(PLATFORM_XBOX);
 	assert(rw::version >= 0x35000 && "can't write native Xbox data < 0x35000");
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
@@ -125,14 +138,16 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 
 	stream->write(header->data+0x18, header->size);
 	stream->write(header->vertexBuffer, header->stride*header->numVertices);
+	return stream;
 }
 
 int32
 getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_XBOX);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_XBOX)
+		return 0;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	return 12 + 4 + header->size + header->stride*header->numVertices;
 }
@@ -347,14 +362,25 @@ struct NativeSkin
 	int32 stride;
 };
 
-void
+Stream*
 readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
 	Geometry *geometry = (Geometry*)object;
-	uint32 vers;
-	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(vers >= 0x35000 && "can't handle native xbox skin < 0x35000");
-	assert(stream->readU32() == PLATFORM_XBOX);
+	uint32 vers, platform;
+	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_XBOX){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
+	if(vers < 0x35000){
+		RWERROR((ERR_VERSION, vers));
+		return nil;
+	}
+
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
@@ -375,9 +401,10 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 
 	// no split skins in GTA
 	stream->seek(12);
+	return stream;
 }
 
-void
+Stream*
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	Geometry *geometry = (Geometry*)object;
@@ -400,6 +427,7 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	stream->write(skin->inverseMatrices, skin->numBones*64);
 	int32 buffer[3] = { 0, 0, 0};
 	stream->write(buffer, 12);
+	return stream;
 }
 
 int32
@@ -604,18 +632,20 @@ copyVertexFmt(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
+static Stream*
 readVertexFmt(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	uint32 fmt = stream->readU32();
 	*PLUGINOFFSET(uint32, object, offset) = fmt;
 	// TODO: ? create and attach "vertex shader"
+	return stream;
 }
 
-static void
+static Stream*
 writeVertexFmt(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	stream->writeI32(*PLUGINOFFSET(uint32, object, offset));
+	return stream;
 }
 
 static int32
@@ -842,7 +872,6 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	XboxRaster *raster = PLUGINOFFSET(XboxRaster, object, offset);
-	new (raster) XboxRaster;
 	raster->texture = NULL;
 	raster->palette = NULL;
 	raster->format = 0;
@@ -888,11 +917,24 @@ registerNativeRaster(void)
 Texture*
 readNativeTexture(Stream *stream)
 {
-	uint32 version;
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
-	assert(version >= 0x34001);
-	assert(stream->readU32() == PLATFORM_XBOX);
-	Texture *tex = Texture::create(NULL);
+	uint32 vers, platform;
+	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_XBOX){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
+	if(version < 0x34001){
+		RWERROR((ERR_VERSION, version));
+		return nil;
+	}
+	Texture *tex = Texture::create(nil);
+	if(tex == nil)
+		return nil;
+
 
 	// Texture
 	tex->filterAddressing = stream->readU32();

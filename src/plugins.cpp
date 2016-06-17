@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -15,7 +16,7 @@
 #include "rwd3d9.h"
 #include "rwwdgl.h"
 
-using namespace std;
+#define PLUGIN_ID 2
 
 namespace rw {
 
@@ -151,7 +152,7 @@ copyHAnim(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
+static Stream*
 readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	int32 ver, numNodes;
@@ -176,9 +177,10 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		delete[] nodeFlags;
 		delete[] nodeIDs;
 	}
+	return stream;
 }
 
-static void
+static Stream*
 writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
@@ -186,7 +188,7 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	stream->writeI32(hanim->id);
 	if(hanim->hierarchy == NULL){
 		stream->writeI32(0);
-		return;
+		return stream;
 	}
 	HAnimHierarchy *hier = hanim->hierarchy;
 	stream->writeI32(hier->numNodes);
@@ -197,6 +199,7 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		stream->writeI32(hier->nodeInfo[i].index);
 		stream->writeI32(hier->nodeInfo[i].flags);
 	}
+	return stream;
 }
 
 static int32
@@ -270,7 +273,7 @@ registerHAnimPlugin(void)
 
 // Mesh
 
-static void
+static Stream*
 readMesh(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
@@ -315,9 +318,10 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 		}
 		mesh++;
 	}
+	return stream;
 }
 
-static void
+static Stream*
 writeMesh(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
@@ -352,6 +356,7 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 		}
 		mesh++;
 	}
+	return stream;
 }
 
 static int32
@@ -418,7 +423,7 @@ destroyNativeData(void *object, int32 offset, int32 size)
 	return object;
 }
 
-static void
+static Stream*
 readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 {
 	ChunkHeaderInfo header;
@@ -433,13 +438,13 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		platform = stream->readU32();
 		stream->seek(-16);
 		if(platform == PLATFORM_PS2)
-			ps2::readNativeData(stream, len, object, o, s);
+			return ps2::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_XBOX)
-			xbox::readNativeData(stream, len, object, o, s);
+			return xbox::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_D3D8)
-			d3d8::readNativeData(stream, len, object, o, s);
+			return d3d8::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_D3D9)
-			d3d9::readNativeData(stream, len, object, o, s);
+			return d3d9::readNativeData(stream, len, object, o, s);
 		else{
 			fprintf(stderr, "unknown platform %d\n", platform);
 			stream->seek(len);
@@ -448,24 +453,26 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		stream->seek(-12);
 		wdgl::readNativeData(stream, len, object, o, s);
 	}
+	return stream;
 }
 
-static void
+static Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 {
 	Geometry *geometry = (Geometry*)object;
 	if(geometry->instData == NULL)
-		return;
+		return stream;
 	if(geometry->instData->platform == PLATFORM_PS2)
-		ps2::writeNativeData(stream, len, object, o, s);
+		return ps2::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_WDGL)
-		wdgl::writeNativeData(stream, len, object, o, s);
+		return wdgl::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_XBOX)
-		xbox::writeNativeData(stream, len, object, o, s);
+		return xbox::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_D3D8)
-		d3d8::writeNativeData(stream, len, object, o, s);
+		return d3d8::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_D3D9)
-		d3d9::writeNativeData(stream, len, object, o, s);
+		return d3d9::writeNativeData(stream, len, object, o, s);
+	return stream;
 }
 
 static int32
@@ -473,7 +480,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 {
 	Geometry *geometry = (Geometry*)object;
 	if(geometry->instData == NULL)
-		return -1;
+		return 0;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_WDGL)
@@ -484,7 +491,7 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 		return d3d8::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_D3D9)
 		return d3d9::getSizeNativeData(object, offset, size);
-	return -1;
+	return 0;
 }
 
 void
@@ -548,7 +555,7 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
+static Stream*
 readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
 	uint8 header[4];
@@ -557,14 +564,15 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	if(geometry->instData){
 		// TODO: function pointers
 		if(geometry->instData->platform == PLATFORM_PS2)
-			ps2::readNativeSkin(stream, len, object, offset);
+			return ps2::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_WDGL)
-			wdgl::readNativeSkin(stream, len, object, offset);
+			return wdgl::readNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_XBOX)
-			xbox::readNativeSkin(stream, len, object, offset);
-		else
+			return xbox::readNativeSkin(stream, len, object, offset);
+		else{
 			assert(0 && "unsupported native skin platform");
-		return;
+			return nil;
+		}
 	}
 
 	stream->read(header, 4);	// numBones, numUsedBones, numWeights, unused
@@ -614,9 +622,10 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	// no split skins in GTA
 	if(!oldFormat)
 		stream->seek(12);
+	return stream;
 }
 
-static void
+static Stream*
 writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 {
 	uint8 header[4];
@@ -629,9 +638,10 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 			wdgl::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_XBOX)
 			xbox::writeNativeSkin(stream, len, object, offset);
-		else
+		else{
 			assert(0 && "unsupported native skin platform");
-		return;
+			return nil;
+		}
 	}
 
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
@@ -662,6 +672,7 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		uint32 buffer[3] = { 0, 0, 0};
 		stream->write(buffer, 12);
 	}
+	return stream;
 }
 
 static int32
@@ -835,17 +846,19 @@ copyAtomicMatFX(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
-readAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
+static Stream*
+readAtomicMatFX(Stream *stream, int32, void *object, int32, int32)
 {
 	if(stream->readI32())
 		MatFX::enableEffects((Atomic*)object);
+	return stream;
 }
 
-static void
+static Stream*
 writeAtomicMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	stream->writeI32(*PLUGINOFFSET(int32, object, offset));
+	return stream;
 }
 
 static int32
@@ -1036,7 +1049,7 @@ copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
+static Stream*
 readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	Texture *tex, *bumpedTex;
@@ -1057,13 +1070,19 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			coefficient = stream->readF32();
 			bumpedTex = tex = NULL;
 			if(stream->readI32()){
-				assert(findChunk(stream, ID_TEXTURE,
-				       NULL, NULL));
+				if(!findChunk(stream, ID_TEXTURE,
+				              NULL, NULL)){
+					RWERROR((ERR_CHUNK, "TEXTURE"));
+					return nil;
+				}
 				bumpedTex = Texture::streamRead(stream);
 			}
 			if(stream->readI32()){
-				assert(findChunk(stream, ID_TEXTURE,
-				       NULL, NULL));
+				if(!findChunk(stream, ID_TEXTURE,
+				              NULL, NULL)){
+					RWERROR((ERR_CHUNK, "TEXTURE"));
+					return nil;
+				}
 				tex = Texture::streamRead(stream);
 			}
 			idx = matfx->getEffectIndex(type);
@@ -1078,8 +1097,11 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			fbAlpha = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
-				assert(findChunk(stream, ID_TEXTURE,
-				       NULL, NULL));
+				if(!findChunk(stream, ID_TEXTURE,
+				              NULL, NULL)){
+					RWERROR((ERR_CHUNK, "TEXTURE"));
+					return nil;
+				}
 				tex = Texture::streamRead(stream);
 			}
 			idx = matfx->getEffectIndex(type);
@@ -1094,8 +1116,11 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			dstBlend = stream->readI32();
 			tex = NULL;
 			if(stream->readI32()){
-				assert(findChunk(stream, ID_TEXTURE,
-				       NULL, NULL));
+				if(!findChunk(stream, ID_TEXTURE,
+				              NULL, NULL)){
+					RWERROR((ERR_CHUNK, "TEXTURE"));
+					return nil;
+				}
 				tex = Texture::streamRead(stream);
 			}
 			idx = matfx->getEffectIndex(type);
@@ -1106,9 +1131,10 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			break;
 		}
 	}
+	return stream;
 }
 
-static void
+static Stream*
 writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
@@ -1144,6 +1170,7 @@ writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			break;
 		}
 	}
+	return stream;
 }
 
 static int32

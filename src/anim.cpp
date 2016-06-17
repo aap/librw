@@ -4,12 +4,13 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwplugins.h"
 
-using namespace std;
+#define PLUGIN_ID 2	// ?
 
 namespace rw {
 
@@ -21,7 +22,7 @@ void
 registerAnimInterpolatorInfo(AnimInterpolatorInfo *interpInfo)
 {
 	for(int32 i = 0; i < MAXINTERPINFO; i++)
-		if(interpInfoList[i] == NULL){
+		if(interpInfoList[i] == nil){
 			interpInfoList[i] = interpInfo;
 			return;
 		}
@@ -35,7 +36,7 @@ findAnimInterpolatorInfo(int32 id)
 		if(interpInfoList[i] && interpInfoList[i]->id == id)
 			return interpInfoList[i];
 	}
-	return NULL;
+	return nil;
 }
 
 Animation*
@@ -65,7 +66,8 @@ Animation*
 Animation::streamRead(Stream *stream)
 {
 	Animation *anim;
-	assert(stream->readI32() == 0x100);
+	if(stream->readI32() != 0x100)
+		return nil;
 	int32 typeID = stream->readI32();
 	AnimInterpolatorInfo *interpInfo = findAnimInterpolatorInfo(typeID);
 	int32 numFrames = stream->readI32();
@@ -156,7 +158,11 @@ UVAnimDictionary *currentUVAnimDictionary;
 UVAnimDictionary*
 UVAnimDictionary::create(void)
 {
-	UVAnimDictionary *dict = (UVAnimDictionary*)malloc(sizeof(*dict));
+	UVAnimDictionary *dict = (UVAnimDictionary*)malloc(sizeof(UVAnimDictionary));
+	if(dict == nil){
+		RWERROR((ERR_ALLOC, sizeof(UVAnimDictionary)));
+		return nil;
+	}
 	dict->animations.init();
 	return dict;
 }
@@ -177,7 +183,6 @@ void
 UVAnimDictionary::add(Animation *anim)
 {
 	UVAnimDictEntry *de = new UVAnimDictEntry;
-	UVAnimCustomData *custom = (UVAnimCustomData*)anim->customData;
 	de->anim = anim;
 	this->animations.append(&de->inDict);
 }
@@ -185,14 +190,29 @@ UVAnimDictionary::add(Animation *anim)
 UVAnimDictionary*
 UVAnimDictionary::streamRead(Stream *stream)
 {
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	UVAnimDictionary *dict = UVAnimDictionary::create();
+	if(dict == nil)
+		return nil;
 	int32 numAnims = stream->readI32();
+	Animation *anim;
 	for(int32 i = 0; i < numAnims; i++){
-		assert(findChunk(stream, ID_ANIMANIMATION, NULL, NULL));
-		dict->add(Animation::streamRead(stream));
+		if(!findChunk(stream, ID_ANIMANIMATION, nil, nil)){
+			RWERROR((ERR_CHUNK, "ANIMANIMATION"));
+			goto fail;
+		}
+		anim = Animation::streamRead(stream);
+		if(anim == nil)
+			goto fail;
+		dict->add(anim);
 	}
 	return dict;
+fail:
+	dict->destroy();
+	return nil;
 }
 
 bool
@@ -214,7 +234,6 @@ uint32
 UVAnimDictionary::streamGetSize(void)
 {
 	uint32 size = 12 + 4;
-	int32 numAnims = this->count();
 	FORLIST(lnk, this->animations){
 		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
 		size += 12 + de->anim->streamGetSize();
@@ -231,7 +250,7 @@ UVAnimDictionary::find(const char *name)
 		if(strncmp_ci(custom->name, name, 32) == 0)
 			return anim;
 	}
-	return NULL;
+	return nil;
 }
 
 static void
@@ -358,21 +377,24 @@ makeDummyAnimation(const char *name)
 	return anim;
 }
 
-static void
+static Stream*
 readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	UVAnim *uvanim = PLUGINOFFSET(UVAnim, object, offset);
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
 	char name[32];
 	uint32 mask = stream->readI32();
 	uint32 bit = 1;
 	for(int32 i = 0; i < 8; i++){
 		if(mask & bit){
 			stream->read(name, 32);
-			Animation *anim = NULL;
+			Animation *anim = nil;
 			if(currentUVAnimDictionary)
 				anim = currentUVAnimDictionary->find(name);
-			if(anim == NULL){
+			if(anim == nil){
 				anim = makeDummyAnimation(name);
 				if(currentUVAnimDictionary)
 					currentUVAnimDictionary->add(anim);
@@ -384,9 +406,10 @@ readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		}
 		bit <<= 1;
 	}
+	return stream;
 }
 
-static void
+static Stream*
 writeUVAnim(Stream *stream, int32 size, void *object, int32 offset, int32)
 {
 	UVAnim *uvanim = PLUGINOFFSET(UVAnim, object, offset);
@@ -406,6 +429,7 @@ writeUVAnim(Stream *stream, int32 size, void *object, int32 offset, int32)
 			stream->write(custom->name, 32);
 		}
 	}
+	return stream;
 }
 
 static int32

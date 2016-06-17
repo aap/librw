@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -15,7 +16,7 @@
 #include <GL/glew.h>
 #endif
 
-using namespace std;
+#define PLUGIN_ID 2
 
 namespace rw {
 namespace wdgl {
@@ -217,7 +218,9 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_WDGL);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_WDGL)
+		return object;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = NULL;
@@ -228,7 +231,7 @@ destroyNativeData(void *object, int32, int32)
 	return object;
 }
 
-void
+Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
@@ -244,24 +247,30 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = new uint8[header->dataSize];
 	stream->read(header->data, header->dataSize);
+	return stream;
 }
 
-void
+Stream*
 writeNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_WDGL);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_WDGL)
+		return stream;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	stream->writeU32(header->numAttribs);
 	stream->write(header->attribs, header->numAttribs*sizeof(AttribDesc));
 	stream->write(header->data, header->dataSize);
+	return stream;
 }
 
 int32
 getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData->platform == PLATFORM_WDGL);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_WDGL)
+		return 0;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	return 4 + header->numAttribs*sizeof(AttribDesc) + header->dataSize;
 }
@@ -511,22 +520,30 @@ makeDefaultPipeline(void)
 
 // Skin
 
-void
+Stream*
 readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
-	uint32 vers;
 	Geometry *geometry = (Geometry*)object;
-	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(stream->readU32() == PLATFORM_WDGL);
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_GL){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
 	int32 numBones = stream->readI32();
 	skin->init(numBones, 0, 0);
 	stream->read(skin->inverseMatrices, skin->numBones*64);
+	return stream;
 }
 
-void
+Stream*
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	writeChunkHeader(stream, ID_STRUCT, len-12);
@@ -534,6 +551,7 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	stream->writeI32(skin->numBones);
 	stream->write(skin->inverseMatrices, skin->numBones*64);
+	return stream;
 }
 
 int32

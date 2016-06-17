@@ -12,8 +12,6 @@
 
 #define PLUGIN_ID 2
 
-using namespace std;
-
 namespace rw {
 
 Geometry*
@@ -699,14 +697,15 @@ Material::streamGetSize(void)
 
 // Material Rights plugin
 
-static void
+static Stream*
 readMaterialRights(Stream *stream, int32, void *, int32, int32)
 {
 	stream->read(materialRights, 8);
 //	printf("materialrights: %X %X\n", materialRights[0], materialRights[1]);
+	return stream;
 }
 
-static void
+static Stream*
 writeMaterialRights(Stream *stream, int32, void *object, int32, int32)
 {
 	Material *material = (Material*)object;
@@ -714,6 +713,7 @@ writeMaterialRights(Stream *stream, int32, void *object, int32, int32)
 	buffer[0] = material->pipeline->pluginID;
 	buffer[1] = material->pipeline->pluginData;
 	stream->write(buffer, 8);
+	return stream;
 }
 
 static int32
@@ -721,7 +721,7 @@ getSizeMaterialRights(void *object, int32, int32)
 {
 	Material *material = (Material*)object;
 	if(material->pipeline == nil || material->pipeline->pluginID == 0)
-		return -1;
+		return 0;
 	return 8;
 }
 

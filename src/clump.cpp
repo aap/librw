@@ -9,8 +9,6 @@
 #include "rwobjects.h"
 #include "rwengine.h"
 
-using namespace std;
-
 #define PLUGIN_ID 2
 
 namespace rw {
@@ -74,6 +72,8 @@ Clump::streamRead(Stream *stream)
 	uint32 length, version;
 	int32 buf[3];
 	Clump *clump;
+	int32 numGeometries;
+	Geometry **geometryList;
 
 	if(!findChunk(stream, ID_STRUCT, &length, &version)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
@@ -103,8 +103,8 @@ Clump::streamRead(Stream *stream)
 	clump->setFrame(frmlst.frames[0]);
 
 	// Geometry list
-	int32 numGeometries = 0;
-	Geometry **geometryList = nil;
+	numGeometries = 0;
+	geometryList = nil;
 	if(version >= 0x30400){
 		if(!findChunk(stream, ID_GEOMETRYLIST, nil, nil)){
 			RWERROR((ERR_CHUNK, "GEOMETRYLIST"));
@@ -502,13 +502,14 @@ Atomic::defaultRenderCB(Atomic *atomic)
 
 // Atomic Rights plugin
 
-static void
+static Stream*
 readAtomicRights(Stream *stream, int32, void *, int32, int32)
 {
 	stream->read(atomicRights, 8);
+	return stream;
 }
 
-static void
+static Stream*
 writeAtomicRights(Stream *stream, int32, void *object, int32, int32)
 {
 	Atomic *atomic = (Atomic*)object;
@@ -516,6 +517,7 @@ writeAtomicRights(Stream *stream, int32, void *object, int32, int32)
 	buffer[0] = atomic->pipeline->pluginID;
 	buffer[1] = atomic->pipeline->pluginData;
 	stream->write(buffer, 8);
+	return stream;
 }
 
 static int32

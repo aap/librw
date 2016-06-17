@@ -30,8 +30,8 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 };
 
 void *destroyNativeData(void *object, int32, int32);
-void readNativeData(Stream *stream, int32 len, void *object, int32, int32);
-void writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
 int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 
@@ -48,8 +48,8 @@ ObjPipeline *makeDefaultPipeline(void);
 
 // Skin plugin
 
-void readNativeSkin(Stream *stream, int32, void *object, int32 offset);
-void writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
+Stream *readNativeSkin(Stream *stream, int32, void *object, int32 offset);
+Stream *writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
 
 ObjPipeline *makeSkinPipeline(void);

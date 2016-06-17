@@ -6,8 +6,8 @@ namespace rw {
 typedef void *(*Constructor)(void *object, int32 offset, int32 size);
 typedef void *(*Destructor)(void *object, int32 offset, int32 size);
 typedef void *(*CopyConstructor)(void *dst, void *src, int32 offset, int32 size);
-typedef void (*StreamRead)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
-typedef void (*StreamWrite)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
+typedef Stream *(*StreamRead)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
+typedef Stream *(*StreamWrite)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
 typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
 typedef void (*RightsCallback)(void *object, int32 offset, int32 size, uint32 data);
 

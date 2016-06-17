@@ -3,14 +3,15 @@
 #include <cstring>
 #include <cassert>
 
-#include <new>
-
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwengine.h"
 #include "rwps2.h"
+
+#define PLUGIN_ID 0
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
@@ -385,7 +386,7 @@ rasterLock(Raster *raster, int32 level)
 	// TODO
 	(void)raster;
 	(void)level;
-	return NULL;
+	return nil;
 }
 
 static void
@@ -400,7 +401,7 @@ static int32
 rasterNumLevels(Raster *raster)
 {
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	if(raster->texels == NULL) return 0;
+	if(raster->texels == nil) return 0;
 	if(raster->format & Raster::MIPMAP)
 		return MAXLEVEL(ras)+1;
 	return 1;
@@ -410,7 +411,6 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
-	new (raster) Ps2Raster;
 	raster->tex0[0] = 0;
 	raster->tex0[1] = 0;
 	raster->tex1[0] = 0;
@@ -426,7 +426,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	SETKL(raster, 0xFC0);
 
 	raster->dataSize = 0;
-	raster->data = NULL;
+	raster->data = nil;
 	return object;
 }
 
@@ -447,24 +447,27 @@ copyNativeRaster(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-static void
+static Stream*
 readMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	uint16 val = stream->readI32();
 	Texture *tex = (Texture*)object;
-	if(tex->raster == NULL)
-		return;
+	if(tex->raster == nil)
+		return stream;
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
 	SETKL(raster, val);
+	return stream;
 }
 
-static void
+static Stream*
 writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	Texture *tex = (Texture*)object;
-	assert(tex->raster);
+	if(tex->raster)
+		return nil;
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
 	stream->writeI32(raster->tex1[1]&0xFFFF);
+	return stream;
 }
 
 static int32
@@ -487,7 +490,7 @@ registerNativeRaster(void)
 	engine[PLATFORM_PS2].rasterUnlock = rasterUnlock;
 	engine[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
 
-	Texture::registerPlugin(0, ID_SKYMIPMAP, NULL, NULL, NULL);
+	Texture::registerPlugin(0, ID_SKYMIPMAP, nil, nil, nil);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
 }
 
@@ -512,24 +515,47 @@ Texture*
 readNativeTexture(Stream *stream)
 {
 	uint32 length, oldversion, version;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(stream->readU32() == 0x00325350);	// 'PS2\0'
-	Texture *tex = Texture::create(NULL);
+	uint32 fourcc;
+	Raster *raster;
+	Ps2Raster *natras;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
+	fourcc = stream->readU32();
+	if(fourcc != FOURCC_PS2){
+		RWERROR((ERR_PLATFORM, fourcc));
+		return nil;
+	}
+	Texture *tex = Texture::create(nil);
+	if(tex == nil)
+		return nil;
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
-	assert(findChunk(stream, ID_STRING, &length, NULL));
+	if(!findChunk(stream, ID_STRING, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRING"));
+		goto fail;
+	}
 	stream->read(tex->name, length);
-	assert(findChunk(stream, ID_STRING, &length, NULL));
+	if(!findChunk(stream, ID_STRING, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRING"));
+		goto fail;
+	}
 	stream->read(tex->mask, length);
 
 	// Raster
 	StreamRasterExt streamExt;
 	oldversion = rw::version;
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(findChunk(stream, ID_STRUCT, NULL, &version));
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		goto fail;
+	}
+	if(!findChunk(stream, ID_STRUCT, nil, &version)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		goto fail;
+	}
 	stream->read(&streamExt, 0x40);
-	Raster *raster;
 	noNewStyleRasters = streamExt.type < 2;
 	rw::version = version;
 	raster = Raster::create(streamExt.width, streamExt.height,
@@ -538,36 +564,43 @@ readNativeTexture(Stream *stream)
 	noNewStyleRasters = 0;
 	rw::version = oldversion;
 	tex->raster = raster;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
 	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
 	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
-	ras->tex0[0] = streamExt.tex0[0];
-	ras->tex0[1] = streamExt.tex0[1];
-	ras->tex1[0] = streamExt.tex1[0];
-	ras->tex1[1] = ras->tex1[1]&~0xFF0000 | streamExt.tex1[1]<<16 & 0xFF0000;
-	ras->miptbp1[0] = streamExt.miptbp1[0];
-	ras->miptbp1[1] = streamExt.miptbp1[1];
-	ras->miptbp2[0] = streamExt.miptbp2[0];
-	ras->miptbp2[1] = streamExt.miptbp2[1];
-	ras->texelSize = streamExt.texelSize;
-	ras->paletteSize = streamExt.paletteSize;
-	ras->gsSize = streamExt.gsSize;
-	SETKL(ras, streamExt.mipmapVal);
+	natras->tex0[0] = streamExt.tex0[0];
+	natras->tex0[1] = streamExt.tex0[1];
+	natras->tex1[0] = streamExt.tex1[0];
+	natras->tex1[1] = natras->tex1[1]&~0xFF0000 |
+	                  streamExt.tex1[1]<<16 & 0xFF0000;
+	natras->miptbp1[0] = streamExt.miptbp1[0];
+	natras->miptbp1[1] = streamExt.miptbp1[1];
+	natras->miptbp2[0] = streamExt.miptbp2[0];
+	natras->miptbp2[1] = streamExt.miptbp2[1];
+	natras->texelSize = streamExt.texelSize;
+	natras->paletteSize = streamExt.paletteSize;
+	natras->gsSize = streamExt.gsSize;
+	SETKL(natras, streamExt.mipmapVal);
 	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
 	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
 	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
 
-	assert(findChunk(stream, ID_STRUCT, &length, NULL));
+	if(!findChunk(stream, ID_STRING, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRING"));
+		goto fail;
+	}
 	if(streamExt.type < 2){
 		stream->read(raster->texels, length);
 	}else{
-		stream->read(raster->texels-0x50, ras->texelSize);
-		stream->read(raster->palette-0x50, ras->paletteSize);
+		stream->read(raster->texels-0x50, natras->texelSize);
+		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
+	if(tex->streamReadPlugins(stream))
+		return tex;
 
-	tex->streamReadPlugins(stream);
-	return tex;
+fail:
+	tex->destroy();
+	return nil;
 }
 
 void

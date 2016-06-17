@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "rwbase.h"
+#include "rwerror.h"
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
@@ -11,7 +12,7 @@
 #include "rwd3d.h"
 #include "rwd3d8.h"
 
-using namespace std;
+#define PLUGIN_ID 2
 
 namespace rw {
 namespace d3d8 {
@@ -51,11 +52,12 @@ void*
 destroyNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_D3D8);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_D3D8)
+		return object;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
-	geometry->instData = NULL;
+	geometry->instData = nil;
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		deleteObject(inst->indexBuffer);
@@ -67,13 +69,20 @@ destroyNativeData(void *object, int32, int32)
 	return object;
 }
 
-void
+Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	uint32 vers;
-	assert(findChunk(stream, ID_STRUCT, NULL, &vers));
-	assert(stream->readU32() == PLATFORM_D3D8);
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_D3D8){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geometry->instData = header;
 	header->platform = PLATFORM_D3D8;
@@ -96,8 +105,8 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst->material = geometry->materialList[matid];
 		inst->vertexShader = *(uint32*)p; p += 4;
 		inst->primType = *(uint32*)p; p += 4;
-		inst->indexBuffer = NULL; p += 4;
-		inst->vertexBuffer = NULL; p += 4;
+		inst->indexBuffer = nil; p += 4;
+		inst->vertexBuffer = nil; p += 4;
 		inst->baseIndex = 0; p += 4;
 		inst->vertexAlpha = *p++;
 		inst->managed = 0; p++;
@@ -121,15 +130,17 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 		inst++;
 	}
+	return stream;
 }
 
-void
+Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_D3D8);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_D3D8)
+		return stream;
 	stream->writeU32(PLATFORM_D3D8);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 
@@ -172,14 +183,16 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		unlockVertices(inst->vertexBuffer);
 		inst++;
 	}
+	return stream;
 }
 
 int32
 getSizeNativeData(void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	assert(geometry->instData != NULL);
-	assert(geometry->instData->platform == PLATFORM_D3D8);
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_D3D8)
+		return 0;
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	InstanceData *inst = header->inst;
@@ -195,7 +208,7 @@ void
 registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, destroyNativeData, NULL);
+	                         nil, destroyNativeData, nil);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
 	                               readNativeData,
 	                               writeNativeData,
@@ -229,7 +242,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		inst->material = mesh->material;
 		inst->vertexShader = 0;
 		inst->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
-		inst->vertexBuffer = NULL;
+		inst->vertexBuffer = nil;
 		inst->baseIndex = 0;	// (maybe) not used by us
 		inst->vertexAlpha = 0;
 		inst->managed = 0;
@@ -257,7 +270,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
-	assert(geo->instData != NULL);
+	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
@@ -290,7 +303,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		pipe->instance(atomic);
-	assert(geo->instData != NULL);
+	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
 	if(pipe->renderCB)
 		pipe->renderCB(atomic, (InstanceDataHeader*)geo->instData);
@@ -302,9 +315,9 @@ ObjPipeline::ObjPipeline(uint32 platform)
 	this->impl.instance = d3d8::instance;
 	this->impl.uninstance = d3d8::uninstance;
 	this->impl.render = d3d8::render;
-	this->instanceCB = NULL;
-	this->uninstanceCB = NULL;
-	this->renderCB = NULL;
+	this->instanceCB = nil;
+	this->uninstanceCB = nil;
+	this->renderCB = nil;
 }
 
 void
@@ -463,9 +476,19 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 Texture*
 readNativeTexture(Stream *stream)
 {
-	assert(findChunk(stream, ID_STRUCT, NULL, NULL));
-	assert(stream->readU32() == PLATFORM_D3D8);
-	Texture *tex = Texture::create(NULL);
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"))
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_D3D8){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
+	Texture *tex = Texture::create(nil);
+	if(tex == nil)
+		return nil;
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
