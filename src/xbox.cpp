@@ -20,7 +20,7 @@ namespace xbox {
 void
 initializePlatform(void)
 {
-	engine[PLATFORM_XBOX].defaultPipeline = makeDefaultPipeline();
+	driver[PLATFORM_XBOX].defaultPipeline = makeDefaultPipeline();
 }
 
 void*
@@ -32,7 +32,7 @@ destroyNativeData(void *object, int32, int32)
 		return object;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
-	geometry->instData = NULL;
+	geometry->instData = nil;
 	delete[] (uint8*)header->vertexBuffer;
 	delete[] header->begin;
 	delete[] header->data;
@@ -156,7 +156,7 @@ void
 registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, destroyNativeData, NULL);
+	                         nil, destroyNativeData, nil);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
 	                               readNativeData,
 	                               writeNativeData,
@@ -195,7 +195,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->vertexAlpha = 0;
 	// set by the instanceCB
 	header->stride = 0;
-	header->vertexBuffer = NULL;
+	header->vertexBuffer = nil;
 
 	InstanceData *inst = new InstanceData[header->numMeshes];
 	header->begin = inst;
@@ -225,7 +225,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
-	assert(geo->instData != NULL);
+	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_XBOX);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
@@ -251,8 +251,8 @@ ObjPipeline::ObjPipeline(uint32 platform)
 {
 	this->impl.instance = xbox::instance;
 	this->impl.uninstance = xbox::uninstance;
-	this->instanceCB = NULL;
-	this->uninstanceCB = NULL;
+	this->instanceCB = nil;
+	this->uninstanceCB = nil;
 }
 
 
@@ -435,9 +435,9 @@ getSizeNativeSkin(void *object, int32 offset)
 {
 	Geometry *geometry = (Geometry*)object;
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return -1;
-	if(skin->platformData == NULL)
+	if(skin->platformData == nil)
 		return -1;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;
 	return 12 + 8 + 2*256*4 + 4*4 +
@@ -450,7 +450,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	defaultInstanceCB(geo, header);
 
         Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == NULL)
+        if(skin == nil)
 		return;
 	NativeSkin *natskin = new NativeSkin;
 	skin->platformData = natskin;
@@ -504,7 +504,7 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	defaultUninstanceCB(geo, header);
 
         Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == NULL)
+        if(skin == nil)
 		return;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;
 
@@ -660,7 +660,7 @@ void
 registerVertexFormatPlugin(void)
 {
 	vertexFmtOffset = Geometry::registerPlugin(sizeof(uint32), ID_VERTEXFMT,
-	                         createVertexFmt, NULL, copyVertexFmt);
+	                         createVertexFmt, nil, copyVertexFmt);
 	Geometry::registerPluginStream(ID_VERTEXFMT,
 	                               readVertexFmt,
 	                               writeVertexFmt,
@@ -872,8 +872,8 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	XboxRaster *raster = PLUGINOFFSET(XboxRaster, object, offset);
-	raster->texture = NULL;
-	raster->palette = NULL;
+	raster->texture = nil;
+	raster->palette = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->unknownFlag = 0;
@@ -891,8 +891,8 @@ static void*
 copyNativeRaster(void *dst, void *, int32 offset, int32)
 {
 	XboxRaster *raster = PLUGINOFFSET(XboxRaster, dst, offset);
-	raster->texture = NULL;
-	raster->palette = NULL;
+	raster->texture = nil;
+	raster->palette = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->unknownFlag = 0;
@@ -907,11 +907,11 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	engine[PLATFORM_XBOX].rasterNativeOffset = nativeRasterOffset;
-	engine[PLATFORM_XBOX].rasterCreate = rasterCreate;
-	engine[PLATFORM_XBOX].rasterLock = rasterLock;
-	engine[PLATFORM_XBOX].rasterUnlock = rasterUnlock;
-	engine[PLATFORM_XBOX].rasterNumLevels = rasterNumLevels;
+	driver[PLATFORM_XBOX].rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_XBOX].rasterCreate = rasterCreate;
+	driver[PLATFORM_XBOX].rasterLock = rasterLock;
+	driver[PLATFORM_XBOX].rasterUnlock = rasterUnlock;
+	driver[PLATFORM_XBOX].rasterNumLevels = rasterNumLevels;
 }
 
 Texture*

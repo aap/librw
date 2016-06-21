@@ -12,8 +12,6 @@
 #define COLOR_ARGB(a,r,g,b) \
     ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 
-using namespace std;
-
 namespace rw {
 
 static void nothing(ObjPipeline *, Atomic*) {}
@@ -47,8 +45,10 @@ findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, i
 			max = *indices;
 		indices++;
 	}
-	*minVert = min;
-	*numVertices = max - min + 1;
+	if(minVert)
+		*minVert = min;
+	if(numVertices)
+		*numVertices = max - min + 1;
 }
 
 void
@@ -128,16 +128,31 @@ uninstV2d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride)
 bool32
 instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
 {
-	assert(type == VERT_ARGB);
 	bool32 hasAlpha = 0;
-	for(uint32 i = 0; i < numVertices; i++){
-		dst[0] = src[2];
-		dst[1] = src[1];
-		dst[2] = src[0];
-		dst[3] = src[3];
-		dst += stride;
-		src += 4;
-	}
+	if(type == VERT_ARGB){
+		for(uint32 i = 0; i < numVertices; i++){
+			dst[0] = src[2];
+			dst[1] = src[1];
+			dst[2] = src[0];
+			dst[3] = src[3];
+			if(dst[3] != 0xFF)
+				hasAlpha = 1;
+			dst += stride;
+			src += 4;
+		}
+	}else if(type == VERT_RGBA){
+		for(uint32 i = 0; i < numVertices; i++){
+			dst[0] = src[0];
+			dst[1] = src[1];
+			dst[2] = src[2];
+			dst[3] = src[3];
+			if(dst[3] != 0xFF)
+				hasAlpha = 1;
+			dst += stride;
+			src += 4;
+		}
+	}else
+		assert(0 && "unsupported color type");
 	return hasAlpha;
 }
 

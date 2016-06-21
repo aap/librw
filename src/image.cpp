@@ -691,7 +691,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->texels = raster->palette = nil;
 	raster->constructPlugins();
 
-	engine[raster->platform].rasterCreate(raster);
+	driver[raster->platform].rasterCreate(raster);
 	return raster;
 }
 
@@ -707,19 +707,19 @@ Raster::destroy(void)
 uint8*
 Raster::lock(int32 level)
 {
-	return engine[this->platform].rasterLock(this, level);
+	return driver[this->platform].rasterLock(this, level);
 }
 
 void
 Raster::unlock(int32 level)
 {
-	engine[this->platform].rasterUnlock(this, level);
+	driver[this->platform].rasterUnlock(this, level);
 }
 
 int32
 Raster::getNumLevels(void)
 {
-	return engine[this->platform].rasterNumLevels(this);
+	return driver[this->platform].rasterNumLevels(this);
 }
 
 int32
@@ -737,7 +737,7 @@ Raster::createFromImage(Image *image)
 {
 	Raster *raster = Raster::create(image->width, image->height,
 	                                image->depth, 4 | 0x80);
-	engine[raster->platform].rasterFromImage(raster, image);
+	driver[raster->platform].rasterFromImage(raster, image);
 	return raster;
 }
 

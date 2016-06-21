@@ -17,14 +17,14 @@ Frame*
 Frame::create(void)
 {
 	Frame *f = (Frame*)malloc(PluginBase::s_size);
-	if(f == NULL){
+	if(f == nil){
 		RWERROR((ERR_ALLOC, PluginBase::s_size));
-		return NULL;
+		return nil;
 	}
 	f->object.init(Frame::ID, 0);
 	f->objectList.init();
-	f->child = NULL;
-	f->next = NULL;
+	f->child = nil;
+	f->next = nil;
 	f->root = f;
 	f->matrix.setIdentity();
 	f->ltm.setIdentity();
@@ -35,7 +35,7 @@ Frame::create(void)
 Frame*
 Frame::cloneHierarchy(void)
 {
-	Frame *frame = this->cloneAndLink(NULL);
+	Frame *frame = this->cloneAndLink(nil);
 	frame->purgeClone();
 	return frame;
 }
@@ -56,12 +56,12 @@ Frame::destroy(void)
 				;
 			child->next = this->next;
 		}
-		this->object.parent = NULL;
+		this->object.parent = nil;
 		// Doesn't seem to make much sense, blame criterion.
 		this->setHierarchyRoot(this);
 	}
 	for(Frame *f = this->child; f; f = f->next)
-		f->object.parent = NULL;
+		f->object.parent = nil;
 	free(this);
 }
 
@@ -84,13 +84,13 @@ Frame::addChild(Frame *child, bool32 append)
 	if(child->getParent())
 		child->removeChild();
 	if(append){
-		if(this->child == NULL)
+		if(this->child == nil)
 			this->child = child;
 		else{
 			for(c = this->child; c->next; c = c->next);
 			c->next = child;
 		}
-		child->next = NULL;
+		child->next = nil;
 	}else{
 		child->next = this->child;
 		this->child = child;
@@ -99,6 +99,7 @@ Frame::addChild(Frame *child, bool32 append)
 	child->root = this->root;
 	for(c = child->child; c; c = c->next)
 		c->setHierarchyRoot(this);
+	// If the child was a root, remove from dirty list
 	if(child->object.privateFlags & Frame::HIERARCHYSYNC){
 		child->inDirtyList.remove();
 		child->object.privateFlags &= ~Frame::HIERARCHYSYNC;
@@ -119,7 +120,7 @@ Frame::removeChild(void)
 			child = child->next;
 		child->next = this->next;
 	}
-	this->object.parent = this->next = NULL;
+	this->object.parent = this->next = nil;
 	this->root = this;
 	for(child = this->child; child; child = child->next)
 		child->setHierarchyRoot(this);
@@ -151,36 +152,74 @@ Frame::count(void)
 	return count;
 }
 
+/*
+ * Synching is a bit complicated. If anything in the hierarchy is not synched,
+ * the root of the hierarchy is marked with the HIERARCHYSYNC flags.
+ * Every unsynched frame is marked with the SUBTREESYNC flags.
+ * If the LTM is not synched, the LTM flags are set.
+ * If attached objects need synching, the OBJ flags are set.
+ */
+
+/* Synch just LTM matrices in a hierarchy */
 static void
-syncRecurse(Frame *frame, uint8 flags)
+syncLTMRecurse(Frame *frame, uint8 hierarchyFlags)
 {
-	uint8 flg;
 	for(; frame; frame = frame->next){
-		flg = flags | frame->object.privateFlags;
-		if(flg & Frame::SUBTREESYNCLTM){
+		// If frame is dirty or any parent was dirty, update LTM
+		hierarchyFlags |= frame->object.privateFlags;
+		if(hierarchyFlags & Frame::SUBTREESYNCLTM){
 			Matrix::mult(&frame->ltm, &frame->getParent()->ltm,
 			                          &frame->matrix);
 			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
 		}
-		syncRecurse(frame->child, flg);
+		// And synch all children
+		syncLTMRecurse(frame->child, hierarchyFlags);
 	}
 }
 
+/* Synch just objects in a hierarchy */
+static void
+syncObjRecurse(Frame *frame)
+{
+	for(; frame; frame = frame->next){
+		// Synch attached objects
+		FORLIST(lnk, frame->objectList)
+			ObjectWithFrame::fromFrame(lnk)->sync();
+		frame->object.privateFlags &= ~Frame::SUBTREESYNCOBJ;
+		// And synch all children
+		syncObjRecurse(frame->child);
+	}
+}
+
+/* Synch LTM and objects */
+static void
+syncRecurse(Frame *frame, uint8 hierarchyFlags)
+{
+	for(; frame; frame = frame->next){
+		// If frame is dirty or any parent was dirty, update LTM
+		hierarchyFlags |= frame->object.privateFlags;
+		if(hierarchyFlags & Frame::SUBTREESYNCLTM)
+			Matrix::mult(&frame->ltm, &frame->getParent()->ltm,
+			                          &frame->matrix);
+		// Synch attached objects
+		FORLIST(lnk, frame->objectList)
+			ObjectWithFrame::fromFrame(lnk)->sync();
+		frame->object.privateFlags &= ~Frame::SUBTREESYNC;
+		// And synch all children
+		syncRecurse(frame->child, hierarchyFlags);
+	}
+}
+
+/* Sync the LTMs of the hierarchy of which 'this' is the root */
 void
 Frame::syncHierarchyLTM(void)
 {
-	Frame *child;
-	uint8 flg;
+	// Sync root's LTM
 	if(this->object.privateFlags & Frame::SUBTREESYNCLTM)
 		this->ltm = this->matrix;
-	for(child = this->child; child; child = child->next){
-		flg = this->object.privateFlags | child->object.privateFlags;
-		if(flg & Frame::SUBTREESYNCLTM){
-			Matrix::mult(&child->ltm, &this->ltm, &child->matrix);
-			child->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
-		}
-		syncRecurse(child, flg);
-	}
+	// ...and children
+	syncLTMRecurse(this->child, this->object.privateFlags);
+	// all clean now
 	this->object.privateFlags &= ~Frame::SYNCLTM;
 }
 
@@ -192,12 +231,42 @@ Frame::getLTM(void)
 	return &this->ltm;
 }
 
+/* Synch all dirty frames; LTMs and objects */
+void
+Frame::syncDirty(void)
+{
+	Frame *frame;
+	FORLIST(lnk, Frame::dirtyList){
+		frame = LLLinkGetData(lnk, Frame, inDirtyList);
+		if(frame->object.privateFlags & Frame::HIERARCHYSYNCLTM){
+			// Sync root's LTM
+			if(frame->object.privateFlags & Frame::SUBTREESYNCLTM)
+				frame->ltm = frame->matrix;
+			// Synch attached objects
+			FORLIST(lnk, frame->objectList)
+				ObjectWithFrame::fromFrame(lnk)->sync();
+			// ...and children
+			syncRecurse(frame->child, frame->object.privateFlags);
+		}else{
+			// LTMs are clean, just synch objects
+			FORLIST(lnk, frame->objectList)
+				ObjectWithFrame::fromFrame(lnk)->sync();
+			syncObjRecurse(frame->child);
+		}
+		// all clean now
+		frame->object.privateFlags &= ~(Frame::SYNCLTM | Frame::SYNCOBJ);
+	}
+	Frame::dirtyList.init();
+}
+
 void
 Frame::updateObjects(void)
 {
+	// Mark root as dirty and insert into dirty list if necessary
 	if((this->root->object.privateFlags & HIERARCHYSYNC) == 0)
-		Frame::dirtyList.add(&this->inDirtyList);
+		Frame::dirtyList.add(&this->root->inDirtyList);
 	this->root->object.privateFlags |= HIERARCHYSYNC;
+	// Mark subtree as dirty as well
 	this->object.privateFlags |= SUBTREESYNC;
 }
 
@@ -214,11 +283,10 @@ Frame*
 Frame::cloneAndLink(Frame *clonedroot)
 {
 	Frame *frame = Frame::create();
-	if(clonedroot == NULL)
+	if(clonedroot == nil)
 		clonedroot = frame;
 	frame->object.copy(&this->object);
 	frame->matrix = this->matrix;
-	//memcpy(frame->matrix, this->matrix, sizeof(this->matrix));
 	frame->root = clonedroot;
 	this->root = frame;	// Remember cloned frame
 	for(Frame *child = this->child; child; child = child->next){

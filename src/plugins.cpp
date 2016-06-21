@@ -35,10 +35,10 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 f
 	hier->numNodes = numNodes;
 	hier->flags = flags;
 	hier->maxInterpKeyFrameSize = maxKeySize;
-	hier->parentFrame = NULL;
+	hier->parentFrame = nil;
 	hier->parentHierarchy = hier;
 	if(hier->flags & 2)
-		hier->matrices = hier->matricesUnaligned = NULL;
+		hier->matrices = hier->matricesUnaligned = nil;
 	else{
 		hier->matricesUnaligned =
 		  (float*) new uint8[hier->numNodes*64 + 15];
@@ -50,7 +50,7 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 f
 		hier->nodeInfo[i].id = nodeIDs[i];
 		hier->nodeInfo[i].index = i;
 		hier->nodeInfo[i].flags = nodeFlags[i];
-		hier->nodeInfo[i].frame = NULL;
+		hier->nodeInfo[i].frame = nil;
 	}
 	return hier;
 }
@@ -66,7 +66,7 @@ HAnimHierarchy::destroy(void)
 static Frame*
 findById(Frame *f, int32 id)
 {
-	if(f == NULL) return NULL;
+	if(f == nil) return nil;
 	HAnimData *hanim = HAnimData::get(f);
 	if(hanim->id >= 0 && hanim->id == id) return f;
 	Frame *ff = findById(f->next, id);
@@ -107,7 +107,7 @@ HAnimHierarchy::get(Frame *f)
 HAnimHierarchy*
 HAnimHierarchy::find(Frame *f)
 {
-	if(f == NULL) return NULL;
+	if(f == nil) return nil;
 	HAnimHierarchy *hier = HAnimHierarchy::get(f);
 	if(hier) return hier;
 	hier = HAnimHierarchy::find(f->next);
@@ -126,7 +126,7 @@ createHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	hanim->id = -1;
-	hanim->hierarchy = NULL;
+	hanim->hierarchy = nil;
 	return object;
 }
 
@@ -137,7 +137,7 @@ destroyHAnim(void *object, int32 offset, int32)
 	if(hanim->hierarchy)
 		hanim->hierarchy->destroy();
 	hanim->id = -1;
-	hanim->hierarchy = NULL;
+	hanim->hierarchy = nil;
 	return object;
 }
 
@@ -148,7 +148,7 @@ copyHAnim(void *dst, void *src, int32 offset, int32)
 	HAnimData *srchanim = PLUGINOFFSET(HAnimData, src, offset);
 	dsthanim->id = srchanim->id;
 	// TODO
-	dsthanim->hierarchy = NULL;
+	dsthanim->hierarchy = nil;
 	return dst;
 }
 
@@ -186,7 +186,7 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	stream->writeI32(256);
 	stream->writeI32(hanim->id);
-	if(hanim->hierarchy == NULL){
+	if(hanim->hierarchy == nil){
 		stream->writeI32(0);
 		return stream;
 	}
@@ -207,7 +207,7 @@ getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	if(!hAnimDoStream ||
-	   version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == NULL)
+	   version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == nil)
 		return 0;
 	if(hanim->hierarchy)
 		return 12 + 8 + hanim->hierarchy->numNodes*12;
@@ -287,14 +287,14 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
-	uint16 *p = NULL;
+	uint16 *p = nil;
 	if(!(geo->geoflags & Geometry::NATIVE) || hasData)
 		p = new uint16[geo->meshHeader->totalIndices];
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		stream->read(buf, 8);
 		mesh->numIndices = buf[0];
 		mesh->material = geo->materialList[buf[1]];
-		mesh->indices = NULL;
+		mesh->indices = nil;
 		if(geo->geoflags & Geometry::NATIVE){
 			// OpenGL stores uint16 indices here
 			if(hasData){
@@ -339,7 +339,7 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 		                     geo->numMaterials);
 		stream->write(buf, 8);
 		if(geo->geoflags & Geometry::NATIVE){
-			assert(geo->instData != NULL);
+			assert(geo->instData != nil);
 			if(geo->instData->platform == PLATFORM_WDGL)
 				stream->write(mesh->indices,
 				            mesh->numIndices*2);
@@ -363,11 +363,11 @@ static int32
 getSizeMesh(void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
-	if(geo->meshHeader == NULL)
+	if(geo->meshHeader == nil)
 		return -1;
 	int32 size = 12 + geo->meshHeader->numMeshes*8;
 	if(geo->geoflags & Geometry::NATIVE){
-		assert(geo->instData != NULL);
+		assert(geo->instData != nil);
 		if(geo->instData->platform == PLATFORM_WDGL)
 			size += geo->meshHeader->totalIndices*2;
 	}else{
@@ -379,7 +379,7 @@ getSizeMesh(void *object, int32, int32)
 void
 registerMeshPlugin(void)
 {
-	Geometry::registerPlugin(0, 0x50E, NULL, NULL, NULL);
+	Geometry::registerPlugin(0, 0x50E, nil, nil, nil);
 	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
 }
 
@@ -408,7 +408,7 @@ static void*
 destroyNativeData(void *object, int32 offset, int32 size)
 {
 	Geometry *geometry = (Geometry*)object;
-	if(geometry->instData == NULL)
+	if(geometry->instData == nil)
 		return object;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::destroyNativeData(object, offset, size);
@@ -460,7 +460,7 @@ static Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 {
 	Geometry *geometry = (Geometry*)object;
-	if(geometry->instData == NULL)
+	if(geometry->instData == nil)
 		return stream;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::writeNativeData(stream, len, object, o, s);
@@ -479,7 +479,7 @@ static int32
 getSizeNativeData(void *object, int32 offset, int32 size)
 {
 	Geometry *geometry = (Geometry*)object;
-	if(geometry->instData == NULL)
+	if(geometry->instData == nil)
 		return 0;
 	if(geometry->instData->platform == PLATFORM_PS2)
 		return ps2::getSizeNativeData(object, offset, size);
@@ -498,7 +498,7 @@ void
 registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, destroyNativeData, NULL);
+	                         nil, destroyNativeData, nil);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
 	                               readNativeData,
 	                               writeNativeData,
@@ -509,12 +509,12 @@ registerNativeDataPlugin(void)
 // Skin
 //
 
-SkinGlobals skinGlobals = { 0, { NULL } };
+SkinGlobals skinGlobals = { 0, { nil } };
 
 static void*
 createSkin(void *object, int32 offset, int32)
 {
-	*PLUGINOFFSET(Skin*, object, offset) = NULL;
+	*PLUGINOFFSET(Skin*, object, offset) = nil;
 	return object;
 }
 
@@ -534,10 +534,10 @@ static void*
 copySkin(void *dst, void *src, int32 offset, int32)
 {
 	Skin *srcskin = *PLUGINOFFSET(Skin*, src, offset);
-	if(srcskin == NULL)
+	if(srcskin == nil)
 		return dst;
 	Geometry *geometry = (Geometry*)src;
-	assert(geometry->instData == NULL);
+	assert(geometry->instData == nil);
 	assert(((Geometry*)src)->numVertices == ((Geometry*)dst)->numVertices);
 	Skin *dstskin = new Skin;
 	*PLUGINOFFSET(Skin*, dst, offset) = dstskin;
@@ -695,7 +695,7 @@ getSizeSkin(void *object, int32 offset, int32)
 	}
 
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return -1;
 
 	int32 size = 4 + geometry->numVertices*(16+4) +
@@ -717,7 +717,7 @@ skinRights(void *object, int32, int32, uint32)
 void
 registerSkinPlugin(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
 	defpipe->pluginID = ID_SKIN;
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
@@ -739,7 +739,7 @@ registerSkinPlugin(void)
 	                                              copySkin);
 	Geometry::registerPluginStream(ID_SKIN,
 	                               readSkin, writeSkin, getSizeSkin);
-	Atomic::registerPlugin(0, ID_SKIN, NULL, NULL, NULL);
+	Atomic::registerPlugin(0, ID_SKIN, nil, nil, nil);
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 
@@ -754,30 +754,30 @@ Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 	this->data = new uint8[size];
 	uint8 *p = this->data;
 
-	this->usedBones = NULL;
+	this->usedBones = nil;
 	if(this->numUsedBones){
 		this->usedBones = p;
 		p += this->numUsedBones;
 	}
 
 	p = (uint8*)(((uintptr)p + 0xF) & ~0xF);
-	this->inverseMatrices = NULL;
+	this->inverseMatrices = nil;
 	if(this->numBones){
 		this->inverseMatrices = (float*)p;
 		p += 64*this->numBones;
 	}
 
-	this->indices = NULL;
+	this->indices = nil;
 	if(numVertices){
 		this->indices = p;
 		p += 4*numVertices;
 	}
 
-	this->weights = NULL;
+	this->weights = nil;
 	if(numVertices)
 		this->weights = (float*)p;
 
-	this->platformData = NULL;
+	this->platformData = nil;
 }
 
 void
@@ -871,7 +871,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 
 // Material
 
-MatFXGlobals matFXGlobals = { 0, 0, { NULL } };
+MatFXGlobals matFXGlobals = { 0, 0, { nil } };
 
 // TODO: Frames and Matrices?
 static void
@@ -1003,7 +1003,7 @@ MatFX::setDualDestBlend(int32 blend)
 static void*
 createMaterialMatFX(void *object, int32 offset, int32)
 {
-	*PLUGINOFFSET(MatFX*, object, offset) = NULL;
+	*PLUGINOFFSET(MatFX*, object, offset) = nil;
 	return object;
 }
 
@@ -1022,7 +1022,7 @@ static void*
 copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
 {
 	MatFX *srcfx = *PLUGINOFFSET(MatFX*, src, offset);
-	if(srcfx == NULL)
+	if(srcfx == nil)
 		return dst;
 	MatFX *dstfx = new MatFX;
 	*PLUGINOFFSET(MatFX*, dst, offset) = dstfx;
@@ -1068,10 +1068,10 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		switch(type){
 		case MatFX::BUMPMAP:
 			coefficient = stream->readF32();
-			bumpedTex = tex = NULL;
+			bumpedTex = tex = nil;
 			if(stream->readI32()){
 				if(!findChunk(stream, ID_TEXTURE,
-				              NULL, NULL)){
+				              nil, nil)){
 					RWERROR((ERR_CHUNK, "TEXTURE"));
 					return nil;
 				}
@@ -1079,7 +1079,7 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 			}
 			if(stream->readI32()){
 				if(!findChunk(stream, ID_TEXTURE,
-				              NULL, NULL)){
+				              nil, nil)){
 					RWERROR((ERR_CHUNK, "TEXTURE"));
 					return nil;
 				}
@@ -1095,10 +1095,10 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		case MatFX::ENVMAP:
 			coefficient = stream->readF32();
 			fbAlpha = stream->readI32();
-			tex = NULL;
+			tex = nil;
 			if(stream->readI32()){
 				if(!findChunk(stream, ID_TEXTURE,
-				              NULL, NULL)){
+				              nil, nil)){
 					RWERROR((ERR_CHUNK, "TEXTURE"));
 					return nil;
 				}
@@ -1114,10 +1114,10 @@ readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		case MatFX::DUAL:
 			srcBlend = stream->readI32();
 			dstBlend = stream->readI32();
-			tex = NULL;
+			tex = nil;
 			if(stream->readI32()){
 				if(!findChunk(stream, ID_TEXTURE,
-				              NULL, NULL)){
+				              nil, nil)){
 					RWERROR((ERR_CHUNK, "TEXTURE"));
 					return nil;
 				}
@@ -1145,10 +1145,10 @@ writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		switch(matfx->fx[i].type){
 		case MatFX::BUMPMAP:
 			stream->writeF32(matfx->fx[i].bump.coefficient);
-			stream->writeI32(matfx->fx[i].bump.bumpedTex != NULL);
+			stream->writeI32(matfx->fx[i].bump.bumpedTex != nil);
 			if(matfx->fx[i].bump.bumpedTex)
 				matfx->fx[i].bump.bumpedTex->streamWrite(stream);
-			stream->writeI32(matfx->fx[i].bump.tex != NULL);
+			stream->writeI32(matfx->fx[i].bump.tex != nil);
 			if(matfx->fx[i].bump.tex)
 				matfx->fx[i].bump.tex->streamWrite(stream);
 			break;
@@ -1156,7 +1156,7 @@ writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		case MatFX::ENVMAP:
 			stream->writeF32(matfx->fx[i].env.coefficient);
 			stream->writeI32(matfx->fx[i].env.fbAlpha);
-			stream->writeI32(matfx->fx[i].env.tex != NULL);
+			stream->writeI32(matfx->fx[i].env.tex != nil);
 			if(matfx->fx[i].env.tex)
 				matfx->fx[i].env.tex->streamWrite(stream);
 			break;
@@ -1164,7 +1164,7 @@ writeMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 		case MatFX::DUAL:
 			stream->writeI32(matfx->fx[i].dual.srcBlend);
 			stream->writeI32(matfx->fx[i].dual.dstBlend);
-			stream->writeI32(matfx->fx[i].dual.tex != NULL);
+			stream->writeI32(matfx->fx[i].dual.tex != nil);
 			if(matfx->fx[i].dual.tex)
 				matfx->fx[i].dual.tex->streamWrite(stream);
 			break;
@@ -1177,7 +1177,7 @@ static int32
 getSizeMaterialMatFX(void *object, int32 offset, int32)
 {
 	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
-	if(matfx == NULL)
+	if(matfx == nil)
 		return -1;
 	int32 size = 4 + 4 + 4;
 
@@ -1220,7 +1220,7 @@ MatFX::enableEffects(Atomic *atomic)
 void
 registerMatFXPlugin(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
 	defpipe->pluginID = 0; //ID_MATFX;
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
@@ -1238,7 +1238,7 @@ registerMatFXPlugin(void)
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
-	                       createAtomicMatFX, NULL, copyAtomicMatFX);
+	                       createAtomicMatFX, nil, copyAtomicMatFX);
 	Atomic::registerPluginStream(ID_MATFX,
 	                             readAtomicMatFX,
 	                             writeAtomicMatFX,

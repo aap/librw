@@ -7,8 +7,8 @@ struct LLLink
 	LLLink *next;
 	LLLink *prev;
 	void init(void){
-		this->next = NULL;
-		this->prev = NULL;
+		this->next = nil;
+		this->prev = nil;
 	}
 	void remove(void){
 		this->prev->next = this->next;
@@ -21,7 +21,7 @@ struct LLLink
 
 // Have to be careful since the link might be deleted.
 #define FORLIST(_link, _list) \
-	for(rw::LLLink *_next = NULL, *_link = (_list).link.next; \
+	for(rw::LLLink *_next = nil, *_link = (_list).link.next; \
 	_next = (_link)->next, (_link) != (_list).end(); \
 	(_link) = _next)
 
@@ -71,14 +71,14 @@ struct Object
 		this->subType = subType;
 		this->flags = 0;
 		this->privateFlags = 0;
-		this->parent = NULL;
+		this->parent = nil;
 	}
 	void copy(Object *o){
 		this->type = o->type;
 		this->subType = o->subType;
 		this->flags = o->flags;
 		this->privateFlags = o->privateFlags;
-		this->parent = NULL;
+		this->parent = nil;
 	}
 };
 
@@ -86,10 +86,12 @@ struct Frame : PluginBase<Frame>
 {
 	typedef Frame *(*Callback)(Frame *f, void *data);
 	enum { ID = 0 };
-	enum {	// private flags
-		HIERARCHYSYNCLTM = 0x01,
-		HIERARCHYSYNCOBJ = 0x02,
+	enum {		// private flags
+		// The hierarchy has unsynched frames
+		HIERARCHYSYNCLTM = 0x01,	// LTM not synched
+		HIERARCHYSYNCOBJ = 0x02,	// attached objects not synched
 		HIERARCHYSYNC    = HIERARCHYSYNCLTM  | HIERARCHYSYNCOBJ,
+		// This frame is not synched
 		SUBTREESYNCLTM   = 0x04,
 		SUBTREESYNCOBJ   = 0x08,
 		SUBTREESYNC      = SUBTREESYNCLTM | SUBTREESYNCOBJ,
@@ -107,8 +109,6 @@ struct Frame : PluginBase<Frame>
 	Frame *next;
 	Frame *root;
 
-	static LinkList dirtyList;
-
 	static Frame *create(void);
 	Frame *cloneHierarchy(void);
 	void destroy(void);
@@ -124,10 +124,15 @@ struct Frame : PluginBase<Frame>
 	Matrix *getLTM(void);
 	void updateObjects(void);
 
+
 	void syncHierarchyLTM(void);
 	void setHierarchyRoot(Frame *root);
 	Frame *cloneAndLink(Frame *clonedroot);
 	void purgeClone(void);
+
+
+	static LinkList dirtyList;
+	static void syncDirty(void);
 };
 
 struct FrameList_
@@ -145,6 +150,8 @@ struct ObjectWithFrame
 {
 	Object object;
 	LLLink inFrame;
+	void (*syncCB)(ObjectWithFrame*);
+
 	void setFrame(Frame *f){
 		if(this->object.parent)
 			this->inFrame.remove();
@@ -152,6 +159,7 @@ struct ObjectWithFrame
 		if(f)
 			f->objectList.add(&this->inFrame);
 	}
+	void sync(void){ this->syncCB(this); }
 	static ObjectWithFrame *fromFrame(LLLink *lnk){
 		return LLLinkGetData(lnk, ObjectWithFrame, inFrame);
 	}
@@ -380,7 +388,7 @@ struct Geometry : PluginBase<Geometry>
 	void calculateBoundingSphere(void);
 	bool32 hasColoredMaterial(void);
 	void allocateData(void);
-	void generateTriangles(int8 *adc = NULL);
+	void generateTriangles(int8 *adc = nil);
 	void buildMeshes(void);
 	void removeUnusedMaterials(void);
 
@@ -503,6 +511,9 @@ struct Camera : PluginBase<Camera>
 	Clump *clump;
 	LLLink inClump;
 
+	void (*beginUpdateCB)(Camera*);
+	void (*endUpdateCB)(Camera*);
+
 	static Camera *create(void);
 	Camera *clone(void);
 	void destroy(void);
@@ -510,6 +521,8 @@ struct Camera : PluginBase<Camera>
 	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
 	static Camera *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Camera, inClump); }
+	void beginUpdate(void) { this->beginUpdateCB(this); }
+	void endUpdate(void) { this->endUpdateCB(this); }
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);

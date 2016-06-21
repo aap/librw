@@ -86,7 +86,7 @@ PluginBase<T>::streamReadPlugins(Stream *stream)
 {
 	int32 length;
 	ChunkHeaderInfo header;
-	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, NULL))
+	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, nil))
 		return false;
 	while(length > 0){
 		if(!readChunkHeaderInfo(stream, &header))
@@ -112,7 +112,7 @@ PluginBase<T>::streamWritePlugins(Stream *stream)
 	int size = this->streamGetPluginSize();
 	writeChunkHeader(stream, ID_EXTENSION, size);
 	for(Plugin *p = this->s_plugins; p; p = p->next){
-		if(p->getSize == NULL ||
+		if(p->getSize == nil ||
 		   (size = p->getSize(this, p->offset, p->size)) <= 0)
 			continue;
 		writeChunkHeader(stream, p->id, size);
@@ -157,16 +157,16 @@ PluginBase<T>::registerPlugin(int32 size, uint32 id,
 	p->constructor = ctor;
 	p->copy = cctor;
 	p->destructor = dtor;
-	p->read = NULL;
-	p->write = NULL;
-	p->getSize = NULL;
-	p->rightsCallback = NULL;
+	p->read = nil;
+	p->write = nil;
+	p->getSize = nil;
+	p->rightsCallback = nil;
 
 	Plugin **next;
 	for(next = &s_plugins; *next; next = &(*next)->next)
 		;
 	*next = p;
-	p->next = NULL;
+	p->next = nil;
 	return p->offset;
 }
 
@@ -208,7 +208,7 @@ template <typename T> void*
 PluginBase<T>::operator new(size_t)
 {
 	abort();
-	return NULL;
+	return nil;
 }
 
 template <typename T> void

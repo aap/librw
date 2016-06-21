@@ -315,6 +315,11 @@ Clump::render(void)
 // Atomic
 //
 
+static void
+atomicSync(ObjectWithFrame*)
+{
+}
+
 Atomic*
 Atomic::create(void)
 {
@@ -324,6 +329,7 @@ Atomic::create(void)
 		return nil;
 	}
 	atomic->object.object.init(Atomic::ID, 0);
+	atomic->object.syncCB = atomicSync;
 	atomic->geometry = nil;
 	atomic->worldBoundingSphere.center.set(0.0f, 0.0f, 0.0f);
 	atomic->worldBoundingSphere.radius = 0.0f;
@@ -491,7 +497,7 @@ Atomic::getPipeline(void)
 {
 	return this->pipeline ?
 		this->pipeline :
-		engine[platform].defaultPipeline;
+		driver[platform].defaultPipeline;
 }
 
 void

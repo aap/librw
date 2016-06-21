@@ -28,7 +28,7 @@ getPDSPipe(uint32 data)
 	for(int32 i = 0; i < pdsGlobals.numPipes; i++)
 		if(pdsGlobals.pipes[i]->pluginData == data)
 			return pdsGlobals.pipes[i];
-	return NULL;
+	return nil;
 }
 
 void
@@ -60,10 +60,10 @@ registerPDSPlugin(int32 n)
 	pdsGlobals.maxPipes = n;
 	pdsGlobals.numPipes = 0;
 	pdsGlobals.pipes = new Pipeline*[n];
-	Atomic::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
+	Atomic::registerPlugin(0, ID_PDS, nil, nil, nil);
 	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
 
-	Material::registerPlugin(0, ID_PDS, NULL, NULL, NULL);
+	Material::registerPlugin(0, ID_PDS, nil, nil, nil);
 	Material::setStreamRightsCallback(ID_PDS, materialPDSRights);
 }
 

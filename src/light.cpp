@@ -11,6 +11,11 @@
 
 namespace rw {
 
+static void
+lightSync(ObjectWithFrame*)
+{
+}
+
 Light*
 Light::create(int32 type)
 {
@@ -20,6 +25,7 @@ Light::create(int32 type)
 		return nil;
 	}
 	light->object.object.init(Light::ID, type);
+	light->object.syncCB = lightSync;
 	light->radius = 0.0f;
 	light->color.red = 1.0f;
 	light->color.green = 1.0f;

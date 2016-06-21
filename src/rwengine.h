@@ -1,9 +1,22 @@
 namespace rw {
 
+// TODO: move more stuff into this
+
 struct Engine
+{
+	Camera *currentCamera;
+};
+
+extern Engine engine;
+
+
+struct Driver
 {
 	ObjPipeline *defaultPipeline;
 	int32 rasterNativeOffset;
+
+	void (*beginUpdate)(Camera*);
+	void (*endUpdate)(Camera*);
 
 	void   (*rasterCreate)(Raster*);
 	uint8 *(*rasterLock)(Raster*, int32 level);
@@ -12,9 +25,13 @@ struct Engine
 	void   (*rasterFromImage)(Raster*, Image*);
 };
 
-extern Engine engine[NUM_PLATFORMS];
+extern Driver driver[NUM_PLATFORMS];
+#define DRIVER driver[rw::platform]
 
 namespace null {
+	void beginUpdate(Camera*);
+	void endUpdate(Camera*);
+
 	void   rasterCreate(Raster*);
 	uint8 *rasterLock(Raster*, int32 level);
 	void   rasterUnlock(Raster*, int32 level);

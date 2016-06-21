@@ -484,11 +484,11 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	engine[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
-	engine[PLATFORM_PS2].rasterCreate = rasterCreate;
-	engine[PLATFORM_PS2].rasterLock = rasterLock;
-	engine[PLATFORM_PS2].rasterUnlock = rasterUnlock;
-	engine[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
+	driver[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_PS2].rasterCreate = rasterCreate;
+	driver[PLATFORM_PS2].rasterLock = rasterLock;
+	driver[PLATFORM_PS2].rasterUnlock = rasterUnlock;
+	driver[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
 
 	Texture::registerPlugin(0, ID_SKYMIPMAP, nil, nil, nil);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);

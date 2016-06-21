@@ -21,7 +21,7 @@ using namespace d3d;
 void
 initializePlatform(void)
 {
-	engine[PLATFORM_D3D8].defaultPipeline = makeDefaultPipeline();
+	driver[PLATFORM_D3D8].defaultPipeline = makeDefaultPipeline();
 }
 
 uint32

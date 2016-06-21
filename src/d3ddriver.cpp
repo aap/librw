@@ -110,14 +110,14 @@ setSamplerState(uint32 stage, uint32 type, uint32 value)
 void
 setRasterStage(uint32 stage, Raster *raster)
 {
-	D3dRaster *d3draster = NULL;
+	D3dRaster *d3draster = nil;
 	if(raster != d3dRaster[stage]){
 		d3dRaster[stage] = raster;
 		if(raster){
 			d3draster = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 			device->SetTexture(stage, (IDirect3DTexture9*)d3draster->texture);
 		}else
-			device->SetTexture(stage, NULL);
+			device->SetTexture(stage, nil);
 	}
 }
 
@@ -133,8 +133,8 @@ setTexture(uint32 stage, Texture *tex)
 		0, D3DTADDRESS_WRAP, D3DTADDRESS_MIRROR,
 		D3DTADDRESS_CLAMP, D3DTADDRESS_BORDER
 	};
-	if(tex == NULL){
-		setRasterStage(stage, NULL);
+	if(tex == nil){
+		setRasterStage(stage, nil);
 		return;
 	}
 	if(tex->raster){

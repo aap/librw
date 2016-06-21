@@ -21,7 +21,7 @@ namespace ps2 {
 void
 initializePlatform(void)
 {
-	engine[PLATFORM_PS2].defaultPipeline = makeDefaultPipeline();
+	driver[PLATFORM_PS2].defaultPipeline = makeDefaultPipeline();
 }
 
 ObjPipeline *defaultObjPipe;

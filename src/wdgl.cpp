@@ -24,7 +24,7 @@ namespace wdgl {
 void
 initializePlatform(void)
 {
-	engine[PLATFORM_WDGL].defaultPipeline = makeDefaultPipeline();
+	driver[PLATFORM_WDGL].defaultPipeline = makeDefaultPipeline();
 }
 
 
@@ -223,7 +223,7 @@ destroyNativeData(void *object, int32, int32)
 		return object;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
-	geometry->instData = NULL;
+	geometry->instData = nil;
 	// TODO: delete ibo and vbo
 	delete[] header->attribs;
 	delete[] header->data;
@@ -279,7 +279,7 @@ void
 registerNativeDataPlugin(void)
 {
 	Geometry::registerPlugin(0, ID_NATIVEDATA,
-	                         NULL, destroyNativeData, NULL);
+	                         nil, destroyNativeData, nil);
 	Geometry::registerPluginStream(ID_NATIVEDATA,
 	                               readNativeData,
 	                               writeNativeData,
@@ -290,7 +290,7 @@ void
 printPipeinfo(Atomic *a)
 {
 	Geometry *g = a->geometry;
-	if(g->instData == NULL || g->instData->platform != PLATFORM_WDGL)
+	if(g->instData == nil || g->instData->platform != PLATFORM_WDGL)
 		return;
 	int32 plgid = 0;
 	if(a->pipeline)
@@ -436,7 +436,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
 		return;
-	assert(geo->instData != NULL);
+	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_WDGL);
 	geo->geoflags &= ~Geometry::NATIVE;
 	geo->allocateData();
@@ -507,8 +507,8 @@ ObjPipeline::ObjPipeline(uint32 platform)
 	this->numCustomAttribs = 0;
 	this->impl.instance = wdgl::instance;
 	this->impl.uninstance = wdgl::uninstance;
-	this->instanceCB = NULL;
-	this->uninstanceCB = NULL;
+	this->instanceCB = nil;
+	this->uninstanceCB = nil;
 }
 
 ObjPipeline*
@@ -558,7 +558,7 @@ int32
 getSizeNativeSkin(void *object, int32 offset)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
-	if(skin == NULL)
+	if(skin == nil)
 		return -1;
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	return size;
@@ -590,7 +590,7 @@ skinInstanceCB(Geometry *g, int32 i, uint32 offset)
 	header->data = new uint8[header->dataSize];
 
         Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-        if(skin == NULL)
+        if(skin == nil)
                 return 8;
 
 	a = &header->attribs[i];
@@ -618,7 +618,7 @@ skinUninstanceCB(Geometry *geo)
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 
         Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == NULL)
+        if(skin == nil)
 		return;
 
 	uint8 *data = skin->data;

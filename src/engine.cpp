@@ -10,9 +10,16 @@
 
 namespace rw {
 
-Engine engine[NUM_PLATFORMS];
+Engine engine;
+
+Driver driver[NUM_PLATFORMS];
 
 namespace null {
+
+void beginUpdate(Camera*) { }
+
+void endUpdate(Camera*) { }
+
 
 void
 rasterCreate(Raster*)
@@ -24,7 +31,7 @@ uint8*
 rasterLock(Raster*, int32)
 {
 	assert(0 && "lockRaster not implemented");
-	return NULL;
+	return nil;
 }
 
 void

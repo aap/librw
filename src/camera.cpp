@@ -6,10 +6,30 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
 #define PLUGIN_ID 0
 
 namespace rw {
+
+void
+defaultBeginUpdateCB(Camera *cam)
+{
+	engine.currentCamera = cam;
+	Frame::syncDirty();
+	DRIVER.beginUpdate(cam);
+}
+
+void
+defaultEndUpdateCB(Camera *cam)
+{
+	DRIVER.endUpdate(cam);
+}
+
+static void
+cameraSync(ObjectWithFrame*)
+{
+}
 
 Camera*
 Camera::create(void)
@@ -20,6 +40,7 @@ Camera::create(void)
 		return nil;
 	}
 	cam->object.object.init(Camera::ID, 0);
+	cam->object.syncCB = cameraSync;
 	cam->viewWindow.set(1.0f, 1.0f);
 	cam->viewOffset.set(0.0f, 0.0f);
 	cam->nearPlane = 0.05f;
@@ -28,6 +49,10 @@ Camera::create(void)
 	cam->projection = Camera::PERSPECTIVE;
 	cam->clump = nil;
 	cam->inClump.init();
+
+	cam->beginUpdateCB = defaultBeginUpdateCB;
+	cam->endUpdateCB = defaultEndUpdateCB;
+
 	cam->constructPlugins();
 	return cam;
 }
@@ -152,6 +177,29 @@ Camera::updateProjectionMatrix(void)
 			this->projMat[13] = this->viewOffset.y*invwy;
 			this->projMat[14] = -this->nearPlane*this->projMat[10];
 			this->projMat[15] = 1.0f;
+		}
+	}else if(rw::platform == PLATFORM_WDGL || rw::platform == PLATFORM_GL3){
+		this->projMat[0] = invwx;
+		this->projMat[1] = 0.0f;
+		this->projMat[2] = 0.0f;
+		this->projMat[3] = 0.0f;
+
+		this->projMat[4] = 0.0f;
+		this->projMat[5] = invwy;
+		this->projMat[6] = 0.0f;
+		this->projMat[7] = 0.0f;
+
+		if(this->projection == PERSPECTIVE){
+			this->projMat[8] = this->viewOffset.x*invwx;
+			this->projMat[9] = this->viewOffset.y*invwy;
+			this->projMat[10] = (this->farPlane+this->nearPlane)*invz;
+			this->projMat[11] = 1.0f;
+
+			this->projMat[12] = 0.0f;
+			this->projMat[13] = 0.0f;
+			this->projMat[14] = -2.0f*this->nearPlane*this->farPlane*invz;
+			this->projMat[15] = 0.0f;
+		}else{
 		}
 	}
 }

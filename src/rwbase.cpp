@@ -18,8 +18,6 @@
 #include "rwd3d9.h"
 #include "rwwdgl.h"
 
-using namespace std;
-
 namespace rw {
 
 #define PLUGIN_ID 0
@@ -33,9 +31,9 @@ int32 build = 0xFFFF;
 #elif RW_D3D9
 	int32 platform = PLATFORM_D3D9;
 #else
-	int32 platform = PLATFORM_NULL;
+	int32 platform = PLATFORM_nil;
 #endif
-char *debugFile = NULL;
+char *debugFile = nil;
 
 // TODO: comparison tolerances
 
@@ -55,15 +53,18 @@ static Matrix3 identMat3 = {
 void
 initialize(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
-		engine[i].defaultPipeline = defpipe;
+		driver[i].defaultPipeline = defpipe;
 
-		engine[i].rasterCreate = null::rasterCreate;
-		engine[i].rasterLock = null::rasterLock;
-		engine[i].rasterUnlock = null::rasterUnlock;
-		engine[i].rasterNumLevels = null::rasterNumLevels;
-		engine[i].rasterFromImage = null::rasterFromImage;
+		driver[i].beginUpdate = null::beginUpdate;
+		driver[i].endUpdate = null::endUpdate;
+
+		driver[i].rasterCreate = null::rasterCreate;
+		driver[i].rasterLock = null::rasterLock;
+		driver[i].rasterUnlock = null::rasterUnlock;
+		driver[i].rasterNumLevels = null::rasterNumLevels;
+		driver[i].rasterFromImage = null::rasterFromImage;
 	}
 
 
@@ -668,9 +669,9 @@ StreamFile*
 StreamFile::open(const char *path, const char *mode)
 {
 	this->file = fopen(path, mode);
-	if(this->file == NULL){
+	if(this->file == nil){
 		RWERROR((ERR_FILE, path));
-		return NULL;
+		return nil;
 	}
 	return this;
 }
@@ -732,7 +733,7 @@ readChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
 	s->read(&buf, 12);
 	if(s->eof())
 		return false;
-	assert(header != NULL);
+	assert(header != nil);
 	header->type = buf.type;
 	header->length = buf.size;
 	header->version = libraryIDUnpackVersion(buf.id);
@@ -773,7 +774,7 @@ uint8*
 getFileContents(char *name, uint32 *len)
 {
         FILE *cf = fopen(name, "rb");
-        assert(cf != NULL);
+        assert(cf != nil);
         fseek(cf, 0, SEEK_END);
         *len = ftell(cf);
         fseek(cf, 0, SEEK_SET);

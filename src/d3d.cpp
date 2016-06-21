@@ -10,15 +10,13 @@
 #include "rwengine.h"
 #include "rwd3d.h"
 
-using namespace std;
-
 namespace rw {
 namespace d3d {
 
 bool32 isP8supported = 1;
 
 #ifdef RW_D3D9
-IDirect3DDevice9 *device = NULL;
+IDirect3DDevice9 *device = nil;
 #else
 #define MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
             ((uint32)(uint8)(ch0) | ((uint32)(uint8)(ch1) << 8) |       \
@@ -198,8 +196,8 @@ createIndexBuffer(uint32 length)
 uint16*
 lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
 {
-	if(indexBuffer == NULL)
-		return NULL;
+	if(indexBuffer == nil)
+		return nil;
 #ifdef RW_D3D9
 	uint16 *indices;
 	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
@@ -216,7 +214,7 @@ lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags)
 void
 unlockIndices(void *indexBuffer)
 {
-	if(indexBuffer == NULL)
+	if(indexBuffer == nil)
 		return;
 #ifdef RW_D3D9
 	IDirect3DIndexBuffer9 *ibuf = (IDirect3DIndexBuffer9*)indexBuffer;
@@ -241,8 +239,8 @@ createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
 uint8*
 lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
 {
-	if(vertexBuffer == NULL)
-		return NULL;
+	if(vertexBuffer == nil)
+		return nil;
 #ifdef RW_D3D9
 	uint8 *verts;
 	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
@@ -259,7 +257,7 @@ lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags)
 void
 unlockVertices(void *vertexBuffer)
 {
-	if(vertexBuffer == NULL)
+	if(vertexBuffer == nil)
 		return;
 #ifdef RW_D3D9
 	IDirect3DVertexBuffer9 *vertbuf = (IDirect3DVertexBuffer9*)vertexBuffer;
@@ -273,7 +271,7 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex;
 	device->CreateTexture(width, height, numlevels, 0,
-	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, NULL);
+	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, nil);
 	return tex;
 #else
 	int32 w = width;
@@ -336,7 +334,7 @@ unlockTexture(void *texture, int32 level)
 void
 deleteObject(void *object)
 {
-	if(object == NULL)
+	if(object == nil)
 		return;
 #ifdef RW_D3D9
 	IUnknown *unk = (IUnknown*)object;
@@ -560,8 +558,8 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	D3dRaster *raster = PLUGINOFFSET(D3dRaster, object, offset);
-	raster->texture = NULL;
-	raster->palette = NULL;
+	raster->texture = nil;
+	raster->palette = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->customFormat = 0;
@@ -580,8 +578,8 @@ static void*
 copyNativeRaster(void *dst, void *, int32 offset, int32)
 {
 	D3dRaster *raster = PLUGINOFFSET(D3dRaster, dst, offset);
-	raster->texture = NULL;
-	raster->palette = NULL;
+	raster->texture = nil;
+	raster->palette = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->customFormat = 0;
@@ -596,19 +594,19 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	engine[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
-	engine[PLATFORM_D3D8].rasterCreate = rasterCreate;
-	engine[PLATFORM_D3D8].rasterLock = rasterLock;
-	engine[PLATFORM_D3D8].rasterUnlock = rasterUnlock;
-	engine[PLATFORM_D3D8].rasterNumLevels = rasterNumLevels;
-	engine[PLATFORM_D3D8].rasterFromImage = rasterFromImage;
+	driver[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_D3D8].rasterCreate = rasterCreate;
+	driver[PLATFORM_D3D8].rasterLock = rasterLock;
+	driver[PLATFORM_D3D8].rasterUnlock = rasterUnlock;
+	driver[PLATFORM_D3D8].rasterNumLevels = rasterNumLevels;
+	driver[PLATFORM_D3D8].rasterFromImage = rasterFromImage;
 
-	engine[PLATFORM_D3D9].rasterNativeOffset = nativeRasterOffset;
-	engine[PLATFORM_D3D9].rasterCreate = rasterCreate;
-	engine[PLATFORM_D3D9].rasterLock = rasterLock;
-	engine[PLATFORM_D3D9].rasterUnlock = rasterUnlock;
-	engine[PLATFORM_D3D9].rasterNumLevels = rasterNumLevels;
-	engine[PLATFORM_D3D9].rasterFromImage = rasterFromImage;
+	driver[PLATFORM_D3D9].rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_D3D9].rasterCreate = rasterCreate;
+	driver[PLATFORM_D3D9].rasterLock = rasterLock;
+	driver[PLATFORM_D3D9].rasterUnlock = rasterUnlock;
+	driver[PLATFORM_D3D9].rasterNumLevels = rasterNumLevels;
+	driver[PLATFORM_D3D9].rasterFromImage = rasterFromImage;
 }
 
 }

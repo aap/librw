@@ -28,7 +28,7 @@ using namespace d3d;
 void
 initializePlatform(void)
 {
-	engine[PLATFORM_D3D9].defaultPipeline = makeDefaultPipeline();
+	driver[PLATFORM_D3D9].defaultPipeline = makeDefaultPipeline();
 }
 
 void*

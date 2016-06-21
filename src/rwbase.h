@@ -227,7 +227,7 @@ public:
 
 enum Platform
 {
-	PLATFORM_NULL = 0,
+	PLATFORM_nil = 0,
 	// D3D7
 	PLATFORM_GL   = 2,
 	// MAC
