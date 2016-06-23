@@ -148,9 +148,11 @@ Frame **makeFrameList(Frame *frame, Frame **flist);
 
 struct ObjectWithFrame
 {
+	typedef void (*Sync)(ObjectWithFrame*);
+
 	Object object;
 	LLLink inFrame;
-	void (*syncCB)(ObjectWithFrame*);
+	Sync syncCB;
 
 	void setFrame(Frame *f){
 		if(this->object.parent)
@@ -236,6 +238,14 @@ struct Raster : PluginBase<Raster>
 		PAL8       = 0x2000,
 		PAL4       = 0x4000,
 		MIPMAP     = 0x8000
+	};
+	enum Type {
+		NORMAL        = 0x00,
+		ZBUFFER       = 0x01,
+		CAMERA        = 0x02,
+		TEXTURE       = 0x04,
+		CAMERATEXTURE = 0x05,
+		DONTALLOCATE  = 0x80,
 	};
 };
 
@@ -403,6 +413,10 @@ struct Geometry : PluginBase<Geometry>
 		MODULATE  = 0x40,
 		TEXTURED2 = 0x80,
 		NATIVE         = 0x01000000,
+		// Just for documentation: RW sets this flag
+		// to prevent rendering when executing a pipeline,
+		// so only instancing will occur.
+		// librw's pipelines are different so it's unused here.
 		NATIVEINSTANCE = 0x02000000
 	};
 };
@@ -411,6 +425,7 @@ void registerMeshPlugin(void);
 void registerNativeDataPlugin(void);
 
 struct Clump;
+struct World;
 
 struct Atomic : PluginBase<Atomic>
 {
@@ -430,6 +445,9 @@ struct Atomic : PluginBase<Atomic>
 	LLLink inClump;
 	ObjPipeline *pipeline;
 	RenderCB renderCB;
+
+	World *world;
+	ObjectWithFrame::Sync originalSync;
 
 	static Atomic *create(void);
 	Atomic *clone(void);
@@ -463,10 +481,15 @@ struct Light : PluginBase<Light>
 	float32 radius;
 	RGBAf color;
 	float32 minusCosAngle;
+	LLLink inWorld;
 
-	// clump link handled by plugin in RW
+	// clump extension
 	Clump *clump;
 	LLLink inClump;
+
+	// world extension
+	World *world;
+	ObjectWithFrame::Sync originalSync;
 
 	static Light *create(int32 type);
 	void destroy(void);
@@ -474,6 +497,8 @@ struct Light : PluginBase<Light>
 	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
 	static Light *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Light, inClump); }
+	static Light *fromWorld(LLLink *lnk){
+		return LLLinkGetData(lnk, Light, inWorld); }
 	void setAngle(float32 angle);
 	float32 getAngle(void);
 	void setColor(float32 r, float32 g, float32 b);
@@ -501,18 +526,26 @@ struct Camera : PluginBase<Camera>
 	enum { PERSPECTIVE = 1, PARALLEL };
 
 	ObjectWithFrame object;
+	void (*beginUpdateCB)(Camera*);
+	void (*endUpdateCB)(Camera*);
 	V2d viewWindow;
 	V2d viewOffset;
 	float32 nearPlane, farPlane;
 	float32 fogPlane;
 	int32 projection;
+	// TODO: remove this?
 	float32 projMat[16];
 
+	// clump link handled by plugin in RW
 	Clump *clump;
 	LLLink inClump;
 
-	void (*beginUpdateCB)(Camera*);
-	void (*endUpdateCB)(Camera*);
+	// world extension
+	/* 3 unknowns */
+	World *world;
+	ObjectWithFrame::Sync originalSync;
+	void (*originalBeginUpdate)(Camera*);
+	void (*originalEndUpdate)(Camera*);
 
 	static Camera *create(void);
 	Camera *clone(void);
@@ -540,6 +573,8 @@ struct Clump : PluginBase<Clump>
 	LinkList lights;
 	LinkList cameras;
 
+	World *world;
+
 	static Clump *create(void);
 	Clump *clone(void);
 	void destroy(void);
@@ -566,6 +601,19 @@ struct Clump : PluginBase<Clump>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 	void render(void);
+};
+
+// A bit of a stub right now
+struct World : PluginBase<World>
+{
+	enum { ID = 7 };
+	Object object;
+	LinkList lights;                // these have positions (type >= 0x80)
+	LinkList directionalLights;     // these do not (type < 0x80)
+
+	static World *create(void);
+	void addLight(Light *light);
+	void addCamera(Camera *cam);
 };
 
 struct TexDictionary : PluginBase<TexDictionary>

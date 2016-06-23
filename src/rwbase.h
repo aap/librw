@@ -53,6 +53,25 @@ struct RGBAf
 	float32 alpha;
 };
 
+inline void convColor(RGBA *i, RGBAf *f){
+	int32 c;
+	c = (int32)(f->red*255.0f + 0.5f);
+	i->red   = (uint8)c;
+	c = (int32)(f->green*255.0f + 0.5f);
+	i->green = (uint8)c;
+	c = (int32)(f->blue*255.0f + 0.5f);
+	i->blue  = (uint8)c;
+	c = (int32)(f->alpha*255.0f + 0.5f);
+	i->alpha = (uint8)c;
+}
+
+inline void convColor(RGBAf *f, RGBA *i){
+	f->red   = i->red/255.0f;
+	f->green = i->green/255.0f;
+	f->blue  = i->blue/255.0f;
+	f->alpha = i->alpha/255.0f;
+}
+
 struct V2d
 {
 	float32 x, y;
@@ -122,6 +141,7 @@ struct Matrix
 
 	static Matrix makeRotation(const Quat &q);
 	void setIdentity(void);
+	void pointInDirection(const V3d &d, const V3d &up);
 	V3d transPoint(const V3d &p);
 	V3d transVec(const V3d &v);
 	bool32 isIdentity(void);

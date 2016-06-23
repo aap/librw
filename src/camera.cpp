@@ -31,6 +31,26 @@ cameraSync(ObjectWithFrame*)
 {
 }
 
+void
+worldBeginUpdateCB(Camera *cam)
+{
+	engine.currentWorld = cam->world;
+	cam->originalBeginUpdate(cam);
+}
+
+void
+worldEndUpdateCB(Camera *cam)
+{
+	cam->originalEndUpdate(cam);
+}
+
+static void
+worldCameraSync(ObjectWithFrame *obj)
+{
+	Camera *camera = (Camera*)obj;
+	camera->originalSync(obj);
+}
+
 Camera*
 Camera::create(void)
 {
@@ -41,17 +61,27 @@ Camera::create(void)
 	}
 	cam->object.object.init(Camera::ID, 0);
 	cam->object.syncCB = cameraSync;
+	cam->beginUpdateCB = defaultBeginUpdateCB;
+	cam->endUpdateCB = defaultEndUpdateCB;
 	cam->viewWindow.set(1.0f, 1.0f);
 	cam->viewOffset.set(0.0f, 0.0f);
 	cam->nearPlane = 0.05f;
 	cam->farPlane = 10.0f;
 	cam->fogPlane = 5.0f;
 	cam->projection = Camera::PERSPECTIVE;
+
+	// clump extension
 	cam->clump = nil;
 	cam->inClump.init();
 
-	cam->beginUpdateCB = defaultBeginUpdateCB;
-	cam->endUpdateCB = defaultEndUpdateCB;
+	// world extension
+	cam->world = nil;
+	cam->originalSync = cam->object.syncCB;
+	cam->originalBeginUpdate = cam->beginUpdateCB;
+	cam->originalEndUpdate = cam->endUpdateCB;
+	cam->object.syncCB = worldCameraSync;
+	cam->beginUpdateCB = worldBeginUpdateCB;
+	cam->endUpdateCB = worldEndUpdateCB;
 
 	cam->constructPlugins();
 	return cam;
@@ -138,6 +168,7 @@ Camera::streamGetSize(void)
 	return 12 + sizeof(CameraChunkData) + 12 + this->streamGetPluginSize();
 }
 
+// TODO: remove
 void
 Camera::updateProjectionMatrix(void)
 {

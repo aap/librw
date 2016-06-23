@@ -137,6 +137,15 @@ Matrix::setIdentity(void)
 	*this = identMat;
 }
 
+void
+Matrix::pointInDirection(const V3d &d, const V3d &up)
+{
+	// this->right is really pointing left
+	this->at = normalize(d);
+	this->right = normalize(cross(up, this->at));
+	this->up = cross(this->at, this->right);
+}
+
 V3d
 Matrix::transPoint(const V3d &p)
 {

@@ -320,6 +320,14 @@ atomicSync(ObjectWithFrame*)
 {
 }
 
+
+static void
+worldAtomicSync(ObjectWithFrame *obj)
+{
+	Atomic *atomic = (Atomic*)obj;
+	atomic->originalSync(obj);
+}
+
 Atomic*
 Atomic::create(void)
 {
@@ -338,6 +346,12 @@ Atomic::create(void)
 	atomic->pipeline = nil;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
+
+	// World extension
+	atomic->world = nil;
+	atomic->originalSync = atomic->object.syncCB;
+	atomic->object.syncCB = worldAtomicSync;
+
 	atomic->constructPlugins();
 	return atomic;
 }

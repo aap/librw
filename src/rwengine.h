@@ -4,7 +4,8 @@ namespace rw {
 
 struct Engine
 {
-	Camera *currentCamera;
+	void *currentCamera;
+	void *currentWorld;
 };
 
 extern Engine engine;

@@ -16,6 +16,13 @@ lightSync(ObjectWithFrame*)
 {
 }
 
+static void
+worldLightSync(ObjectWithFrame *obj)
+{
+	Light *light = (Light*)obj;
+	light->originalSync(obj);
+}
+
 Light*
 Light::create(int32 type)
 {
@@ -34,8 +41,17 @@ Light::create(int32 type)
 	light->minusCosAngle = 1.0f;
 	light->object.object.privateFlags = 1;
 	light->object.object.flags = LIGHTATOMICS | LIGHTWORLD;
+	light->inWorld.init();
+
+	// clump extension
 	light->clump = nil;
 	light->inClump.init();
+
+	// world extension
+	light->world = nil;
+	light->originalSync = light->object.syncCB;
+	light->object.syncCB = worldLightSync;
+
 	light->constructPlugins();
 	return light;
 }
@@ -46,6 +62,7 @@ Light::destroy(void)
 	this->destructPlugins();
 	if(this->clump)
 		this->inClump.remove();
+	// we do not remove from world, be careful
 	free(this);
 }
 
