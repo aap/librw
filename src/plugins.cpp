@@ -9,12 +9,12 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwplugins.h"
-#include "rwps2.h"
-#include "rwps2plg.h"
-#include "rwxbox.h"
-#include "rwd3d8.h"
-#include "rwd3d9.h"
-#include "rwwdgl.h"
+#include "ps2/rwps2.h"
+#include "ps2/rwps2plg.h"
+#include "d3d/rwxbox.h"
+#include "d3d/rwd3d8.h"
+#include "d3d/rwd3d9.h"
+#include "gl/rwwdgl.h"
 
 #define PLUGIN_ID 2
 

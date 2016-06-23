@@ -9,11 +9,11 @@
 #include "rwpipeline.h"
 #include "rwobjects.h"
 #include "rwengine.h"
-#include "rwps2.h"
-#include "rwd3d.h"
-#include "rwxbox.h"
-#include "rwd3d8.h"
-#include "rwd3d9.h"
+#include "ps2/rwps2.h"
+#include "d3d/rwd3d.h"
+#include "d3d/rwxbox.h"
+#include "d3d/rwd3d8.h"
+#include "d3d/rwd3d9.h"
 
 #ifdef _WIN32
 /* srsly? */

@@ -6,7 +6,8 @@ BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
 BUILDDIR=build-$(BUILD)
 SRCDIR=src
 #SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, $(wildcard *.cpp))
-SRC := $(wildcard $(SRCDIR)/*.cpp)
+SRC := $(wildcard $(SRCDIR)/*.cpp $(SRCDIR)/d3d/*.cpp $(SRCDIR)/ps2/*.cpp \
+	$(SRCDIR)/gl/*.cpp)
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 INC := -I/usr/local/include

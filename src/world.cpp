@@ -1,0 +1,46 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "rwbase.h"
+#include "rwerror.h"
+#include "rwplg.h"
+#include "rwpipeline.h"
+#include "rwobjects.h"
+#include "rwengine.h"
+
+#define PLUGIN_ID 2
+
+namespace rw {
+
+World*
+World::create(void)
+{
+	World *world = (World*)malloc(PluginBase::s_size);
+	if(world == nil){
+		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		return nil;
+	}
+	world->object.init(World::ID, 0);
+	world->lights.init();
+	world->directionalLights.init();
+	return world;
+}
+
+void
+World::addLight(Light *light)
+{
+	light->world = this;
+	if(light->getType() < Light::POINT){
+		this->directionalLights.append(&light->inWorld);
+	}else
+		this->lights.append(&light->inWorld);
+}
+
+void
+World::addCamera(Camera *cam)
+{
+	cam->world = this;
+}
+
+}
