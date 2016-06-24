@@ -28,6 +28,6 @@ $(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
 
 clean:
 	echo $(SRC)
-	rm -f $(BUILDDIR)/*.[od]
+	rm -rf $(BUILDDIR)/*
 
 -include $(DEP)

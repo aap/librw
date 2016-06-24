@@ -3,6 +3,14 @@
 #endif
 #include <cmath>
 
+#ifdef RW_GL3
+#define RW_OPENGL
+#endif
+
+#ifdef RW_WDGL
+#define RW_OPENGL
+#endif
+
 namespace rw {
 
 #ifdef RW_PS2
