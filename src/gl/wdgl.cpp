@@ -716,7 +716,7 @@ void
 registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
-	                                            0x12340000 | PLATFORM_WDGL, 
+	                                            ID_RASTERWDGL,
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);

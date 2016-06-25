@@ -15,6 +15,7 @@
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
 #include "gl/rwwdgl.h"
+#include "gl/rwgl3.h"
 
 #define PLUGIN_ID 2
 
@@ -717,21 +718,23 @@ skinRights(void *object, int32, int32, uint32)
 void
 registerSkinPlugin(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	defpipe->pluginID = ID_SKIN;
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
 	skinGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_WDGL] =
-		wdgl::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_D3D8] =
 		d3d8::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_D3D9] =
 		d3d9::makeSkinPipeline();
+	skinGlobals.pipelines[PLATFORM_WDGL] =
+		wdgl::makeSkinPipeline();
+	skinGlobals.pipelines[PLATFORM_GL3] =
+		gl3::makeSkinPipeline();
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,
@@ -1220,21 +1223,23 @@ MatFX::enableEffects(Atomic *atomic)
 void
 registerMatFXPlugin(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	defpipe->pluginID = 0; //ID_MATFX;
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		matFXGlobals.pipelines[i] = defpipe;
 	matFXGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeMatFXPipeline();
-	matFXGlobals.pipelines[PLATFORM_WDGL] =
-		wdgl::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_XBOX] =
 		xbox::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_D3D8] =
 		d3d8::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_D3D9] =
 		d3d9::makeMatFXPipeline();
+	matFXGlobals.pipelines[PLATFORM_WDGL] =
+		wdgl::makeMatFXPipeline();
+	matFXGlobals.pipelines[PLATFORM_GL3] =
+		gl3::makeMatFXPipeline();
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,

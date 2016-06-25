@@ -24,10 +24,15 @@ namespace gl3 {
 void
 initializePlatform(void)
 {
+	registerNativeRaster();
 #ifdef RW_OPENGL
         driver[PLATFORM_GL3].defaultPipeline = makeDefaultPipeline();
-	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
-	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
+
+	// uniforms need to be registered before any shaders are created
+	registerBlock("Scene");
+	registerBlock("Object");
+	registerUniform("u_matColor");
+	registerUniform("u_surfaceProps");
 #endif
 
 	initializeRender();

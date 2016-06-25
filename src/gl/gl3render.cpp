@@ -125,11 +125,6 @@ initializeRender(void)
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	registerBlock("Scene");
-	registerBlock("Object");
-	registerUniform("u_matColor");
-	registerUniform("u_surfaceProps");
-
 	glGenBuffers(1, &ubo_scene);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_scene);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("Scene"), ubo_scene);

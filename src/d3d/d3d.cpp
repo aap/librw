@@ -586,14 +586,9 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	return dst;
 }
 
-void
-registerNativeRaster(void)
+static void*
+nativeOpen(void*, int32, int32)
 {
-	nativeRasterOffset = Raster::registerPlugin(sizeof(D3dRaster),
-	                                            0x12340000 | PLATFORM_D3D9, 
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
 	driver[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
 	driver[PLATFORM_D3D8].rasterCreate = rasterCreate;
 	driver[PLATFORM_D3D8].rasterLock = rasterLock;
@@ -607,6 +602,23 @@ registerNativeRaster(void)
 	driver[PLATFORM_D3D9].rasterUnlock = rasterUnlock;
 	driver[PLATFORM_D3D9].rasterNumLevels = rasterNumLevels;
 	driver[PLATFORM_D3D9].rasterFromImage = rasterFromImage;
+}
+
+static void*
+nativeClose(void*, int32, int32)
+{
+	printf("d3d native close\n");
+}
+
+void
+registerNativeRaster(void)
+{
+	Engine::registerPlugin(0, ID_RASTERD3D9, nativeOpen, nativeClose);
+	nativeRasterOffset = Raster::registerPlugin(sizeof(D3dRaster),
+	                                            ID_RASTERD3D9,
+                                                    createNativeRaster,
+                                                    destroyNativeRaster,
+                                                    copyNativeRaster);
 }
 
 }

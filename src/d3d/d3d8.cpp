@@ -21,6 +21,8 @@ using namespace d3d;
 void
 initializePlatform(void)
 {
+	if(nativeRasterOffset == 0)
+		registerNativeRaster();
 	driver[PLATFORM_D3D8].defaultPipeline = makeDefaultPipeline();
 }
 

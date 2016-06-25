@@ -28,7 +28,7 @@ int32 build = 0xFFFF;
 #elif RW_D3D9
 	int32 platform = PLATFORM_D3D9;
 #else
-	int32 platform = PLATFORM_nil;
+	int32 platform = PLATFORM_NULL;
 #endif
 char *debugFile = nil;
 

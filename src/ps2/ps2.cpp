@@ -21,6 +21,7 @@ namespace ps2 {
 void
 initializePlatform(void)
 {
+	registerNativeRaster();
 	driver[PLATFORM_PS2].defaultPipeline = makeDefaultPipeline();
 }
 

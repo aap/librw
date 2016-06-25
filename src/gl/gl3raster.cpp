@@ -113,7 +113,7 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 }
 
 static void*
-nativeOpen(void*, int32 offset, int32)
+nativeOpen(void*, int32, int32)
 {
         driver[PLATFORM_GL3].rasterNativeOffset = nativeRasterOffset;
 	driver[PLATFORM_GL3].rasterCreate = rasterCreate;
@@ -124,16 +124,16 @@ nativeOpen(void*, int32 offset, int32)
 }
 
 static void*
-nativeClose(void*, int32 offset, int32)
+nativeClose(void*, int32, int32)
 {
-	printf("native close\n");
+	printf("gl3 native close\n");
 }
 
 void registerNativeRaster(void)
 {
-	Engine::registerPlugin(0, 0x1234, nativeOpen, nativeClose);
+	Engine::registerPlugin(0, ID_RASTERGL3, nativeOpen, nativeClose);
         nativeRasterOffset = Raster::registerPlugin(sizeof(Gl3Raster),
-                                                    0x12340000 | PLATFORM_GL3,
+                                                    ID_RASTERGL3,
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);

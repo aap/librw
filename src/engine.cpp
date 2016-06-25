@@ -25,7 +25,7 @@ PluginList Engine::s_plglist = {sizeof(Engine), sizeof(Engine), nil, nil};
 void
 Engine::init(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
 		driver[i].defaultPipeline = defpipe;
 
@@ -40,10 +40,12 @@ Engine::init(void)
 	}
 	Frame::dirtyList.init();
 
-        rw::gl3::registerNativeRaster();
-        rw::ps2::registerNativeRaster();
-        rw::xbox::registerNativeRaster();
-        rw::d3d::registerNativeRaster();
+	ps2::initializePlatform();
+	xbox::initializePlatform();
+	d3d8::initializePlatform();
+	d3d9::initializePlatform();
+	wdgl::initializePlatform();
+	gl3::initializePlatform();
 }
 
 void
@@ -51,13 +53,6 @@ Engine::open(void)
 {
 	rw::engine = (Engine*)malloc(s_plglist.size);
 	s_plglist.construct(rw::engine);
-
-	ps2::initializePlatform();
-	xbox::initializePlatform();
-	d3d8::initializePlatform();
-	d3d9::initializePlatform();
-	gl3::initializePlatform();
-	wdgl::initializePlatform();
 }
 
 namespace null {

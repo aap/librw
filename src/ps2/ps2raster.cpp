@@ -477,7 +477,7 @@ getSizeMipmap(void*, int32, int32)
 }
 
 static void*
-nativeOpen(void*, int32 offset, int32)
+nativeOpen(void*, int32, int32)
 {
 	driver[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
 	driver[PLATFORM_PS2].rasterCreate = rasterCreate;
@@ -487,19 +487,20 @@ nativeOpen(void*, int32 offset, int32)
 }
 
 static void*
-nativeClose(void*, int32 offset, int32)
+nativeClose(void*, int32, int32)
 {
+	printf("ps2 native close\n");
 }
 
 void
 registerNativeRaster(void)
 {
+	Engine::registerPlugin(0, ID_RASTERPS2, nativeOpen, nativeClose);
 	nativeRasterOffset = Raster::registerPlugin(sizeof(Ps2Raster),
-	                                            0x12340000 | PLATFORM_PS2, 
+	                                            ID_RASTERPS2,
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	Engine::registerPlugin(0, 0x1234, nativeOpen, nativeClose);
 
 	Texture::registerPlugin(0, ID_SKYMIPMAP, nil, nil, nil);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);

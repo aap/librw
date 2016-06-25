@@ -20,6 +20,7 @@ namespace xbox {
 void
 initializePlatform(void)
 {
+	registerNativeRaster();
 	driver[PLATFORM_XBOX].defaultPipeline = makeDefaultPipeline();
 }
 
@@ -899,19 +900,31 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	return dst;
 }
 
-void
-registerNativeRaster(void)
+static void*
+nativeOpen(void*, int32, int32)
 {
-	nativeRasterOffset = Raster::registerPlugin(sizeof(XboxRaster),
-	                                            0x12340000 | PLATFORM_XBOX,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
 	driver[PLATFORM_XBOX].rasterNativeOffset = nativeRasterOffset;
 	driver[PLATFORM_XBOX].rasterCreate = rasterCreate;
 	driver[PLATFORM_XBOX].rasterLock = rasterLock;
 	driver[PLATFORM_XBOX].rasterUnlock = rasterUnlock;
 	driver[PLATFORM_XBOX].rasterNumLevels = rasterNumLevels;
+}
+
+static void*
+nativeClose(void*, int32, int32)
+{
+	printf("xbox native close\n");
+}
+
+void
+registerNativeRaster(void)
+{
+	Engine::registerPlugin(0, ID_RASTERXBOX, nativeOpen, nativeClose);
+	nativeRasterOffset = Raster::registerPlugin(sizeof(XboxRaster),
+	                                            ID_RASTERXBOX,
+                                                    createNativeRaster,
+                                                    destroyNativeRaster,
+                                                    copyNativeRaster);
 }
 
 Texture*
