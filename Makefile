@@ -11,7 +11,7 @@ SRC := $(wildcard $(SRCDIR)/*.cpp $(SRCDIR)/d3d/*.cpp $(SRCDIR)/ps2/*.cpp \
 OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
 DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
 INC := -I/usr/local/include
-CFLAGS=-Wall -Wextra -g $(BUILDDEF) -Wno-parentheses -Wno-invalid-offsetof -fno-diagnostics-show-caret
+CFLAGS=-Wall -Wextra -g $(BUILDDEF) -Wno-parentheses -Wno-invalid-offsetof -fno-diagnostics-show-caret -Wno-unused-parameter
  #-Wconversion
 LIB=librw-$(BUILD).a
 

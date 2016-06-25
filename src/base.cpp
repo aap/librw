@@ -12,11 +12,6 @@
 #include "rwobjects.h"
 #include "rwplugins.h"
 #include "rwengine.h"
-#include "ps2/rwps2.h"
-#include "d3d/rwxbox.h"
-#include "d3d/rwd3d8.h"
-#include "d3d/rwd3d9.h"
-#include "gl/rwwdgl.h"
 
 namespace rw {
 
@@ -51,34 +46,6 @@ static Matrix3 identMat3 = {
 	{ 0.0f, 1.0f, 0.0f},
 	{ 0.0f, 0.0f, 1.0f}
 };
-
-void
-initialize(void)
-{
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_nil);
-	for(uint i = 0; i < NUM_PLATFORMS; i++){
-		driver[i].defaultPipeline = defpipe;
-
-		driver[i].beginUpdate = null::beginUpdate;
-		driver[i].endUpdate = null::endUpdate;
-
-		driver[i].rasterCreate = null::rasterCreate;
-		driver[i].rasterLock = null::rasterLock;
-		driver[i].rasterUnlock = null::rasterUnlock;
-		driver[i].rasterNumLevels = null::rasterNumLevels;
-		driver[i].rasterFromImage = null::rasterFromImage;
-	}
-
-
-	ps2::initializePlatform();
-	xbox::initializePlatform();
-	d3d8::initializePlatform();
-	d3d9::initializePlatform();
-
-	wdgl::initializePlatform();
-
-	Frame::dirtyList.init();
-}
 
 // lazy implementation
 int

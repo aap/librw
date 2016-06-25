@@ -16,9 +16,9 @@ namespace rw {
 World*
 World::create(void)
 {
-	World *world = (World*)malloc(PluginBase::s_size);
+	World *world = (World*)malloc(PluginBase::s_plglist.size);
 	if(world == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, PluginBase::s_plglist.size));
 		return nil;
 	}
 	world->object.init(World::ID, 0);

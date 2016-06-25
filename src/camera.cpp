@@ -15,7 +15,7 @@ namespace rw {
 void
 defaultBeginUpdateCB(Camera *cam)
 {
-	engine.currentCamera = cam;
+	engine->currentCamera = cam;
 	Frame::syncDirty();
 	DRIVER.beginUpdate(cam);
 }
@@ -34,7 +34,7 @@ cameraSync(ObjectWithFrame*)
 void
 worldBeginUpdateCB(Camera *cam)
 {
-	engine.currentWorld = cam->world;
+	engine->currentWorld = cam->world;
 	cam->originalBeginUpdate(cam);
 }
 
@@ -54,9 +54,9 @@ worldCameraSync(ObjectWithFrame *obj)
 Camera*
 Camera::create(void)
 {
-	Camera *cam = (Camera*)malloc(PluginBase::s_size);
+	Camera *cam = (Camera*)malloc(s_plglist.size);
 	if(cam == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	cam->object.object.init(Camera::ID, 0);
@@ -83,7 +83,7 @@ Camera::create(void)
 	cam->beginUpdateCB = worldBeginUpdateCB;
 	cam->endUpdateCB = worldEndUpdateCB;
 
-	cam->constructPlugins();
+	s_plglist.construct(cam);
 	return cam;
 }
 
@@ -101,14 +101,14 @@ Camera::clone(void)
 	cam->farPlane = this->farPlane;
 	cam->fogPlane = this->fogPlane;
 	cam->projection = this->projection;
-	cam->copyPlugins(this);
+	s_plglist.copy(cam, this);
 	return cam;
 }
 
 void
 Camera::destroy(void)
 {
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	if(this->clump)
 		this->inClump.remove();
 	free(this);
@@ -139,7 +139,7 @@ Camera::streamRead(Stream *stream)
 	cam->farPlane = buf.farPlane;
 	cam->fogPlane = buf.fogPlane;
 	cam->projection = buf.projection;
-	if(cam->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, cam))
 		return cam;
 	cam->destroy();
 	return nil;
@@ -158,14 +158,15 @@ Camera::streamWrite(Stream *stream)
 	buf.fogPlane = this->fogPlane;
 	buf.projection = this->projection;
 	stream->write(&buf, sizeof(CameraChunkData));
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
 uint32
 Camera::streamGetSize(void)
 {
-	return 12 + sizeof(CameraChunkData) + 12 + this->streamGetPluginSize();
+	return 12 + sizeof(CameraChunkData) + 12 +
+	       s_plglist.streamGetSize(this);
 }
 
 // TODO: remove

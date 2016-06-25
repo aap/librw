@@ -16,9 +16,9 @@ LinkList Frame::dirtyList;
 Frame*
 Frame::create(void)
 {
-	Frame *f = (Frame*)malloc(PluginBase::s_size);
+	Frame *f = (Frame*)malloc(s_plglist.size);
 	if(f == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	f->object.init(Frame::ID, 0);
@@ -28,7 +28,7 @@ Frame::create(void)
 	f->root = f;
 	f->matrix.setIdentity();
 	f->ltm.setIdentity();
-	f->constructPlugins();
+	s_plglist.construct(f);
 	return f;
 }
 
@@ -43,7 +43,7 @@ Frame::cloneHierarchy(void)
 void
 Frame::destroy(void)
 {
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	Frame *parent = this->getParent();
 	Frame *child;
 	if(parent){
@@ -73,7 +73,7 @@ Frame::destroyHierarchy(void)
 		next = child->next;
 		child->destroyHierarchy();
 	}
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	free(this);
 }
 
@@ -295,7 +295,7 @@ Frame::cloneAndLink(Frame *clonedroot)
 		frame->child = clonedchild;
 		clonedchild->object.parent = frame;
 	}
-	frame->copyPlugins(this);
+	s_plglist.copy(frame, this);
 	return frame;
 }
 
@@ -352,7 +352,7 @@ FrameList_::streamRead(Stream *stream)
 			this->frames[buf.parent]->addChild(f);
 	}
 	for(int32 i = 0; i < this->numFrames; i++)
-		this->frames[i]->streamReadPlugins(stream);
+		Frame::s_plglist.streamRead(stream, this->frames[i]);
 	return this;
 }
 
@@ -365,7 +365,7 @@ FrameList_::streamWrite(Stream *stream)
 	structsize = 4 + this->numFrames*sizeof(FrameStreamData);
 	size += 12 + structsize;
 	for(int32 i = 0; i < this->numFrames; i++)
-		size += 12 + this->frames[i]->streamGetPluginSize();
+		size += 12 + Frame::s_plglist.streamGetSize(this->frames[i]);
 
 	writeChunkHeader(stream, ID_FRAMELIST, size);
 	writeChunkHeader(stream, ID_STRUCT, structsize);
@@ -382,13 +382,13 @@ FrameList_::streamWrite(Stream *stream)
 		stream->write(&buf, sizeof(buf));
 	}
 	for(int32 i = 0; i < this->numFrames; i++)
-		this->frames[i]->streamWritePlugins(stream);
+		Frame::s_plglist.streamWrite(stream, this->frames[i]);
 }
 
 static Frame*
 sizeCB(Frame *f, void *size)
 {
-	*(int32*)size += f->streamGetPluginSize();
+	*(int32*)size += Frame::s_plglist.streamGetSize(f);
 	f->forAllChildren(sizeCB, size);
 	return f;
 }

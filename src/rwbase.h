@@ -329,8 +329,6 @@ extern int build;
 extern int platform;
 extern char *debugFile;
 
-void initialize(void);
-
 int strncmp_ci(const char *s1, const char *s2, int n);
 
 // 0x04000000	3.1

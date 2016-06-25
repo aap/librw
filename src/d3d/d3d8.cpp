@@ -510,7 +510,7 @@ readNativeTexture(Stream *stream)
 		pallength = format & Raster::PAL4 ? 32 : 256;
 		if(!d3d::isP8supported){
 			tex->raster = readAsImage(stream, width, height, depth, format|type, numLevels);
-			tex->streamReadPlugins(stream);
+			Texture::s_plglist.streamRead(stream, tex);
 			return tex;
 		}
 	}
@@ -544,7 +544,7 @@ readNativeTexture(Stream *stream)
 		}else
 			stream->seek(size);
 	}
-	tex->streamReadPlugins(stream);
+	Texture::s_plglist.streamRead(stream, tex);
 	return tex;
 }
 
@@ -552,7 +552,7 @@ void
 writeNativeTexture(Texture *tex, Stream *stream)
 {
 	int32 chunksize = getSizeNativeTexture(tex);
-	int32 plgsize = tex->streamGetPluginSize();
+	int32 plgsize = Texture::s_plglist.streamGetSize(tex);
 	writeChunkHeader(stream, ID_TEXTURENATIVE, chunksize);
 	writeChunkHeader(stream, ID_STRUCT, chunksize-24-plgsize);
 	stream->writeU32(PLATFORM_D3D8);
@@ -608,7 +608,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		stream->write(data, size);
 		raster->unlock(i);
 	}
-	tex->streamWritePlugins(stream);
+	Texture::s_plglist.streamWrite(stream, tex);
 }
 
 uint32
@@ -622,7 +622,7 @@ getSizeNativeTexture(Texture *tex)
 		size += 4*256;
 	for(int32 i = 0; i < levels; i++)
 		size += 4 + getLevelSize(tex->raster, i);
-	size += 12 + tex->streamGetPluginSize();
+	size += 12 + Texture::s_plglist.streamGetSize(tex);
 	return size;
 }
 

@@ -24,196 +24,52 @@ struct Plugin
 	StreamGetSize getSize;
 	RightsCallback rightsCallback;
 	Plugin *next;
+	Plugin *prev;
+};
+
+struct PluginList
+{
+	int32 size;
+	int32 defaultSize;
+	Plugin *first;
+	Plugin *last;
+
+	void construct(void *);
+	void destruct(void *);
+	void copy(void *dst, void *src);
+	bool streamRead(Stream *stream, void *);
+	void streamWrite(Stream *stream, void *);
+	int streamGetSize(void *);
+	void assertRights(void *, uint32 pluginID, uint32 data);
+
+	int32 registerPlugin(int32 size, uint32 id,
+		Constructor, Destructor, CopyConstructor);
+	int32 registerStream(uint32 id, StreamRead, StreamWrite, StreamGetSize);
+	int32 setStreamRightsCallback(uint32 id, RightsCallback cb);
+	int32 getPluginOffset(uint32 id);
 };
 
 template <typename T>
 struct PluginBase
 {
-	static int32 s_defaultSize;
-	static int32 s_size;
-	static Plugin *s_plugins;
+	static PluginList s_plglist;
 
-	void constructPlugins(void);
-	void destructPlugins(void);
-	void copyPlugins(T *t);
-	bool streamReadPlugins(Stream *stream);
-	void streamWritePlugins(Stream *stream);
-	int streamGetPluginSize(void);
-	void assertRights(uint32 pluginID, uint32 data);
-
-	static int registerPlugin(int32 size, uint32 id,
-	                          Constructor, Destructor, CopyConstructor);
-	static int registerPluginStream(uint32 id,
-	                                StreamRead, StreamWrite, StreamGetSize);
-	static int setStreamRightsCallback(uint32 id, RightsCallback cb);
-	static int getPluginOffset(uint32 id);
-	static void *operator new(size_t size);
-	static void operator delete(void *p);
+	static int32 registerPlugin(int32 size, uint32 id, Constructor ctor,
+			Destructor dtor, CopyConstructor copy){
+		return s_plglist.registerPlugin(size, id, ctor, dtor, copy);
+	}
+	static int32 registerPluginStream(uint32 id, StreamRead read,
+			StreamWrite write, StreamGetSize getSize){
+		return s_plglist.registerStream(id, read, write, getSize);
+	}
+	static int32 setStreamRightsCallback(uint32 id, RightsCallback cb){
+		return s_plglist.setStreamRightsCallback(id, cb);
+	}
+	static int32 getPluginOffset(uint32 id){
+		return s_plglist.getPluginOffset(id);
+	}
 };
 template <typename T>
-int PluginBase<T>::s_defaultSize = sizeof(T);
-template <typename T>
-int PluginBase<T>::s_size = sizeof(T);
-template <typename T>
-Plugin *PluginBase<T>::s_plugins = 0;
+PluginList PluginBase<T>::s_plglist = { sizeof(T), sizeof(T), nil, nil };
 
-template <typename T> void
-PluginBase<T>::constructPlugins(void)
-{
-	for(Plugin *p = this->s_plugins; p; p = p->next)
-		if(p->constructor)
-			p->constructor((void*)this, p->offset, p->size);
-}
-
-template <typename T> void
-PluginBase<T>::destructPlugins(void)
-{
-	for(Plugin *p = this->s_plugins; p; p = p->next)
-		if(p->destructor)
-			p->destructor((void*)this, p->offset, p->size);
-}
-
-template <typename T> void
-PluginBase<T>::copyPlugins(T *t)
-{
-	for(Plugin *p = this->s_plugins; p; p = p->next)
-		if(p->copy)
-			p->copy((void*)this, (void*)t, p->offset, p->size);
-}
-
-template <typename T> bool
-PluginBase<T>::streamReadPlugins(Stream *stream)
-{
-	int32 length;
-	ChunkHeaderInfo header;
-	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, nil))
-		return false;
-	while(length > 0){
-		if(!readChunkHeaderInfo(stream, &header))
-			return false;
-		length -= 12;
-		for(Plugin *p = this->s_plugins; p; p = p->next)
-			if(p->id == header.type && p->read){
-				p->read(stream, header.length,
-				        (void*)this, p->offset, p->size);
-				goto cont;
-			}
-		//printf("skipping plugin %X\n", header.type);
-		stream->seek(header.length);
-cont:
-		length -= header.length;
-	}
-	return true;
-}
-
-template <typename T> void
-PluginBase<T>::streamWritePlugins(Stream *stream)
-{
-	int size = this->streamGetPluginSize();
-	writeChunkHeader(stream, ID_EXTENSION, size);
-	for(Plugin *p = this->s_plugins; p; p = p->next){
-		if(p->getSize == nil ||
-		   (size = p->getSize(this, p->offset, p->size)) <= 0)
-			continue;
-		writeChunkHeader(stream, p->id, size);
-		p->write(stream, size, this, p->offset, p->size);
-	}
-}
-
-template <typename T> int32
-PluginBase<T>::streamGetPluginSize(void)
-{
-	int32 size = 0;
-	int32 plgsize;
-	for(Plugin *p = this->s_plugins; p; p = p->next)
-		if(p->getSize &&
-		   (plgsize = p->getSize(this, p->offset, p->size)) > 0)
-			size += 12 + plgsize;
-	return size;
-}
-
-template <typename T> void
-PluginBase<T>::assertRights(uint32 pluginID, uint32 data)
-{
-	for(Plugin *p = this->s_plugins; p; p = p->next)
-		if(p->id == pluginID){
-			if(p->rightsCallback)
-				p->rightsCallback(this,
-				                  p->offset, p->size, data);
-			return;
-		}
-}
-
-template <typename T> int32
-PluginBase<T>::registerPlugin(int32 size, uint32 id,
-	Constructor ctor, Destructor dtor, CopyConstructor cctor)
-{
-	Plugin *p = new Plugin;
-	p->offset = s_size;
-	s_size += size;
-
-	p->size = size;
-	p->id = id;
-	p->constructor = ctor;
-	p->copy = cctor;
-	p->destructor = dtor;
-	p->read = nil;
-	p->write = nil;
-	p->getSize = nil;
-	p->rightsCallback = nil;
-
-	Plugin **next;
-	for(next = &s_plugins; *next; next = &(*next)->next)
-		;
-	*next = p;
-	p->next = nil;
-	return p->offset;
-}
-
-template <typename T> int32
-PluginBase<T>::registerPluginStream(uint32 id,
-	StreamRead read, StreamWrite write, StreamGetSize getSize)
-{
-	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
-		if(p->id == id){
-			p->read = read;
-			p->write = write;
-			p->getSize = getSize;
-			return p->offset;
-		}
-	return -1;
-}
-
-template <typename T> int32
-PluginBase<T>::setStreamRightsCallback(uint32 id, RightsCallback cb)
-{
-	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
-		if(p->id == id){
-			p->rightsCallback = cb;
-			return p->offset;
-		}
-	return -1;
-}
-
-template <typename T> int32
-PluginBase<T>::getPluginOffset(uint32 id)
-{
-	for(Plugin *p = PluginBase<T>::s_plugins; p; p = p->next)
-		if(p->id == id)
-			return p->offset;
-	return -1;
-}
-
-template <typename T> void*
-PluginBase<T>::operator new(size_t)
-{
-	abort();
-	return nil;
-}
-
-template <typename T> void
-PluginBase<T>::operator delete(void *p)
-{
-	abort();
-}
 }

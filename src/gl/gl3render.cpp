@@ -292,7 +292,7 @@ lightingCB(void)
 	RGBAf ambLight = (RGBAf){0.0, 0.0, 0.0, 1.0};
 	int n = 0;
 
-	world = (World*)engine.currentWorld;
+	world = (World*)engine->currentWorld;
 	// only unpositioned lights right now
 	FORLIST(lnk, world->directionalLights){
 		Light *l = Light::fromWorld(lnk);

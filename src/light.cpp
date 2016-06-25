@@ -26,9 +26,9 @@ worldLightSync(ObjectWithFrame *obj)
 Light*
 Light::create(int32 type)
 {
-	Light *light = (Light*)malloc(PluginBase::s_size);
+	Light *light = (Light*)malloc(s_plglist.size);
 	if(light == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	light->object.object.init(Light::ID, type);
@@ -52,14 +52,14 @@ Light::create(int32 type)
 	light->originalSync = light->object.syncCB;
 	light->object.syncCB = worldLightSync;
 
-	light->constructPlugins();
+	s_plglist.construct(light);
 	return light;
 }
 
 void
 Light::destroy(void)
 {
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	if(this->clump)
 		this->inClump.remove();
 	// we do not remove from world, be careful
@@ -119,7 +119,7 @@ Light::streamRead(Stream *stream)
 		// tan -> -cos
 		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
 	light->object.object.flags = (uint8)buf.flags;
-	if(light->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, light))
 		return light;
 	light->destroy();
 	return nil;
@@ -143,14 +143,14 @@ Light::streamWrite(Stream *stream)
 	buf.type = this->object.object.subType;
 	stream->write(&buf, sizeof(LightChunkData));
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
 uint32
 Light::streamGetSize(void)
 {
-	return 12 + sizeof(LightChunkData) + 12 + this->streamGetPluginSize();
+	return 12 + sizeof(LightChunkData) + 12 + s_plglist.streamGetSize(this);
 }
 
 }

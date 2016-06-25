@@ -476,6 +476,21 @@ getSizeMipmap(void*, int32, int32)
 	return rw::platform == PLATFORM_PS2 ? 4 : 0;
 }
 
+static void*
+nativeOpen(void*, int32 offset, int32)
+{
+	driver[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_PS2].rasterCreate = rasterCreate;
+	driver[PLATFORM_PS2].rasterLock = rasterLock;
+	driver[PLATFORM_PS2].rasterUnlock = rasterUnlock;
+	driver[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
+}
+
+static void*
+nativeClose(void*, int32 offset, int32)
+{
+}
+
 void
 registerNativeRaster(void)
 {
@@ -484,11 +499,7 @@ registerNativeRaster(void)
                                                     createNativeRaster,
                                                     destroyNativeRaster,
                                                     copyNativeRaster);
-	driver[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_PS2].rasterCreate = rasterCreate;
-	driver[PLATFORM_PS2].rasterLock = rasterLock;
-	driver[PLATFORM_PS2].rasterUnlock = rasterUnlock;
-	driver[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
+	Engine::registerPlugin(0, 0x1234, nativeOpen, nativeClose);
 
 	Texture::registerPlugin(0, ID_SKYMIPMAP, nil, nil, nil);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
@@ -595,7 +606,7 @@ readNativeTexture(Stream *stream)
 		stream->read(raster->texels-0x50, natras->texelSize);
 		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
-	if(tex->streamReadPlugins(stream))
+	if(Texture::s_plglist.streamRead(stream, tex))
 		return tex;
 
 fail:
@@ -654,7 +665,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		stream->write(raster->texels-0x50, ras->texelSize);
 		stream->write(raster->palette-0x50, ras->paletteSize);
 	}
-	tex->streamWritePlugins(stream);
+	Texture::s_plglist.streamWrite(stream, tex);
 }
 
 uint32
@@ -666,7 +677,7 @@ getSizeNativeTexture(Texture *tex)
 	size += 12 + 12 + 64 + 12;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
 	size += ras->texelSize + ras->paletteSize;
-	size += 12 + tex->streamGetPluginSize();
+	size += 12 + Texture::s_plglist.streamGetSize(tex);
 	return size;
 }
 

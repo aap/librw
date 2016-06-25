@@ -33,14 +33,14 @@ TexDictionary *currentTexDictionary;
 TexDictionary*
 TexDictionary::create(void)
 {
-	TexDictionary *dict = (TexDictionary*)malloc(PluginBase::s_size);
+	TexDictionary *dict = (TexDictionary*)malloc(s_plglist.size);
 	if(dict == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	dict->object.init(TexDictionary::ID, 0);
 	dict->textures.init();
-	dict->constructPlugins();
+	s_plglist.construct(dict);
 	return dict;
 }
 
@@ -49,7 +49,7 @@ TexDictionary::destroy(void)
 {
 	FORLIST(lnk, this->textures)
 		Texture::fromDict(lnk)->destroy();
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	free(this);
 }
 
@@ -88,7 +88,7 @@ TexDictionary::streamRead(Stream *stream)
 			goto fail;
 		txd->add(tex);
 	}
-	if(txd->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, txd))
 		return txd;
 fail:
 	txd->destroy();
@@ -105,7 +105,7 @@ TexDictionary::streamWrite(Stream *stream)
 	stream->writeI16(0);
 	FORLIST(lnk, this->textures)
 		Texture::fromDict(lnk)->streamWriteNative(stream);
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 }
 
 uint32
@@ -114,7 +114,7 @@ TexDictionary::streamGetSize(void)
 	uint32 size = 12 + 4;
 	FORLIST(lnk, this->textures)
 		size += 12 + Texture::fromDict(lnk)->streamGetSizeNative();
-	size += 12 + this->streamGetPluginSize();
+	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
 
@@ -133,9 +133,9 @@ Texture *(*Texture::readCB)(const char *name, const char *mask) = defaultReadCB;
 Texture*
 Texture::create(Raster *raster)
 {
-	Texture *tex = (Texture*)malloc(PluginBase::s_size);
+	Texture *tex = (Texture*)malloc(s_plglist.size);
 	if(tex == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	tex->dict = nil;
@@ -145,7 +145,7 @@ Texture::create(Raster *raster)
 	tex->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
 	tex->raster = raster;
 	tex->refCount = 1;
-	tex->constructPlugins();
+	s_plglist.construct(tex);
 	return tex;
 }
 
@@ -154,7 +154,7 @@ Texture::destroy(void)
 {
 	this->refCount--;
 	if(this->refCount <= 0){
-		this->destructPlugins();
+		s_plglist.destruct(this);
 		if(this->dict)
 			this->inDict.remove();
 		if(this->raster)
@@ -260,7 +260,7 @@ Texture::streamRead(Stream *stream)
 		tex->filterAddressing = filterAddressing;
 	tex->refCount++;	// TODO: RW doesn't do this, why?
 
-	if(tex->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, tex))
 		return tex;
 	tex->destroy();
 	return nil;
@@ -287,7 +287,7 @@ Texture::streamWrite(Stream *stream)
 	writeChunkHeader(stream, ID_STRING, size);
 	stream->write(buf, size);
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
@@ -299,7 +299,7 @@ Texture::streamGetSize(void)
 	size += 12 + 12;
 	size += strlen(this->name)+4 & ~3;
 	size += strlen(this->mask)+4 & ~3;
-	size += 12 + this->streamGetPluginSize();
+	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
 
@@ -679,7 +679,7 @@ writeTGA(Image *image, const char *filename)
 Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
-	Raster *raster = (Raster*)malloc(PluginBase::s_size);
+	Raster *raster = (Raster*)malloc(s_plglist.size);
 	assert(raster != nil);
 	raster->platform = platform ? platform : rw::platform;
 	raster->type = format & 0x7;
@@ -689,7 +689,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->height = height;
 	raster->depth = depth;
 	raster->texels = raster->palette = nil;
-	raster->constructPlugins();
+	s_plglist.construct(raster);
 
 	driver[raster->platform].rasterCreate(raster);
 	return raster;
@@ -698,7 +698,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 void
 Raster::destroy(void)
 {
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	delete[] this->texels;
 	delete[] this->palette;
 	free(this);

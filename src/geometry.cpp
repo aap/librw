@@ -17,9 +17,9 @@ namespace rw {
 Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
-	Geometry *geo = (Geometry*)malloc(PluginBase::s_size);
+	Geometry *geo = (Geometry*)malloc(s_plglist.size);
 	if(geo == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	geo->object.init(Geometry::ID, 0);
@@ -62,7 +62,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	geo->instData = nil;
 	geo->refCount = 1;
 
-	geo->constructPlugins();
+	s_plglist.construct(geo);
 	return geo;
 }
 
@@ -71,7 +71,7 @@ Geometry::destroy(void)
 {
 	this->refCount--;
 	if(this->refCount <= 0){
-		this->destructPlugins();
+		s_plglist.destruct(this);
 		delete[] this->colors;
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			delete[] this->texCoords[i];
@@ -168,7 +168,7 @@ Geometry::streamRead(Stream *stream)
 			goto fail;
 		geo->materialList[i] = m;
 	}
-	if(geo->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, geo))
 		return geo;
 
 fail:
@@ -266,7 +266,7 @@ Geometry::streamWrite(Stream *stream)
 	for(int32 i = 0; i < this->numMaterials; i++)
 		this->materialList[i]->streamWrite(stream);
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
@@ -278,7 +278,7 @@ Geometry::streamGetSize(void)
 	size += 12 + 12 + 4;
 	for(int32 i = 0; i < this->numMaterials; i++)
 		size += 4 + 12 + this->materialList[i]->streamGetSize();
-	size += 12 + this->streamGetPluginSize();
+	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
 
@@ -538,9 +538,9 @@ Geometry::removeUnusedMaterials(void)
 Material*
 Material::create(void)
 {
-	Material *mat = (Material*)malloc(PluginBase::s_size);
+	Material *mat = (Material*)malloc(s_plglist.size);
 	if(mat == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	mat->texture = nil;
@@ -550,7 +550,7 @@ Material::create(void)
 	mat->surfaceProps.diffuse = 1.0f;
 	mat->pipeline = nil;
 	mat->refCount = 1;
-	mat->constructPlugins();
+	s_plglist.construct(mat);
 	return mat;
 }
 
@@ -559,7 +559,7 @@ Material::clone(void)
 {
 	Material *mat = Material::create();
 	if(mat == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	mat->color = this->color;
@@ -567,7 +567,7 @@ Material::clone(void)
 	if(this->texture)
 		mat->setTexture(this->texture);
 	mat->pipeline = this->pipeline;
-	mat->copyPlugins(this);
+	s_plglist.copy(mat, this);
 	return mat;
 }
 
@@ -576,7 +576,7 @@ Material::destroy(void)
 {
 	this->refCount--;
 	if(this->refCount <= 0){
-		this->destructPlugins();
+		s_plglist.destruct(this);
 		if(this->texture)
 			this->texture->destroy();
 		free(this);
@@ -641,10 +641,10 @@ Material::streamRead(Stream *stream)
 	}
 
 	materialRights[0] = 0;
-	if(!mat->streamReadPlugins(stream))
+	if(!s_plglist.streamRead(stream, mat))
 		goto fail;
 	if(materialRights[0])
-		mat->assertRights(materialRights[0], materialRights[1]);
+		s_plglist.assertRights(mat, materialRights[0], materialRights[1]);
 	return mat;
 
 fail:
@@ -678,7 +678,7 @@ Material::streamWrite(Stream *stream)
 	if(this->texture)
 		this->texture->streamWrite(stream);
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
@@ -691,7 +691,7 @@ Material::streamGetSize(void)
 		size += 12;
 	if(this->texture)
 		size += 12 + this->texture->streamGetSize();
-	size += 12 + this->streamGetPluginSize();
+	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
 

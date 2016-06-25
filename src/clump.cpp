@@ -20,16 +20,16 @@ namespace rw {
 Clump*
 Clump::create(void)
 {
-	Clump *clump = (Clump*)malloc(PluginBase::s_size);
+	Clump *clump = (Clump*)malloc(s_plglist.size);
 	if(clump == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	clump->object.init(Clump::ID, 0);
 	clump->atomics.init();
 	clump->lights.init();
 	clump->cameras.init();
-	clump->constructPlugins();
+	s_plglist.construct(clump);
 	return clump;
 }
 
@@ -46,7 +46,7 @@ Clump::clone(void)
 		clump->addAtomic(atomic);
 	}
 	root->purgeClone();
-	clump->copyPlugins(this);
+	s_plglist.copy(clump, this);
 	return clump;
 }
 
@@ -54,7 +54,7 @@ void
 Clump::destroy(void)
 {
 	Frame *f;
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	FORLIST(lnk, this->atomics)
 		Atomic::fromClump(lnk)->destroy();
 	FORLIST(lnk, this->lights)
@@ -192,7 +192,7 @@ Clump::streamRead(Stream *stream)
 			geometryList[i]->destroy();
 	free(geometryList);
 	free(frmlst.frames);
-	if(clump->streamReadPlugins(stream))
+	if(s_plglist.streamRead(stream, clump))
 		return clump;
 
 failgeo:
@@ -261,7 +261,7 @@ Clump::streamWrite(Stream *stream)
 
 	free(frmlst.frames);
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
@@ -296,7 +296,7 @@ Clump::streamGetSize(void)
 	FORLIST(lnk, this->cameras)
 		size += 16 + 12 + Camera::fromClump(lnk)->streamGetSize();
 
-	size += 12 + this->streamGetPluginSize();
+	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
 
@@ -331,9 +331,9 @@ worldAtomicSync(ObjectWithFrame *obj)
 Atomic*
 Atomic::create(void)
 {
-	Atomic *atomic = (Atomic*)malloc(PluginBase::s_size);
+	Atomic *atomic = (Atomic*)malloc(s_plglist.size);
 	if(atomic == nil){
-		RWERROR((ERR_ALLOC, PluginBase::s_size));
+		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
 	atomic->object.object.init(Atomic::ID, 0);
@@ -352,7 +352,7 @@ Atomic::create(void)
 	atomic->originalSync = atomic->object.syncCB;
 	atomic->object.syncCB = worldAtomicSync;
 
-	atomic->constructPlugins();
+	s_plglist.construct(atomic);
 	return atomic;
 }
 
@@ -367,14 +367,14 @@ Atomic::clone()
 	if(this->geometry)
 		atomic->setGeometry(this->geometry);
 	atomic->pipeline = this->pipeline;
-	atomic->copyPlugins(this);
+	s_plglist.copy(atomic, this);
 	return atomic;
 }
 
 void
 Atomic::destroy(void)
 {
-	this->destructPlugins();
+	s_plglist.destruct(this);
 	if(this->geometry)
 		this->geometry->destroy();
 	if(this->clump)
@@ -452,10 +452,10 @@ Atomic::streamReadClump(Stream *stream,
 	atomic->object.object.flags = buf[2];
 
 	atomicRights[0] = 0;
-	if(!atomic->streamReadPlugins(stream))
+	if(!s_plglist.streamRead(stream, atomic))
 		goto fail;
 	if(atomicRights[0])
-		atomic->assertRights(atomicRights[0], atomicRights[1]);
+		s_plglist.assertRights(atomic, atomicRights[0], atomicRights[1]);
 	return atomic;
 
 fail:
@@ -491,14 +491,14 @@ Atomic::streamWriteClump(Stream *stream, FrameList_ *frmlst)
 		stream->write(buf, sizeof(buf));
 	}
 
-	this->streamWritePlugins(stream);
+	s_plglist.streamWrite(stream, this);
 	return true;
 }
 
 uint32
 Atomic::streamGetSize(void)
 {
-	uint32 size = 12 + 12 + 12 + this->streamGetPluginSize();
+	uint32 size = 12 + 12 + 12 + s_plglist.streamGetSize(this);
 	if(rw::version < 0x30400)
 		size += 12 + this->geometry->streamGetSize();
 	else
