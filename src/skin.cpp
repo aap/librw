@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwplugins.h"
 #include "ps2/rwps2.h"
 #include "ps2/rwps2plg.h"
@@ -226,14 +227,9 @@ skinRights(void *object, int32, int32, uint32)
 	Skin::setPipeline((Atomic*)object, 1);
 }
 
-void
-registerSkinPlugin(void)
+static void*
+skinOpen(void*, int32, int32)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	defpipe->pluginID = ID_SKIN;
-	defpipe->pluginData = 1;
-	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
-		skinGlobals.pipelines[i] = defpipe;
 	skinGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_XBOX] =
@@ -246,6 +242,27 @@ registerSkinPlugin(void)
 		wdgl::makeSkinPipeline();
 	skinGlobals.pipelines[PLATFORM_GL3] =
 		gl3::makeSkinPipeline();
+}
+
+static void*
+skinClose(void*, int32, int32)
+{
+}
+
+void
+registerSkinPlugin(void)
+{
+	// init dummy pipelines
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	defpipe->pluginID = ID_SKIN;
+	defpipe->pluginData = 1;
+	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
+		skinGlobals.pipelines[i] = defpipe;
+
+	// TODO: call platform specific init functions?
+	//       have platform specific open functions?
+
+	Engine::registerPlugin(0, ID_SKIN, skinOpen, skinClose);
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,

@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwplugins.h"
 #include "ps2/rwps2.h"
 #include "ps2/rwps2plg.h"
@@ -409,14 +410,9 @@ MatFX::enableEffects(Atomic *atomic)
 	atomic->pipeline = matFXGlobals.pipelines[rw::platform];
 }
 
-void
-registerMatFXPlugin(void)
+static void*
+matfxOpen(void*, int32, int32)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	defpipe->pluginID = 0; //ID_MATFX;
-	defpipe->pluginData = 0;
-	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
-		matFXGlobals.pipelines[i] = defpipe;
 	matFXGlobals.pipelines[PLATFORM_PS2] =
 		ps2::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_XBOX] =
@@ -429,6 +425,27 @@ registerMatFXPlugin(void)
 		wdgl::makeMatFXPipeline();
 	matFXGlobals.pipelines[PLATFORM_GL3] =
 		gl3::makeMatFXPipeline();
+}
+
+static void*
+matfxClose(void*, int32, int32)
+{
+}
+
+void
+registerMatFXPlugin(void)
+{
+	// init dummy pipelines
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	defpipe->pluginID = 0; //ID_MATFX;
+	defpipe->pluginData = 0;
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		matFXGlobals.pipelines[i] = defpipe;
+
+	// TODO: call platform specific init functions?
+	//       have platform specific open functions?
+
+	Engine::registerPlugin(0, ID_MATFX, matfxOpen, matfxClose);
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,
