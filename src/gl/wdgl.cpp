@@ -21,10 +21,25 @@
 namespace rw {
 namespace wdgl {
 
+void*
+driverOpen(void *o, int32, int32)
+{
+	printf("wdgl open\n");
+	driver[PLATFORM_WDGL]->defaultPipeline = makeDefaultPipeline();
+	return o;
+}
+
+void*
+driverClose(void *o, int32, int32)
+{
+	return o;
+}
+
 void
 initializePlatform(void)
 {
-	driver[PLATFORM_WDGL].defaultPipeline = makeDefaultPipeline();
+	Driver::registerPlugin(PLATFORM_WDGL, 0, PLATFORM_WDGL,
+	                       driverOpen, driverClose);
 }
 
 
@@ -659,6 +674,28 @@ skinUninstanceCB(Geometry *geo)
 	skin->findUsedBones(geo->numVertices);
 }
 
+// Skin
+
+static void*
+skinOpen(void *o, int32, int32)
+{
+	skinGlobals.pipelines[PLATFORM_WDGL] = makeSkinPipeline();
+	return o;
+}
+
+static void*
+skinClose(void *o, int32, int32)
+{
+	return o;
+}
+
+void
+initSkin(void)
+{
+	Driver::registerPlugin(PLATFORM_WDGL, 0, ID_SKIN,
+	                       skinOpen, skinClose);
+}
+
 ObjPipeline*
 makeSkinPipeline(void)
 {
@@ -669,6 +706,28 @@ makeSkinPipeline(void)
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = skinUninstanceCB;
 	return pipe;
+}
+
+// MatFX
+
+static void*
+matfxOpen(void *o, int32, int32)
+{
+	matFXGlobals.pipelines[PLATFORM_WDGL] = makeMatFXPipeline();
+	return o;
+}
+
+static void*
+matfxClose(void *o, int32, int32)
+{
+	return o;
+}
+
+void
+initMatFX(void)
+{
+	Driver::registerPlugin(PLATFORM_WDGL, 0, ID_MATFX,
+	                       matfxOpen, matfxClose);
 }
 
 ObjPipeline*

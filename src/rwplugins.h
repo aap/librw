@@ -110,6 +110,7 @@ struct MatFX
 
 	void setEffects(uint32 flags);
 	static uint32 getEffects(Material *m);
+	static MatFX *get(Material *m);
 	uint32 getEffectIndex(uint32 type);
 	void setBumpTexture(Texture *t);
 	void setBumpCoefficient(float32 coef);

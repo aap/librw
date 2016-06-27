@@ -17,6 +17,7 @@
 #include "d3d/rwd3d9.h"
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
+#include "gl/rwgl3plg.h"
 
 #define PLUGIN_ID ID_SKIN
 
@@ -227,28 +228,6 @@ skinRights(void *object, int32, int32, uint32)
 	Skin::setPipeline((Atomic*)object, 1);
 }
 
-static void*
-skinOpen(void*, int32, int32)
-{
-	skinGlobals.pipelines[PLATFORM_PS2] =
-		ps2::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_XBOX] =
-		xbox::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_D3D8] =
-		d3d8::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_D3D9] =
-		d3d9::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_WDGL] =
-		wdgl::makeSkinPipeline();
-	skinGlobals.pipelines[PLATFORM_GL3] =
-		gl3::makeSkinPipeline();
-}
-
-static void*
-skinClose(void*, int32, int32)
-{
-}
-
 void
 registerSkinPlugin(void)
 {
@@ -259,10 +238,12 @@ registerSkinPlugin(void)
 	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
 
-	// TODO: call platform specific init functions?
-	//       have platform specific open functions?
-
-	Engine::registerPlugin(0, ID_SKIN, skinOpen, skinClose);
+	ps2::initSkin();
+	xbox::initSkin();
+	d3d8::initSkin();
+	d3d9::initSkin();
+	wdgl::initSkin();
+	gl3::initSkin();
 
 	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
 	                                              createSkin,

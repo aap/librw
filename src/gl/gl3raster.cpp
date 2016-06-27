@@ -21,7 +21,7 @@ namespace gl3 {
 
 int32 nativeRasterOffset;
 
-static void
+void
 rasterCreate(Raster *raster)
 {
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
@@ -42,27 +42,27 @@ rasterCreate(Raster *raster)
 #endif
 }
 
-static uint8*
+uint8*
 rasterLock(Raster*, int32 level)
 {
 	printf("locking\n");
 	return nil;
 }
 
-static void
+void
 rasterUnlock(Raster*, int32)
 {
 	printf("unlocking\n");
 }
 
-static int32
+int32
 rasterNumLevels(Raster*)
 {
 	printf("numlevels\n");
 	return 0;
 }
 
-static void
+void
 rasterFromImage(Raster *raster, Image *image)
 {
 	int32 format;
@@ -112,26 +112,8 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	return dst;
 }
 
-static void*
-nativeOpen(void*, int32, int32)
-{
-        driver[PLATFORM_GL3].rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_GL3].rasterCreate = rasterCreate;
-	driver[PLATFORM_GL3].rasterLock = rasterLock;
-	driver[PLATFORM_GL3].rasterUnlock = rasterUnlock;
-	driver[PLATFORM_GL3].rasterNumLevels = rasterNumLevels;
-	driver[PLATFORM_GL3].rasterFromImage = rasterFromImage;
-}
-
-static void*
-nativeClose(void*, int32, int32)
-{
-	printf("gl3 native close\n");
-}
-
 void registerNativeRaster(void)
 {
-	Engine::registerPlugin(0, ID_RASTERGL3, nativeOpen, nativeClose);
         nativeRasterOffset = Raster::registerPlugin(sizeof(Gl3Raster),
                                                     ID_RASTERGL3,
                                                     createNativeRaster,

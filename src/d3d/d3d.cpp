@@ -348,7 +348,7 @@ deleteObject(void *object)
 
 int32 nativeRasterOffset;
 
-static void
+void
 rasterCreate(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -392,21 +392,21 @@ rasterCreate(Raster *raster)
 	                                format);
 }
 
-static uint8*
+uint8*
 rasterLock(Raster *raster, int32 level)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	return lockTexture(natras->texture, level);
 }
 
-static void
+void
 rasterUnlock(Raster *raster, int32 level)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	unlockTexture(natras->texture, level);
 }
 
-static int32
+int32
 rasterNumLevels(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -419,7 +419,7 @@ rasterNumLevels(Raster *raster)
 #endif
 }
 
-static void
+void
 rasterFromImage(Raster *raster, Image *image)
 {
 	int32 format;
@@ -586,34 +586,9 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	return dst;
 }
 
-static void*
-nativeOpen(void*, int32, int32)
-{
-	driver[PLATFORM_D3D8].rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_D3D8].rasterCreate = rasterCreate;
-	driver[PLATFORM_D3D8].rasterLock = rasterLock;
-	driver[PLATFORM_D3D8].rasterUnlock = rasterUnlock;
-	driver[PLATFORM_D3D8].rasterNumLevels = rasterNumLevels;
-	driver[PLATFORM_D3D8].rasterFromImage = rasterFromImage;
-
-	driver[PLATFORM_D3D9].rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_D3D9].rasterCreate = rasterCreate;
-	driver[PLATFORM_D3D9].rasterLock = rasterLock;
-	driver[PLATFORM_D3D9].rasterUnlock = rasterUnlock;
-	driver[PLATFORM_D3D9].rasterNumLevels = rasterNumLevels;
-	driver[PLATFORM_D3D9].rasterFromImage = rasterFromImage;
-}
-
-static void*
-nativeClose(void*, int32, int32)
-{
-	printf("d3d native close\n");
-}
-
 void
 registerNativeRaster(void)
 {
-	Engine::registerPlugin(0, ID_RASTERD3D9, nativeOpen, nativeClose);
 	nativeRasterOffset = Raster::registerPlugin(sizeof(D3dRaster),
 	                                            ID_RASTERD3D9,
                                                     createNativeRaster,

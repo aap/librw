@@ -17,6 +17,12 @@
 namespace rw {
 namespace gl3 {
 
+struct UniformState
+{
+	int     alphaFunc;
+	float32 alphaRef;
+};
+
 struct UniformScene
 {
 	float32 proj[16];
@@ -47,8 +53,9 @@ struct UniformObject
 };
 
 GLuint vao;
-GLuint ubo_scene, ubo_object;
+GLuint ubo_state, ubo_scene, ubo_object;
 GLuint whitetex;
+UniformState uniformState;
 UniformScene uniformScene;
 UniformObject uniformObject;
 
@@ -113,7 +120,7 @@ beginUpdate(Camera *cam)
 void
 initializeRender(void)
 {
-        driver[PLATFORM_GL3].beginUpdate = beginUpdate;
+        driver[PLATFORM_GL3]->beginUpdate = beginUpdate;
 
         glClearColor(0.25, 0.25, 0.25, 1.0);
 
@@ -124,6 +131,14 @@ initializeRender(void)
 
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
+
+	glGenBuffers(1, &ubo_state);
+	glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
+	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("State"), ubo_state);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformState), &uniformState,
+	             GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
 
 	glGenBuffers(1, &ubo_scene);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_scene);
@@ -163,6 +178,7 @@ setAttribPointers(InstanceDataHeader *header)
 	}
 }
 
+static bool32 stateDirty = 1;
 static bool32 sceneDirty = 1;
 static bool32 objectDirty = 1;
 
@@ -262,6 +278,21 @@ setVertexAlpha(bool32 alpha)
 	vertexAlpha = alpha;
 }
 
+void
+setAlphaTestFunc(int32 f)
+{
+	uniformState.alphaFunc = f;
+	stateDirty = 1;
+}
+
+void
+setAlphaRef(float32 f)
+{
+	uniformState.alphaRef = f;
+	stateDirty = 1;
+}
+
+#define U(s) currentShader->uniformLocations[findUniform(s)]
 
 void
 flushCache(void)
@@ -277,6 +308,12 @@ flushCache(void)
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformScene),
 				&uniformScene);
 		sceneDirty = 0;
+	}
+	if(stateDirty){
+		glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformState),
+				&uniformState);
+		stateDirty = 0;
 	}
 }
 
@@ -306,6 +343,56 @@ lightingCB(void)
 }
 
 void
+matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
+{
+	setWorldMatrix(atomic->getFrame()->getLTM());
+	lightingCB();
+
+	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
+	setAttribPointers(header);
+
+	Material *m;
+	RGBAf col;
+	GLfloat surfProps[4];
+	int id;
+	InstanceData *inst = header->inst;
+	int32 n = header->numMeshes;
+
+	setAlphaTestFunc(1);
+	setAlphaRef(0.2);
+
+	while(n--){
+		m = inst->material;
+
+		convColor(&col, &m->color);
+		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+
+		surfProps[0] = m->surfaceProps.ambient;
+		surfProps[1] = m->surfaceProps.specular;
+		surfProps[2] = m->surfaceProps.diffuse;
+		surfProps[3] = 0.0f;
+		glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+
+		setTexture(0, m->texture);
+/*
+		if(MatFX::getEffects(m) == MatFX::ENVMAP){
+			MatFX *fx = MatFX::get(m);
+			int32 idx = fx->getEffectIndex(MatFX::ENVMAP);
+			setTexture(0, fx->fx[idx].env.tex);
+		}
+*/
+
+		setVertexAlpha(inst->vertexAlpha || m->color.alpha != 0xFF);
+
+		flushCache();
+		glDrawElements(header->primType, inst->numIndex,
+		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
+		inst++;
+	}
+}
+
+void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	setWorldMatrix(atomic->getFrame()->getLTM());
@@ -322,10 +409,11 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
+	setAlphaTestFunc(1);
+	setAlphaRef(0.2);
+
 	while(n--){
 		m = inst->material;
-
-#define U(s) currentShader->uniformLocations[findUniform(s)]
 
 		convColor(&col, &m->color);
 		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);

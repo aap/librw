@@ -60,6 +60,10 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 
 void setAttribPointers(InstanceDataHeader *header);
 
+// Render state
+void setAlphaTestFunc(int32 f); 
+void setAlphaRef(float32 f);
+
 // per Scene
 void setProjectionMatrix(float32*);
 void setViewMatrix(float32*);
@@ -87,6 +91,8 @@ public:
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
+
+void matfxRenderCB(Atomic *atomic, InstanceDataHeader *header);
 
 ObjPipeline *makeDefaultPipeline(void);
 ObjPipeline *makeSkinPipeline(void);

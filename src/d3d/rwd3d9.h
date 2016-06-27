@@ -76,8 +76,14 @@ void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
 
 ObjPipeline *makeDefaultPipeline(void);
 
+// Skin plugin
+
+void initSkin(void);
 ObjPipeline *makeSkinPipeline(void);
 
+// MatFX plugin
+
+void initMatFX(void);
 ObjPipeline *makeMatFXPipeline(void);
 
 // Native Texture and Raster

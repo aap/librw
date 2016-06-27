@@ -12,18 +12,43 @@
 #include "rwd3d.h"
 #include "rwd3d8.h"
 
+#include "rwd3dimpl.h"
+
 #define PLUGIN_ID 2
 
 namespace rw {
 namespace d3d8 {
 using namespace d3d;
 
+void*
+driverOpen(void *o, int32, int32)
+{
+	printf("d3d8 open\n");
+	driver[PLATFORM_D3D8]->defaultPipeline = makeDefaultPipeline();
+
+	driver[PLATFORM_D3D8]->rasterNativeOffset = nativeRasterOffset;
+	driver[PLATFORM_D3D8]->rasterCreate       = rasterCreate;
+	driver[PLATFORM_D3D8]->rasterLock         = rasterLock;
+	driver[PLATFORM_D3D8]->rasterUnlock       = rasterUnlock;
+	driver[PLATFORM_D3D8]->rasterNumLevels    = rasterNumLevels;
+	driver[PLATFORM_D3D8]->rasterFromImage    = rasterFromImage;
+	return o;
+}
+
+void*
+driverClose(void *o, int32, int32)
+{
+	return o;
+}
+
 void
 initializePlatform(void)
 {
+	Driver::registerPlugin(PLATFORM_D3D8, 0, PLATFORM_D3D8,
+	                       driverOpen, driverClose);
+	// shared between D3D8 and 9
 	if(nativeRasterOffset == 0)
 		registerNativeRaster();
-	driver[PLATFORM_D3D8].defaultPipeline = makeDefaultPipeline();
 }
 
 uint32
@@ -398,30 +423,6 @@ makeDefaultPipeline(void)
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = defaultRenderCB;
-	return pipe;
-}
-
-ObjPipeline*
-makeSkinPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
-	pipe->pluginID = ID_SKIN;
-	pipe->pluginData = 1;
-	return pipe;
-}
-
-ObjPipeline*
-makeMatFXPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
-	pipe->pluginID = ID_MATFX;
-	pipe->pluginData = 0;
 	return pipe;
 }
 

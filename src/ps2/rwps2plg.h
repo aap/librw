@@ -1,10 +1,15 @@
 namespace rw {
 namespace ps2 {
 
-ObjPipeline *makeSkinPipeline(void);
+// MatFX plugin
+
+void initMatFX(void);
 ObjPipeline *makeMatFXPipeline(void);
 
 // Skin plugin
+
+void initSkin(void);
+ObjPipeline *makeSkinPipeline(void);
 
 void insertVertexSkin(Geometry *geo, int32 i, uint32 mask, Vertex *v);
 int32 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v);

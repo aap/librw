@@ -46,14 +46,21 @@ public:
 
 ObjPipeline *makeDefaultPipeline(void);
 
+void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
+void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
+
 // Skin plugin
 
 Stream *readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 Stream *writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
 
+void initSkin(void);
 ObjPipeline *makeSkinPipeline(void);
 
+// MatFX plugin
+
+void initMatFX(void);
 ObjPipeline *makeMatFXPipeline(void);
 
 // Vertex Format plugin

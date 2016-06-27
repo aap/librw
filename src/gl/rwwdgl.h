@@ -60,12 +60,16 @@ ObjPipeline *makeDefaultPipeline(void);
 
 // Skin plugin
 
+void initSkin(void);
 Stream *readNativeSkin(Stream *stream, int32, void *object, int32 offset);
 Stream *writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset);
 int32 getSizeNativeSkin(void *object, int32 offset);
 
 ObjPipeline *makeSkinPipeline(void);
 
+// MatFX plugin
+
+void initMatFX(void);
 ObjPipeline *makeMatFXPipeline(void);
 
 // Raster

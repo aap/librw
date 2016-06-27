@@ -47,14 +47,20 @@ public:
 	ObjPipeline(uint32 platform);
 };
 
-void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
-void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
+void defaultInstanceCB(Geometry *geo, InstanceData *header);
+void defaultUninstanceCB(Geometry *geo, InstanceData *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
 
 ObjPipeline *makeDefaultPipeline(void);
 
+// Skin plugin
+
+void initSkin(void);
 ObjPipeline *makeSkinPipeline(void);
 
+// MatFX plugin
+
+void initMatFX(void);
 ObjPipeline *makeMatFXPipeline(void);
 
 // Native Texture and Raster

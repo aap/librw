@@ -61,15 +61,9 @@ ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
 	}
 }
 
-struct dword
-{
-	uint32 lo;
-	uint32 hi;
-};
-
 #define ALIGN64(x) ((x) + 0x3F & ~0x3F)
 
-static void
+void
 rasterCreate(Raster *raster)
 {
 	uint64 bufferWidth[7], bufferBase[7];
@@ -380,7 +374,7 @@ rasterCreate(Raster *raster)
 	}
 }
 
-static uint8*
+uint8*
 rasterLock(Raster *raster, int32 level)
 {
 	// TODO
@@ -389,7 +383,7 @@ rasterLock(Raster *raster, int32 level)
 	return nil;
 }
 
-static void
+void
 rasterUnlock(Raster *raster, int32 level)
 {
 	// TODO
@@ -397,7 +391,7 @@ rasterUnlock(Raster *raster, int32 level)
 	(void)level;
 }
 
-static int32
+int32
 rasterNumLevels(Raster *raster)
 {
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
@@ -476,26 +470,9 @@ getSizeMipmap(void*, int32, int32)
 	return rw::platform == PLATFORM_PS2 ? 4 : 0;
 }
 
-static void*
-nativeOpen(void*, int32, int32)
-{
-	driver[PLATFORM_PS2].rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_PS2].rasterCreate = rasterCreate;
-	driver[PLATFORM_PS2].rasterLock = rasterLock;
-	driver[PLATFORM_PS2].rasterUnlock = rasterUnlock;
-	driver[PLATFORM_PS2].rasterNumLevels = rasterNumLevels;
-}
-
-static void*
-nativeClose(void*, int32, int32)
-{
-	printf("ps2 native close\n");
-}
-
 void
 registerNativeRaster(void)
 {
-	Engine::registerPlugin(0, ID_RASTERPS2, nativeOpen, nativeClose);
 	nativeRasterOffset = Raster::registerPlugin(sizeof(Ps2Raster),
 	                                            ID_RASTERPS2,
                                                     createNativeRaster,

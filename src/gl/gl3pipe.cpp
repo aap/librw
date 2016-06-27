@@ -21,23 +21,6 @@ namespace gl3 {
 
 // TODO: make some of these things platform-independent
 
-void
-initializePlatform(void)
-{
-	registerNativeRaster();
-#ifdef RW_OPENGL
-        driver[PLATFORM_GL3].defaultPipeline = makeDefaultPipeline();
-
-	// uniforms need to be registered before any shaders are created
-	registerBlock("Scene");
-	registerBlock("Object");
-	registerUniform("u_matColor");
-	registerUniform("u_surfaceProps");
-#endif
-
-	initializeRender();
-}
-
 #ifdef RW_OPENGL
 
 static void
@@ -248,30 +231,6 @@ makeDefaultPipeline(void)
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = defaultRenderCB;
-	return pipe;
-}
-
-ObjPipeline*
-makeSkinPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_GL3);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
-	pipe->pluginID = ID_SKIN;
-	pipe->pluginData = 1;
-	return pipe;
-}
-
-ObjPipeline*
-makeMatFXPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_GL3);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
-	pipe->pluginID = ID_MATFX;
-	pipe->pluginData = 0;
 	return pipe;
 }
 

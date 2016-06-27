@@ -17,13 +17,13 @@ defaultBeginUpdateCB(Camera *cam)
 {
 	engine->currentCamera = cam;
 	Frame::syncDirty();
-	DRIVER.beginUpdate(cam);
+	DRIVER->beginUpdate(cam);
 }
 
 void
 defaultEndUpdateCB(Camera *cam)
 {
-	DRIVER.endUpdate(cam);
+	DRIVER->endUpdate(cam);
 }
 
 static void

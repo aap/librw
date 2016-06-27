@@ -18,26 +18,16 @@
 namespace rw {
 
 Engine *engine;
-Driver driver[NUM_PLATFORMS];
-
-PluginList Engine::s_plglist = {sizeof(Engine), sizeof(Engine), nil, nil};
+Driver *driver[NUM_PLATFORMS];
 
 void
 Engine::init(void)
 {
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	for(uint i = 0; i < NUM_PLATFORMS; i++){
-		driver[i].defaultPipeline = defpipe;
+	engine = new Engine;
 
-		driver[i].beginUpdate = null::beginUpdate;
-		driver[i].endUpdate = null::endUpdate;
+	for(uint i = 0; i < NUM_PLATFORMS; i++)
+		Driver::s_plglist[i] = { sizeof(Driver), sizeof(Driver), nil, nil };
 
-		driver[i].rasterCreate = null::rasterCreate;
-		driver[i].rasterLock = null::rasterLock;
-		driver[i].rasterUnlock = null::rasterUnlock;
-		driver[i].rasterNumLevels = null::rasterNumLevels;
-		driver[i].rasterFromImage = null::rasterFromImage;
-	}
 	Frame::dirtyList.init();
 
 	ps2::initializePlatform();
@@ -48,11 +38,29 @@ Engine::init(void)
 	gl3::initializePlatform();
 }
 
+PluginList Driver::s_plglist[NUM_PLATFORMS];
+
 void
-Engine::open(void)
+Driver::open(void)
 {
-	rw::engine = (Engine*)malloc(s_plglist.size);
-	s_plglist.construct(rw::engine);
+	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+
+	for(uint i = 0; i < NUM_PLATFORMS; i++){
+		rw::driver[i] = (Driver*)malloc(s_plglist[i].size);
+
+		driver[i]->defaultPipeline = defpipe;
+
+		driver[i]->beginUpdate = null::beginUpdate;
+		driver[i]->endUpdate = null::endUpdate;
+
+		driver[i]->rasterCreate = null::rasterCreate;
+		driver[i]->rasterLock = null::rasterLock;
+		driver[i]->rasterUnlock = null::rasterUnlock;
+		driver[i]->rasterNumLevels = null::rasterNumLevels;
+		driver[i]->rasterFromImage = null::rasterFromImage;
+
+		s_plglist[i].construct(rw::driver[i]);
+	}
 }
 
 namespace null {
