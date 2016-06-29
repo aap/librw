@@ -115,6 +115,7 @@ struct MatFX
 	void setBumpTexture(Texture *t);
 	void setBumpCoefficient(float32 coef);
 	void setEnvTexture(Texture *t);
+	void setEnvFrame(Frame *f);
 	void setEnvCoefficient(float32 coef);
 	void setDualTexture(Texture *t);
 	void setDualSrcBlend(int32 blend);

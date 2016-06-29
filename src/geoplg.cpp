@@ -183,7 +183,7 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 	stream->seek(-4);
 	libid = stream->readU32();
 	readChunkHeaderInfo(stream, &header);
-	if(header.type == ID_STRUCT && 
+	if(header.type == ID_STRUCT &&
 	   libraryIDPack(header.version, header.build) == libid){
 		platform = stream->readU32();
 		stream->seek(-16);

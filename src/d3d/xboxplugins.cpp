@@ -115,8 +115,8 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	defaultInstanceCB(geo, header);
 
-        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == nil)
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	if(skin == nil)
 		return;
 	NativeSkin *natskin = new NativeSkin;
 	skin->platformData = natskin;
@@ -169,8 +169,8 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	defaultUninstanceCB(geo, header);
 
-        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == nil)
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	if(skin == nil)
 		return;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;
 

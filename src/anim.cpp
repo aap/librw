@@ -59,7 +59,7 @@ Animation::destroy(void)
 {
 	uint8 *c = (uint8*)this->keyframes;
 	delete[] c;
-	free(this);	
+	free(this);
 }
 
 Animation*

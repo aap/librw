@@ -17,17 +17,17 @@ struct AttribDesc
 
 enum AttribIndices
 {
-        ATTRIB_POS = 0,
-        ATTRIB_NORMAL,
-        ATTRIB_COLOR,
-        ATTRIB_TEXCOORDS0,
-        ATTRIB_TEXCOORDS1,
-        ATTRIB_TEXCOORDS2,
-        ATTRIB_TEXCOORDS3,
-        ATTRIB_TEXCOORDS4,
-        ATTRIB_TEXCOORDS5,
-        ATTRIB_TEXCOORDS6,
-        ATTRIB_TEXCOORDS7,
+	ATTRIB_POS = 0,
+	ATTRIB_NORMAL,
+	ATTRIB_COLOR,
+	ATTRIB_TEXCOORDS0,
+	ATTRIB_TEXCOORDS1,
+	ATTRIB_TEXCOORDS2,
+	ATTRIB_TEXCOORDS3,
+	ATTRIB_TEXCOORDS4,
+	ATTRIB_TEXCOORDS5,
+	ATTRIB_TEXCOORDS6,
+	ATTRIB_TEXCOORDS7,
 };
 
 struct InstanceData
@@ -41,7 +41,7 @@ struct InstanceData
 };
 
 struct InstanceDataHeader : rw::InstanceDataHeader
-{               
+{
 	uint32      serialNumber;	// not really needed right now
 	uint32      numMeshes;
 	uint16     *indexBuffer;
@@ -61,7 +61,7 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 void setAttribPointers(InstanceDataHeader *header);
 
 // Render state
-void setAlphaTestFunc(int32 f); 
+void setAlphaTestFunc(int32 f);
 void setAlphaRef(float32 f);
 
 // per Scene
@@ -78,9 +78,11 @@ void setLight(int32 n, Light*);
 void setTexture(int32 n, Texture *tex);
 void setVertexAlpha(bool32 enable);
 
+void flushCache(void);
+
 class ObjPipeline : public rw::ObjPipeline
-{       
-public: 
+{
+public:
 	void (*instanceCB)(Geometry *geo, InstanceDataHeader *header);
 	void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
 	void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
@@ -91,12 +93,9 @@ public:
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
-
-void matfxRenderCB(Atomic *atomic, InstanceDataHeader *header);
+void lightingCB(void);
 
 ObjPipeline *makeDefaultPipeline(void);
-ObjPipeline *makeSkinPipeline(void);
-ObjPipeline *makeMatFXPipeline(void);
 
 // Native Texture and Raster
 

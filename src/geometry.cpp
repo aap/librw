@@ -76,7 +76,7 @@ Geometry::destroy(void)
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			delete[] this->texCoords[i];
 		delete[] this->triangles;
-		
+
 		for(int32 i = 0; i < this->numMorphTargets; i++){
 			MorphTarget *m = &this->morphTargets[i];
 			delete[] m->vertices;

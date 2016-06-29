@@ -114,11 +114,11 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 
 void registerNativeRaster(void)
 {
-        nativeRasterOffset = Raster::registerPlugin(sizeof(Gl3Raster),
-                                                    ID_RASTERGL3,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
+	nativeRasterOffset = Raster::registerPlugin(sizeof(Gl3Raster),
+	                                            ID_RASTERGL3,
+	                                            createNativeRaster,
+	                                            destroyNativeRaster,
+	                                            copyNativeRaster);
 }
 
 }

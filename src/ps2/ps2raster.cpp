@@ -400,7 +400,7 @@ rasterNumLevels(Raster *raster)
 		return MAXLEVEL(ras)+1;
 	return 1;
 }
-	
+
 static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
@@ -475,9 +475,9 @@ registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(Ps2Raster),
 	                                            ID_RASTERPS2,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
+	                                            createNativeRaster,
+	                                            destroyNativeRaster,
+	                                            copyNativeRaster);
 
 	Texture::registerPlugin(0, ID_SKYMIPMAP, nil, nil, nil);
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);

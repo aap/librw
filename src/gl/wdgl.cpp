@@ -604,9 +604,9 @@ skinInstanceCB(Geometry *g, int32 i, uint32 offset)
 	header->dataSize = offset*g->numVertices;
 	header->data = new uint8[header->dataSize];
 
-        Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
-        if(skin == nil)
-                return 8;
+	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	if(skin == nil)
+		return 8;
 
 	a = &header->attribs[i];
 	uint8 *wgt = header->data + a[0].offset;
@@ -632,8 +632,8 @@ skinUninstanceCB(Geometry *geo)
 {
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 
-        Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
-        if(skin == nil)
+	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	if(skin == nil)
 		return;
 
 	uint8 *data = skin->data;
@@ -776,9 +776,9 @@ registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(GlRaster),
 	                                            ID_RASTERWDGL,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
+	                                            createNativeRaster,
+	                                            destroyNativeRaster,
+	                                            copyNativeRaster);
 }
 
 void

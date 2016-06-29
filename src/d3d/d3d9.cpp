@@ -534,7 +534,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	int i;
 	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
 		;
-	uninstV3d(vertFormatMap[dcl[i].type], 
+	uninstV3d(vertFormatMap[dcl[i].type],
 		  geo->morphTargets[0].vertices,
 	          verts[dcl[i].stream] + dcl[i].offset,
 		  header->totalNumVertex,

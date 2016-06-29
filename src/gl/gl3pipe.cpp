@@ -85,7 +85,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 static void
 render(rw::ObjPipeline *rwpipe, Atomic *atomic)
-{       
+{
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	if((geo->geoflags & Geometry::NATIVE) == 0)
@@ -98,14 +98,14 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 ObjPipeline::ObjPipeline(uint32 platform)
  : rw::ObjPipeline(platform)
-{       
+{
 	this->impl.instance = gl3::instance;
 	this->impl.uninstance = gl3::uninstance;
 	this->impl.render = gl3::render;
 	this->instanceCB = nil;
 	this->uninstanceCB = nil;
 	this->renderCB = nil;
-}       
+}
 
 void
 defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)

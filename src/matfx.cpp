@@ -169,6 +169,14 @@ MatFX::setEnvTexture(Texture *t)
 }
 
 void
+MatFX::setEnvFrame(Frame *f)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		this->fx[i].env.frame = f;
+}
+
+void
 MatFX::setEnvCoefficient(float32 coef)
 {
 	int32 i = this->getEffectIndex(ENVMAP);

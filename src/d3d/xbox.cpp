@@ -614,9 +614,9 @@ registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(XboxRaster),
 	                                            ID_RASTERXBOX,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
+	                                            createNativeRaster,
+	                                            destroyNativeRaster,
+	                                            copyNativeRaster);
 }
 
 Texture*

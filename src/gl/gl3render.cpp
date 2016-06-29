@@ -59,6 +59,8 @@ UniformState uniformState;
 UniformScene uniformScene;
 UniformObject uniformObject;
 
+Shader *simpleShader;
+
 void
 beginUpdate(Camera *cam)
 {
@@ -87,9 +89,9 @@ beginUpdate(Camera *cam)
 	setViewMatrix(view);
 
 	// Projection Matrix
-        float32 invwx = 1.0f/cam->viewWindow.x;
-        float32 invwy = 1.0f/cam->viewWindow.y;
-        float32 invz = 1.0f/(cam->farPlane-cam->nearPlane);
+	float32 invwx = 1.0f/cam->viewWindow.x;
+	float32 invwy = 1.0f/cam->viewWindow.y;
+	float32 invz = 1.0f/(cam->farPlane-cam->nearPlane);
 
 	proj[0] = invwx;
 	proj[1] = 0.0f;
@@ -120,12 +122,14 @@ beginUpdate(Camera *cam)
 void
 initializeRender(void)
 {
-        driver[PLATFORM_GL3]->beginUpdate = beginUpdate;
+	driver[PLATFORM_GL3]->beginUpdate = beginUpdate;
 
-        glClearColor(0.25, 0.25, 0.25, 1.0);
+	simpleShader = Shader::fromFiles("simple.vert", "simple.frag");
+
+	glClearColor(0.25, 0.25, 0.25, 1.0);
 
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+	glDepthFunc(GL_LEQUAL);
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -228,14 +232,14 @@ setLight(int32 n, Light *light)
 void
 setProjectionMatrix(float32 *mat)
 {
-        memcpy(&uniformScene.proj, mat, 64);
+	memcpy(&uniformScene.proj, mat, 64);
 	sceneDirty = 1;
 }
 
 void
 setViewMatrix(float32 *mat)
 {
-        memcpy(&uniformScene.view, mat, 64);
+	memcpy(&uniformScene.view, mat, 64);
 	sceneDirty = 1;
 }
 
@@ -343,56 +347,6 @@ lightingCB(void)
 }
 
 void
-matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
-{
-	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB();
-
-	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
-	setAttribPointers(header);
-
-	Material *m;
-	RGBAf col;
-	GLfloat surfProps[4];
-	int id;
-	InstanceData *inst = header->inst;
-	int32 n = header->numMeshes;
-
-	setAlphaTestFunc(1);
-	setAlphaRef(0.2);
-
-	while(n--){
-		m = inst->material;
-
-		convColor(&col, &m->color);
-		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
-
-		surfProps[0] = m->surfaceProps.ambient;
-		surfProps[1] = m->surfaceProps.specular;
-		surfProps[2] = m->surfaceProps.diffuse;
-		surfProps[3] = 0.0f;
-		glUniform4fv(U("u_surfaceProps"), 1, surfProps);
-
-		setTexture(0, m->texture);
-/*
-		if(MatFX::getEffects(m) == MatFX::ENVMAP){
-			MatFX *fx = MatFX::get(m);
-			int32 idx = fx->getEffectIndex(MatFX::ENVMAP);
-			setTexture(0, fx->fx[idx].env.tex);
-		}
-*/
-
-		setVertexAlpha(inst->vertexAlpha || m->color.alpha != 0xFF);
-
-		flushCache();
-		glDrawElements(header->primType, inst->numIndex,
-		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
-		inst++;
-	}
-}
-
-void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	setWorldMatrix(atomic->getFrame()->getLTM());
@@ -411,6 +365,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	setAlphaTestFunc(1);
 	setAlphaRef(0.2);
+
+	simpleShader->use();
 
 	while(n--){
 		m = inst->material;

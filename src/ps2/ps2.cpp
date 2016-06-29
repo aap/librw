@@ -236,7 +236,7 @@ unfixDmaOffsets(InstanceData *inst)
 
 // Pipeline
 
-PipeAttribute attribXYZ = { 
+PipeAttribute attribXYZ = {
 	"XYZ",
 	AT_V3_32
 };

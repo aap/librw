@@ -591,9 +591,9 @@ registerNativeRaster(void)
 {
 	nativeRasterOffset = Raster::registerPlugin(sizeof(D3dRaster),
 	                                            ID_RASTERD3D9,
-                                                    createNativeRaster,
-                                                    destroyNativeRaster,
-                                                    copyNativeRaster);
+	                                            createNativeRaster,
+	                                            destroyNativeRaster,
+	                                            copyNativeRaster);
 }
 
 }
