@@ -560,7 +560,6 @@ struct Camera : PluginBase<Camera>
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
 
-	void updateProjectionMatrix(void);
 	// fov in degrees
 	void setFOV(float32 fov, float32 ratio);
 };

@@ -29,6 +29,16 @@ defaultEndUpdateCB(Camera *cam)
 static void
 cameraSync(ObjectWithFrame*)
 {
+	// TODO: calculate view matrix here (i.e. projection * inverseLTM)
+	// RW projection matrix looks like this:
+	//       (cf. Camera View Matrix white paper)
+	// w = viewWindow width
+	// h = viewWindow height
+	// o = view offset
+	//
+	// 1/2w       0    ox/2w + 1/2   -ox/2w
+	//    0   -1/2h   -oy/2h + 1/2    oy/2h
+	//    0       0              1        0
 }
 
 void
@@ -167,73 +177,6 @@ Camera::streamGetSize(void)
 {
 	return 12 + sizeof(CameraChunkData) + 12 +
 	       s_plglist.streamGetSize(this);
-}
-
-// TODO: remove
-void
-Camera::updateProjectionMatrix(void)
-{
-	float32 invwx = 1.0f/this->viewWindow.x;
-	float32 invwy = 1.0f/this->viewWindow.y;
-	float32 invz = 1.0f/(this->farPlane-this->nearPlane);
-	if(rw::platform == PLATFORM_D3D8 || rw::platform == PLATFORM_D3D9 ||
-	   rw::platform == PLATFORM_XBOX){
-		// is this all really correct?
-		this->projMat[0] = invwx;
-		this->projMat[1] = 0.0f;
-		this->projMat[2] = 0.0f;
-		this->projMat[3] = 0.0f;
-
-		this->projMat[4] = 0.0f;
-		this->projMat[5] = invwy;
-		this->projMat[6] = 0.0f;
-		this->projMat[7] = 0.0f;
-
-		if(this->projection == PERSPECTIVE){
-			this->projMat[8] = this->viewOffset.x*invwx;
-			this->projMat[9] = this->viewOffset.y*invwy;
-			this->projMat[10] = this->farPlane*invz;
-			this->projMat[11] = 1.0f;
-
-			this->projMat[12] = 0.0f;
-			this->projMat[13] = 0.0f;
-			this->projMat[14] = -this->nearPlane*this->projMat[10];
-			this->projMat[15] = 0.0f;
-		}else{
-			this->projMat[8] = 0.0f;
-			this->projMat[9] = 0.0f;
-			this->projMat[10] = invz;
-			this->projMat[11] = 0.0f;
-
-			this->projMat[12] = this->viewOffset.x*invwx;
-			this->projMat[13] = this->viewOffset.y*invwy;
-			this->projMat[14] = -this->nearPlane*this->projMat[10];
-			this->projMat[15] = 1.0f;
-		}
-	}else if(rw::platform == PLATFORM_WDGL || rw::platform == PLATFORM_GL3){
-		this->projMat[0] = invwx;
-		this->projMat[1] = 0.0f;
-		this->projMat[2] = 0.0f;
-		this->projMat[3] = 0.0f;
-
-		this->projMat[4] = 0.0f;
-		this->projMat[5] = invwy;
-		this->projMat[6] = 0.0f;
-		this->projMat[7] = 0.0f;
-
-		if(this->projection == PERSPECTIVE){
-			this->projMat[8] = this->viewOffset.x*invwx;
-			this->projMat[9] = this->viewOffset.y*invwy;
-			this->projMat[10] = (this->farPlane+this->nearPlane)*invz;
-			this->projMat[11] = 1.0f;
-
-			this->projMat[12] = 0.0f;
-			this->projMat[13] = 0.0f;
-			this->projMat[14] = -2.0f*this->nearPlane*this->farPlane*invz;
-			this->projMat[15] = 0.0f;
-		}else{
-		}
-	}
 }
 
 void

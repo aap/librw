@@ -1,5 +1,51 @@
 namespace rw {
 
+enum RenderState
+{
+	VERTEXALPHA = 0,
+	SRCBLEND,
+	DESTBLEND,
+	ZTESTENABLE,
+	ZWRITEENABLE,
+	// TODO:
+	// fog enable, color, type, density
+	// ? cullmode
+	// ? shademode
+	// ???? stencil
+
+	// platform specific or opaque?
+	ALPHATESTFUNC,
+	ALPHATESTREF,
+	ZTESTFUNC,
+};
+
+enum AlphaTestFunc
+{
+	ALPHANEVER = 0,
+	ALPHALESS,
+	ALPHAGREATERTHAN
+};
+
+enum BlendFunction
+{
+	BLENDZERO = 0,
+	BLENDONE,
+	BLENDSRCCOLOR,
+	BLENDINVSRCCOLOR,
+	BLENDSRCALPHA,
+	BLENDINVSRCALPHA,
+	BLENDDESTALPHA,
+	BLENDINVDESTALPHA,
+	BLENDDESTCOLOR,
+	BLENDINVDESTCOLOR,
+	BLENDSRCALPHASAT,
+	// TODO: add more perhaps
+};
+
+enum ZTestFunc
+{
+};
+
 // This is for platform independent things
 // TODO: move more stuff into this
 struct Engine
@@ -21,6 +67,9 @@ struct Driver
 	void (*beginUpdate)(Camera*);
 	void (*endUpdate)(Camera*);
 
+	void   (*setRenderState)(int32 state, uint32 value);
+	uint32 (*getRenderState)(int32 state);
+
 	void   (*rasterCreate)(Raster*);
 	uint8 *(*rasterLock)(Raster*, int32 level);
 	void   (*rasterUnlock)(Raster*, int32 level);
@@ -39,9 +88,18 @@ struct Driver
 extern Driver *driver[NUM_PLATFORMS];
 #define DRIVER driver[rw::platform]
 
+inline void setRenderState(int32 state, uint32 value){
+	DRIVER->setRenderState(state, value); }
+
+inline uint32 getRenderState(int32 state){
+	return DRIVER->getRenderState(state); }
+
 namespace null {
 	void beginUpdate(Camera*);
 	void endUpdate(Camera*);
+
+	void   setRenderState(int32 state, uint32 value);
+	uint32 getRenderState(int32 state);
 
 	void   rasterCreate(Raster*);
 	uint8 *rasterLock(Raster*, int32 level);

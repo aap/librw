@@ -23,7 +23,6 @@ namespace ps2 {
 void*
 driverOpen(void *o, int32, int32)
 {
-	printf("ps2 open\n");
 	driver[PLATFORM_PS2]->defaultPipeline = makeDefaultPipeline();
 
 	driver[PLATFORM_PS2]->rasterNativeOffset = nativeRasterOffset;

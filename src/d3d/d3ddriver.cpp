@@ -177,6 +177,82 @@ setMaterial(Material *mat)
 	}
 }
 
+void
+beginUpdate(Camera *cam)
+{
+	float view[16], proj[16];
+
+	// View Matrix
+	Matrix inv;
+	// TODO: this can be simplified, or we use matrix flags....
+	Matrix::invert(&inv, cam->getFrame()->getLTM());
+	// Since we're looking into positive Z,
+	// flip X to ge a left handed view space.
+	view[0]  = -inv.right.x;
+	view[1]  =  inv.right.y;
+	view[2]  =  inv.right.z;
+	view[3]  =  0.0f;
+	view[4]  = -inv.up.x;
+	view[5]  =  inv.up.y;
+	view[6]  =  inv.up.z;
+	view[7]  =  0.0f;
+	view[8]  =  -inv.at.x;
+	view[9]  =   inv.at.y;
+	view[10] =  inv.at.z;
+	view[11] =  0.0f;
+	view[12] = -inv.pos.x;
+	view[13] =  inv.pos.y;
+	view[14] =  inv.pos.z;
+	view[15] =  1.0f;
+        device->SetTransform(D3DTS_VIEW, (D3DMATRIX*)view);
+
+	// Projection Matrix
+	float32 invwx = 1.0f/this->viewWindow.x;
+	float32 invwy = 1.0f/this->viewWindow.y;
+	float32 invz = 1.0f/(this->farPlane-this->nearPlane);
+
+	// is this all really correct? RW code looks a bit different...
+	proj[0] = invwx;
+	proj[1] = 0.0f;
+	proj[2] = 0.0f;
+	proj[3] = 0.0f;
+
+	proj[4] = 0.0f;
+	proj[5] = invwy;
+	proj[6] = 0.0f;
+	proj[7] = 0.0f;
+
+	if(this->projection == PERSPECTIVE){
+		proj[8] = this->viewOffset.x*invwx;
+		proj[9] = this->viewOffset.y*invwy;
+		proj[10] = this->farPlane*invz;
+		proj[11] = 1.0f;
+
+		proj[12] = 0.0f;
+		proj[13] = 0.0f;
+		proj[14] = -this->nearPlane*this->projMat[10];
+		proj[15] = 0.0f;
+	}else{
+		proj[8] = 0.0f;
+		proj[9] = 0.0f;
+		proj[10] = invz;
+		proj[11] = 0.0f;
+
+		proj[12] = this->viewOffset.x*invwx;
+		proj[13] = this->viewOffset.y*invwy;
+		proj[14] = -this->nearPlane*this->projMat[10];
+		proj[15] = 1.0f;
+	}
+        device->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
+}
+
+void
+initializeRender(void)
+{
+	driver[PLATFORM_D3D8]->beginUpdate = beginUpdate;
+	driver[PLATFORM_D3D9]->beginUpdate = beginUpdate;
+}
+
 #endif
 }
 }

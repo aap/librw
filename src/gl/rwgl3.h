@@ -61,8 +61,6 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 void setAttribPointers(InstanceDataHeader *header);
 
 // Render state
-void setAlphaTestFunc(int32 f);
-void setAlphaRef(float32 f);
 
 // per Scene
 void setProjectionMatrix(float32*);
@@ -76,7 +74,6 @@ void setLight(int32 n, Light*);
 
 // per Mesh
 void setTexture(int32 n, Texture *tex);
-void setVertexAlpha(bool32 enable);
 
 void flushCache(void);
 

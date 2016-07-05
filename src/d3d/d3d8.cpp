@@ -23,7 +23,6 @@ using namespace d3d;
 void*
 driverOpen(void *o, int32, int32)
 {
-	printf("d3d8 open\n");
 	driver[PLATFORM_D3D8]->defaultPipeline = makeDefaultPipeline();
 
 	driver[PLATFORM_D3D8]->rasterNativeOffset = nativeRasterOffset;

@@ -53,6 +53,9 @@ Driver::open(void)
 		driver[i]->beginUpdate = null::beginUpdate;
 		driver[i]->endUpdate = null::endUpdate;
 
+		driver[i]->setRenderState = null::setRenderState;
+		driver[i]->getRenderState = null::getRenderState;
+
 		driver[i]->rasterCreate = null::rasterCreate;
 		driver[i]->rasterLock = null::rasterLock;
 		driver[i]->rasterUnlock = null::rasterUnlock;
@@ -69,6 +72,8 @@ void beginUpdate(Camera*) { }
 
 void endUpdate(Camera*) { }
 
+void   setRenderState(int32, uint32) { }
+uint32 getRenderState(int32) { return 0; }
 
 void
 rasterCreate(Raster*)

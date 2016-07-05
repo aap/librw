@@ -26,7 +26,6 @@ namespace gl3 {
 void*
 driverOpen(void *o, int32, int32)
 {
-	printf("gl3 open\n");
 #ifdef RW_OPENGL
 	driver[PLATFORM_GL3]->defaultPipeline = makeDefaultPipeline();
 #endif
@@ -36,8 +35,6 @@ driverOpen(void *o, int32, int32)
 	driver[PLATFORM_GL3]->rasterUnlock       = rasterUnlock;
 	driver[PLATFORM_GL3]->rasterNumLevels    = rasterNumLevels;
 	driver[PLATFORM_GL3]->rasterFromImage    = rasterFromImage;
-
-	initializeRender();
 
 	return o;
 }

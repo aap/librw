@@ -22,7 +22,6 @@ namespace xbox {
 void*
 driverOpen(void *o, int32, int32)
 {
-	printf("xbox open\n");
 	driver[PLATFORM_XBOX]->defaultPipeline = makeDefaultPipeline();
 
 	driver[PLATFORM_XBOX]->rasterNativeOffset = nativeRasterOffset;

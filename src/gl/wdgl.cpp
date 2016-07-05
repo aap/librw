@@ -24,7 +24,6 @@ namespace wdgl {
 void*
 driverOpen(void *o, int32, int32)
 {
-	printf("wdgl open\n");
 	driver[PLATFORM_WDGL]->defaultPipeline = makeDefaultPipeline();
 	return o;
 }

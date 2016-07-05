@@ -74,7 +74,7 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 
 	setTexture(0, m->texture);
 
-	setVertexAlpha(inst->vertexAlpha || m->color.alpha != 0xFF);
+	rw::setRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
 	flushCache();
 	glDrawElements(header->primType, inst->numIndex,
@@ -173,15 +173,16 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst)
 
 	setTexture(0, env->tex);
 
-	setVertexAlpha(1);
-
-	glBlendFunc(GL_ONE, GL_ONE);
+	rw::setRenderState(VERTEXALPHA, 1);
+	rw::setRenderState(SRCBLEND, BLENDONE);
+	rw::setRenderState(DESTBLEND, BLENDONE);
 
 	flushCache();
 	glDrawElements(header->primType, inst->numIndex,
 	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	rw::setRenderState(SRCBLEND, BLENDSRCALPHA);
+	rw::setRenderState(DESTBLEND, BLENDINVSRCALPHA);
 }
 
 void
@@ -197,8 +198,8 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	setAlphaTestFunc(1);
-	setAlphaRef(0.2);
+	rw::setRenderState(ALPHATESTFUNC, 1);
+	rw::setRenderState(ALPHATESTREF, 50);
 
 	int32 fx;
 	while(n--){
@@ -259,6 +260,11 @@ makeSkinPipeline(void)
 	pipe->pluginData = 1;
 	return pipe;
 }
+
+#else
+
+void initMatFX(void) { }
+void initSkin(void) { }
 
 #endif
 
