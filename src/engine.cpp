@@ -69,8 +69,8 @@ Driver::open(void)
 namespace null {
 
 void beginUpdate(Camera*) { }
-
 void endUpdate(Camera*) { }
+void clearCamera(Camera*,RGBA*,uint32) { }
 
 void   setRenderState(int32, uint32) { }
 uint32 getRenderState(int32) { return 0; }

@@ -19,8 +19,13 @@ namespace gl3 {
 
 struct UniformState
 {
-	int     alphaFunc;
+	int32   alphaFunc;
 	float32 alphaRef;
+	int32   fogEnable;
+	float32 fogStart;
+	float32 fogEnd;
+	int32   pad[3];
+	RGBAf   fogColor;
 };
 
 struct UniformScene
@@ -126,16 +131,29 @@ setRenderState(int32 state, uint32 value)
 			glDepthMask(zwrite);
 		}
 		break;
+	case FOGENABLE:
+		if(uniformState.fogEnable != value){
+			uniformState.fogEnable = value;
+			stateDirty = 1;
+		}
+		break;
+	case FOGCOLOR:
+		// no cache check here...too lazy
+		convColor(&uniformState.fogColor, (RGBA*)&value);
+		stateDirty = 1;
+		break;
 
 	case ALPHATESTFUNC:
-		uniformState.alphaFunc = value;
-		stateDirty = 1;
+		if(uniformState.alphaFunc != value){
+			uniformState.alphaFunc = value;
+			stateDirty = 1;
+		}
 		break;
 	case ALPHATESTREF:
-		uniformState.alphaRef = value/255.0f;
-		stateDirty = 1;
-		break;
-	case ZTESTFUNC:
+		if(uniformState.alphaRef != value/255.0f){
+			uniformState.alphaRef = value/255.0f;
+			stateDirty = 1;
+		}
 		break;
 	}
 }
@@ -143,6 +161,7 @@ setRenderState(int32 state, uint32 value)
 uint32
 getRenderState(int32 state)
 {
+	RGBA rgba;
 	switch(state){
 	case VERTEXALPHA:
 		return vertexAlpha;
@@ -154,14 +173,18 @@ getRenderState(int32 state)
 		return ztest;
 	case ZWRITEENABLE:
 		return zwrite;
+	case FOGENABLE:
+		return uniformState.fogEnable;
+	case FOGCOLOR:
+		convColor(&rgba, &uniformState.fogColor);
+		return *(uint32*)&rgba;
 
 	case ALPHATESTFUNC:
 		return uniformState.alphaFunc;
 	case ALPHATESTREF:
 		return uniformState.alphaRef*255.0f;
-	case ZTESTFUNC:
-		break;
 	}
+	return 0;
 }
 
 void
@@ -169,6 +192,9 @@ resetRenderState(void)
 {
 	uniformState.alphaFunc = ALPHAGREATERTHAN;
 	uniformState.alphaRef = 10.0f/255.0f;
+	uniformState.fogEnable = 0;
+	uniformState.fogStart = 0.0f;
+	uniformState.fogColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	stateDirty = 1;
 
 	vertexAlpha = 0;
@@ -297,6 +323,22 @@ flushCache(void)
 }
 
 void
+clearCamera(Camera *cam, RGBA *col, uint32 mode)
+{
+	RGBAf colf;
+	GLbitfield mask;
+
+	convColor(&colf, col);
+	glClearColor(colf.red, colf.green, colf.blue, colf.alpha);
+	mask = 0;
+	if(mode & Camera::CLEARIMAGE)
+		mask |= GL_COLOR_BUFFER_BIT;
+	if(mode & Camera::CLEARZ)
+		mask |= GL_DEPTH_BUFFER_BIT;
+	glClear(mask);
+}
+
+void
 beginUpdate(Camera *cam)
 {
 	float view[16], proj[16];
@@ -353,12 +395,22 @@ beginUpdate(Camera *cam)
 		// TODO
 	}
 	setProjectionMatrix(proj);
+
+	if(uniformState.fogStart != cam->fogPlane){
+		uniformState.fogStart = cam->fogPlane;
+		stateDirty = 1;
+	}
+	if(uniformState.fogEnd != cam->farPlane){
+		uniformState.fogEnd = cam->farPlane;
+		stateDirty = 1;
+	}
 }
 
 void
 initializeRender(void)
 {
 	driver[PLATFORM_GL3]->beginUpdate = beginUpdate;
+	driver[PLATFORM_GL3]->clearCamera = clearCamera;
 	driver[PLATFORM_GL3]->setRenderState = setRenderState;
 	driver[PLATFORM_GL3]->getRenderState = getRenderState;
 

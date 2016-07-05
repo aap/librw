@@ -524,6 +524,7 @@ struct Camera : PluginBase<Camera>
 {
 	enum { ID = 4 };
 	enum { PERSPECTIVE = 1, PARALLEL };
+	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2};
 
 	ObjectWithFrame object;
 	void (*beginUpdateCB)(Camera*);
@@ -533,8 +534,6 @@ struct Camera : PluginBase<Camera>
 	float32 nearPlane, farPlane;
 	float32 fogPlane;
 	int32 projection;
-	// TODO: remove this?
-	float32 projMat[16];
 
 	// clump link handled by plugin in RW
 	Clump *clump;
@@ -556,6 +555,7 @@ struct Camera : PluginBase<Camera>
 		return LLLinkGetData(lnk, Camera, inClump); }
 	void beginUpdate(void) { this->beginUpdateCB(this); }
 	void endUpdate(void) { this->endUpdateCB(this); }
+	void clear(RGBA *col, uint32 mode);
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);

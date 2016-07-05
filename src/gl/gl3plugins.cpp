@@ -32,7 +32,7 @@ static void*
 matfxOpen(void *o, int32, int32)
 {
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
-	envShader = Shader::fromFiles("matfx_env.vert", "simple.frag");
+	envShader = Shader::fromFiles("matfx_env.vert", "matfx_env.frag");
 	return o;
 }
 

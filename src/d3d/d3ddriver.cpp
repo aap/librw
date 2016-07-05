@@ -230,7 +230,7 @@ beginUpdate(Camera *cam)
 
 		proj[12] = 0.0f;
 		proj[13] = 0.0f;
-		proj[14] = -this->nearPlane*this->projMat[10];
+		proj[14] = -this->nearPlane*proj[10];
 		proj[15] = 0.0f;
 	}else{
 		proj[8] = 0.0f;
@@ -240,7 +240,7 @@ beginUpdate(Camera *cam)
 
 		proj[12] = this->viewOffset.x*invwx;
 		proj[13] = this->viewOffset.y*invwy;
-		proj[14] = -this->nearPlane*this->projMat[10];
+		proj[14] = -this->nearPlane*proj[10];
 		proj[15] = 1.0f;
 	}
         device->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);

@@ -124,6 +124,12 @@ Camera::destroy(void)
 	free(this);
 }
 
+void
+Camera::clear(RGBA *col, uint32 mode)
+{
+	DRIVER->clearCamera(this, col, mode);
+}
+
 struct CameraChunkData
 {
 	V2d viewWindow;

@@ -7,8 +7,10 @@ enum RenderState
 	DESTBLEND,
 	ZTESTENABLE,
 	ZWRITEENABLE,
+	FOGENABLE,
+	FOGCOLOR,
 	// TODO:
-	// fog enable, color, type, density
+	// fog type, density ?
 	// ? cullmode
 	// ? shademode
 	// ???? stencil
@@ -16,7 +18,6 @@ enum RenderState
 	// platform specific or opaque?
 	ALPHATESTFUNC,
 	ALPHATESTREF,
-	ZTESTFUNC,
 };
 
 enum AlphaTestFunc
@@ -42,10 +43,6 @@ enum BlendFunction
 	// TODO: add more perhaps
 };
 
-enum ZTestFunc
-{
-};
-
 // This is for platform independent things
 // TODO: move more stuff into this
 struct Engine
@@ -66,6 +63,7 @@ struct Driver
 
 	void (*beginUpdate)(Camera*);
 	void (*endUpdate)(Camera*);
+	void (*clearCamera)(Camera*, RGBA *col, uint32 mode);
 
 	void   (*setRenderState)(int32 state, uint32 value);
 	uint32 (*getRenderState)(int32 state);
@@ -97,6 +95,7 @@ inline uint32 getRenderState(int32 state){
 namespace null {
 	void beginUpdate(Camera*);
 	void endUpdate(Camera*);
+	void clearCamera(Camera*, RGBA *col, uint32 mode);
 
 	void   setRenderState(int32 state, uint32 value);
 	uint32 getRenderState(int32 state);
