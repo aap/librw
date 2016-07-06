@@ -344,8 +344,8 @@ beginUpdate(Camera *cam)
 	float view[16], proj[16];
 	// View Matrix
 	Matrix inv;
-	// TODO: this can be simplified, or we use matrix flags....
-	Matrix::invert(&inv, cam->getFrame()->getLTM());
+	// TODO: maybe use matrix flags....
+	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
 	// Since we're looking into positive Z,
 	// flip X to ge a left handed view space.
 	view[0]  = -inv.right.x;
@@ -381,18 +381,22 @@ beginUpdate(Camera *cam)
 	proj[6] = 0.0f;
 	proj[7] = 0.0f;
 
+	proj[8] = cam->viewOffset.x*invwx;
+	proj[9] = cam->viewOffset.y*invwy;
+	proj[12] = -proj[8];
+	proj[13] = -proj[9];
 	if(cam->projection == Camera::PERSPECTIVE){
-		proj[8] = cam->viewOffset.x*invwx;
-		proj[9] = cam->viewOffset.y*invwy;
 		proj[10] = (cam->farPlane+cam->nearPlane)*invz;
 		proj[11] = 1.0f;
 
-		proj[12] = 0.0f;
-		proj[13] = 0.0f;
 		proj[14] = -2.0f*cam->nearPlane*cam->farPlane*invz;
 		proj[15] = 0.0f;
 	}else{
-		// TODO
+		proj[10] = -(cam->farPlane+cam->nearPlane)*invz;
+		proj[11] = 0.0f;
+
+		proj[14] = -2.0f*invz;
+		proj[15] = 1.0f;
 	}
 	setProjectionMatrix(proj);
 
@@ -409,10 +413,12 @@ beginUpdate(Camera *cam)
 void
 initializeRender(void)
 {
-	driver[PLATFORM_GL3]->beginUpdate = beginUpdate;
-	driver[PLATFORM_GL3]->clearCamera = clearCamera;
-	driver[PLATFORM_GL3]->setRenderState = setRenderState;
-	driver[PLATFORM_GL3]->getRenderState = getRenderState;
+	engine->beginUpdate = beginUpdate;
+	engine->clearCamera = clearCamera;
+	engine->setRenderState = setRenderState;
+	engine->getRenderState = getRenderState;
+	engine->zNear = -1.0f;
+	engine->zFar  = 1.0f;
 
 	simpleShader = Shader::fromFiles("simple.vert", "simple.frag");
 

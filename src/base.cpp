@@ -154,6 +154,33 @@ Matrix::invert(Matrix *m1, Matrix *m2)
 }
 
 void
+Matrix::invertOrthonormal(Matrix *m1, Matrix *m2)
+{
+	m1->right.x = m2->right.x;
+	m1->right.y = m2->up.x;
+	m1->right.z = m2->at.x;
+	m1->up.x = m2->right.y;
+	m1->up.y = m2->up.y;
+	m1->up.z = m2->at.y;
+	m1->at.x = m2->right.z;
+	m1->at.y = m2->up.z;
+	m1->at.z = m2->at.z;
+	m1->pos.x = -(m2->pos.x*m2->right.x +
+	              m2->pos.y*m2->right.y +
+	              m2->pos.z*m2->right.z);
+	m1->pos.y = -(m2->pos.x*m2->up.x +
+	              m2->pos.y*m2->up.y +
+	              m2->pos.z*m2->up.z);
+	m1->pos.z = -(m2->pos.x*m2->at.x +
+	              m2->pos.y*m2->at.y +
+	              m2->pos.z*m2->at.z);
+	m1->rightw = 0.0f;
+	m1->upw = 0.0f;
+	m1->atw = 0.0f;
+	m1->posw = 1.0f;
+}
+
+void
 Matrix::transpose(Matrix *m1, Matrix *m2)
 {
 	matrixTranspose((float32*)m1, (float32*)m2);

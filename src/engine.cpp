@@ -30,6 +30,14 @@ Engine::init(void)
 
 	Frame::dirtyList.init();
 
+	engine->beginUpdate = null::beginUpdate;
+	engine->endUpdate = null::endUpdate;
+	engine->clearCamera = null::clearCamera;
+	engine->setRenderState = null::setRenderState;
+	engine->getRenderState = null::getRenderState;
+	engine->zNear = 0.0f;	// random values
+	engine->zFar  = 1.0f;
+
 	ps2::initializePlatform();
 	xbox::initializePlatform();
 	d3d8::initializePlatform();
@@ -49,12 +57,6 @@ Driver::open(void)
 		rw::driver[i] = (Driver*)malloc(s_plglist[i].size);
 
 		driver[i]->defaultPipeline = defpipe;
-
-		driver[i]->beginUpdate = null::beginUpdate;
-		driver[i]->endUpdate = null::endUpdate;
-
-		driver[i]->setRenderState = null::setRenderState;
-		driver[i]->getRenderState = null::getRenderState;
 
 		driver[i]->rasterCreate = null::rasterCreate;
 		driver[i]->rasterLock = null::rasterLock;

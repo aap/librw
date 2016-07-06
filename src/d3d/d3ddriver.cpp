@@ -184,8 +184,7 @@ beginUpdate(Camera *cam)
 
 	// View Matrix
 	Matrix inv;
-	// TODO: this can be simplified, or we use matrix flags....
-	Matrix::invert(&inv, cam->getFrame()->getLTM());
+	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
 	// Since we're looking into positive Z,
 	// flip X to ge a left handed view space.
 	view[0]  = -inv.right.x;
@@ -207,11 +206,10 @@ beginUpdate(Camera *cam)
         device->SetTransform(D3DTS_VIEW, (D3DMATRIX*)view);
 
 	// Projection Matrix
-	float32 invwx = 1.0f/this->viewWindow.x;
-	float32 invwy = 1.0f/this->viewWindow.y;
-	float32 invz = 1.0f/(this->farPlane-this->nearPlane);
+	float32 invwx = 1.0f/cam->viewWindow.x;
+	float32 invwy = 1.0f/cam->viewWindow.y;
+	float32 invz = 1.0f/(cam->farPlane-cam->nearPlane);
 
-	// is this all really correct? RW code looks a bit different...
 	proj[0] = invwx;
 	proj[1] = 0.0f;
 	proj[2] = 0.0f;
@@ -222,27 +220,22 @@ beginUpdate(Camera *cam)
 	proj[6] = 0.0f;
 	proj[7] = 0.0f;
 
-	if(this->projection == PERSPECTIVE){
-		proj[8] = this->viewOffset.x*invwx;
-		proj[9] = this->viewOffset.y*invwy;
-		proj[10] = this->farPlane*invz;
+	proj[8] = cam->viewOffset.x*invwx;
+	proj[9] = cam->viewOffset.y*invwy;
+	proj[12] = -proj[8];
+	proj[13] = -proj[9];
+	if(cam->projection == PERSPECTIVE){
+		proj[10] = cam->farPlane*invz;
 		proj[11] = 1.0f;
 
-		proj[12] = 0.0f;
-		proj[13] = 0.0f;
-		proj[14] = -this->nearPlane*proj[10];
 		proj[15] = 0.0f;
 	}else{
-		proj[8] = 0.0f;
-		proj[9] = 0.0f;
 		proj[10] = invz;
 		proj[11] = 0.0f;
 
-		proj[12] = this->viewOffset.x*invwx;
-		proj[13] = this->viewOffset.y*invwy;
-		proj[14] = -this->nearPlane*proj[10];
 		proj[15] = 1.0f;
 	}
+	proj[14] = -cam->nearPlane*proj[10];
         device->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
 }
 

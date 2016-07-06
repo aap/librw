@@ -43,30 +43,33 @@ enum BlendFunction
 	// TODO: add more perhaps
 };
 
-// This is for platform independent things
+// This is for platform independent things and the render device (of which
+// there can only ever be one).
 // TODO: move more stuff into this
 struct Engine
 {
 	void *currentCamera;
 	void *currentWorld;
 
+	// Device
+	float32 zNear, zFar;
+	void (*beginUpdate)(Camera*);
+	void (*endUpdate)(Camera*);
+	void (*clearCamera)(Camera*, RGBA *col, uint32 mode);
+	void   (*setRenderState)(int32 state, uint32 value);
+	uint32 (*getRenderState)(int32 state);
+
 	static void init(void);
 };
 
 extern Engine *engine;
 
-// This is for platform driver implementations
+// This is for platform driver implementations which have to be available
+// regardless of the render device.
 struct Driver
 {
 	ObjPipeline *defaultPipeline;
 	int32 rasterNativeOffset;
-
-	void (*beginUpdate)(Camera*);
-	void (*endUpdate)(Camera*);
-	void (*clearCamera)(Camera*, RGBA *col, uint32 mode);
-
-	void   (*setRenderState)(int32 state, uint32 value);
-	uint32 (*getRenderState)(int32 state);
 
 	void   (*rasterCreate)(Raster*);
 	uint8 *(*rasterLock)(Raster*, int32 level);
@@ -87,10 +90,10 @@ extern Driver *driver[NUM_PLATFORMS];
 #define DRIVER driver[rw::platform]
 
 inline void setRenderState(int32 state, uint32 value){
-	DRIVER->setRenderState(state, value); }
+	engine->setRenderState(state, value); }
 
 inline uint32 getRenderState(int32 state){
-	return DRIVER->getRenderState(state); }
+	return engine->getRenderState(state); }
 
 namespace null {
 	void beginUpdate(Camera*);

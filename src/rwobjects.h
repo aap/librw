@@ -535,6 +535,9 @@ struct Camera : PluginBase<Camera>
 	float32 fogPlane;
 	int32 projection;
 
+	Matrix viewMatrix;
+	float32 zScale, zShift;
+
 	// clump link handled by plugin in RW
 	Clump *clump;
 	LLLink inClump;
@@ -556,6 +559,8 @@ struct Camera : PluginBase<Camera>
 	void beginUpdate(void) { this->beginUpdateCB(this); }
 	void endUpdate(void) { this->endUpdateCB(this); }
 	void clear(RGBA *col, uint32 mode);
+	void setNearPlane(float32);
+	void setFarPlane(float32);
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);

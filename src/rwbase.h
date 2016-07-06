@@ -156,6 +156,7 @@ struct Matrix
 	// not very pretty :/
 	static void mult(Matrix *m1, Matrix *m2, Matrix *m3);
 	static bool32 invert(Matrix *m1, Matrix *m2);
+	static void invertOrthonormal(Matrix *m1, Matrix *m2);
 	static void transpose(Matrix *m1, Matrix *m2);
 };
 

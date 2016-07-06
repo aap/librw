@@ -17,28 +17,86 @@ defaultBeginUpdateCB(Camera *cam)
 {
 	engine->currentCamera = cam;
 	Frame::syncDirty();
-	DRIVER->beginUpdate(cam);
+	engine->beginUpdate(cam);
 }
 
 void
 defaultEndUpdateCB(Camera *cam)
 {
-	DRIVER->endUpdate(cam);
+	engine->endUpdate(cam);
 }
 
 static void
-cameraSync(ObjectWithFrame*)
+cameraSync(ObjectWithFrame *obj)
 {
-	// TODO: calculate view matrix here (i.e. projection * inverseLTM)
-	// RW projection matrix looks like this:
-	//       (cf. Camera View Matrix white paper)
-	// w = viewWindow width
-	// h = viewWindow height
-	// o = view offset
-	//
-	// 1/2w       0    ox/2w + 1/2   -ox/2w
-	//    0   -1/2h   -oy/2h + 1/2    oy/2h
-	//    0       0              1        0
+	/*
+	 * RW projection matrix looks like this:
+	 *       (cf. Camera View Matrix white paper)
+	 * w = viewWindow width
+	 * h = viewWindow height
+	 * o = view offset
+	 *
+	 * perspective:
+	 * 1/2w       0    ox/2w + 1/2   -ox/2w
+	 *    0   -1/2h   -oy/2h + 1/2    oy/2h
+	 *    0       0              1        0
+	 *    0       0              1        0
+	 *
+	 * parallel:
+	 * 1/2w       0    ox/2w   -ox/2w + 1/2
+	 *    0   -1/2h   -oy/2h    oy/2h + 1/2
+	 *    0       0        1              0
+	 *    0       0        0              1
+	 *
+	 * The view matrix transforms from world to clip space, it is however
+	 * not used for OpenGL or D3D since transformation to camera space
+	 * and to clip space are handled by separate matrices there.
+	 * On these platforms the two matrices are built in the platform's
+	 * beginUpdate function.
+	 * On the PS2 the 1/2 translation/shear is removed again on the VU1.
+	 *
+	 * RW builds this matrix directly without using explicit
+	 * inversion and matrix multiplication.
+	 */
+
+	Camera *cam = (Camera*)obj;
+	Matrix inv, proj;
+	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
+	float32 xscl = 2.0f/cam->viewWindow.x;
+	float32 yscl = 2.0f/cam->viewWindow.y;
+
+	proj.right.x = xscl;
+	proj.right.y = 0.0f;
+	proj.right.z = 0.0f;
+	proj.rightw = 0.0f;
+
+	proj.up.x = 0.0f;
+	proj.up.y = -yscl;
+	proj.up.z = 0.0f;
+	proj.upw = 0.0f;
+
+	if(cam->projection == Camera::PERSPECTIVE){
+		proj.pos.x = -cam->viewOffset.x*xscl;
+		proj.pos.y = cam->viewOffset.y*yscl;
+		proj.pos.z = 0.0f;
+		proj.posw = 0.0f;
+
+		proj.at.x = -proj.pos.x + 0.5f;
+		proj.at.y = -proj.pos.y + 0.5f;
+		proj.at.z = 1.0f;
+		proj.atw = 1.0f;
+	}else{
+		proj.at.x = cam->viewOffset.x*xscl;
+		proj.at.y = -cam->viewOffset.y*yscl;
+		proj.at.z = 1.0f;
+		proj.atw = 0.0f;
+
+		proj.pos.x = -proj.at.x + 0.5f;
+		proj.pos.y = -proj.at.y + 0.5f;
+		proj.pos.z = 0.0f;
+		proj.posw = 1.0f;
+	}
+	Matrix::mult(&cam->viewMatrix, &proj, &inv);
 }
 
 void
@@ -127,7 +185,37 @@ Camera::destroy(void)
 void
 Camera::clear(RGBA *col, uint32 mode)
 {
-	DRIVER->clearCamera(this, col, mode);
+	engine->clearCamera(this, col, mode);
+}
+
+void
+calczShiftScale(Camera *cam)
+{
+	float32 n = cam->nearPlane;
+	float32 f = cam->farPlane;
+	float32 N = engine->zNear;
+	float32 F = engine->zFar;
+	if(cam->projection == Camera::PERSPECTIVE){
+		cam->zScale = (N - F)*n*f/(f - n);
+		cam->zShift = (F*f - N*n)/(f - n);
+	}else{
+		cam->zScale = (F - N)/(f -n);
+		cam->zShift = (N*f - F*n)/(f - n);
+	}
+}
+
+void
+Camera::setNearPlane(float32 near)
+{
+	this->nearPlane = near;
+	calczShiftScale(this);
+}
+
+void
+Camera::setFarPlane(float32 far)
+{
+	this->farPlane = far;
+	calczShiftScale(this);
 }
 
 struct CameraChunkData
