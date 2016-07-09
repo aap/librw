@@ -108,10 +108,12 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 			skin->usedBones[i] = i;
 	}
 
-	if(!oldFormat)
-		// last 3 ints are split data as in the other formats
-		// TODO: what are the other 4?
-		stream->seek(7*4);
+	if(!oldFormat){
+		// TODO: what is this?
+		stream->seek(4*4);
+
+		readSkinSplitData(stream, skin);
+	}
 	return stream;
 }
 
@@ -140,8 +142,10 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 		stream->write(skin->usedBones, skin->numUsedBones);
 	stream->write(skin->inverseMatrices, skin->numBones*64);
 	if(!oldFormat){
-		uint32 buffer[7] = { 0, 0, 0, 0, 0, 0, 0 };
-		stream->write(buffer, 7*4);
+		uint32 buffer[4] = { 0, 0, 0, 0, };
+		stream->write(buffer, 4*4);
+
+		writeSkinSplitData(stream, skin);
 	}
 	return stream;
 }
@@ -155,7 +159,7 @@ getSizeNativeSkin(void *object, int32 offset)
 	int32 size = 12 + 4 + 4 + skin->numBones*64;
 	// not sure which version introduced the new format
 	if(version >= 0x34000)
-		size += skin->numUsedBones + 16 + 12;
+		size += skin->numUsedBones + 16 + skinSplitDataSize(skin);
 	return size;
 }
 

@@ -147,6 +147,15 @@ struct Skin
 	float *inverseMatrices;
 	uint8 *indices;
 	float *weights;
+
+	// split data; not sure what RLE is exactly
+	int32 boneLimit;
+	int32 numMeshes;
+	int32 numRLE;
+	int8 *remapIndices;
+	int16 *RLEcount;
+	int16 *RLE;
+
 	uint8 *data;	// only used by delete
 	void *platformData; // a place to store platform specific stuff
 
@@ -162,6 +171,9 @@ struct SkinGlobals
 	ObjPipeline *pipelines[NUM_PLATFORMS];
 };
 extern SkinGlobals skinGlobals;
+Stream *readSkinSplitData(Stream *stream, Skin *skin);
+Stream *writeSkinSplitData(Stream *stream, Skin *skin);
+int32 skinSplitDataSize(Skin *skin);
 void registerSkinPlugin(void);
 
 }

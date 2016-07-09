@@ -65,8 +65,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	stream->read(natskin->vertexBuffer, size);
 	stream->read(skin->inverseMatrices, skin->numBones*64);
 
-	// no split skins in GTA
-	stream->seek(12);
+	readSkinSplitData(stream, skin);
 	return stream;
 }
 
@@ -91,8 +90,8 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	stream->write(natskin->vertexBuffer,
 	              geometry->numVertices*natskin->stride);
 	stream->write(skin->inverseMatrices, skin->numBones*64);
-	int32 buffer[3] = { 0, 0, 0};
-	stream->write(buffer, 12);
+
+	writeSkinSplitData(stream, skin);
 	return stream;
 }
 
@@ -107,7 +106,8 @@ getSizeNativeSkin(void *object, int32 offset)
 		return -1;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;
 	return 12 + 8 + 2*256*4 + 4*4 +
-	        natskin->stride*geometry->numVertices + skin->numBones*64 + 12;
+	        natskin->stride*geometry->numVertices + skin->numBones*64 +
+		skinSplitDataSize(skin);
 }
 
 void

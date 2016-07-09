@@ -38,6 +38,7 @@ destroySkin(void *object, int32 offset, int32)
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin){
 		delete[] skin->data;
+		free(skin->remapIndices);
 //		delete[] skin->platformData;
 	}
 	delete skin;
@@ -67,6 +68,41 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	memcpy(dstskin->indices, srcskin->indices, geometry->numVertices*4);
 	memcpy(dstskin->weights, srcskin->weights, geometry->numVertices*16);
 	return dst;
+}
+
+Stream*
+readSkinSplitData(Stream *stream, Skin *skin)
+{
+	uint32 sz;
+	int8 *data;
+
+	skin->boneLimit = stream->readI32();
+	skin->numMeshes = stream->readI32();
+	skin->numRLE = stream->readI32();
+	sz = skin->numBones + 2*(skin->numMeshes+skin->numRLE);
+	if(sz != 0){
+		data = (int8*)malloc(sz);
+		stream->read(data, sz);
+		skin->remapIndices = data;
+		skin->RLEcount = (int16*)(data + skin->numBones);
+		skin->RLE = (int16*)(data + skin->numBones + 2*skin->numMeshes);
+	}
+}
+
+Stream*
+writeSkinSplitData(Stream *stream, Skin *skin)
+{
+	stream->writeI32(skin->boneLimit);
+	stream->writeI32(skin->numMeshes);
+	stream->writeI32(skin->numRLE);
+	stream->write(skin->remapIndices,
+	              skin->numBones + 2*(skin->numMeshes+skin->numRLE));
+}
+
+int32
+skinSplitDataSize(Skin *skin)
+{
+	return 12 + skin->numBones + 2*(skin->numMeshes+skin->numRLE);
 }
 
 static Stream*
@@ -114,18 +150,6 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		if(oldFormat)
 			stream->seek(4);	// skip 0xdeaddead
 		stream->read(&skin->inverseMatrices[i*16], 64);
-
-		//{
-		//float *mat = &skin->inverseMatrices[i*16];
-		//printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-		//       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n",
-		//	mat[0], mat[4], mat[8], mat[12],
-		//	mat[1], mat[5], mat[9], mat[13],
-		//	mat[2], mat[6], mat[10], mat[14],
-		//	mat[3], mat[7], mat[11], mat[15]);
-		//}
 	}
 
 	if(oldFormat){
@@ -133,9 +157,9 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		skin->findUsedBones(geometry->numVertices);
 	}
 
-	// no split skins in GTA
 	if(!oldFormat)
-		stream->seek(12);
+		readSkinSplitData(stream, skin);
+
 	return stream;
 }
 
@@ -181,11 +205,8 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		stream->write(&skin->inverseMatrices[i*16], 64);
 	}
 
-	// no split skins in GTA
-	if(!oldFormat){
-		uint32 buffer[3] = { 0, 0, 0};
-		stream->write(buffer, 12);
-	}
+	if(!oldFormat)
+		writeSkinSplitData(stream, skin);
 	return stream;
 }
 
@@ -218,7 +239,7 @@ getSizeSkin(void *object, int32 offset, int32)
 	if(version < 0x34000)
 		size += skin->numBones*4;
 	else
-		size += skin->numUsedBones + 12;
+		size += skin->numUsedBones + skinSplitDataSize(skin);
 	return size;
 }
 
@@ -288,6 +309,13 @@ Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 	this->weights = nil;
 	if(numVertices)
 		this->weights = (float*)p;
+
+	this->boneLimit = 0;
+	this->numMeshes = 0;
+	this->numRLE = 0;
+	this->remapIndices = nil;
+	this->RLEcount = nil;
+	this->RLE = nil;
 
 	this->platformData = nil;
 }

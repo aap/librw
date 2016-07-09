@@ -195,6 +195,9 @@ calczShiftScale(Camera *cam)
 	float32 f = cam->farPlane;
 	float32 N = engine->zNear;
 	float32 F = engine->zFar;
+	// RW does this
+	N += (F - N)/10000.0f;
+	F -= (F - N)/10000.0f;
 	if(cam->projection == Camera::PERSPECTIVE){
 		cam->zScale = (N - F)*n*f/(f - n);
 		cam->zShift = (F*f - N*n)/(f - n);
