@@ -85,8 +85,8 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
-	// numUsedBones and numWeights appear in/after 34003 but not in/before 33002
-	// (probably rw::version >= 0x34000)
+	// numUsedBones and numWeights appear in/after 34003
+	// but not in/before 33002 (probably rw::version >= 0x34000)
 	bool oldFormat = header[1] == 0;
 
 	// Use numBones for numUsedBones to allocate data

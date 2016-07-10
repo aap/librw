@@ -61,7 +61,8 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	dstskin->numWeights = srcskin->numWeights;
 
 	assert(0 && "can't copy skin yet");
-	dstskin->init(srcskin->numBones, srcskin->numUsedBones, geometry->numVertices);
+	dstskin->init(srcskin->numBones, srcskin->numUsedBones,
+	              geometry->numVertices);
 	memcpy(dstskin->usedBones, srcskin->usedBones, srcskin->numUsedBones);
 	memcpy(dstskin->inverseMatrices, srcskin->inverseMatrices,
 	       srcskin->numBones*64);
@@ -78,15 +79,16 @@ readSkinSplitData(Stream *stream, Skin *skin)
 
 	skin->boneLimit = stream->readI32();
 	skin->numMeshes = stream->readI32();
-	skin->numRLE = stream->readI32();
-	sz = skin->numBones + 2*(skin->numMeshes+skin->numRLE);
-	if(sz != 0){
+	skin->rleSize = stream->readI32();
+	if(skin->numMeshes){
+		sz = skin->numBones + 2*(skin->numMeshes+skin->rleSize);
 		data = (int8*)malloc(sz);
 		stream->read(data, sz);
 		skin->remapIndices = data;
-		skin->RLEcount = (int16*)(data + skin->numBones);
-		skin->RLE = (int16*)(data + skin->numBones + 2*skin->numMeshes);
+		skin->rleCount = (Skin::RLEcount*)(data + skin->numBones);
+		skin->rle = (Skin::RLE*)(data + skin->numBones + 2*skin->numMeshes);
 	}
+	return stream;
 }
 
 Stream*
@@ -94,15 +96,19 @@ writeSkinSplitData(Stream *stream, Skin *skin)
 {
 	stream->writeI32(skin->boneLimit);
 	stream->writeI32(skin->numMeshes);
-	stream->writeI32(skin->numRLE);
-	stream->write(skin->remapIndices,
-	              skin->numBones + 2*(skin->numMeshes+skin->numRLE));
+	stream->writeI32(skin->rleSize);
+	if(skin->numMeshes)
+		stream->write(skin->remapIndices,
+		              skin->numBones + 2*(skin->numMeshes+skin->rleSize));
+	return stream;
 }
 
 int32
 skinSplitDataSize(Skin *skin)
 {
-	return 12 + skin->numBones + 2*(skin->numMeshes+skin->numRLE);
+	if(skin->numMeshes == 0)
+		return 12;
+	return 12 + skin->numBones + 2*(skin->numMeshes+skin->rleSize);
 }
 
 static Stream*
@@ -125,15 +131,17 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		}
 	}
 
-	stream->read(header, 4);	// numBones, numUsedBones, numWeights, unused
+	stream->read(header, 4);  // numBones, numUsedBones,
+	                          // numWeights, unused
 	Skin *skin = new Skin;
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
-	// numUsedBones and numWeights appear in/after 34003 but not in/before 33002
-	// (probably rw::version >= 0x34000)
+	// numUsedBones and numWeights appear in/after 34003
+	// but not in/before 33002 (probably rw::version >= 0x34000)
 	bool oldFormat = header[1] == 0;
 
-	// Use numBones for numUsedBones to allocate data, find out the correct value later
+	// Use numBones for numUsedBones to allocate data,
+	// find out the correct value later
 	if(oldFormat)
 		skin->init(header[0], header[0], geometry->numVertices);
 	else
@@ -312,13 +320,18 @@ Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 
 	this->boneLimit = 0;
 	this->numMeshes = 0;
-	this->numRLE = 0;
+	this->rleSize = 0;
 	this->remapIndices = nil;
-	this->RLEcount = nil;
-	this->RLE = nil;
+	this->rleCount = nil;
+	this->rle = nil;
 
 	this->platformData = nil;
 }
+
+
+
+static_assert(sizeof(Skin::RLEcount) == 2, "RLEcount size");
+static_assert(sizeof(Skin::RLE) == 2, "RLE size");
 
 void
 Skin::findNumWeights(int32 numVertices)

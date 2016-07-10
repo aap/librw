@@ -148,13 +148,24 @@ struct Skin
 	uint8 *indices;
 	float *weights;
 
-	// split data; not sure what RLE is exactly
+	// split skin
+
+	// points into rle for each mesh
+	struct RLEcount {
+		uint8 start;
+		uint8 size;
+	};
+	// run length encoded used bones
+	struct RLE {
+		uint8 startbone;  // into remapIndices
+		uint8 n;
+	};
 	int32 boneLimit;
 	int32 numMeshes;
-	int32 numRLE;
+	int32 rleSize;
 	int8 *remapIndices;
-	int16 *RLEcount;
-	int16 *RLE;
+	RLEcount *rleCount;
+	RLE *rle;
 
 	uint8 *data;	// only used by delete
 	void *platformData; // a place to store platform specific stuff
