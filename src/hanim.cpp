@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwanim.h"
 #include "rwplugins.h"
 #include "ps2/rwps2.h"
 #include "ps2/rwps2plg.h"
@@ -25,22 +26,24 @@ int32 hAnimOffset;
 bool32 hAnimDoStream = 1;
 
 HAnimHierarchy*
-HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs, int32 flags, int32 maxKeySize)
+HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
+                       int32 flags, int32 maxKeySize)
 {
 	HAnimHierarchy *hier = (HAnimHierarchy*)malloc(sizeof(*hier));
+	hier->currentAnim = AnimInterpolator::create(numNodes, maxKeySize);
 
 	hier->numNodes = numNodes;
 	hier->flags = flags;
-	hier->maxInterpKeyFrameSize = maxKeySize;
 	hier->parentFrame = nil;
 	hier->parentHierarchy = hier;
-	if(hier->flags & 2)
-		hier->matrices = hier->matricesUnaligned = nil;
-	else{
+	if(hier->flags & NOMATRICES){
+		hier->matrices = nil;
+		hier->matricesUnaligned = nil;
+	}else{
 		hier->matricesUnaligned =
-		  (float*) new uint8[hier->numNodes*64 + 15];
+		  (void*) new uint8[hier->numNodes*64 + 15];
 		hier->matrices =
-		  (float*)((uintptr)hier->matricesUnaligned & ~0xF);
+		  (Matrix*)((uintptr)hier->matricesUnaligned & ~0xF);
 	}
 	hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
 	for(int32 i = 0; i < hier->numNodes; i++){
@@ -112,6 +115,43 @@ HAnimHierarchy::find(Frame *f)
 	return HAnimHierarchy::find(f->child);
 }
 
+void
+HAnimHierarchy::updateMatrices(void)
+{
+	// TODO: handle more (all!) cases
+
+	Matrix rootMat, animMat;
+	Matrix *curMat, *parentMat;
+	Matrix **sp, *stack[64];
+	Frame *frm, *parfrm;
+	int32 i;
+	AnimInterpolator *anim = this->currentAnim;
+
+	sp = stack;
+	curMat = this->matrices;
+
+	frm = this->parentFrame;
+	if(frm && (parfrm = frm->getParent()))
+		rootMat = *parfrm->getLTM();
+	else
+		rootMat.setIdentity();
+	parentMat = &rootMat;
+	HAnimNodeInfo *node = this->nodeInfo;
+	for(i = 0; i < this->numNodes; i++){
+		anim->applyCB(&animMat, anim->getInterpFrame(i));
+		Matrix::mult(curMat, parentMat, &animMat);
+
+		if(node->flags & PUSH)
+			*sp++ = parentMat;
+		parentMat = curMat;
+		if(node->flags & POP)
+			parentMat = *--sp;
+
+		node++;
+		curMat++;
+	}
+}
+
 HAnimData*
 HAnimData::get(Frame *f)
 {
@@ -161,6 +201,8 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	if(numNodes != 0){
 		int32 flags = stream->readI32();
 		int32 maxKeySize = stream->readI32();
+		// Sizes are fucked for 64 bit pointers but
+		// AnimInterpolator::create() will take care of that
 		int32 *nodeFlags = new int32[numNodes];
 		int32 *nodeIDs = new int32[numNodes];
 		for(int32 i = 0; i < numNodes; i++){
@@ -190,7 +232,7 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	HAnimHierarchy *hier = hanim->hierarchy;
 	stream->writeI32(hier->numNodes);
 	stream->writeI32(hier->flags);
-	stream->writeI32(hier->maxInterpKeyFrameSize);
+	stream->writeI32(hier->currentAnim->maxInterpKeyFrameSize);
 	for(int32 i = 0; i < hier->numNodes; i++){
 		stream->writeI32(hier->nodeInfo[i].id);
 		stream->writeI32(hier->nodeInfo[i].index);
@@ -217,9 +259,9 @@ hAnimFrameRead(Stream *stream, Animation *anim)
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		frames[i].time = stream->readF32();
-		stream->read(frames[i].q, 4*4);
-		stream->read(frames[i].t, 3*4);
-		int32 prev = stream->readI32();
+		stream->read(&frames[i].q, 4*4);
+		stream->read(&frames[i].t, 3*4);
+		int32 prev = stream->readI32()/0x24;
 		frames[i].prev = &frames[prev];
 	}
 }
@@ -230,9 +272,9 @@ hAnimFrameWrite(Stream *stream, Animation *anim)
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		stream->writeF32(frames[i].time);
-		stream->write(frames[i].q, 4*4);
-		stream->write(frames[i].t, 3*4);
-		stream->writeI32(frames[i].prev - frames);
+		stream->write(&frames[i].q, 4*4);
+		stream->write(&frames[i].t, 3*4);
+		stream->writeI32((frames[i].prev - frames)*0x24);
 	}
 }
 
@@ -240,6 +282,31 @@ static uint32
 hAnimFrameGetSize(Animation *anim)
 {
 	return anim->numFrames*(4 + 4*4 + 3*4 + 4);
+}
+
+//void hanimBlendCB(void *out, void *in1, void *in2, float32 a);
+//void hanimAddCB(void *out, void *in1, void *in2);
+//void hanimMulRecipCB(void *frame, void *start);
+
+static void
+hanimApplyCB(void *result, void *frame)
+{
+	Matrix *m = (Matrix*)result;
+	HAnimInterpFrame *f = (HAnimInterpFrame*)frame;
+	*m = Matrix::makeRotation(f->q);
+	m->pos = f->t;
+}
+
+static void
+hanimInterpCB(void *vout, void *vin1, void *vin2, float32 t, void*)
+{
+	HAnimInterpFrame *out = (HAnimInterpFrame*)vout;
+	HAnimKeyFrame *in1 = (HAnimKeyFrame*)vin1;
+	HAnimKeyFrame *in2 = (HAnimKeyFrame*)vin2;
+assert(t >= in1->time && t <= in2->time);
+	float32 a = (t - in1->time)/(in2->time - in1->time);
+	out->t =  lerp(in1->t, in2->t, a);
+	out->q = slerp(in1->q, in2->q, a);
 }
 
 void
@@ -255,12 +322,18 @@ registerHAnimPlugin(void)
 
 	AnimInterpolatorInfo *info = new AnimInterpolatorInfo;
 	info->id = 1;
-	info->keyFrameSize = sizeof(HAnimKeyFrame);
-	info->customDataSize = sizeof(HAnimKeyFrame);
+	info->interpKeyFrameSize = sizeof(HAnimInterpFrame);
+	info->animKeyFrameSize = sizeof(HAnimKeyFrame);
+	info->customDataSize = 0;
+	info->applyCB = hanimApplyCB;
+	info->blendCB = nil;
+	info->interpCB = hanimInterpCB;
+	info->addCB = nil;
+	info->mulRecipCB = nil;
 	info->streamRead = hAnimFrameRead;
 	info->streamWrite = hAnimFrameWrite;
 	info->streamGetSize = hAnimFrameGetSize;
-	registerAnimInterpolatorInfo(info);
+	AnimInterpolatorInfo::registerInterp(info);
 }
 
 }

@@ -9,7 +9,6 @@
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
-#include "../rwplugins.h"
 #include "rwxbox.h"
 
 #include "rwxboximpl.h"

@@ -9,6 +9,7 @@
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
+#include "../rwanim.h"
 #include "../rwplugins.h"
 #include "rwps2.h"
 #include "rwps2plg.h"
@@ -947,8 +948,8 @@ genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 	uint32 *weights = nil;
 	int8 *adc = nil;
 	Skin *skin = nil;
-	if(skinGlobals.offset)
-		skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	if(skinGlobals.geoOffset)
+		skin = Skin::get(geo);
 
 	PipeAttribute *a;
 	for(int32 i = 0; i < nelem(pipe->attribs); i++)

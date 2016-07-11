@@ -8,6 +8,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwanim.h"
 #include "../rwengine.h"
 #include "../rwplugins.h"
 #include "rwwdgl.h"
@@ -603,7 +604,7 @@ skinInstanceCB(Geometry *g, int32 i, uint32 offset)
 	header->dataSize = offset*g->numVertices;
 	header->data = new uint8[header->dataSize];
 
-	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	Skin *skin = Skin::get(g);
 	if(skin == nil)
 		return 8;
 
@@ -631,7 +632,7 @@ skinUninstanceCB(Geometry *geo)
 {
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	if(skin == nil)
 		return;
 

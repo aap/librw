@@ -1,5 +1,5 @@
 ECODE(ERR_GENERAL,
-      "General Error")
+      "Error: %s")
 ECODE(ERR_ALLOC,
       "Couldn't allocate 0x%X bytes")
 ECODE(ERR_FILE,

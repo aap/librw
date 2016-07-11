@@ -8,6 +8,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwanim.h"
 #include "../rwengine.h"
 #include "../rwplugins.h"
 #include "rwxbox.h"
@@ -115,7 +116,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	defaultInstanceCB(geo, header);
 
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	if(skin == nil)
 		return;
 	NativeSkin *natskin = new NativeSkin;
@@ -169,7 +170,7 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	defaultUninstanceCB(geo, header);
 
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	if(skin == nil)
 		return;
 	NativeSkin *natskin = (NativeSkin*)skin->platformData;

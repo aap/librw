@@ -6,6 +6,7 @@
 #include "src/rwplg.h"
 #include "src/rwpipeline.h"
 #include "src/rwobjects.h"
+#include "src/rwanim.h"
 #include "src/rwengine.h"
 #include "src/rwplugins.h"
 #include "src/ps2/rwps2.h"

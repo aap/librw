@@ -9,7 +9,6 @@
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
-#include "../rwplugins.h"
 #ifdef RW_OPENGL
 #include <GL/glew.h>
 #endif

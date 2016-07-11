@@ -8,6 +8,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwanim.h"
 #include "../rwengine.h"
 #include "../rwplugins.h"
 #include "rwps2.h"
@@ -183,7 +184,7 @@ instanceSkinData(Geometry*, Mesh *m, Skin *skin, uint32 *data)
 void
 skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	Skin *skin = Skin::get(g);
 	if(skin == nil)
 		return;
 	instanceSkinData(g, m, skin, (uint32*)data[4]);
@@ -193,7 +194,7 @@ skinInstanceCB(MatPipeline *, Geometry *g, Mesh *m, uint8 **data)
 int32
 findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, g, skinGlobals.offset);
+	Skin *skin = Skin::get(g);
 	float32 *wghts = nil;
 	uint8 *inds = nil;
 	if(skin){
@@ -245,7 +246,7 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 void
 insertVertexSkin(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	insertVertex(geo, i, mask, v);
 	if(mask & 0x10000){
 		memcpy(&skin->weights[i*4], v->w, 16);
@@ -308,7 +309,7 @@ skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 
 void
 skinPreCB(MatPipeline*, Geometry *geo)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	if(skin == nil)
 		return;
 	uint8 *data = skin->data;
@@ -322,7 +323,7 @@ skinPreCB(MatPipeline*, Geometry *geo)
 void
 skinPostCB(MatPipeline*, Geometry *geo)
 {
-	Skin *skin = *PLUGINOFFSET(Skin*, geo, skinGlobals.offset);
+	Skin *skin = Skin::get(geo);
 	if(skin){
 		skin->findNumWeights(geo->numVertices);
 		skin->findUsedBones(geo->numVertices);

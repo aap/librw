@@ -112,14 +112,20 @@ inline V3d normalize(const V3d &v) { return scale(v, 1.0f/length(v)); }
 inline V3d setlength(const V3d &v, float32 l) { return scale(v, l/length(v)); }
 V3d cross(const V3d &a, const V3d &b);
 inline float32 dot(const V3d &a, const V3d &b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+inline V3d lerp(const V3d &a, const V3d &b, float32 r){
+	return V3d(a.x + r*(b.x - a.x),
+	           a.y + r*(b.y - a.y),
+	           a.z + r*(b.z - a.z));
+};
 
 struct Quat
 {
-	float32 w, x, y, z;
-	Quat(void) : w(0.0f), x(0.0f), y(0.0f), z(0.0f) {}
-	Quat(float32 w, float32 x, float32 y, float32 z) : w(w), x(x), y(y), z(z) {}
-	Quat(float32 w, V3d vec) : w(w), x(vec.x), y(vec.y), z(vec.z) {}
-	Quat(V3d vec) : w(0.0f), x(vec.x), y(vec.y), z(vec.z) {}
+	// order is important for streaming
+	float32 x, y, z, w;
+	Quat(void) : x(0.0f), y(0.0f), z(0.0f), w(0.0f) {}
+	Quat(float32 w, float32 x, float32 y, float32 z) : x(x), y(y), z(z), w(w) {}
+	Quat(float32 w, V3d vec) : x(vec.x), y(vec.y), z(vec.z), w(w) {}
+	Quat(V3d vec) : x(vec.x), y(vec.y), z(vec.z), w(0.0f) {}
 	static Quat rotation(float32 angle, const V3d &axis){
 		return Quat(cos(angle/2.0f), scale(axis, sin(angle/2.0f))); }
 	void set(float32 w, float32 x, float32 y, float32 z){
@@ -129,12 +135,17 @@ struct Quat
 
 inline Quat add(const Quat &q, const Quat &p) { return Quat(q.w+p.w, q.x+p.x, q.y+p.y, q.z+p.z); }
 inline Quat sub(const Quat &q, const Quat &p) { return Quat(q.w-p.w, q.x-p.x, q.y-p.y, q.z-p.z); }
+inline Quat negate(const Quat &q) { return Quat(-q.w, -q.x, -q.y, -q.z); }
+inline float32 dot(const Quat &q, const Quat &p) { return q.w*p.w + q.x*p.x + q.y*p.y + q.z*p.z; }
 inline Quat scale(const Quat &q, float32 r) { return Quat(q.w*r, q.x*r, q.y*r, q.z*r); }
 inline float32 length(const Quat &q) { return sqrt(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z); }
 inline Quat normalize(const Quat &q) { return scale(q, 1.0f/length(q)); }
 inline Quat conj(const Quat &q) { return Quat(q.w, -q.x, -q.y, -q.z); }
 Quat mult(const Quat &q, const Quat &p);
 inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, Quat(v)), conj(q)).vec(); }
+Quat lerp(const Quat &q, const Quat &p, float32 r);
+Quat slerp(const Quat &q, const Quat &p, float32 a);
+
 
 struct Matrix
 {

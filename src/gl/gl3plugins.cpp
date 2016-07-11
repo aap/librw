@@ -8,6 +8,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwanim.h"
 #include "../rwengine.h"
 #include "../rwplugins.h"
 #ifdef RW_OPENGL
@@ -229,10 +230,13 @@ makeMatFXPipeline(void)
 
 // Skin
 
+Shader *skinShader;
+
 static void*
 skinOpen(void *o, int32, int32)
 {
 	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
+	skinShader = Shader::fromFiles("skin.vert", "simple.frag");
 	return o;
 }
 
@@ -247,15 +251,250 @@ initSkin(void)
 {
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
 	                       skinOpen, skinClose);
+	registerUniform("u_boneMatrices");
+}
+
+enum
+{
+	ATTRIB_WEIGHTS = ATTRIB_TEXCOORDS7+1,
+	ATTRIB_INDICES
+};
+
+void
+skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	AttribDesc attribs[14], *a;
+	uint32 stride;
+
+	//
+	// Create attribute descriptions
+	//
+	a = attribs;
+	stride = 0;
+
+	// Positions
+	a->index = ATTRIB_POS;
+	a->size = 3;
+	a->type = GL_FLOAT;
+	a->normalized = GL_FALSE;
+	a->offset = stride;
+	stride += 12;
+	a++;
+
+	// Normals
+	// TODO: compress
+	bool hasNormals = !!(geo->geoflags & Geometry::NORMALS);
+	if(hasNormals){
+		a->index = ATTRIB_NORMAL;
+		a->size = 3;
+		a->type = GL_FLOAT;
+		a->normalized = GL_FALSE;
+		a->offset = stride;
+		stride += 12;
+		a++;
+	}
+
+	// Prelighting
+	bool isPrelit = !!(geo->geoflags & Geometry::PRELIT);
+	if(isPrelit){
+		a->index = ATTRIB_COLOR;
+		a->size = 4;
+		a->type = GL_UNSIGNED_BYTE;
+		a->normalized = GL_TRUE;
+		a->offset = stride;
+		stride += 4;
+		a++;
+	}
+
+	// Texture coordinates
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		a->index = ATTRIB_TEXCOORDS0+n;
+		a->size = 2;
+		a->type = GL_FLOAT;
+		a->normalized = GL_FALSE;
+		a->offset = stride;
+		stride += 8;
+		a++;
+	}
+
+	// Weights
+	a->index = ATTRIB_WEIGHTS;
+	a->size = 4;
+	a->type = GL_FLOAT;
+	a->normalized = GL_FALSE;
+	a->offset = stride;
+	stride += 16;
+	a++;
+
+	// Indices
+	a->index = ATTRIB_INDICES;
+	a->size = 4;
+	a->type = GL_UNSIGNED_BYTE;
+	a->normalized = GL_FALSE;
+	a->offset = stride;
+	stride += 4;
+	a++;
+
+	header->numAttribs = a - attribs;
+	for(a = attribs; a != &attribs[header->numAttribs]; a++)
+		a->stride = stride;
+	header->attribDesc = new AttribDesc[header->numAttribs];
+	memcpy(header->attribDesc, attribs,
+	       header->numAttribs*sizeof(AttribDesc));
+
+	//
+	// Allocate and fill vertex buffer
+	//
+	Skin *skin = Skin::get(geo);
+	uint8 *verts = new uint8[header->totalNumVertex*stride];
+	header->vertexBuffer = verts;
+
+	// Positions
+	for(a = attribs; a->index != ATTRIB_POS; a++)
+		;
+	instV3d(VERT_FLOAT3, verts + a->offset,
+	        geo->morphTargets[0].vertices,
+	        header->totalNumVertex, a->stride);
+
+	// Normals
+	if(hasNormals){
+		for(a = attribs; a->index != ATTRIB_NORMAL; a++)
+			;
+		instV3d(VERT_FLOAT3, verts + a->offset,
+			geo->morphTargets[0].normals,
+			header->totalNumVertex, a->stride);
+	}
+
+	// Prelighting
+	if(isPrelit){
+		for(a = attribs; a->index != ATTRIB_COLOR; a++)
+			;
+		instColor(VERT_RGBA, verts + a->offset,
+			  geo->colors,
+			  header->totalNumVertex, a->stride);
+	}
+
+	// Texture coordinates
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
+			;
+		instV2d(VERT_FLOAT2, verts + a->offset,
+			geo->texCoords[n],
+			header->totalNumVertex, a->stride);
+	}
+
+	// Weights
+	for(a = attribs; a->index != ATTRIB_WEIGHTS; a++)
+		;
+	instV4d(VERT_FLOAT4, verts + a->offset,
+	        skin->weights,
+	        header->totalNumVertex, a->stride);
+
+	// Indices
+	for(a = attribs; a->index != ATTRIB_INDICES; a++)
+		;
+	// not really colors of course but what the heck
+	instColor(VERT_RGBA, verts + a->offset,
+	          skin->indices,
+	          header->totalNumVertex, a->stride);
+
+	glGenBuffers(1, &header->vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
+	glBufferData(GL_ARRAY_BUFFER, header->totalNumVertex*stride,
+	             header->vertexBuffer, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void
+skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	assert(0 && "can't uninstance");
+}
+
+#define U(s) currentShader->uniformLocations[findUniform(s)]
+
+static float skinMatrices[64*16];
+
+void
+updateSkinMatrices(Atomic *a)
+{
+	Skin *skin = Skin::get(a->geometry);
+	HAnimHierarchy *hier = Skin::getHierarchy(a);
+	Matrix *invMats = (Matrix*)skin->inverseMatrices;
+
+	float *m;
+	m = (float*)skinMatrices;
+	for(int i = 0; i < hier->numNodes; i++){
+		invMats[i].rightw = 0.0f;
+		invMats[i].upw = 0.0f;
+		invMats[i].atw = 0.0f;
+		invMats[i].posw = 1.0f;
+		Matrix::mult((Matrix*)m, &hier->matrices[i], &invMats[i]);
+		m[3] = 0.0f;
+		m[7] = 0.0f;
+		m[11] = 0.0f;
+		m[15] = 1.0f;
+		m += 16;
+	}
+}
+
+void
+skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
+{
+	Material *m;
+	RGBAf col;
+	GLfloat surfProps[4];
+	int id;
+
+	setWorldMatrix(atomic->getFrame()->getLTM());
+	lightingCB();
+
+	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
+	setAttribPointers(header);
+
+	InstanceData *inst = header->inst;
+	int32 n = header->numMeshes;
+
+	rw::setRenderState(ALPHATESTFUNC, 1);
+	rw::setRenderState(ALPHATESTREF, 50);
+
+	skinShader->use();
+
+	updateSkinMatrices(atomic);
+	glUniformMatrix4fv(U("u_boneMatrices"), 64, GL_FALSE,
+	                   (GLfloat*)skinMatrices);
+
+	while(n--){
+		m = inst->material;
+
+		convColor(&col, &m->color);
+		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+
+		surfProps[0] = m->surfaceProps.ambient;
+		surfProps[1] = m->surfaceProps.specular;
+		surfProps[2] = m->surfaceProps.diffuse;
+		surfProps[3] = 0.0f;
+		glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+
+		setTexture(0, m->texture);
+
+		rw::setRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+
+		flushCache();
+		glDrawElements(header->primType, inst->numIndex,
+		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
+		inst++;
+	}
 }
 
 ObjPipeline*
 makeSkinPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_GL3);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
+	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = skinUninstanceCB;
+	pipe->renderCB = skinRenderCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;

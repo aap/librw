@@ -10,7 +10,6 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
-#include "rwplugins.h"
 #include "rwengine.h"
 
 namespace rw {
@@ -74,6 +73,41 @@ mult(const Quat &q, const Quat &p)
 	            q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
 }
 
+Quat
+lerp(const Quat &q, const Quat &p, float32 r)
+{
+	float32 c;
+	Quat q1 = q;
+	c = dot(q1, p);
+	if(c < 0.0f){
+		c = -c;
+		q1 = negate(q1);
+	}
+	return Quat(q1.w + r*(p.w - q1.w),
+	            q1.x + r*(p.x - q1.x),
+	            q1.y + r*(p.y - q1.y),
+	            q1.z + r*(p.z - q1.z));
+};
+
+Quat
+slerp(const Quat &q, const Quat &p, float32 a)
+{
+	float32 c;
+	Quat q1 = q;
+	c = dot(q1, p);
+	if(c < 0.0f){
+		c = -c;
+		q1 = negate(q1);
+	}
+	float32 phi = acos(c);
+	if(phi > 0.00001f){
+		float32 s = sin(phi);
+		return add(scale(q1, sin((1.0f-a)*phi)/s),
+		           scale(p,  sin(a*phi)/s));
+	}
+	return q1;
+}
+
 V3d
 cross(const V3d &a, const V3d &b)
 {
@@ -82,19 +116,35 @@ cross(const V3d &a, const V3d &b)
 	           a.x*b.y - a.y*b.x);
 }
 
+/* q must be normalized */
 Matrix
 Matrix::makeRotation(const Quat &q)
 {
 	Matrix res;
-	res.right.x = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
-	res.right.y = 2*q.w*q.z + 2*q.x*q.y;
-	res.right.z = 2*q.x*q.z - 2*q.w*q.y;
-	res.up.x    = 2*q.x*q.y - 2*q.w*q.z;
-	res.up.y    = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
-	res.up.z    = 2*q.w*q.x + 2*q.y*q.z;
-	res.at.x    = 2*q.w*q.y + 2*q.x*q.z;
-	res.at.y    = 2*q.y*q.z - 2*q.w*q.x;
-	res.at.z    = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
+	float xx = q.x*q.x;
+	float yy = q.y*q.y;
+	float zz = q.z*q.z;
+	float yz = q.y*q.z;
+	float zx = q.z*q.x;
+	float xy = q.x*q.y;
+	float wx = q.w*q.x;
+	float wy = q.w*q.y;
+	float wz = q.w*q.z;
+
+	res.right.x = 1.0f - 2.0f*(yy + zz);
+	res.right.y =        2.0f*(xy + wz);
+	res.right.z =        2.0f*(zx - wy);
+
+	res.up.x =        2.0f*(xy - wz);
+	res.up.y = 1.0f - 2.0f*(xx + zz);
+	res.up.z =        2.0f*(yz + wx);
+
+	res.at.x =        2.0f*(zx + wy);
+	res.at.y =        2.0f*(yz - wx);
+	res.at.z = 1.0f - 2.0f*(xx + yy);
+
+	res.pos.x = res.pos.y = res.pos.z = 0.0f;
+
 	res.rightw = res.upw = res.atw = 0.0f;
 	res.posw = 1.0f;
 	return res;

@@ -41,11 +41,13 @@ enum {
 	VERT_NORMSHORT3,
 	VERT_FLOAT2,
 	VERT_FLOAT3,
+	VERT_FLOAT4,
 	VERT_ARGB,
 	VERT_RGBA,
 	VERT_COMPNORM
 };
 
+void instV4d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
 void instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
 void uninstV3d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride);
 void instV2d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);

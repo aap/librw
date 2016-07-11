@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwanim.h"
 #include "rwengine.h"
 #include "rwplugins.h"
 #include "ps2/rwps2.h"
@@ -23,7 +24,7 @@
 
 namespace rw {
 
-SkinGlobals skinGlobals = { 0, { nil } };
+SkinGlobals skinGlobals = { 0, 0, { nil } };
 
 static void*
 createSkin(void *object, int32 offset, int32)
@@ -257,6 +258,26 @@ skinRights(void *object, int32, int32, uint32)
 	Skin::setPipeline((Atomic*)object, 1);
 }
 
+static void*
+createSkinAtm(void *object, int32 offset, int32)
+{
+	*PLUGINOFFSET(void*, object, offset) = nil;
+	return object;
+}
+
+static void*
+destroySkinAtm(void *object, int32 offset, int32)
+{
+	return object;
+}
+
+static void*
+copySkinAtm(void *dst, void *src, int32 offset, int32)
+{
+	*PLUGINOFFSET(void*, dst, offset) = *PLUGINOFFSET(void*, src, offset);
+	return dst;
+}
+
 void
 registerSkinPlugin(void)
 {
@@ -274,13 +295,15 @@ registerSkinPlugin(void)
 	wdgl::initSkin();
 	gl3::initSkin();
 
-	skinGlobals.offset = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
-	                                              createSkin,
-	                                              destroySkin,
-	                                              copySkin);
+	int32 o;
+	o = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,
+	                             createSkin, destroySkin, copySkin);
 	Geometry::registerPluginStream(ID_SKIN,
 	                               readSkin, writeSkin, getSizeSkin);
-	Atomic::registerPlugin(0, ID_SKIN, nil, nil, nil);
+	skinGlobals.geoOffset = o;
+	o = Atomic::registerPlugin(sizeof(HAnimHierarchy*),ID_SKIN,
+	                           createSkinAtm, destroySkinAtm, copySkinAtm);
+	skinGlobals.atomicOffset = o;
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 

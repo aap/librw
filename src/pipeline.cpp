@@ -52,6 +52,19 @@ findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, i
 }
 
 void
+instV4d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride)
+{
+	if(type == VERT_FLOAT4)
+		for(uint32 i = 0; i < numVertices; i++){
+			memcpy(dst, src, 16);
+			dst += stride;
+			src += 4;
+		}
+	else
+		assert(0 && "unsupported instV3d type");
+}
+
+void
 instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride)
 {
 	if(type == VERT_FLOAT3)
