@@ -38,6 +38,7 @@ driverOpen(void *o, int32, int32)
 	driver[PLATFORM_D3D9]->rasterUnlock       = rasterUnlock;
 	driver[PLATFORM_D3D9]->rasterNumLevels    = rasterNumLevels;
 	driver[PLATFORM_D3D9]->rasterFromImage    = rasterFromImage;
+	driver[PLATFORM_D3D9]->rasterToImage      = rasterToImage;
 	return o;
 }
 
@@ -177,7 +178,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	for(int i = 0; i < 2; i++){
 		stream->read(p, 16);
 		s = &header->vertexStream[i];
-		s->vertexBuffer = (void*)*(uint32*)p; p += 4;
+		s->vertexBuffer = (void*)(uintptr)*(uint32*)p; p += 4;
 		s->offset = 0; p += 4;
 		s->stride = *(uint32*)p; p += 4;
 		s->geometryFlags = *(uint16*)p; p += 2;

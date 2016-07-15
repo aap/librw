@@ -31,6 +31,7 @@ driverOpen(void *o, int32, int32)
 	driver[PLATFORM_D3D8]->rasterUnlock       = rasterUnlock;
 	driver[PLATFORM_D3D8]->rasterNumLevels    = rasterNumLevels;
 	driver[PLATFORM_D3D8]->rasterFromImage    = rasterFromImage;
+	driver[PLATFORM_D3D8]->rasterToImage      = rasterToImage;
 	return o;
 }
 
@@ -470,7 +471,7 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 	}
 
 	delete[] data;
-	Raster *ras = Raster::createFromImage(img);
+	Raster *ras = Raster::createFromImage(img, PLATFORM_D3D8);
 	img->destroy();
 	return ras;
 }

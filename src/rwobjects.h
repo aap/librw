@@ -214,9 +214,11 @@ struct Raster : PluginBase<Raster>
 	uint8 *texels;
 	uint8 *palette;
 
-	static Raster *create(int32 width, int32 height, int32 depth, int32 format, int32 platform = 0);
+	static Raster *create(int32 width, int32 height, int32 depth,
+	                      int32 format, int32 platform = 0);
 	void destroy(void);
-	static Raster *createFromImage(Image *image);
+	static Raster *createFromImage(Image *image, int32 platform = 0);
+	Image *toImage(void);
 	uint8 *lock(int32 level);
 	void unlock(int32 level);
 	int32 getNumLevels(void);

@@ -23,19 +23,34 @@ int32 nativeRasterOffset;
 void
 rasterCreate(Raster *raster)
 {
-	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	if(raster->flags & Raster::DONTALLOCATE)
 		return;
 
-	assert(raster->depth == 32);
-
 #ifdef RW_OPENGL
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	switch(raster->format & 0xF00){
+	case Raster::C8888:
+		natras->internalFormat = GL_RGBA;
+		natras->format = GL_RGBA;
+		natras->hasAlpha = 1;
+		break;
+	case Raster::C888:
+		natras->internalFormat = GL_RGB;
+		natras->format = GL_RGB;
+		natras->hasAlpha = 0;
+		break;
+	default:
+		assert(0 && "unsupported raster format");
+	}
+	natras->type = GL_UNSIGNED_BYTE;
+
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, raster->width, raster->height,
-	             0, GL_RGBA, GL_UNSIGNED_BYTE, nil);
+	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
+	             raster->width, raster->height,
+	             0, natras->format, natras->type, nil);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif
@@ -67,22 +82,30 @@ rasterFromImage(Raster *raster, Image *image)
 	int32 format;
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 
-	format = Raster::C8888;
-	format |= 4;
+	switch(image->depth){
+	case 32:
+		format = Raster::C8888;
+		break;
+	case 24:
+		format = Raster::C888;
+		break;
+	default:
+		assert(0 && "image depth\n");
+	}
+	format |= Raster::TEXTURE;
 
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
 	raster->format = format & 0xFF00;
 	rasterCreate(raster);
 
-	assert(image->depth == 32);
-
 	natras->hasAlpha = image->hasAlpha();
 
 #ifdef RW_OPENGL
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, raster->width, raster->height,
-	             0, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
+	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
+	             raster->width, raster->height,
+	             0, natras->format, natras->type, image->pixels);
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif
 }

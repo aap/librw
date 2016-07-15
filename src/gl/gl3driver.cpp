@@ -279,7 +279,8 @@ setTexture(int32 n, Texture *tex)
 {
 	bool32 alpha;
 	glActiveTexture(GL_TEXTURE0+n);
-	if(tex == nil){
+	if(tex == nil || tex->raster->platform != PLATFORM_GL3 ||
+	   tex->raster->width == 0){
 		glBindTexture(GL_TEXTURE_2D, whitetex);
 		alpha = 0;
 	}else{

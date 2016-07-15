@@ -63,6 +63,7 @@ Driver::open(void)
 		driver[i]->rasterUnlock = null::rasterUnlock;
 		driver[i]->rasterNumLevels = null::rasterNumLevels;
 		driver[i]->rasterFromImage = null::rasterFromImage;
+		driver[i]->rasterToImage = null::rasterToImage;
 
 		s_plglist[i].construct(rw::driver[i]);
 	}
@@ -107,6 +108,13 @@ void
 rasterFromImage(Raster*, Image*)
 {
 	assert(0 && "rasterFromImage not implemented");
+}
+
+Image*
+rasterToImage(Raster*)
+{
+	assert(0 && "rasterToImage not implemented");
+	return nil;
 }
 
 }

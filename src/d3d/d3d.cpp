@@ -443,7 +443,7 @@ rasterFromImage(Raster *raster, Image *image)
 	default:
 		return;
 	}
-	format |= 4;
+	format |= Raster::TEXTURE;
 
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
@@ -503,6 +503,102 @@ rasterFromImage(Raster *raster, Image *image)
 					break;
 				}
 	raster->unlock(0);
+}
+
+Image*
+rasterToImage(Raster *raster)
+{
+	int32 depth;
+	Image *image;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	if(natras->format)
+		assert(0 && "no custom formats yet");
+	switch(raster->format & 0xF00){
+	case Raster::C1555:
+		depth = 16;
+		break;
+	case Raster::C8888:
+		depth = 32;
+		break;
+	case Raster::C888:
+		depth = 24;
+		break;
+	case Raster::C555:
+		depth = 16;
+		break;
+
+	default:
+	case Raster::C565:
+	case Raster::C4444:
+	case Raster::LUM8:
+		assert(0 && "unsupported raster format");
+	}
+	int32 pallength = 0;
+	if((raster->format & Raster::PAL4) == Raster::PAL4){
+		depth = 4;
+		pallength = 16;
+	}else if((raster->format & Raster::PAL4) == Raster::PAL8){
+		depth = 8;
+		pallength = 256;
+	}
+
+	uint8 *in, *out;
+	image = Image::create(raster->width, raster->height, depth);
+	image->allocate();
+
+	if(pallength){
+		out = image->palette;
+		in = (uint8*)natras->palette;
+		for(int32 i = 0; i < pallength; i++){
+			out[0] = in[2];
+			out[1] = in[1];
+			out[2] = in[0];
+			out[3] = in[3];
+			in += 4;
+			out += 4;
+		}
+	}
+
+	out = image->pixels;
+	in = raster->lock(0);
+	if(pallength)
+		memcpy(out, in, raster->width*raster->height);
+	else
+		// TODO: stride
+		for(int32 y = 0; y < image->height; y++)
+			for(int32 x = 0; x < image->width; x++)
+				switch(raster->format & 0xF00){
+				case Raster::C8888:
+					out[0] = in[2];
+					out[1] = in[1];
+					out[2] = in[0];
+					out[3] = in[3];
+					in += 4;
+					out += 4;
+					break;
+				case Raster::C888:
+					out[0] = in[2];
+					out[1] = in[1];
+					out[2] = in[0];
+					in += 4;
+					out += 3;
+					break;
+				case Raster::C1555:
+					out[0] = in[0];
+					out[1] = in[1];
+					in += 2;
+					out += 2;
+					break;
+				case Raster::C555:
+					out[0] = in[0];
+					out[1] = in[1] | 0x80;
+					in += 2;
+					out += 2;
+					break;
+				}
+	raster->unlock(0);
+
+	return image;
 }
 
 int32

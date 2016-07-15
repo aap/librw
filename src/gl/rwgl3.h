@@ -100,7 +100,13 @@ extern int32 nativeRasterOffset;
 
 struct Gl3Raster
 {
+	// arguments to glTexImage2D
+	int32 internalFormat;
+	int32 type;
+	int32 format;
+	// texture object
 	uint32 texid;
+
 	bool32 hasAlpha;
 };
 

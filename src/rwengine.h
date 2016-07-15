@@ -53,9 +53,9 @@ struct Engine
 
 	// Device
 	float32 zNear, zFar;
-	void (*beginUpdate)(Camera*);
-	void (*endUpdate)(Camera*);
-	void (*clearCamera)(Camera*, RGBA *col, uint32 mode);
+	void   (*beginUpdate)(Camera*);
+	void   (*endUpdate)(Camera*);
+	void   (*clearCamera)(Camera*, RGBA *col, uint32 mode);
 	void   (*setRenderState)(int32 state, uint32 value);
 	uint32 (*getRenderState)(int32 state);
 
@@ -76,6 +76,7 @@ struct Driver
 	void   (*rasterUnlock)(Raster*, int32 level);
 	int32  (*rasterNumLevels)(Raster*);
 	void   (*rasterFromImage)(Raster*, Image*);
+	Image *(*rasterToImage)(Raster*);
 
 	static PluginList s_plglist[NUM_PLATFORMS];
 	static void open(void);
@@ -108,6 +109,7 @@ namespace null {
 	void   rasterUnlock(Raster*, int32 level);
 	int32  rasterNumLevels(Raster*);
 	void   rasterFromImage(Raster*, Image*);
+	Image *rasterToImage(Raster*);
 }
 
 }

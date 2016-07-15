@@ -216,7 +216,7 @@ Texture::read(const char *name, const char *mask)
 		strncpy(tex->name, name, 32);
 		if(mask)
 			strncpy(tex->mask, mask, 32);
-		raster = Raster::create(0, 0, 0, 0x80);
+		raster = Raster::create(0, 0, 0, Raster::DONTALLOCATE);
 		tex->raster = raster;
 	}
 	if(currentTexDictionary){
@@ -733,12 +733,19 @@ Raster::calculateNumLevels(int32 width, int32 height)
 }
 
 Raster*
-Raster::createFromImage(Image *image)
+Raster::createFromImage(Image *image, int32 platform)
 {
 	Raster *raster = Raster::create(image->width, image->height,
-	                                image->depth, 4 | 0x80);
+	                                image->depth, TEXTURE | DONTALLOCATE,
+	                                platform);
 	driver[raster->platform]->rasterFromImage(raster, image);
 	return raster;
+}
+
+Image*
+Raster::toImage(void)
+{
+	return driver[this->platform]->rasterToImage(this);
 }
 
 }
