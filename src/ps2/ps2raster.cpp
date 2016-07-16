@@ -20,9 +20,7 @@ namespace ps2 {
 
 int32 nativeRasterOffset;
 
-#define MAXLEVEL(r) ((r)->tex1[1]>>18 & 0x3F)
-#define SETMAXLEVEL(r, l) ((r)->tex1[1] = (r)->tex1[1]&~0xFF0000 | l<<18)
-#define SETKL(r, val) ((r)->tex1[1] = (r)->tex1[1]&~0xFFFF | (uint16)(val))
+#define MAXLEVEL(r) ((r)->tex1low >> 2)
 static bool32 noNewStyleRasters;
 
 // i don't really understand this, stolen from RW
@@ -61,17 +59,55 @@ ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
 	}
 }
 
+#define ALIGN16(x) ((x) + 0xF & ~0xF)
 #define ALIGN64(x) ((x) + 0x3F & ~0x3F)
+
+enum Psm {
+	PSMCT32  = 0x0,
+	PSMCT24  = 0x1,
+	PSMCT16  = 0x2,
+	PSMCT16S = 0xA,
+	PSMT8    = 0x13,
+	PSMT4    = 0x14,
+	PSMT8H   = 0x1B,
+	PSMT4HL  = 0x24,
+	PSMT4HH  = 0x2C,
+};
+
+void*
+mallocalign(size_t size, int32 alignment)
+{
+	void *p;
+	void **pp;
+	p = malloc(size + alignment + sizeof(void*));
+	if(p == nil) return nil;
+	pp = (void**)(((uintptr)p + sizeof(void*) + alignment)&~(alignment-1));
+	pp[-1] = p;
+	return (void*)pp;
+}
+
+void
+freealign(void *p)
+{
+	void *pp;
+	if(p == nil) return;
+	pp = ((void**)p)[-1];
+	free(pp);
+}
 
 void
 rasterCreate(Raster *raster)
 {
+	enum {
+		TCC_RGBA = 1 << 2,
+		CLD_1 = 1 << 29,
+	};
 	uint64 bufferWidth[7], bufferBase[7];
 	int32 pageWidth, pageHeight;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 
 	//printf("%x %x %x %x\n", raster->format, raster->flags, raster->type, noNewStyleRasters);
-	assert(raster->type == 4);	// Texture
+	assert(raster->type == Raster::TEXTURE);
 	switch(raster->depth){
 	case 4:
 		pageWidth = 128;
@@ -98,24 +134,27 @@ rasterCreate(Raster *raster)
 		logw++;
 	for(s = 1; s < raster->height; s *= 2)
 		logh++;
-	SETKL(ras, 0xFC0);
+	ras->kl = 0xFC0;
 	//printf("%d %d %d %d\n", raster->width, logw, raster->height, logh);
+
+	// round up to page width, set TBW, TW, TH
 	ras->tex0[0] |= (raster->width < pageWidth ? pageWidth : raster->width)/64 << 14;
 	ras->tex0[0] |= logw << 26;
 	ras->tex0[0] |= logh << 30;
 	ras->tex0[1] |= logh >> 2;
 
+	// set PSM, TCC, CLD, CPSM and figure out palette format
 	int32 paletteWidth, paletteHeight, paletteDepth;
 	int32 palettePagewidth, palettePageheight;
 	if(raster->format & (Raster::PAL4 | Raster::PAL8))
 		switch(raster->format & 0xF00){
 		case Raster::C1555:
-			ras->tex0[1] |= 0xA << 19; // PSMCT16S
+			ras->tex0[1] |= PSMCT16S << 19;
 			paletteDepth = 2;
 			palettePagewidth = palettePageheight = 64;
 			break;
 		case Raster::C8888:
-			// PSMCT32
+			ras->tex0[1] |= PSMCT32 << 19;
 			paletteDepth = 4;
 			palettePagewidth = 64;
 			palettePageheight = 32;
@@ -124,13 +163,13 @@ rasterCreate(Raster *raster)
 			assert(0 && "unsupported palette format\n");
 		}
 	if(raster->format & Raster::PAL4){
-		ras->tex0[0] |= 0x14 << 20;   // PSMT4
-		ras->tex0[1] |= 1<<29 | 1<<2; // CLD 1, TCC RGBA
+		ras->tex0[0] |= PSMT4 << 20;
+		ras->tex0[1] |= CLD_1 | TCC_RGBA;
 		paletteWidth = 8;
 		paletteHeight = 2;
 	}else if(raster->format & Raster::PAL8){
-		ras->tex0[0] |= 0x13 << 20;   // PSMT8
-		ras->tex0[1] |= 1<<29 | 1<<2; // CLD 1, TCC RGBA
+		ras->tex0[0] |= PSMT8 << 20;
+		ras->tex0[1] |= CLD_1 | TCC_RGBA;
 		paletteWidth = paletteHeight = 16;
 	}else{
 		paletteWidth = 0;
@@ -140,15 +179,15 @@ rasterCreate(Raster *raster)
 		palettePageheight = 0;
 		switch(raster->format & 0xF00){
 		case Raster::C1555:
-			ras->tex0[0] |= 0xA << 20; // PSMCT16S
-			ras->tex0[1] |= 1 << 2;  // TCC RGBA
+			ras->tex0[0] |= PSMCT16S << 20;
+			ras->tex0[1] |= TCC_RGBA;
 			break;
 		case Raster::C8888:
-			// PSMCT32
-			ras->tex0[1] |= 1 << 2;  // TCC RGBA
+			ras->tex0[0] |= PSMCT32 << 20;
+			ras->tex0[1] |= TCC_RGBA;
 			break;
 		case Raster::C888:
-			ras->tex0[0] |= 1 << 20; // PSMCT24
+			ras->tex0[0] |= PSMCT24 << 20;
 			break;
 		default:
 			assert(0 && "unsupported raster format\n");
@@ -216,51 +255,76 @@ rasterCreate(Raster *raster)
 		}
 		assert(0);
 	}else{
-		ras->texelSize = raster->stride*raster->height+0xF & ~0xF;
+		// No mipmaps
+
+		ras->texelSize = ALIGN16(raster->stride*raster->height);
 		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
 		ras->miptbp1[0] |= 1<<14;        // TBW1
 		ras->miptbp1[1] |= 1<<2 | 1<<22; // TBW2,3
 		ras->miptbp2[0] |= 1<<14;	 // TBW4
 		ras->miptbp2[1] |= 1<<2 | 1<<22; // TBW5,6
-		SETMAXLEVEL(ras, 0);
+		ras->tex1low = 0;	// one mipmap level
+
+		// find out number of pages needed
 		nPagW = (raster->width + pageWidth-1)/pageWidth;
 		nPagH = (raster->height + pageHeight-1)/pageHeight;
+
+		// calculate buffer width in units of pixels/64
 		bufferBase[0] = 0;
-		bufferWidth[0] = nPagW * (pageWidth >> 6);
-		ras->gsSize = (nPagW*nPagH*0x800)&~0x7FF;
+		bufferWidth[0] = nPagW*pageWidth / 64;
+
+		// calculate whole buffer size in words
+		ras->gsSize = nPagW*nPagH*0x800;
+
+		// calculate palette offset on GS in units of words/64
 		if(ras->paletteSize){
-			// BITBLTBUF DBP
+			// Maximum palette size will be 256 words.
+			// If there is still room, use it!
+			// TODO: find out why this check works
 			if(pageWidth*nPagW > raster->width ||
 			   pageHeight*nPagH > raster->height)
-				ras->tex1[0] = (ras->gsSize >> 6) - 4;
-			else
-				ras->tex1[0] = ras->gsSize >> 6;
-			nPagW = (paletteWidth + palettePagewidth-1)/palettePagewidth;
-			nPagH = (paletteHeight + palettePageheight-1)/palettePageheight;
-			ras->gsSize += (nPagW*nPagH*0x800)&~0x7FF;
+				ras->paletteOffset = (ras->gsSize - 256)/ 64;
+			else{
+				// Otherwise allocate more space...
+				ras->paletteOffset = ras->gsSize / 64;
+				// ...using the same calculation as above
+				nPagW = (paletteWidth + palettePagewidth-1)/palettePagewidth;
+				nPagH = (paletteHeight + palettePageheight-1)/palettePageheight;
+				ras->gsSize += nPagW*nPagH*0x800;
+			}
 		}else
-			ras->tex1[0] = 0;
+			ras->paletteOffset = 0;
 	}
 
 	// allocate data and fill with GIF packets
-	ras->texelSize = ras->texelSize+0xF & ~0xF;
+	ras->texelSize = ALIGN16(ras->texelSize);
 	int32 numLevels = MAXLEVEL(ras)+1;
+	// No GIF packet because we either don't want it (pre 0x310 rasters)
+	// or the data wouldn't fit into a DMA packet
 	if(noNewStyleRasters ||
-	   (raster->width*raster->height*raster->depth & ~0x7F) >= 0x3FFF80){
-		assert(0);
+	   (raster->width*raster->height*raster->depth/8/0x10) >= 0x7FFF){
+		ras->dataSize = ras->paletteSize+ras->texelSize;
+		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
+		ras->data = data;
+		raster->texels = data;
+		if(ras->paletteSize)
+			raster->palette = data + ras->texelSize;
+		if(raster->depth == 8)
+			ras->flags |= Ps2Raster::SWIZZLED8;
 	}else{
-		ras->flags |= 1;	// include GIF packets
+		ras->flags |= Ps2Raster::HASGIFPACKETS;
 		int32 psm = ras->tex0[0]>>20 & 0x3F;
 		//int32 cpsm = ras->tex0[1]>>19 & 0x3F;
-		if(psm == 0x13){	// PSMT8
-			ras->flags |= 2;
-			// TODO: stuff
+		if(psm == PSMT8){
+			ras->flags |= Ps2Raster::SWIZZLED8;
+			// TODO: crazy stuff
 		}
-		if(psm == 0x14){	// PSMT4
+		if(psm == PSMT4){
 			// swizzle flag probably depends on version :/
+			// but which version? ....
 			if(rw::version > 0x31000)
-				ras->flags |= 4;
-			// TODO: stuff
+				ras->flags |= Ps2Raster::SWIZZLED4;
+			// TODO: crazy stuff
 		}
 		ras->texelSize = 0x50*numLevels;	// GIF packets
 		int32 minW, minH;
@@ -271,7 +335,7 @@ rasterCreate(Raster *raster)
 		while(n--){
 			mipw = w < minW ? minW : w;
 			miph = h < minH ? minH : h;
-			ras->texelSize += mipw*miph*raster->depth/8+0xF & ~0xF;
+			ras->texelSize += ALIGN16(mipw*miph*raster->depth/8)
 			w /= 2;
 			h /= 2;
 		}
@@ -282,8 +346,13 @@ rasterCreate(Raster *raster)
 			    paletteDepth*paletteWidth*paletteHeight;
 		}
 		// TODO: allocate space for more DMA packets
+		// every upload as 4 qwords:
+		// DMAcnt(2) [NOP, DIRECT]
+		//   GIF tag  A+D
+		//     BITBLTBUF
+		// DMAref(pixel data) [NOP, DIRECT]
 		ras->dataSize = ras->paletteSize+ras->texelSize;
-		uint8 *data = new uint8[ras->dataSize];
+		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
 		assert(data);
 		ras->data = data;
 		raster->texels = data + 0x50;
@@ -309,8 +378,8 @@ rasterCreate(Raster *raster)
 			*p++ = 0;
 
 			// TRXREG
-			if(ras->flags & 2 && psm == 0x13 ||
-			   ras->flags & 4 && psm == 0x14){
+			if(ras->flags & Ps2Raster::SWIZZLED8 && psm == PSMT8 ||
+			   ras->flags & Ps2Raster::SWIZZLED4 && psm == PSMT4){
 				*p++ = mipw/2;
 				*p++ = miph/2;
 			}else{
@@ -407,8 +476,10 @@ createNativeRaster(void *object, int32 offset, int32)
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
 	raster->tex0[0] = 0;
 	raster->tex0[1] = 0;
-	raster->tex1[0] = 0;
-	raster->tex1[1] = 0;
+	raster->paletteOffset = 0;
+	raster->kl = 0xFC0;
+	raster->tex1low = 0;
+	raster->unk2 = 0;
 	raster->miptbp1[0] = 0;
 	raster->miptbp1[1] = 0;
 	raster->miptbp2[0] = 0;
@@ -417,7 +488,6 @@ createNativeRaster(void *object, int32 offset, int32)
 	raster->paletteSize = 0;
 	raster->gsSize = 0;
 	raster->flags = 0;
-	SETKL(raster, 0xFC0);
 
 	raster->dataSize = 0;
 	raster->data = nil;
@@ -449,7 +519,7 @@ readMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 	if(tex->raster == nil)
 		return stream;
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
-	SETKL(raster, val);
+	raster->kl = val;
 	return stream;
 }
 
@@ -460,7 +530,7 @@ writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 	if(tex->raster)
 		return nil;
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
-	stream->writeI32(raster->tex1[1]&0xFFFF);
+	stream->writeI32(raster->kl);
 	return stream;
 }
 
@@ -483,6 +553,87 @@ registerNativeRaster(void)
 	Texture::registerPluginStream(ID_SKYMIPMAP, readMipmap, writeMipmap, getSizeMipmap);
 }
 
+void
+printTEX0(uint64 tex0)
+{
+	printf("%016lX ", tex0);
+	uint32 tbp0 = tex0 & 0x3FFF; tex0 >>= 14;
+	uint32 tbw = tex0 & 0x3F; tex0 >>= 6;
+	uint32 psm = tex0 & 0x3F; tex0 >>= 6;
+	uint32 tw = tex0 & 0xF; tex0 >>= 4;
+	uint32 th = tex0 & 0xF; tex0 >>= 4;
+	uint32 tcc = tex0 & 0x1; tex0 >>= 1;
+	uint32 tfx = tex0 & 0x3; tex0 >>= 2;
+	uint32 cbp = tex0 & 0x3FFF; tex0 >>= 14;
+	uint32 cpsm = tex0 & 0xF; tex0 >>= 4;
+	uint32 csm = tex0 & 0x1; tex0 >>= 1;
+	uint32 csa = tex0 & 0x1F; tex0 >>= 5;
+	uint32 cld = tex0 & 0x7;
+	printf("TBP0:%4X TBW:%2X PSM:%2X TW:%X TH:%X TCC:%X TFX:%X CBP:%4X CPSM:%X CSM:%X CSA:%2X CLD:%X\n",
+		tbp0, tbw, psm, tw, th, tcc, tfx, cbp, cpsm, csm, csa, cld);
+}
+
+void
+printTEX1(uint64 tex1)
+{
+	printf("%016lX ", tex1);
+	uint32 lcm = tex1 & 0x1; tex1 >>= 2;
+	uint32 mxl = tex1 & 0x7; tex1 >>= 3;
+	uint32 mmag = tex1 & 0x1; tex1 >>= 1;
+	uint32 mmin = tex1 & 0x7; tex1 >>= 3;
+	uint32 mtba = tex1 & 0x1; tex1 >>= 10;
+	uint32 l = tex1 & 0x3; tex1 >>= 13;
+	uint32 k = tex1 & 0xFFF;
+	printf("LCM:%X MXL:%X MMAG:%X MMIN:%X MTBA:%X L:%X K:%X\n",
+		lcm, mxl, mmag, mmin, mtba, l, k);
+}
+
+void
+calcTEX1(Raster *raster, uint64 *tex1, int32 filter)
+{
+	enum {
+		NEAREST = 0,
+		LINEAR,
+		NEAREST_MIPMAP_NEAREST,
+		NEAREST_MIPMAP_LINEAR,
+		LINEAR_MIPMAP_NEAREST,
+		LINEAR_MIPMAP_LINEAR,
+	};
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	uint64 t1 = natras->tex1low;
+	uint64 k = natras->kl & 0xFFF;
+	uint64 l = (natras->kl >> 12) & 0x3;
+	t1 |= k << 32;
+	t1 |= l << 19;
+	switch(filter){
+	case Texture::NEAREST:
+		t1 |= (NEAREST << 5) |
+		      (NEAREST << 6);
+		break;
+	case Texture::LINEAR:
+		t1 |= (LINEAR << 5) |
+		      (LINEAR << 6);
+		break;
+	case Texture::MIPNEAREST:
+		t1 |= (NEAREST << 5) |
+		      (NEAREST_MIPMAP_NEAREST << 6);
+		break;
+	case Texture::MIPLINEAR:
+		t1 |= (LINEAR << 5) |
+		      (LINEAR_MIPMAP_NEAREST << 6);
+		break;
+	case Texture::LINEARMIPNEAREST:
+		t1 |= (NEAREST << 5) |
+		      (NEAREST_MIPMAP_LINEAR << 6);
+		break;
+	case Texture::LINEARMIPLINEAR:
+		t1 |= (LINEAR << 5) |
+		      (LINEAR_MIPMAP_LINEAR << 6);
+		break;
+	}
+	*tex1 = t1;
+}
+
 struct StreamRasterExt
 {
 	int32 width;
@@ -491,7 +642,8 @@ struct StreamRasterExt
 	uint16 rasterFormat;
 	int16  type;
 	uint32 tex0[2];
-	uint32 tex1[2];
+	uint32 paletteOffset;
+	uint32 tex1low;
 	uint32 miptbp1[2];
 	uint32 miptbp2[2];
 	uint32 texelSize;
@@ -545,6 +697,25 @@ readNativeTexture(Stream *stream)
 		goto fail;
 	}
 	stream->read(&streamExt, 0x40);
+printf("%X %X %X %X %X %08X%08X %X %X %08X%08X %08X%08X %X %X %X %X\n",
+streamExt.width,
+streamExt.height,
+streamExt.depth,
+streamExt.rasterFormat,
+streamExt.type,
+streamExt.tex0[1],
+streamExt.tex0[0],
+streamExt.paletteOffset,
+streamExt.tex1low,
+streamExt.miptbp1[1],
+streamExt.miptbp1[0],
+streamExt.miptbp2[1],
+streamExt.miptbp2[0],
+streamExt.texelSize,
+streamExt.paletteSize,
+streamExt.gsSize,
+streamExt.mipmapVal);
+
 	noNewStyleRasters = streamExt.type < 2;
 	rw::version = version;
 	raster = Raster::create(streamExt.width, streamExt.height,
@@ -554,14 +725,19 @@ readNativeTexture(Stream *stream)
 	rw::version = oldversion;
 	tex->raster = raster;
 	natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
-	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
-	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
+//printf("%X %X\n", natras->paletteOffset, natras->tex1low);
+//	printf("%08X%08X %08X%08X %08X%08X\n",
+//	       natras->tex0[1], natras->tex0[0],
+//	       natras->miptbp1[0], natras->miptbp1[1], natras->miptbp2[0], natras->miptbp2[1]);
+//	printTEX0(((uint64)natras->tex0[1] << 32) | natras->tex0[0]);
+	uint64 tex1;
+	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
+//	printTEX1(tex1);
+
 	natras->tex0[0] = streamExt.tex0[0];
 	natras->tex0[1] = streamExt.tex0[1];
-	natras->tex1[0] = streamExt.tex1[0];
-	natras->tex1[1] = natras->tex1[1]&~0xFF0000 |
-	                  streamExt.tex1[1]<<16 & 0xFF0000;
+	natras->paletteOffset = streamExt.paletteOffset;
+	natras->tex1low = streamExt.tex1low;
 	natras->miptbp1[0] = streamExt.miptbp1[0];
 	natras->miptbp1[1] = streamExt.miptbp1[1];
 	natras->miptbp2[0] = streamExt.miptbp2[0];
@@ -569,13 +745,17 @@ readNativeTexture(Stream *stream)
 	natras->texelSize = streamExt.texelSize;
 	natras->paletteSize = streamExt.paletteSize;
 	natras->gsSize = streamExt.gsSize;
-	SETKL(natras, streamExt.mipmapVal);
-	//printf("%08X%08X %08X%08X %08X%08X %08X%08X\n",
-	//       ras->tex0[1], ras->tex0[0], ras->tex1[1], ras->tex1[0],
-	//       ras->miptbp1[0], ras->miptbp1[1], ras->miptbp2[0], ras->miptbp2[1]);
+	natras->kl = streamExt.mipmapVal;
+//printf("%X %X\n", natras->paletteOffset, natras->tex1low);
+//	printf("%08X%08X %08X%08X %08X%08X\n",
+//	       natras->tex0[1], natras->tex0[0],
+//	       natras->miptbp1[0], natras->miptbp1[1], natras->miptbp2[0], natras->miptbp2[1]);
+//	printTEX0(((uint64)natras->tex0[1] << 32) | natras->tex0[0]);
+	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
+//	printTEX1(tex1);
 
-	if(!findChunk(stream, ID_STRING, &length, nil)){
-		RWERROR((ERR_CHUNK, "STRING"));
+	if(!findChunk(stream, ID_STRUCT, &length, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		goto fail;
 	}
 	if(streamExt.type < 2){
@@ -584,6 +764,7 @@ readNativeTexture(Stream *stream)
 		stream->read(raster->texels-0x50, natras->texelSize);
 		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
+//printf("\n");
 	if(Texture::s_plglist.streamRead(stream, tex))
 		return tex;
 
@@ -618,14 +799,14 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.depth = raster->depth;
 	streamExt.rasterFormat = raster->format | raster->type;
 	streamExt.type = 0;
-	if(ras->flags == 2 && raster->depth == 8)
+	if(ras->flags == Ps2Raster::SWIZZLED8 && raster->depth == 8)
 		streamExt.type = 1;
-	if(ras->flags & 1)
+	if(ras->flags & Ps2Raster::HASGIFPACKETS)
 		streamExt.type = 2;
 	streamExt.tex0[0] = ras->tex0[0];
 	streamExt.tex0[1] = ras->tex0[1];
-	streamExt.tex1[0] = ras->tex1[0];
-	streamExt.tex1[1] = ras->tex1[1]>>16 & 0xFF;
+	streamExt.paletteOffset = ras->paletteOffset;
+	streamExt.tex1low = ras->tex1low;
 	streamExt.miptbp1[0] = ras->miptbp1[0];
 	streamExt.miptbp1[1] = ras->miptbp1[1];
 	streamExt.miptbp2[0] = ras->miptbp2[0];
@@ -633,7 +814,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.texelSize = ras->texelSize;
 	streamExt.paletteSize = ras->paletteSize;
 	streamExt.gsSize = ras->gsSize;
-	streamExt.mipmapVal = ras->tex1[1]&0xFFFF;
+	streamExt.mipmapVal = ras->kl;
 	stream->write(&streamExt, 64);
 
 	writeChunkHeader(stream, ID_STRUCT, sz);

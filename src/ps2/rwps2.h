@@ -180,8 +180,18 @@ void registerPluginPDSPipes(void);
 
 struct Ps2Raster
 {
+	enum Flags {
+		HASGIFPACKETS = 0x1,
+		SWIZZLED8     = 0x2,
+		SWIZZLED4     = 0x4,
+	};
+
 	uint32 tex0[2];
-	uint32 tex1[2];
+	uint32 paletteOffset;   // from beginning of GS data;
+	                        // in words/64
+	uint16 kl;
+	uint8 tex1low;          // MXL and LCM of TEX1
+	uint8 unk2;
 	uint32 miptbp1[2];
 	uint32 miptbp2[2];
 	uint32 texelSize;

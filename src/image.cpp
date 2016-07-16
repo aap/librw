@@ -699,8 +699,8 @@ void
 Raster::destroy(void)
 {
 	s_plglist.destruct(this);
-	delete[] this->texels;
-	delete[] this->palette;
+//	delete[] this->texels;
+//	delete[] this->palette;
 	free(this);
 }
 

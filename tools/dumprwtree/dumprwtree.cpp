@@ -128,14 +128,17 @@ main(int argc, char *argv[])
 	StreamFile s;
 	s.open(argv[1], "rb");
 
-	ChunkHeaderInfo header;
+	ChunkHeaderInfo header, last;
 	while(readChunkHeaderInfo(&s, &header)){
+		if(header.type == 0)
+			break;
+		last = header;
 		if(argc == 2)
 			readchunk(&s, &header, 0);
 	}
 
-	printf("%x %x %x\n", header.version, header.build,
-		libraryIDPack(header.version, header.build));
+	printf("%x %x %x\n", last.version, last.build,
+		libraryIDPack(last.version, last.build));
 
 	s.close();
 	return 0;
