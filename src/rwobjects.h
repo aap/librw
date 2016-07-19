@@ -183,13 +183,18 @@ struct Image
 	void setPixels(uint8 *pixels);
 	void setPalette(uint8 *palette);
 	bool32 hasAlpha(void);
+	void unindex(void);
+	void removeMask(void);
+	Image *extractMask(void);
 
 	static void setSearchPath(const char*);
 	static void printSearchPath(void);
 	static char *getFilename(const char*);
 };
+
 Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
+void writeBMP(Image *image, const char *filename);
 
 // used to emulate d3d and xbox textures
 struct RasterLevels

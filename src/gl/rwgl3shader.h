@@ -33,6 +33,7 @@ public:
 	GLint *uniformLocations;
 
 	static Shader *fromFiles(const char *vs, const char *fs);
+	static Shader *fromStrings(const char *vsrc, const char *fsrc);
 	void use(void);
 };
 

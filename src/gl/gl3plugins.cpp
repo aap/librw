@@ -32,8 +32,9 @@ Shader *envShader;
 static void*
 matfxOpen(void *o, int32, int32)
 {
+#include "shaders/matfx_gl3.inc"
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
-	envShader = Shader::fromFiles("matfx_env.vert", "matfx_env.frag");
+	envShader = Shader::fromStrings(matfx_env_vert_src, matfx_env_frag_src);
 	return o;
 }
 
@@ -235,8 +236,10 @@ Shader *skinShader;
 static void*
 skinOpen(void *o, int32, int32)
 {
+#include "shaders/simple_gl3.inc"
+#include "shaders/skin_gl3.inc"
 	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
-	skinShader = Shader::fromFiles("skin.vert", "simple.frag");
+	skinShader = Shader::fromStrings(skin_vert_src, simple_frag_src);
 	return o;
 }
 

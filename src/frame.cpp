@@ -349,7 +349,7 @@ FrameList_::streamRead(Stream *stream)
 		f->matrix.posw = 1.0f;
 		//f->matflag = buf.matflag;
 		if(buf.parent >= 0)
-			this->frames[buf.parent]->addChild(f);
+			this->frames[buf.parent]->addChild(f, rw::streamAppendFrames);
 	}
 	for(int32 i = 0; i < this->numFrames; i++)
 		Frame::s_plglist.streamRead(stream, this->frames[i]);

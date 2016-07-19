@@ -357,6 +357,7 @@ Texture::streamGetSizeNative(void)
 //
 // Image
 //
+// TODO: full 16 bit support
 
 Image*
 Image::create(int32 width, int32 height, int32 depth)
@@ -401,10 +402,14 @@ Image::allocate(void)
 void
 Image::free(void)
 {
-	if(this->flags&1)
+	if(this->flags&1){
 		delete[] this->pixels;
-	if(this->flags&2)
+		this->pixels = nil;
+	}
+	if(this->flags&2){
 		delete[] this->palette;
+		this->palette = nil;
+	}
 }
 
 void
@@ -428,7 +433,6 @@ Image::hasAlpha(void)
 	uint8 *pixels = this->pixels;
 	if(this->depth == 24)
 		return 0;
-	// TODO: palettized textures
 	if(this->depth == 32){
 		for(int y = 0; y < this->height; y++){
 			uint8 *line = pixels;
@@ -438,8 +442,134 @@ Image::hasAlpha(void)
 			}
 			pixels += this->stride;
 		}
+	}else if(this->depth <= 8){
+		for(int y = 0; y < this->height; y++){
+			uint8 *line = pixels;
+			for(int x = 0; x < this->width; x++){
+				ret &= this->palette[*line*4+3];
+				line++;
+			}
+			pixels += this->stride;
+		}
 	}
 	return ret != 0xFF;
+}
+
+void
+Image::unindex(void)
+{
+	if(this->depth > 8)
+		return;
+	assert(this->pixels);
+	assert(this->palette);
+
+	int32 ndepth = this->hasAlpha() ? 32 : 24;
+	int32 nstride = this->width*ndepth/8;
+	uint8 *npixels = new uint8[nstride*this->height];
+
+	uint8 *line = this->pixels;
+	uint8 *nline = npixels;
+	uint8 *p, *np;
+	for(int32 y = 0; y < this->height; y++){
+		p = line;
+		np = nline;
+		for(int32 x = 0; x < this->width; x++){
+			np[0] = this->palette[*p*4+0];
+			np[1] = this->palette[*p*4+1];
+			np[2] = this->palette[*p*4+2];
+			np += 3;
+			if(ndepth == 32)
+				*np++ = this->palette[*p*4+3];
+			p++;
+		}
+		line += this->stride;
+		nline += nstride;
+	}
+	this->free();
+	this->depth = ndepth;
+	this->stride = nstride;
+	this->setPixels(npixels);
+}
+
+void
+Image::removeMask(void)
+{
+	if(this->depth <= 8){
+		assert(this->palette);
+		int32 pallen = 4*(this->depth == 4 ? 16 : 256);
+		for(int32 i = 0; i < pallen; i += 4)
+			this->palette[i] = 0xFF;
+		return;
+	}
+	if(this->depth == 24)
+		return;
+	assert(this->pixels);
+	uint8 *line = this->pixels;
+	uint8 *p;
+	for(int32 y = 0; y < this->height; y++){
+		p = line;
+		for(int32 x = 0; x < this->width; x++){
+			switch(this->depth){
+			case 16:
+				p[1] |= 0x80;
+				p += 2;
+				break;
+			case 32:
+				p[3] = 0xFF;
+				p += 4;
+				break;
+			}
+		}
+		line += this->stride;
+	}
+}
+
+Image*
+Image::extractMask(void)
+{
+	Image *img = Image::create(this->width, this->height, 8);
+	img->allocate();
+
+	// use an 8bit palette to store all shades of grey
+	for(int32 i = 0; i < 256; i++){
+		img->palette[i*4+0] = i;
+		img->palette[i*4+1] = i;
+		img->palette[i*4+2] = i;
+		img->palette[i*4+3] = 0xFF;
+	}
+
+	// Then use the alpha value as palette index
+	uint8 *line = this->pixels;
+	uint8 *nline = img->pixels;
+	uint8 *p, *np;
+	for(int32 y = 0; y < this->height; y++){
+		p = line;
+		np = nline;
+		for(int32 x = 0; x < this->width; x++){
+			switch(this->depth){
+			case 4:
+			case 8:
+				*np++ = this->palette[*p*4+3];
+				p++;
+				break;
+			case 16:
+				*np++ = 0xFF*!!(p[1]&0x80);
+				p += 2;
+				break;
+			case 24:
+				*np++ = 0xFF;
+				p += 3;
+				break;
+			case 32:
+				*np++ = p[3];
+				p += 4;
+				break;
+			}
+		}
+		line += this->stride;
+		nline += img->stride;
+	}
+	return img;
 }
 
 static char *searchPaths = nil;
@@ -509,167 +639,6 @@ Image::getFilename(const char *name)
 			p += strlen(p) + 1;
 		}
 	return nil;
-}
-
-//
-// TGA I/O
-//
-
-// TODO: fuck pakced structs
-#ifndef RW_PS2
-#pragma pack(push)
-#pragma pack(1)
-#define PACKED_STRUCT
-#else
-#define PACKED_STRUCT __attribute__((__packed__))
-#endif
-struct PACKED_STRUCT TGAHeader
-{
-	int8  IDlen;
-	int8  colorMapType;
-	int8  imageType;
-	int16 colorMapOrigin;
-	int16 colorMapLength;
-	int8  colorMapDepth;
-	int16 xOrigin, yOrigin;
-	int16 width, height;
-	uint8 depth;
-	uint8 descriptor;
-};
-#ifndef RW_PS2
-#pragma pack(push)
-#endif
-
-Image*
-readTGA(const char *afilename)
-{
-	TGAHeader header;
-	Image *image;
-	char *filename;
-	int depth = 0, palDepth = 0;
-	filename = Image::getFilename(afilename);
-	if(filename == nil)
-		return nil;
-	uint32 length;
-	uint8 *data = getFileContents(filename, &length);
-	assert(data != nil);
-	free(filename);
-	StreamMemory file;
-	file.open(data, length);
-	file.read(&header, sizeof(header));
-
-	assert(header.imageType == 1 || header.imageType == 2);
-	file.seek(header.IDlen);
-	if(header.colorMapType){
-		assert(header.colorMapOrigin == 0);
-		depth = (header.colorMapLength <= 16) ? 4 : 8;
-		palDepth = header.colorMapDepth;
-		assert(palDepth == 24 || palDepth == 32);
-	}else{
-		depth = header.depth;
-		assert(depth == 24 || depth == 32);
-	}
-
-	image = Image::create(header.width, header.height, depth);
-	image->allocate();
-	uint8 *palette = header.colorMapType ? image->palette : nil;
-	uint8 (*color)[4] = nil;
-	if(palette){
-		int maxlen = depth == 4 ? 16 : 256;
-		color = (uint8(*)[4])palette;
-		int i;
-		for(i = 0; i < header.colorMapLength; i++){
-			color[i][2] = file.readU8();
-			color[i][1] = file.readU8();
-			color[i][0] = file.readU8();
-			color[i][3] = 0xFF;
-			if(palDepth == 32)
-				color[i][3] = file.readU8();
-		}
-		for(; i < maxlen; i++){
-			color[i][0] = color[i][1] = color[i][2] = 0;
-			color[i][3] = 0xFF;
-		}
-	}
-
-	uint8 *pixels = image->pixels;
-	if(!(header.descriptor & 0x20))
-		pixels += (image->height-1)*image->stride;
-	for(int y = 0; y < image->height; y++){
-		uint8 *line = pixels;
-		for(int x = 0; x < image->width; x++){
-			if(palette)
-				*line++ = file.readU8();
-			else{
-				line[2] = file.readU8();
-				line[1] = file.readU8();
-				line[0] = file.readU8();
-				line += 3;
-				if(depth == 32)
-					*line++ = file.readU8();
-			}
-		}
-		pixels += (header.descriptor&0x20) ?
-		              image->stride : -image->stride;
-	}
-
-	file.close();
-	delete[] data;
-	return image;
-}
-
-void
-writeTGA(Image *image, const char *filename)
-{
-	TGAHeader header;
-	StreamFile file;
-	if(!file.open(filename, "wb")){
-		RWERROR((ERR_FILE, filename));
-		return;
-	}
-	header.IDlen = 0;
-	header.imageType = image->palette != nil ? 1 : 2;
-	header.colorMapType = image->palette != nil;
-	header.colorMapOrigin = 0;
-	header.colorMapLength = image->depth == 4 ? 16 :
-	                        image->depth == 8 ? 256 : 0;
-	header.colorMapDepth = image->palette ? 32 : 0;
-	header.xOrigin = 0;
-	header.yOrigin = 0;
-	header.width = image->width;
-	header.height = image->height;
-	header.depth = image->depth == 4 ? 8 : image->depth;
-	header.descriptor = 0x20 | (image->depth == 32 ? 8 : 0);
-	file.write(&header, sizeof(header));
-
-	uint8 *pixels = image->pixels;
-	uint8 *palette = header.colorMapType ? image->palette : nil;
-	uint8 (*color)[4] = (uint8(*)[4])palette;;
-	if(palette)
-		for(int i = 0; i < header.colorMapLength; i++){
-			file.writeU8(color[i][2]);
-			file.writeU8(color[i][1]);
-			file.writeU8(color[i][0]);
-			file.writeU8(color[i][3]);
-		}
-
-	for(int y = 0; y < image->height; y++){
-		uint8 *line = pixels;
-		for(int x = 0; x < image->width; x++){
-			if(palette)
-				file.writeU8(*line++);
-			else{
-				file.writeU8(line[2]);
-				file.writeU8(line[1]);
-				file.writeU8(line[0]);
-				line += 3;
-				if(image->depth == 32)
-					file.writeU8(*line++);
-			}
-		}
-		pixels += image->stride;
-	}
-	file.close();
 }
 
 //

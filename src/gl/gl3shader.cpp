@@ -134,22 +134,18 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 }
 
 Shader*
-Shader::fromFiles(const char *vspath, const char *fspath)
+Shader::fromStrings(const char *vsrc, const char *fsrc)
 {
 	GLuint vs, fs, program;
 	int i;
 	char *src;
 	int fail;
 
-	src = loadfile(vspath);
-	fail = compileshader(GL_VERTEX_SHADER, src, &vs);
-	free(src);
+	fail = compileshader(GL_VERTEX_SHADER, vsrc, &vs);
 	if(fail)
 		return nil;
 
-	src = loadfile(fspath);
-	fail = compileshader(GL_FRAGMENT_SHADER, src, &fs);
-	free(src);
+	fail = compileshader(GL_FRAGMENT_SHADER, fsrc, &fs);
 	if(fail)
 		return nil;
 
@@ -177,6 +173,18 @@ Shader::fromFiles(const char *vspath, const char *fspath)
 			uniformRegistry.uniformNames[i]);
 
 	return sh;
+}
+
+Shader*
+Shader::fromFiles(const char *vspath, const char *fspath)
+{
+	char *vsrc, *fsrc;
+	vsrc = loadfile(vspath);
+	fsrc = loadfile(fspath);
+	Shader *s = fromStrings(vsrc, fsrc);
+	free(vsrc);
+	free(fsrc);
+	return s;
 }
 
 void

@@ -533,6 +533,61 @@ matrixPrint(float32 *mat)
 		mat[3], mat[7], mat[11], mat[15]);
 }
 
+#define PSEP_C '/'
+#define PSEP_S "/"
+#ifndef _WIN32
+#include <sys/types.h>
+#include <dirent.h>
+#endif
+
+void
+correctPathCase(char *filename)
+{
+#ifndef _WIN32
+	DIR *direct;
+	struct dirent *dirent;
+
+	char *dir, *arg;
+	char copy[1024], sofar[1024] = ".";
+	strncpy(copy, filename, 1024);
+	arg = copy;
+	// hack for absolute paths
+	if(filename[0] == '/'){
+		sofar[0] = '/';
+		sofar[1] = '/';
+		sofar[2] = '\0';
+		arg++;
+	}
+	while(dir = strtok(arg, PSEP_S)){
+		arg = nil;
+		if(direct = opendir(sofar), dir == nil)
+			return;
+		while(dirent = readdir(direct), dirent != nil)
+			if(strncmp_ci(dirent->d_name, dir, 1024) == 0){
+				strncat(sofar, PSEP_S, 1024);
+				strncat(sofar, dirent->d_name, 1024);
+				break;
+			}
+		closedir(direct);
+		if(dirent == nil)
+			return;
+	}
+	strcpy(filename, sofar+2);
+#endif
+}
+
+void
+makePath(char *filename)
+{
+	size_t len = strlen(filename);
+	for(size_t i = 0; i < len; i++)
+		if(filename[i] == '/' || filename[i] == '\\')
+			filename[i] = PSEP_C;
+#ifndef _WIN32
+	correctPathCase(filename);
+#endif
+}
+
 int32
 Stream::writeI8(int8 val)
 {

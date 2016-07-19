@@ -7,6 +7,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwengine.h"
 #include "rwd3d.h"
 
 namespace rw {
@@ -224,7 +225,7 @@ beginUpdate(Camera *cam)
 	proj[9] = cam->viewOffset.y*invwy;
 	proj[12] = -proj[8];
 	proj[13] = -proj[9];
-	if(cam->projection == PERSPECTIVE){
+	if(cam->projection == Camera::PERSPECTIVE){
 		proj[10] = cam->farPlane*invz;
 		proj[11] = 1.0f;
 
@@ -242,8 +243,7 @@ beginUpdate(Camera *cam)
 void
 initializeRender(void)
 {
-	driver[PLATFORM_D3D8]->beginUpdate = beginUpdate;
-	driver[PLATFORM_D3D9]->beginUpdate = beginUpdate;
+	engine->beginUpdate = beginUpdate;
 }
 
 #endif

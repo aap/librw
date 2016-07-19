@@ -335,7 +335,7 @@ rasterCreate(Raster *raster)
 		while(n--){
 			mipw = w < minW ? minW : w;
 			miph = h < minH ? minH : h;
-			ras->texelSize += ALIGN16(mipw*miph*raster->depth/8)
+			ras->texelSize += ALIGN16(mipw*miph*raster->depth/8);
 			w /= 2;
 			h /= 2;
 		}

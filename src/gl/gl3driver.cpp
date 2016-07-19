@@ -420,7 +420,8 @@ initializeRender(void)
 	engine->zNear = -1.0f;
 	engine->zFar  = 1.0f;
 
-	simpleShader = Shader::fromFiles("simple.vert", "simple.frag");
+#include "shaders/simple_gl3.inc"
+	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 

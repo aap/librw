@@ -206,6 +206,8 @@ struct Sphere
  * Streams
  */
 
+void makePath(char *filename);
+
 class Stream
 {
 public:
@@ -357,9 +359,10 @@ enum Errors
 
 #undef ECODE
 
-extern int version;
-extern int build;
-extern int platform;
+extern int32 version;
+extern int32 build;
+extern int32 platform;
+extern bool32 streamAppendFrames;
 extern char *debugFile;
 
 int strncmp_ci(const char *s1, const char *s2, int n);

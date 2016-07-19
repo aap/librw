@@ -460,9 +460,9 @@ rasterFromImage(Raster *raster, Image *image)
 		in = image->palette;
 		out = (uint8*)natras->palette;
 		for(int32 i = 0; i < pallength; i++){
-			out[0] = in[2];
+			out[0] = in[0];
 			out[1] = in[1];
-			out[2] = in[0];
+			out[2] = in[2];
 			out[3] = in[3];
 			in += 4;
 			out += 4;
@@ -537,7 +537,7 @@ rasterToImage(Raster *raster)
 	if((raster->format & Raster::PAL4) == Raster::PAL4){
 		depth = 4;
 		pallength = 16;
-	}else if((raster->format & Raster::PAL4) == Raster::PAL8){
+	}else if((raster->format & Raster::PAL8) == Raster::PAL8){
 		depth = 8;
 		pallength = 256;
 	}
@@ -550,9 +550,9 @@ rasterToImage(Raster *raster)
 		out = image->palette;
 		in = (uint8*)natras->palette;
 		for(int32 i = 0; i < pallength; i++){
-			out[0] = in[2];
+			out[0] = in[0];
 			out[1] = in[1];
-			out[2] = in[0];
+			out[2] = in[2];
 			out[3] = in[3];
 			in += 4;
 			out += 4;
