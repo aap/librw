@@ -29,6 +29,7 @@ int32 build = 0xFFFF;
 #else
 	int32 platform = PLATFORM_NULL;
 #endif
+bool32 streamAppendFrames = 0;
 char *debugFile = nil;
 
 // TODO: comparison tolerances

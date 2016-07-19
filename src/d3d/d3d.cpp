@@ -511,8 +511,30 @@ rasterToImage(Raster *raster)
 	int32 depth;
 	Image *image;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	if(natras->format)
-		assert(0 && "no custom formats yet");
+	if(natras->format){
+		image = Image::create(raster->width, raster->height, 32);
+		image->allocate();
+		uint8 *pix = raster->lock(0);
+		switch(natras->format){
+		case D3DFMT_DXT1:
+			image->setPixelsDXT(1, pix);
+			if((raster->format & 0xF00) == Raster::C555)
+				image->removeMask();
+			break;
+		case D3DFMT_DXT3:
+			image->setPixelsDXT(3, pix);
+			break;
+		case D3DFMT_DXT5:
+			image->setPixelsDXT(5, pix);
+			break;
+		default:
+			raster->unlock(0);
+			image->destroy();
+			return nil;
+		}
+		raster->unlock(0);
+		return image;
+	}
 	switch(raster->format & 0xF00){
 	case Raster::C1555:
 		depth = 16;

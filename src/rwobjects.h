@@ -181,6 +181,7 @@ struct Image
 	void allocate(void);
 	void free(void);
 	void setPixels(uint8 *pixels);
+	void setPixelsDXT(int32 type, uint8 *pixels);
 	void setPalette(uint8 *palette);
 	bool32 hasAlpha(void);
 	void unindex(void);

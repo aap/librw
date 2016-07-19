@@ -72,8 +72,8 @@ TexDictionary::streamRead(Stream *stream)
 		return nil;
 	}
 	int32 numTex = stream->readI16();
-	stream->readI16();	// some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
-	                        //                   6 = ps2, 8 = xbox)
+	stream->readI16(); // some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
+	                   //                   6 = ps2, 8 = xbox)
 	TexDictionary *txd = TexDictionary::create();
 	if(txd == nil)
 		return nil;
@@ -417,6 +417,234 @@ Image::setPixels(uint8 *pixels)
 {
 	this->pixels = pixels;
 	this->flags |= 1;
+}
+
+void
+decompressDXT1(uint8 *adst, int32 w, int32 h, uint8 *src)
+{
+	/* j loops through old texels
+	 * x and y loop through new texels */
+	uint32 x = 0, y = 0;
+	uint32 c[4][4];
+	uint8 idx[16];
+	uint8 (*dst)[4] = (uint8(*)[4])adst;
+	for(uint32 j = 0; j < w*h/2; j += 8){
+		/* calculate colors */
+		uint32 col0 = *((uint16*)&src[j+0]);
+		uint32 col1 = *((uint16*)&src[j+2]);
+		c[0][0] = ((col0>>11) & 0x1F)*0xFF/0x1F;
+		c[0][1] = ((col0>> 5) & 0x3F)*0xFF/0x3F;
+		c[0][2] = ( col0      & 0x1F)*0xFF/0x1F;
+		c[0][3] = 0xFF;
+
+		c[1][0] = ((col1>>11) & 0x1F)*0xFF/0x1F;
+		c[1][1] = ((col1>> 5) & 0x3F)*0xFF/0x3F;
+		c[1][2] = ( col1      & 0x1F)*0xFF/0x1F;
+		c[1][3] = 0xFF;
+		if(col0 > col1){
+			c[2][0] = (2*c[0][0] + 1*c[1][0])/3;
+			c[2][1] = (2*c[0][1] + 1*c[1][1])/3;
+			c[2][2] = (2*c[0][2] + 1*c[1][2])/3;
+			c[2][3] = 0xFF;
+
+			c[3][0] = (1*c[0][0] + 2*c[1][0])/3;
+			c[3][1] = (1*c[0][1] + 2*c[1][1])/3;
+			c[3][2] = (1*c[0][2] + 2*c[1][2])/3;
+			c[3][3] = 0xFF;
+		}else{
+			c[2][0] = (c[0][0] + c[1][0])/2;
+			c[2][1] = (c[0][1] + c[1][1])/2;
+			c[2][2] = (c[0][2] + c[1][2])/2;
+			c[2][3] = 0xFF;
+
+			c[3][0] = 0x00;
+			c[3][1] = 0x00;
+			c[3][2] = 0x00;
+			c[3][3] = 0x00;
+		}
+
+		/* make index list */
+		uint32 indices = *((uint32*)&src[j+4]);
+		for(int32 k = 0; k < 16; k++){
+			idx[k] = indices & 0x3;
+			indices >>= 2;
+		}
+
+		/* write bytes */
+		for(uint32 k = 0; k < 4; k++)
+			for(uint32 l = 0; l < 4; l++){
+				dst[(y+l)*w + x+k][0] = c[idx[l*4+k]][0];
+				dst[(y+l)*w + x+k][1] = c[idx[l*4+k]][1];
+				dst[(y+l)*w + x+k][2] = c[idx[l*4+k]][2];
+				dst[(y+l)*w + x+k][3] = c[idx[l*4+k]][3];
+			}
+		x += 4;
+		if(x >= w){
+			y += 4;
+			x = 0;
+		}
+	}
+}
+
+void
+decompressDXT3(uint8 *adst, int32 w, int32 h, uint8 *src)
+{
+	/* j loops through old texels
+	 * x and y loop through new texels */
+	uint32 x = 0, y = 0;
+	uint32 c[4][4];
+	uint8 idx[16];
+	uint8 a[16];
+	uint8 (*dst)[4] = (uint8(*)[4])adst;
+	for(uint32 j = 0; j < w*h; j += 16){
+		/* calculate colors */
+		uint32 col0 = *((uint16*)&src[j+8]);
+		uint32 col1 = *((uint16*)&src[j+10]);
+		c[0][0] = ((col0>>11) & 0x1F)*0xFF/0x1F;
+		c[0][1] = ((col0>> 5) & 0x3F)*0xFF/0x3F;
+		c[0][2] = ( col0      & 0x1F)*0xFF/0x1F;
+
+		c[1][0] = ((col1>>11) & 0x1F)*0xFF/0x1F;
+		c[1][1] = ((col1>> 5) & 0x3F)*0xFF/0x3F;
+		c[1][2] = ( col1      & 0x1F)*0xFF/0x1F;
+
+		c[2][0] = (2*c[0][0] + 1*c[1][0])/3;
+		c[2][1] = (2*c[0][1] + 1*c[1][1])/3;
+		c[2][2] = (2*c[0][2] + 1*c[1][2])/3;
+
+		c[3][0] = (1*c[0][0] + 2*c[1][0])/3;
+		c[3][1] = (1*c[0][1] + 2*c[1][1])/3;
+		c[3][2] = (1*c[0][2] + 2*c[1][2])/3;
+
+		/* make index list */
+		uint32 indices = *((uint32*)&src[j+12]);
+		for(int32 k = 0; k < 16; k++){
+			idx[k] = indices & 0x3;
+			indices >>= 2;
+		}
+		uint64 alphas = *((uint64*)&src[j+0]);
+		for(int32 k = 0; k < 16; k++){
+			a[k] = (alphas & 0xF)*17;
+			alphas >>= 4;
+		}
+
+		/* write bytes */
+		for(uint32 k = 0; k < 4; k++)
+			for(uint32 l = 0; l < 4; l++){
+				dst[(y+l)*w + x+k][0] = c[idx[l*4+k]][0];
+				dst[(y+l)*w + x+k][1] = c[idx[l*4+k]][1];
+				dst[(y+l)*w + x+k][2] = c[idx[l*4+k]][2];
+				dst[(y+l)*w + x+k][3] = a[l*4+k];
+			}
+		x += 4;
+		if(x >= w){
+			y += 4;
+			x = 0;
+		}
+	}
+}
+
+void
+decompressDXT5(uint8 *adst, int32 w, int32 h, uint8 *src)
+{
+	/* j loops through old texels
+	 * x and y loop through new texels */
+	uint32 x = 0, y = 0;
+	uint32 c[4][4];
+	uint32 a[8];
+	uint8 idx[16];
+	uint8 aidx[16];
+	uint8 (*dst)[4] = (uint8(*)[4])adst;
+	for(uint32 j = 0; j < w*h; j += 16){
+		/* calculate colors */
+		uint32 col0 = *((uint16*)&src[j+8]);
+		uint32 col1 = *((uint16*)&src[j+10]);
+		c[0][0] = ((col0>>11) & 0x1F)*0xFF/0x1F;
+		c[0][1] = ((col0>> 5) & 0x3F)*0xFF/0x3F;
+		c[0][2] = ( col0      & 0x1F)*0xFF/0x1F;
+
+		c[1][0] = ((col1>>11) & 0x1F)*0xFF/0x1F;
+		c[1][1] = ((col1>> 5) & 0x3F)*0xFF/0x3F;
+		c[1][2] = ( col1      & 0x1F)*0xFF/0x1F;
+		if(col0 > col1){
+			c[2][0] = (2*c[0][0] + 1*c[1][0])/3;
+			c[2][1] = (2*c[0][1] + 1*c[1][1])/3;
+			c[2][2] = (2*c[0][2] + 1*c[1][2])/3;
+
+			c[3][0] = (1*c[0][0] + 2*c[1][0])/3;
+			c[3][1] = (1*c[0][1] + 2*c[1][1])/3;
+			c[3][2] = (1*c[0][2] + 2*c[1][2])/3;
+		}else{
+			c[2][0] = (c[0][0] + c[1][0])/2;
+			c[2][1] = (c[0][1] + c[1][1])/2;
+			c[2][2] = (c[0][2] + c[1][2])/2;
+
+			c[3][0] = 0x00;
+			c[3][1] = 0x00;
+			c[3][2] = 0x00;
+		}
+
+		a[0] = src[j+0];
+		a[1] = src[j+1];
+		if(a[0] > a[1]){
+			a[2] = (6*a[0] + 1*a[1])/7;
+			a[3] = (5*a[0] + 2*a[1])/7;
+			a[4] = (4*a[0] + 3*a[1])/7;
+			a[5] = (3*a[0] + 4*a[1])/7;
+			a[6] = (2*a[0] + 5*a[1])/7;
+			a[7] = (1*a[0] + 6*a[1])/7;
+		}else{
+			a[2] = (4*a[0] + 1*a[1])/5;
+			a[3] = (3*a[0] + 2*a[1])/5;
+			a[4] = (2*a[0] + 3*a[1])/5;
+			a[5] = (1*a[0] + 4*a[1])/5;
+			a[6] = 0;
+			a[7] = 0xFF;
+		}
+
+		/* make index list */
+		uint32 indices = *((uint32*)&src[j+12]);
+		for(int32 k = 0; k < 16; k++){
+			idx[k] = indices & 0x3;
+			indices >>= 2;
+		}
+		// only 6 indices
+		uint64 alphas = *((uint64*)&src[j+2]);
+		for(int32 k = 0; k < 16; k++){
+			aidx[k] = alphas & 0x7;
+			alphas >>= 3;
+		}
+
+		/* write bytes */
+		for(uint32 k = 0; k < 4; k++)
+			for(uint32 l = 0; l < 4; l++){
+				dst[(y+l)*w + x+k][0] = c[idx[l*4+k]][0];
+				dst[(y+l)*w + x+k][1] = c[idx[l*4+k]][1];
+				dst[(y+l)*w + x+k][2] = c[idx[l*4+k]][2];
+				dst[(y+l)*w + x+k][3] = a[aidx[l*4+k]];
+			}
+		x += 4;
+		if(x >= w){
+			y += 4;
+			x = 0;
+		}
+	}
+}
+
+void
+Image::setPixelsDXT(int32 type, uint8 *pixels)
+{
+	switch(type){
+	case 1:
+		decompressDXT1(this->pixels, this->width, this->height, pixels);
+		break;
+	case 3:
+		decompressDXT3(this->pixels, this->width, this->height, pixels);
+		break;
+	case 5:
+		decompressDXT5(this->pixels, this->width, this->height, pixels);
+		break;
+	}
 }
 
 void
