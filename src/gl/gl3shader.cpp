@@ -138,7 +138,6 @@ Shader::fromStrings(const char *vsrc, const char *fsrc)
 {
 	GLuint vs, fs, program;
 	int i;
-	char *src;
 	int fail;
 
 	fail = compileshader(GL_VERTEX_SHADER, vsrc, &vs);

@@ -28,8 +28,6 @@ namespace rw {
 // TexDictionary
 //
 
-TexDictionary *currentTexDictionary;
-
 TexDictionary*
 TexDictionary::create(void)
 {
@@ -53,6 +51,16 @@ TexDictionary::destroy(void)
 	free(this);
 }
 
+void
+TexDictionary::add(Texture *t)
+{
+	if(engine->currentTexDictionary == this)
+		engine->currentTexDictionary = nil;
+	if(t->dict)
+		t->inDict.remove();
+	t->dict = this;
+	this->textures.append(&t->inDict);
+}
 Texture*
 TexDictionary::find(const char *name)
 {
@@ -86,6 +94,7 @@ TexDictionary::streamRead(Stream *stream)
 		tex = Texture::streamReadNative(stream);
 		if(tex == nil)
 			goto fail;
+		Texture::s_plglist.streamRead(stream, tex);
 		txd->add(tex);
 	}
 	if(s_plglist.streamRead(stream, txd))
@@ -103,8 +112,14 @@ TexDictionary::streamWrite(Stream *stream)
 	int32 numTex = this->count();
 	stream->writeI16(numTex);
 	stream->writeI16(0);
-	FORLIST(lnk, this->textures)
-		Texture::fromDict(lnk)->streamWriteNative(stream);
+	FORLIST(lnk, this->textures){
+		Texture *tex = Texture::fromDict(lnk);
+		uint32 sz = tex->streamGetSizeNative();
+		sz += 12 + Texture::s_plglist.streamGetSize(tex);
+		writeChunkHeader(stream, ID_TEXTURENATIVE, sz);
+		tex->streamWriteNative(stream);
+		Texture::s_plglist.streamWrite(stream, tex);
+	}
 	s_plglist.streamWrite(stream, this);
 }
 
@@ -112,10 +127,25 @@ uint32
 TexDictionary::streamGetSize(void)
 {
 	uint32 size = 12 + 4;
-	FORLIST(lnk, this->textures)
-		size += 12 + Texture::fromDict(lnk)->streamGetSizeNative();
+	FORLIST(lnk, this->textures){
+		Texture *tex = Texture::fromDict(lnk);
+		size += 12 + tex->streamGetSizeNative();
+		size += 12 + Texture::s_plglist.streamGetSize(tex);
+	}
 	size += 12 + s_plglist.streamGetSize(this);
 	return size;
+}
+
+void
+TexDictionary::setCurrent(TexDictionary *txd)
+{
+	engine->currentTexDictionary = txd;
+}
+
+TexDictionary*
+TexDictionary::getCurrent(void)
+{
+	return engine->currentTexDictionary;
 }
 
 //
@@ -166,8 +196,8 @@ Texture::destroy(void)
 static Texture*
 defaultFindCB(const char *name)
 {
-	if(currentTexDictionary)
-		return currentTexDictionary->find(name);
+	if(engine->currentTexDictionary)
+		return engine->currentTexDictionary->find(name);
 	// TODO: RW searches *all* TXDs otherwise
 	return nil;
 }
@@ -219,10 +249,10 @@ Texture::read(const char *name, const char *mask)
 		raster = Raster::create(0, 0, 0, Raster::DONTALLOCATE);
 		tex->raster = raster;
 	}
-	if(currentTexDictionary){
+	if(engine->currentTexDictionary){
 		if(tex->dict)
 			tex->inDict.remove();
-		currentTexDictionary->add(tex);
+		engine->currentTexDictionary->add(tex);
 	}
 	return tex;
 }
@@ -258,10 +288,10 @@ Texture::streamRead(Stream *stream)
 		return nil;
 	if(tex->refCount == 1)
 		tex->filterAddressing = filterAddressing;
-	tex->refCount++;	// TODO: RW doesn't do this, why?
 
 	if(s_plglist.streamRead(stream, tex))
 		return tex;
+
 	tex->destroy();
 	return nil;
 }

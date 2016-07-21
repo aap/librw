@@ -765,8 +765,7 @@ streamExt.mipmapVal);
 		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
 //printf("\n");
-	if(Texture::s_plglist.streamRead(stream, tex))
-		return tex;
+	return tex;
 
 fail:
 	tex->destroy();
@@ -778,8 +777,6 @@ writeNativeTexture(Texture *tex, Stream *stream)
 {
 	Raster *raster = tex->raster;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	int32 chunksize = getSizeNativeTexture(tex);
-	writeChunkHeader(stream, ID_TEXTURENATIVE, chunksize);
 	writeChunkHeader(stream, ID_STRUCT, 8);
 	stream->writeU32(FOURCC_PS2);
 	stream->writeU32(tex->filterAddressing);
@@ -824,7 +821,6 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		stream->write(raster->texels-0x50, ras->texelSize);
 		stream->write(raster->palette-0x50, ras->paletteSize);
 	}
-	Texture::s_plglist.streamWrite(stream, tex);
 }
 
 uint32
@@ -833,10 +829,10 @@ getSizeNativeTexture(Texture *tex)
 	uint32 size = 12 + 8;
 	size += 12 + strlen(tex->name)+4 & ~3;
 	size += 12 + strlen(tex->mask)+4 & ~3;
-	size += 12 + 12 + 64 + 12;
+	size += 12;
+	size += 12 + 64;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
-	size += ras->texelSize + ras->paletteSize;
-	size += 12 + Texture::s_plglist.streamGetSize(tex);
+	size += 12 + ras->texelSize + ras->paletteSize;
 	return size;
 }
 

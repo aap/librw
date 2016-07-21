@@ -682,7 +682,6 @@ readNativeTexture(Stream *stream)
 	stream->read(data, totalSize);
 	raster->unlock(0);
 
-	Texture::s_plglist.streamRead(stream, tex);
 	return tex;
 }
 
@@ -690,9 +689,7 @@ void
 writeNativeTexture(Texture *tex, Stream *stream)
 {
 	int32 chunksize = getSizeNativeTexture(tex);
-	int32 plgsize = Texture::s_plglist.streamGetSize(tex);
-	writeChunkHeader(stream, ID_TEXTURENATIVE, chunksize);
-	writeChunkHeader(stream, ID_STRUCT, chunksize-24-plgsize);
+	writeChunkHeader(stream, ID_STRUCT, chunksize-12);
 	stream->writeU32(PLATFORM_XBOX);
 
 	// Texture
@@ -729,8 +726,6 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	uint8 *data = raster->lock(0);
 	stream->write(data, totalSize);
 	raster->unlock(0);
-
-	Texture::s_plglist.streamWrite(stream, tex);
 }
 
 uint32
@@ -745,7 +740,6 @@ getSizeNativeTexture(Texture *tex)
 		size += 4*32;
 	else if(tex->raster->format & Raster::PAL8)
 		size += 4*256;
-	size += 12 + Texture::s_plglist.streamGetSize(tex);
 	return size;
 }
 

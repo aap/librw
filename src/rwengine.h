@@ -50,6 +50,7 @@ struct Engine
 {
 	void *currentCamera;
 	void *currentWorld;
+	TexDictionary *currentTexDictionary;
 
 	// Device
 	float32 zNear, zFar;

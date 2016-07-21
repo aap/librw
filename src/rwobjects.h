@@ -637,16 +637,14 @@ struct TexDictionary : PluginBase<TexDictionary>
 	static TexDictionary *create(void);
 	void destroy(void);
 	int32 count(void) { return this->textures.count(); }
-	void add(Texture *t){
-		t->dict = this;
-		this->textures.append(&t->inDict);
-	}
+	void add(Texture *t);
 	Texture *find(const char *name);
 	static TexDictionary *streamRead(Stream *stream);
 	void streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
-};
 
-extern TexDictionary *currentTexDictionary;
+	static void setCurrent(TexDictionary *txd);
+	static TexDictionary *getCurrent(void);
+};
 
 }

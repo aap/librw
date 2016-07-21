@@ -30,6 +30,10 @@ Engine::init(void)
 
 	Frame::dirtyList.init();
 
+	engine->currentCamera = nil;
+	engine->currentWorld = nil;
+	engine->currentTexDictionary = nil;
+
 	engine->beginUpdate = null::beginUpdate;
 	engine->endUpdate = null::endUpdate;
 	engine->clearCamera = null::clearCamera;
