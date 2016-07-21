@@ -472,6 +472,11 @@ struct Atomic : PluginBase<Atomic>
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
 	void render(void) { this->renderCB(this); }
+	void setRenderCB(RenderCB renderCB){
+		this->renderCB = renderCB;
+		if(this->renderCB == nil)
+			this->renderCB = defaultRenderCB;
+	};
 	static Atomic *streamReadClump(Stream *stream,
 		FrameList_ *frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream, FrameList_ *frmlst);

@@ -106,6 +106,8 @@ PluginList::registerPlugin(int32 size, uint32 id,
 	Plugin *p = (Plugin*)malloc(sizeof(Plugin));
 	p->offset = this->size;
 	this->size += size;
+	int32 round = sizeof(void*)-1;
+	this->size = (this->size + round)&~round;
 
 	p->size = size;
 	p->id = id;
