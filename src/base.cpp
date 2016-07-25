@@ -117,6 +117,20 @@ cross(const V3d &a, const V3d &b)
 	           a.x*b.y - a.y*b.x);
 }
 
+Matrix*
+Matrix::create(void)
+{
+	Matrix *m = (Matrix*)malloc(sizeof(Matrix));
+	m->setIdentity();
+	return m;
+}
+
+void
+Matrix::destroy(void)
+{
+	free(this);
+}
+
 /* q must be normalized */
 Matrix
 Matrix::makeRotation(const Quat &q)

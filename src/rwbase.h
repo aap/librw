@@ -158,6 +158,8 @@ struct Matrix
 	V3d pos;
 	float32 posw;
 
+	static Matrix *create(void);
+	void destroy(void);
 	static Matrix makeRotation(const Quat &q);
 	void setIdentity(void);
 	void pointInDirection(const V3d &d, const V3d &up);
