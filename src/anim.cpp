@@ -249,7 +249,7 @@ AnimInterpolator::addTime(float32 t)
 	}
 	KeyFrameHeader *last = this->getAnimFrame(this->currentAnim->numFrames);
 	KeyFrameHeader *next = (KeyFrameHeader*)this->nextFrame;
-	InterpFrameHeader *ifrm;
+	InterpFrameHeader *ifrm = nil;
 	while(next < last && next->prev->time <= this->currentTime){
 		// find next interpolation frame to expire
 		for(i = 0; i < this->numNodes; i++){

@@ -26,6 +26,78 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\d3d\rwd3d.h" />
+    <ClInclude Include="src\d3d\rwd3d8.h" />
+    <ClInclude Include="src\d3d\rwd3d9.h" />
+    <ClInclude Include="src\d3d\rwd3dimpl.h" />
+    <ClInclude Include="src\d3d\rwxbox.h" />
+    <ClInclude Include="src\d3d\rwxboximpl.h" />
+    <ClInclude Include="src\gl\rwgl3.h" />
+    <ClInclude Include="src\gl\rwgl3impl.h" />
+    <ClInclude Include="src\gl\rwgl3plg.h" />
+    <ClInclude Include="src\gl\rwgl3shader.h" />
+    <ClInclude Include="src\gl\rwwdgl.h" />
+    <ClInclude Include="src\ps2\rwps2.h" />
+    <ClInclude Include="src\ps2\rwps2impl.h" />
+    <ClInclude Include="src\ps2\rwps2plg.h" />
+    <ClInclude Include="src\rwanim.h" />
+    <ClInclude Include="src\rwbase.h" />
+    <ClInclude Include="src\rwengine.h" />
+    <ClInclude Include="src\rwerror.h" />
+    <ClInclude Include="src\rwobjects.h" />
+    <ClInclude Include="src\rwpipeline.h" />
+    <ClInclude Include="src\rwplg.h" />
+    <ClInclude Include="src\rwplugins.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\base.err" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\anim.cpp" />
+    <ClCompile Include="src\base.cpp" />
+    <ClCompile Include="src\bmp.cpp" />
+    <ClCompile Include="src\camera.cpp" />
+    <ClCompile Include="src\clump.cpp" />
+    <ClCompile Include="src\d3d\d3d.cpp" />
+    <ClCompile Include="src\d3d\d3d8.cpp" />
+    <ClCompile Include="src\d3d\d3d8plugins.cpp" />
+    <ClCompile Include="src\d3d\d3d8render.cpp" />
+    <ClCompile Include="src\d3d\d3d9.cpp" />
+    <ClCompile Include="src\d3d\d3d9plugins.cpp" />
+    <ClCompile Include="src\d3d\d3d9render.cpp" />
+    <ClCompile Include="src\d3d\d3ddriver.cpp" />
+    <ClCompile Include="src\d3d\xbox.cpp" />
+    <ClCompile Include="src\d3d\xboxplugins.cpp" />
+    <ClCompile Include="src\engine.cpp" />
+    <ClCompile Include="src\error.cpp" />
+    <ClCompile Include="src\frame.cpp" />
+    <ClCompile Include="src\geometry.cpp" />
+    <ClCompile Include="src\geoplg.cpp" />
+    <ClCompile Include="src\gl\gl3.cpp" />
+    <ClCompile Include="src\gl\gl3driver.cpp" />
+    <ClCompile Include="src\gl\gl3pipe.cpp" />
+    <ClCompile Include="src\gl\gl3plugins.cpp" />
+    <ClCompile Include="src\gl\gl3raster.cpp" />
+    <ClCompile Include="src\gl\gl3render.cpp" />
+    <ClCompile Include="src\gl\gl3shader.cpp" />
+    <ClCompile Include="src\gl\wdgl.cpp" />
+    <ClCompile Include="src\hanim.cpp" />
+    <ClCompile Include="src\image.cpp" />
+    <ClCompile Include="src\light.cpp" />
+    <ClCompile Include="src\matfx.cpp" />
+    <ClCompile Include="src\pipeline.cpp" />
+    <ClCompile Include="src\plg.cpp" />
+    <ClCompile Include="src\ps2\pds.cpp" />
+    <ClCompile Include="src\ps2\ps2.cpp" />
+    <ClCompile Include="src\ps2\ps2matfx.cpp" />
+    <ClCompile Include="src\ps2\ps2raster.cpp" />
+    <ClCompile Include="src\ps2\ps2skin.cpp" />
+    <ClCompile Include="src\skin.cpp" />
+    <ClCompile Include="src\tga.cpp" />
+    <ClCompile Include="src\uvanim.cpp" />
+    <ClCompile Include="src\world.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{30552BB0-3B19-49A4-ABF4-87CF68AF9E38}</ProjectGuid>
     <RootNamespace>librw</RootNamespace>
@@ -186,51 +258,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="src\anim.cpp" />
-    <ClCompile Include="src\camera.cpp" />
-    <ClCompile Include="src\clump.cpp" />
-    <ClCompile Include="src\d3d.cpp" />
-    <ClCompile Include="src\d3d8.cpp" />
-    <ClCompile Include="src\d3d8render.cpp" />
-    <ClCompile Include="src\d3d9.cpp" />
-    <ClCompile Include="src\d3d9render.cpp" />
-    <ClCompile Include="src\d3ddriver.cpp" />
-    <ClCompile Include="src\engine.cpp" />
-    <ClCompile Include="src\error.cpp" />
-    <ClCompile Include="src\frame.cpp" />
-    <ClCompile Include="src\geometry.cpp" />
-    <ClCompile Include="src\image.cpp" />
-    <ClCompile Include="src\light.cpp" />
-    <ClCompile Include="src\pds.cpp" />
-    <ClCompile Include="src\pipeline.cpp" />
-    <ClCompile Include="src\plugins.cpp" />
-    <ClCompile Include="src\ps2.cpp" />
-    <ClCompile Include="src\ps2raster.cpp" />
-    <ClCompile Include="src\rwbase.cpp" />
-    <ClCompile Include="src\wdgl.cpp" />
-    <ClCompile Include="src\xbox.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="src\rwbase.h" />
-    <ClInclude Include="src\rwd3d.h" />
-    <ClInclude Include="src\rwd3d8.h" />
-    <ClInclude Include="src\rwd3d9.h" />
-    <ClInclude Include="src\rwengine.h" />
-    <ClInclude Include="src\rwerror.h" />
-    <ClInclude Include="src\rwobjects.h" />
-    <ClInclude Include="src\rwpipeline.h" />
-    <ClInclude Include="src\rwplg.h" />
-    <ClInclude Include="src\rwplugin.h" />
-    <ClInclude Include="src\rwplugins.h" />
-    <ClInclude Include="src\rwps2.h" />
-    <ClInclude Include="src\rwps2plg.h" />
-    <ClInclude Include="src\rwwdgl.h" />
-    <ClInclude Include="src\rwxbox.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="src\base.err" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
