@@ -44,22 +44,10 @@ void
 Frame::destroy(void)
 {
 	s_plglist.destruct(this);
-	Frame *parent = this->getParent();
-	Frame *child;
-	if(parent){
-		// remove from child list
-		child = parent->child;
-		if(child == this)
-			parent->child = this->next;
-		else{
-			for(child = child->next; child != this; child = child->next)
-				;
-			child->next = this->next;
-		}
-		this->object.parent = nil;
-		// Doesn't seem to make much sense, blame criterion.
-		this->setHierarchyRoot(this);
-	}
+	if(this->getParent())
+		this->removeChild();
+	if(this->object.privateFlags & Frame::HIERARCHYSYNC)
+		this->inDirtyList.remove();
 	for(Frame *f = this->child; f; f = f->next)
 		f->object.parent = nil;
 	free(this);
@@ -74,6 +62,8 @@ Frame::destroyHierarchy(void)
 		child->destroyHierarchy();
 	}
 	s_plglist.destruct(this);
+	if(this->object.privateFlags & Frame::HIERARCHYSYNC)
+		this->inDirtyList.remove();
 	free(this);
 }
 
@@ -121,9 +111,8 @@ Frame::removeChild(void)
 		child->next = this->next;
 	}
 	this->object.parent = this->next = nil;
-	this->root = this;
-	for(child = this->child; child; child = child->next)
-		child->setHierarchyRoot(this);
+	// give the hierarchy a new root
+	this->setHierarchyRoot(this);
 	this->updateObjects();
 	return this;
 }

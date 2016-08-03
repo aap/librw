@@ -32,17 +32,25 @@ rasterCreate(Raster *raster)
 	case Raster::C8888:
 		natras->internalFormat = GL_RGBA;
 		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
 		break;
 	case Raster::C888:
 		natras->internalFormat = GL_RGB;
 		natras->format = GL_RGB;
+		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 0;
+		break;
+	case Raster::C1555:
+		// TODO: check if this is correct
+		natras->internalFormat = GL_RGBA;
+		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
+		natras->hasAlpha = 1;
 		break;
 	default:
 		assert(0 && "unsupported raster format");
 	}
-	natras->type = GL_UNSIGNED_BYTE;
 
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
@@ -88,6 +96,9 @@ rasterFromImage(Raster *raster, Image *image)
 		break;
 	case 24:
 		format = Raster::C888;
+		break;
+	case 16:
+		format = Raster::C1555;
 		break;
 	default:
 		assert(0 && "image depth\n");
