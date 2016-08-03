@@ -204,6 +204,9 @@ struct Skin
 	static Skin *get(Geometry *geo){
 		return *PLUGINOFFSET(Skin*, geo, skinGlobals.geoOffset);
 	}
+	static void set(Geometry *geo, Skin *skin){
+		*PLUGINOFFSET(Skin*, geo, skinGlobals.geoOffset) = skin;
+	}
 	static void setHierarchy(Atomic *atomic, HAnimHierarchy *hier){
 		*PLUGINOFFSET(HAnimHierarchy*, atomic,
 		              skinGlobals.atomicOffset) = hier;
