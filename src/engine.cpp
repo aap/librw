@@ -33,6 +33,8 @@ Engine::init(void)
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
 	engine->currentTexDictionary = nil;
+	engine->loadTextures = 1;
+	engine->makeDummies = 1;
 
 	engine->beginUpdate = null::beginUpdate;
 	engine->endUpdate = null::endUpdate;

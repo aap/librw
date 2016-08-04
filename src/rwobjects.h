@@ -159,8 +159,10 @@ struct ObjectWithFrame
 		if(this->object.parent)
 			this->inFrame.remove();
 		this->object.parent = f;
-		if(f)
+		if(f){
 			f->objectList.add(&this->inFrame);
+			f->updateObjects();
+		}
 	}
 	void sync(void){ this->syncCB(this); }
 	static ObjectWithFrame *fromFrame(LLLink *lnk){
@@ -257,8 +259,6 @@ struct Raster : PluginBase<Raster>
 		DONTALLOCATE  = 0x80,
 	};
 };
-
-extern bool32 loadTextures;
 
 #define IGNORERASTERIMP 0
 

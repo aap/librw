@@ -50,7 +50,11 @@ struct Engine
 {
 	void *currentCamera;
 	void *currentWorld;
+
 	TexDictionary *currentTexDictionary;
+	bool32 loadTextures;    // load textures from files
+	bool32 makeDummies;     // create dummy textures to store just names
+
 
 	// Device
 	float32 zNear, zFar;

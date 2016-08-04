@@ -635,8 +635,6 @@ Material::streamRead(Stream *stream)
 			goto fail;
 		}
 		Texture *t = Texture::streamRead(stream);
-		if(t == nil)
-			goto fail;
 		mat->setTexture(t);
 	}
 

@@ -45,6 +45,8 @@ TexDictionary::create(void)
 void
 TexDictionary::destroy(void)
 {
+	if(engine->currentTexDictionary == this)
+		engine->currentTexDictionary = nil;
 	FORLIST(lnk, this->textures)
 		Texture::fromDict(lnk)->destroy();
 	s_plglist.destruct(this);
@@ -54,13 +56,12 @@ TexDictionary::destroy(void)
 void
 TexDictionary::add(Texture *t)
 {
-	if(engine->currentTexDictionary == this)
-		engine->currentTexDictionary = nil;
 	if(t->dict)
 		t->inDict.remove();
 	t->dict = this;
 	this->textures.append(&t->inDict);
 }
+
 Texture*
 TexDictionary::find(const char *name)
 {
@@ -152,8 +153,6 @@ TexDictionary::getCurrent(void)
 // Texture
 //
 
-bool32 loadTextures;
-
 static Texture *defaultFindCB(const char *name);
 static Texture *defaultReadCB(const char *name, const char *mask);
 
@@ -234,12 +233,11 @@ Texture::read(const char *name, const char *mask)
 		tex->refCount++;
 		return tex;
 	}
-	if(loadTextures){
+	if(engine->loadTextures){
 		tex = Texture::readCB(name, mask);
 		if(tex == nil)
 			goto dummytex;
-	}else{
-	dummytex:
+	}else dummytex: if(engine->makeDummies){
 		tex = Texture::create(nil);
 		if(tex == nil)
 			return nil;
@@ -249,7 +247,7 @@ Texture::read(const char *name, const char *mask)
 		raster = Raster::create(0, 0, 0, Raster::DONTALLOCATE);
 		tex->raster = raster;
 	}
-	if(engine->currentTexDictionary){
+	if(tex && engine->currentTexDictionary){
 		if(tex->dict)
 			tex->inDict.remove();
 		engine->currentTexDictionary->add(tex);
