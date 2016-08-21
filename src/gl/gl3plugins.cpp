@@ -195,7 +195,7 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
-	setAttribPointers(header);
+	setAttribPointers(header->attribDesc, header->numAttribs);
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
@@ -215,6 +215,7 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		}
 		inst++;
 	}
+	disableAttribPointers(header->attribDesc, header->numAttribs);
 }
 
 ObjPipeline*
@@ -454,7 +455,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
-	setAttribPointers(header);
+	setAttribPointers(header->attribDesc, header->numAttribs);
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
@@ -489,6 +490,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 		inst++;
 	}
+	disableAttribPointers(header->attribDesc, header->numAttribs);
 }
 
 ObjPipeline*

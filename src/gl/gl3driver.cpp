@@ -12,6 +12,7 @@
 #include <GL/glew.h>
 #include "rwgl3.h"
 #include "rwgl3shader.h"
+#include "rwgl3impl.h"
 
 namespace rw {
 namespace gl3 {
@@ -417,6 +418,7 @@ initializeRender(void)
 	engine->clearCamera = clearCamera;
 	engine->setRenderState = setRenderState;
 	engine->getRenderState = getRenderState;
+	engine->im2DRenderIndexedPrimitive = im2DRenderIndexedPrimitive;
 	engine->zNear = -1.0f;
 	engine->zFar  = 1.0f;
 
@@ -461,6 +463,8 @@ initializeRender(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
 	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
+
+	im2DInit();
 }
 }
 }

@@ -124,7 +124,7 @@ struct Quat
 	float32 x, y, z, w;
 	Quat(void) : x(0.0f), y(0.0f), z(0.0f), w(0.0f) {}
 	Quat(float32 w, float32 x, float32 y, float32 z) : x(x), y(y), z(z), w(w) {}
-	Quat(float32 w, V3d vec) : x(vec.x), y(vec.y), z(vec.z), w(w) {}
+	Quat(float32 w, const V3d &vec) : x(vec.x), y(vec.y), z(vec.z), w(w) {}
 	Quat(V3d vec) : x(vec.x), y(vec.y), z(vec.z), w(0.0f) {}
 	static Quat rotation(float32 angle, const V3d &axis){
 		return Quat(cos(angle/2.0f), scale(axis, sin(angle/2.0f))); }
@@ -202,6 +202,17 @@ struct Sphere
 {
 	V3d center;
 	float32 radius;
+};
+
+enum PrimitiveType
+{
+	PRIMTYPENONE = 0,
+	PRIMTYPELINELIST,
+	PRIMTYPEPOLYLINE,
+	PRIMTYPETRILIST,
+	PRIMTYPETRISTRIP,
+	PRIMTYPETRIFAN,
+	PRIMTYPEPOINTLIST,
 };
 
 /*

@@ -58,7 +58,15 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	InstanceData *inst;
 };
 
-void setAttribPointers(InstanceDataHeader *header);
+struct Im2DVertex
+{
+	float32 x, y, z;
+	uint8   r, g, b, a;
+	float32 u, v;
+};
+
+void setAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
+void disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
 
 // Render state
 

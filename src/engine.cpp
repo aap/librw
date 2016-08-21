@@ -33,6 +33,7 @@ Engine::init(void)
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
 	engine->currentTexDictionary = nil;
+	engine->imtexture = nil;
 	engine->loadTextures = 1;
 	engine->makeDummies = 1;
 
@@ -41,6 +42,7 @@ Engine::init(void)
 	engine->clearCamera = null::clearCamera;
 	engine->setRenderState = null::setRenderState;
 	engine->getRenderState = null::getRenderState;
+	engine->im2DRenderIndexedPrimitive = null::im2DRenderIndexedPrimitive;
 	engine->zNear = 0.0f;	// random values
 	engine->zFar  = 1.0f;
 
@@ -71,6 +73,7 @@ Driver::open(void)
 		driver[i]->rasterFromImage = null::rasterFromImage;
 		driver[i]->rasterToImage = null::rasterToImage;
 
+
 		s_plglist[i].construct(rw::driver[i]);
 	}
 }
@@ -83,6 +86,8 @@ void clearCamera(Camera*,RGBA*,uint32) { }
 
 void   setRenderState(int32, uint32) { }
 uint32 getRenderState(int32) { return 0; }
+
+void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
 
 void
 rasterCreate(Raster*)

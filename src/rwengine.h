@@ -50,6 +50,7 @@ struct Engine
 {
 	void *currentCamera;
 	void *currentWorld;
+	Texture *imtexture;
 
 	TexDictionary *currentTexDictionary;
 	bool32 loadTextures;    // load textures from files
@@ -63,6 +64,8 @@ struct Engine
 	void   (*clearCamera)(Camera*, RGBA *col, uint32 mode);
 	void   (*setRenderState)(int32 state, uint32 value);
 	uint32 (*getRenderState)(int32 state);
+	void   (*im2DRenderIndexedPrimitive)(PrimitiveType,
+	                                     void*, int32, void*, int32);
 
 	static void init(void);
 };
@@ -115,6 +118,9 @@ namespace null {
 	int32  rasterNumLevels(Raster*);
 	void   rasterFromImage(Raster*, Image*);
 	Image *rasterToImage(Raster*);
+
+	void   im2DRenderIndexedPrimitive(PrimitiveType,
+	                                  void*, int32, void*, int32);
 }
 
 }

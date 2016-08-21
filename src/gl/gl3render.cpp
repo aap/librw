@@ -21,16 +21,22 @@ namespace gl3 {
 #define MAX_LIGHTS 8
 
 void
-setAttribPointers(InstanceDataHeader *header)
+setAttribPointers(AttribDesc *attribDescs, int32 numAttribs)
 {
 	AttribDesc *a;
-	for(a = header->attribDesc;
-	    a != &header->attribDesc[header->numAttribs];
-	    a++){
+	for(a = attribDescs; a != &attribDescs[numAttribs]; a++){
 		glEnableVertexAttribArray(a->index);
 		glVertexAttribPointer(a->index, a->size, a->type, a->normalized,
 		                      a->stride, (void*)(uint64)a->offset);
 	}
+}
+
+void
+disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs)
+{
+	AttribDesc *a;
+	for(a = attribDescs; a != &attribDescs[numAttribs]; a++)
+		glDisableVertexAttribArray(a->index);
 }
 
 void
@@ -73,7 +79,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
-	setAttribPointers(header);
+	setAttribPointers(header->attribDesc, header->numAttribs);
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
@@ -104,6 +110,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 		inst++;
 	}
+	disableAttribPointers(header->attribDesc, header->numAttribs);
 }
 
 
