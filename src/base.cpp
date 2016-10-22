@@ -834,7 +834,7 @@ StreamFile::tell(void)
 bool
 StreamFile::eof(void)
 {
-	return feof(this->file);
+	return ( feof(this->file) != 0 );
 }
 
 bool

@@ -1,0 +1,7 @@
+/bin
+/obj
+/lib
+/output
+librw.vcxproj.user
+librw.VC.db
+librw.VC.VC.opendb
