@@ -2,6 +2,7 @@
 /obj
 /lib
 /output
+/.vs
 librw.vcxproj.user
 librw.VC.db
 librw.VC.VC.opendb
