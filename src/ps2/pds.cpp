@@ -161,7 +161,7 @@ registerPluginPDSPipes(void)
 	pipe->attribs[2] = &attribNormal;
 	vertCount = 0x50;
 	pipe->setTriBufferSizes(3, vertCount);
-	pipe->vifOffset = pipe->inputStride*vertCount;
+	pipe->vifOffset = pipe->inputStride*vertCount;	// 0xF0
 	pipe->uninstanceCB = genericUninstanceCB;
 	pipe->preUninstCB = genericPreCB;
 	registerPDSPipe(pipe);
@@ -175,7 +175,7 @@ registerPluginPDSPipes(void)
 	pipe->attribs[2] = &attribNormal;
 	pipe->attribs[3] = &attribWeights;
 	vertCount = 0x30;
-	pipe->setTriBufferSizes(4, vertCount);
+	pipe->setTriBufferSizes(4, vertCount);	// 0xC0
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = genericUninstanceCB;

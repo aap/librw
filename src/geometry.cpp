@@ -380,7 +380,7 @@ Geometry::generateTriangles(int8 *adc)
 			m++;
 			continue;
 		}
-		if(header->flags == 1){	// tristrip
+		if(header->flags == MeshHeader::TRISTRIP){
 			for(uint32 j = 0; j < m->numIndices-2; j++){
 				if(!(adc && adcbits[j+2]) &&
 				   !isDegenerate(&m->indices[j]))
@@ -407,7 +407,7 @@ Geometry::generateTriangles(int8 *adc)
 		int32 matid = findPointer((void*)m->material,
 		                          (void**)this->materialList,
 		                          this->numMaterials);
-		if(header->flags == 1)	// tristrip
+		if(header->flags == MeshHeader::TRISTRIP)
 			for(uint32 j = 0; j < m->numIndices-2; j++){
 				if(adc && adcbits[j+2] ||
 				   isDegenerate(&m->indices[j]))
@@ -472,6 +472,62 @@ Geometry::buildMeshes(void)
 	}
 }
 
+/* The idea is that even in meshes where winding is not preserved
+ * every tristrip starts at an even vertex. So find the start of
+ * strips and insert duplicate vertices if necessary. */
+void
+Geometry::correctTristripWinding(void)
+{
+	MeshHeader *header = this->meshHeader;
+	if(header == nil || header->flags != MeshHeader::TRISTRIP ||
+	   this->geoflags & NATIVE)
+		return;
+	MeshHeader *newhead = new MeshHeader;
+	newhead->flags = header->flags;
+	newhead->numMeshes = header->numMeshes;
+	newhead->totalIndices = 0;
+	newhead->mesh = new Mesh[newhead->numMeshes];
+	/* get a temporary working buffer */
+	uint16 *indices = new uint16[header->totalIndices*2];
+
+	Mesh *mesh = header->mesh;
+	Mesh *newmesh = newhead->mesh;
+	for(uint16 i = 0; i < header->numMeshes; i++){
+		newmesh->numIndices = 0;
+		newmesh->indices = &indices[newhead->totalIndices];
+		newmesh->material = mesh->material;
+
+		bool inStrip = 0;
+		uint32 j;
+		for(j = 0; j < mesh->numIndices-2; j++){
+			/* Duplicate vertices indicate end of strip */
+			if(mesh->indices[j] == mesh->indices[j+1] ||
+			   mesh->indices[j+1] == mesh->indices[j+2])
+				inStrip = 0;
+			else if(!inStrip){
+				/* Entering strip now,
+				 * make sure winding is correct */
+				inStrip = 1;
+				if(newmesh->numIndices % 2)
+					newmesh->indices[newmesh->numIndices++] =
+					  newmesh->indices[newmesh->numIndices-1];
+			}
+			newmesh->indices[newmesh->numIndices++] = mesh->indices[j];
+		}
+		for(; j < mesh->numIndices; j++)
+			newmesh->indices[newmesh->numIndices++] = mesh->indices[j];
+		newhead->totalIndices += newmesh->numIndices;
+
+		mesh++;
+		newmesh++;
+	}
+	newhead->allocateIndices();
+	memcpy(newhead->mesh[0].indices, indices, newhead->totalIndices*2);
+	delete[] indices;
+	this->meshHeader = newhead;
+	delete header;
+}
+
 // HAS to be called with an existing mesh
 void
 Geometry::removeUnusedMaterials(void)
@@ -479,6 +535,9 @@ Geometry::removeUnusedMaterials(void)
 	if(this->meshHeader == nil)
 		return;
 	MeshHeader *mh = this->meshHeader;
+	for(uint32 i = 0; i < mh->numMeshes; i++)
+		if(mh->mesh[i].indices == nil)
+			return;
 	int32 *map = new int32[this->numMaterials];
 	Material **matlist = new Material*[this->numMaterials];
 	int32 numMaterials = 0;

@@ -409,6 +409,7 @@ struct Geometry : PluginBase<Geometry>
 	void allocateData(void);
 	void generateTriangles(int8 *adc = nil);
 	void buildMeshes(void);
+	void correctTristripWinding(void);
 	void removeUnusedMaterials(void);
 
 	enum Flags
