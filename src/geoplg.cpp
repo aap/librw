@@ -39,14 +39,14 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	Mesh *mesh = geo->meshHeader->mesh;
 	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
 	uint16 *p = nil;
-	if(!(geo->geoflags & Geometry::NATIVE) || hasData)
+	if(!(geo->flags & Geometry::NATIVE) || hasData)
 		p = new uint16[geo->meshHeader->totalIndices];
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		stream->read(buf, 8);
 		mesh->numIndices = buf[0];
-		mesh->material = geo->materialList[buf[1]];
+		mesh->material = geo->matList.materials[buf[1]];
 		mesh->indices = nil;
-		if(geo->geoflags & Geometry::NATIVE){
+		if(geo->flags & Geometry::NATIVE){
 			// OpenGL stores uint16 indices here
 			if(hasData){
 				mesh->indices = p;
@@ -85,11 +85,9 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 	Mesh *mesh = geo->meshHeader->mesh;
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		buf[0] = mesh->numIndices;
-		buf[1] = findPointer((void*)mesh->material,
-		                     (void**)geo->materialList,
-		                     geo->numMaterials);
+		buf[1] = geo->matList.findIndex(mesh->material);
 		stream->write(buf, 8);
-		if(geo->geoflags & Geometry::NATIVE){
+		if(geo->flags & Geometry::NATIVE){
 			assert(geo->instData != nil);
 			if(geo->instData->platform == PLATFORM_WDGL)
 				stream->write(mesh->indices,
@@ -117,7 +115,7 @@ getSizeMesh(void *object, int32, int32)
 	if(geo->meshHeader == nil)
 		return -1;
 	int32 size = 12 + geo->meshHeader->numMeshes*8;
-	if(geo->geoflags & Geometry::NATIVE){
+	if(geo->flags & Geometry::NATIVE){
 		assert(geo->instData != nil);
 		if(geo->instData->platform == PLATFORM_WDGL)
 			size += geo->meshHeader->totalIndices*2;

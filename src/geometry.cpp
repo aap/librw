@@ -14,6 +14,8 @@
 
 namespace rw {
 
+SurfaceProperties defaultSurfaceProps = { 1.0f, 1.0f, 1.0f };
+
 Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
@@ -23,11 +25,11 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 		return nil;
 	}
 	geo->object.init(Geometry::ID, 0);
-	geo->geoflags = flags & 0xFF00FFFF;
+	geo->flags = flags & 0xFF00FFFF;
 	geo->numTexCoordSets = (flags & 0xFF0000) >> 16;
 	if(geo->numTexCoordSets == 0)
-		geo->numTexCoordSets = (geo->geoflags & TEXTURED)  ? 1 :
-		                       (geo->geoflags & TEXTURED2) ? 2 : 0;
+		geo->numTexCoordSets = (geo->flags & TEXTURED)  ? 1 :
+		                       (geo->flags & TEXTURED2) ? 2 : 0;
 	geo->numTriangles = numTris;
 	geo->numVertices = numVerts;
 	geo->numMorphTargets = 1;
@@ -36,10 +38,10 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	for(int32 i = 0; i < geo->numTexCoordSets; i++)
 		geo->texCoords[i] = nil;
 	geo->triangles = nil;
-	if(!(geo->geoflags & NATIVE) && geo->numVertices){
-		if(geo->geoflags & PRELIT)
+	if(!(geo->flags & NATIVE) && geo->numVertices){
+		if(geo->flags & PRELIT)
 			geo->colors = new uint8[4*geo->numVertices];
-		if((geo->geoflags & TEXTURED) || (geo->geoflags & TEXTURED2))
+		if((geo->flags & TEXTURED) || (geo->flags & TEXTURED2))
 			for(int32 i = 0; i < geo->numTexCoordSets; i++)
 				geo->texCoords[i] =
 					new float32[2*geo->numVertices];
@@ -51,13 +53,12 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	m->boundingSphere.radius = 0.0f;
 	m->vertices = nil;
 	m->normals = nil;
-	if(!(geo->geoflags & NATIVE) && geo->numVertices){
+	if(!(geo->flags & NATIVE) && geo->numVertices){
 		m->vertices = new float32[3*geo->numVertices];
-		if(geo->geoflags & NORMALS)
+		if(geo->flags & NORMALS)
 			m->normals = new float32[3*geo->numVertices];
 	}
-	geo->numMaterials = 0;
-	geo->materialList = nil;
+	geo->matList.init();
 	geo->meshHeader = nil;
 	geo->instData = nil;
 	geo->refCount = 1;
@@ -84,10 +85,7 @@ Geometry::destroy(void)
 		}
 		delete[] this->morphTargets;
 		delete this->meshHeader;
-		for(int32 i = 0; i < this->numMaterials; i++)
-			if(this->materialList[i])
-				this->materialList[i]->destroy();
-		delete[] this->materialList;
+		this->matList.deinit();
 		free(this);
 	}
 }
@@ -105,6 +103,9 @@ Geometry::streamRead(Stream *stream)
 {
 	uint32 version;
 	GeoStreamData buf;
+	SurfaceProperties surfProps;
+	MaterialList *ret;
+
 	if(!findChunk(stream, ID_STRUCT, nil, &version)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
@@ -115,12 +116,11 @@ Geometry::streamRead(Stream *stream)
 	if(geo == nil)
 		return nil;
 	geo->addMorphTargets(buf.numMorphTargets-1);
-	// skip surface properties
 	if(version < 0x34000)
-		stream->seek(12);
+		stream->read(&surfProps, 12);
 
-	if(!(geo->geoflags & NATIVE)){
-		if(geo->geoflags & PRELIT)
+	if(!(geo->flags & NATIVE)){
+		if(geo->flags & PRELIT)
 			stream->read(geo->colors, 4*geo->numVertices);
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
 			stream->read(geo->texCoords[i],
@@ -150,24 +150,13 @@ Geometry::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "MATLIST"));
 		goto fail;
 	}
-	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"));
+	if(version < 0x34000)
+		defaultSurfaceProps = surfProps;
+	ret = MaterialList::streamRead(stream, &geo->matList);
+	if(version < 0x34000)
+		defaultSurfaceProps = (SurfaceProperties){ 1.0f, 1.0f, 1.0f };
+	if(ret == nil)
 		goto fail;
-	}
-	geo->numMaterials = stream->readI32();
-	geo->materialList = new Material*[geo->numMaterials];
-	stream->seek(geo->numMaterials*4);	// material indices...but always -1
-	Material *m;
-	for(int32 i = 0; i < geo->numMaterials; i++){
-		if(!findChunk(stream, ID_MATERIAL, nil, nil)){
-			RWERROR((ERR_CHUNK, "MATERIAL"));
-			goto fail;
-		}
-		m = Material::streamRead(stream);
-		if(m == nil)
-			goto fail;
-		geo->materialList[i] = m;
-	}
 	if(s_plglist.streamRead(stream, geo))
 		return geo;
 
@@ -183,8 +172,8 @@ geoStructSize(Geometry *geo)
 	size += sizeof(GeoStreamData);
 	if(version < 0x34000)
 		size += 12;	// surface properties
-	if(!(geo->geoflags & Geometry::NATIVE)){
-		if(geo->geoflags&geo->PRELIT)
+	if(!(geo->flags & Geometry::NATIVE)){
+		if(geo->flags&geo->PRELIT)
 			size += 4*geo->numVertices;
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
 			size += 2*geo->numVertices*4;
@@ -193,7 +182,7 @@ geoStructSize(Geometry *geo)
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
 		size += 4*4 + 2*4; // bounding sphere and bools
-		if(!(geo->geoflags & Geometry::NATIVE)){
+		if(!(geo->flags & Geometry::NATIVE)){
 			if(m->vertices)
 				size += 3*geo->numVertices*4;
 			if(m->normals)
@@ -207,13 +196,12 @@ bool
 Geometry::streamWrite(Stream *stream)
 {
 	GeoStreamData buf;
-	uint32 size;
 	static float32 fbuf[3] = { 1.0f, 1.0f, 1.0f };
 
 	writeChunkHeader(stream, ID_GEOMETRY, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, geoStructSize(this));
 
-	buf.flags = this->geoflags | this->numTexCoordSets << 16;
+	buf.flags = this->flags | this->numTexCoordSets << 16;
 	buf.numTriangles = this->numTriangles;
 	buf.numVertices = this->numVertices;
 	buf.numMorphTargets = this->numMorphTargets;
@@ -221,8 +209,8 @@ Geometry::streamWrite(Stream *stream)
 	if(version < 0x34000)
 		stream->write(fbuf, sizeof(fbuf));
 
-	if(!(this->geoflags & NATIVE)){
-		if(this->geoflags & PRELIT)
+	if(!(this->flags & NATIVE)){
+		if(this->flags & PRELIT)
 			stream->write(this->colors, 4*this->numVertices);
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			stream->write(this->texCoords[i],
@@ -240,7 +228,7 @@ Geometry::streamWrite(Stream *stream)
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
 		stream->write(&m->boundingSphere, 4*4);
-		if(!(this->geoflags & NATIVE)){
+		if(!(this->flags & NATIVE)){
 			stream->writeI32(m->vertices != nil);
 			stream->writeI32(m->normals != nil);
 			if(m->vertices)
@@ -255,16 +243,7 @@ Geometry::streamWrite(Stream *stream)
 		}
 	}
 
-	size = 12 + 4;
-	for(int32 i = 0; i < this->numMaterials; i++)
-		size += 4 + 12 + this->materialList[i]->streamGetSize();
-	writeChunkHeader(stream, ID_MATLIST, size);
-	writeChunkHeader(stream, ID_STRUCT, 4 + this->numMaterials*4);
-	stream->writeI32(this->numMaterials);
-	for(int32 i = 0; i < this->numMaterials; i++)
-		stream->writeI32(-1);
-	for(int32 i = 0; i < this->numMaterials; i++)
-		this->materialList[i]->streamWrite(stream);
+	this->matList.streamWrite(stream);
 
 	s_plglist.streamWrite(stream, this);
 	return true;
@@ -275,9 +254,7 @@ Geometry::streamGetSize(void)
 {
 	uint32 size = 0;
 	size += 12 + geoStructSize(this);
-	size += 12 + 12 + 4;
-	for(int32 i = 0; i < this->numMaterials; i++)
-		size += 4 + 12 + this->materialList[i]->streamGetSize();
+	size += 12 + this->matList.streamGetSize();
 	size += 12 + s_plglist.streamGetSize(this);
 	return size;
 }
@@ -296,9 +273,9 @@ Geometry::addMorphTargets(int32 n)
 		MorphTarget *m = &morphTargets[i];
 		m->vertices = nil;
 		m->normals = nil;
-		if(!(this->geoflags & NATIVE)){
+		if(!(this->flags & NATIVE)){
 			m->vertices = new float32[3*this->numVertices];
-			if(this->geoflags & NORMALS)
+			if(this->flags & NORMALS)
 				m->normals = new float32[3*this->numVertices];
 		}
 	}
@@ -331,11 +308,11 @@ Geometry::calculateBoundingSphere(void)
 bool32
 Geometry::hasColoredMaterial(void)
 {
-	for(int32 i = 0; i < this->numMaterials; i++)
-		if(this->materialList[i]->color.red != 255 ||
-		   this->materialList[i]->color.green != 255 ||
-		   this->materialList[i]->color.blue != 255 ||
-		   this->materialList[i]->color.alpha != 255)
+	for(int32 i = 0; i < this->matList.numMaterials; i++)
+		if(this->matList.materials[i]->color.red != 255 ||
+		   this->matList.materials[i]->color.green != 255 ||
+		   this->matList.materials[i]->color.blue != 255 ||
+		   this->matList.materials[i]->color.alpha != 255)
 			return 1;
 	return 0;
 }
@@ -343,15 +320,15 @@ Geometry::hasColoredMaterial(void)
 void
 Geometry::allocateData(void)
 {
-	if(this->geoflags & PRELIT)
+	if(this->flags & PRELIT)
 		this->colors = new uint8[4*this->numVertices];
-	if((this->geoflags & TEXTURED) || (this->geoflags & TEXTURED2))
+	if((this->flags & TEXTURED) || (this->flags & TEXTURED2))
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			this->texCoords[i] =
 				new float32[2*this->numVertices];
 	MorphTarget *m = this->morphTargets;
 	m->vertices = new float32[3*this->numVertices];
-	if(this->geoflags & NORMALS)
+	if(this->flags & NORMALS)
 		m->normals = new float32[3*this->numVertices];
 	// TODO: morph targets (who cares anyway?)
 }
@@ -404,9 +381,7 @@ Geometry::generateTriangles(int8 *adc)
 			m++;
 			continue;
 		}
-		int32 matid = findPointer((void*)m->material,
-		                          (void**)this->materialList,
-		                          this->numMaterials);
+		int32 matid = this->matList.findIndex(m->material);
 		if(header->flags == MeshHeader::TRISTRIP)
 			for(uint32 j = 0; j < m->numIndices-2; j++){
 				if(adc && adcbits[j+2] ||
@@ -456,13 +431,13 @@ Geometry::buildMeshes(void)
 	Triangle *tri;
 	MeshHeader *h = new MeshHeader;
 	this->meshHeader = h;
-	if((this->geoflags & Geometry::TRISTRIP) == 0){
+	if((this->flags & Geometry::TRISTRIP) == 0){
 		h->flags = 0;
 		h->totalIndices = this->numTriangles*3;
-		h->numMeshes = this->numMaterials;
+		h->numMeshes = this->matList.numMaterials;
 		h->mesh = new Mesh[h->numMeshes];
 		for(uint32 i = 0; i < h->numMeshes; i++){
-			h->mesh[i].material = this->materialList[i];
+			h->mesh[i].material = this->matList.materials[i];
 			h->mesh[i].numIndices = 0;
 		}
 		// count indices per mesh
@@ -496,7 +471,7 @@ Geometry::correctTristripWinding(void)
 {
 	MeshHeader *header = this->meshHeader;
 	if(header == nil || header->flags != MeshHeader::TRISTRIP ||
-	   this->geoflags & NATIVE)
+	   this->flags & NATIVE)
 		return;
 	MeshHeader *newhead = new MeshHeader;
 	newhead->flags = header->flags;
@@ -546,7 +521,6 @@ Geometry::correctTristripWinding(void)
 	delete header;
 }
 
-// HAS to be called with an existing mesh
 void
 Geometry::removeUnusedMaterials(void)
 {
@@ -556,24 +530,28 @@ Geometry::removeUnusedMaterials(void)
 	for(uint32 i = 0; i < mh->numMeshes; i++)
 		if(mh->mesh[i].indices == nil)
 			return;
-	int32 *map = new int32[this->numMaterials];
-	Material **matlist = new Material*[this->numMaterials];
+
+	int32 *map = new int32[this->matList.numMaterials];
+	Material **materials = new Material*[this->matList.numMaterials];
 	int32 numMaterials = 0;
 	/* Build new material list and map */
 	for(uint32 i = 0; i < mh->numMeshes; i++){
 		Mesh *m = &mh->mesh[i];
 		if(m->numIndices <= 0)
 			continue;
-		matlist[numMaterials] = m->material;
-		int32 oldid = findPointer((void*)m->material,
-		                          (void**)this->materialList,
-		                          this->numMaterials);
+		materials[numMaterials] = m->material;
+		m->material->refCount++;
+		int32 oldid = this->matList.findIndex(m->material);
 		map[oldid] = numMaterials;
 		numMaterials++;
 	}
-	delete[] this->materialList;
-	this->materialList = matlist;
-	this->numMaterials = numMaterials;
+	for(int32 i = 0; i < this->matList.numMaterials; i++)
+		this->matList.materials[i]->destroy();
+	free(this->matList.materials);
+	this->matList.materials = materials;
+	this->matList.space = this->matList.numMaterials;
+	this->matList.numMaterials = numMaterials;
+
 	/* Build new meshes */
 	MeshHeader *newmh = new MeshHeader;
 	newmh->flags = mh->flags;
@@ -602,10 +580,152 @@ Geometry::removeUnusedMaterials(void)
 	}
 	delete this->meshHeader;
 	this->meshHeader = newmh;
+
 	/* Remap triangle material IDs */
 	for(int32 i = 0; i < this->numTriangles; i++)
 		this->triangles[i].matId = map[this->triangles[i].matId];
 	delete[] map;
+}
+
+//
+// MaterialList
+//
+
+void
+MaterialList::init(void)
+{
+	this->materials = nil;
+	this->numMaterials = 0;
+	this->space = 0;
+}
+
+void
+MaterialList::deinit(void)
+{
+	if(this->materials){
+		for(int32 i = 0; i < this->numMaterials; i++)
+			this->materials[i]->destroy();
+		free(this->materials);
+	}
+}
+
+int32
+MaterialList::appendMaterial(Material *mat)
+{
+	Material **ml;
+	int32 space;
+	if(this->numMaterials >= this->space){
+		space = this->space + 20;
+		if(this->materials)
+			ml = (Material**)realloc(this->materials,
+						space*sizeof(Material*));
+		else
+			ml = (Material**)malloc(space*sizeof(Material*));
+		if(ml == nil)
+			return -1;
+		this->space = space;
+		this->materials = ml;
+	}
+	this->materials[this->numMaterials++] = mat;
+	mat->refCount++;
+	return this->numMaterials-1;
+}
+
+int32
+MaterialList::findIndex(Material *mat)
+{
+	for(int32 i = 0; i < this->numMaterials; i++)
+		if(this->materials[i] == mat)
+			return i;
+	return -1;
+}
+
+MaterialList*
+MaterialList::streamRead(Stream *stream, MaterialList *matlist)
+{
+	int32 *indices = nil;
+	int32 numMat;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		goto fail;
+	}
+	matlist->init();
+	numMat = stream->readI32();
+	if(numMat == 0)
+		return matlist;
+	matlist->materials = (Material**)malloc(numMat*sizeof(Material*));
+	if(matlist->materials == nil)
+		goto fail;
+	matlist->space = numMat;
+
+	indices = (int32*)malloc(numMat*4);
+	stream->read(indices, numMat*4);
+
+	Material *m;
+	for(int32 i = 0; i < numMat; i++){
+		if(indices[i] >= 0){
+			m = matlist->materials[indices[i]];
+			m->refCount++;
+		}else{
+			if(!findChunk(stream, ID_MATERIAL, nil, nil)){
+				RWERROR((ERR_CHUNK, "MATERIAL"));
+				goto fail;
+			}
+			m = Material::streamRead(stream);
+			if(m == nil)
+				goto fail;
+		}
+		matlist->appendMaterial(m);
+		m->destroy();
+	}
+	free(indices);
+	return matlist;
+fail:
+	free(indices);
+	matlist->deinit();
+	return nil;
+}
+
+bool
+MaterialList::streamWrite(Stream *stream)
+{
+	uint32 size = this->streamGetSize();
+	writeChunkHeader(stream, ID_MATLIST, size);
+	writeChunkHeader(stream, ID_STRUCT, 4 + this->numMaterials*4);
+	stream->writeI32(this->numMaterials);
+
+	int32 idx;
+	for(int32 i = 0; i < this->numMaterials; i++){
+		idx = -1;
+		for(int32 j = i-1; j >= 0; j--)
+			if(this->materials[i] == this->materials[j]){
+				idx = j;
+				break;
+			}
+		stream->writeI32(idx);
+	}
+	for(int32 i = 0; i < this->numMaterials; i++){
+		for(int32 j = i-1; j >= 0; j--)
+			if(this->materials[i] == this->materials[j])
+				goto found;
+		this->materials[i]->streamWrite(stream);
+		found:;
+	}
+	return true;
+}
+
+uint32
+MaterialList::streamGetSize(void)
+{
+	uint32 size = 12 + 4 + this->numMaterials*4;
+	for(int32 i = 0; i < this->numMaterials; i++){
+		for(int32 j = i-1; j >= 0; j--)
+			if(this->materials[i] == this->materials[j])
+				goto found;
+		size += 12 + this->materials[i]->streamGetSize();
+		found:;
+	}
+	return size;
 }
 
 //
@@ -622,9 +742,7 @@ Material::create(void)
 	}
 	mat->texture = nil;
 	memset(&mat->color, 0xFF, 4);
-	mat->surfaceProps.ambient = 1.0f;
-	mat->surfaceProps.specular = 1.0f;
-	mat->surfaceProps.diffuse = 1.0f;
+	mat->surfaceProps = defaultSurfaceProps;
 	mat->pipeline = nil;
 	mat->refCount = 1;
 	s_plglist.construct(mat);
@@ -695,17 +813,10 @@ Material::streamRead(Stream *stream)
 	if(mat == nil)
 		return nil;
 	mat->color = buf.color;
-	if(version < 0x30400){
-		mat->surfaceProps.ambient = 1.0f;
-		mat->surfaceProps.specular = 1.0f;
-		mat->surfaceProps.diffuse = 1.0f;
-	}else{
-		float32 surfaceProps[3];
-		stream->read(surfaceProps, sizeof(surfaceProps));
-		mat->surfaceProps.ambient = surfaceProps[0];
-		mat->surfaceProps.specular = surfaceProps[1];
-		mat->surfaceProps.diffuse = surfaceProps[2];
-	}
+	if(version < 0x30400)
+		mat->surfaceProps = defaultSurfaceProps;
+	else
+		stream->read(&mat->surfaceProps, sizeof(surfaceProps));
 	if(buf.textured){
 		if(!findChunk(stream, ID_TEXTURE, &length, nil)){
 			RWERROR((ERR_CHUNK, "TEXTURE"));

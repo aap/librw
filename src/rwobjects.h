@@ -375,11 +375,26 @@ struct Triangle
 	uint16 matId;
 };
 
+struct MaterialList
+{
+	Material **materials;
+	int32 numMaterials;
+	int32 space;
+
+	void init(void);
+	void deinit(void);
+	int32 appendMaterial(Material *mat);
+	int32 findIndex(Material *mat);
+	static MaterialList *streamRead(Stream *stream, MaterialList *matlist);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+};
+
 struct Geometry : PluginBase<Geometry>
 {
 	enum { ID = 8 };
 	Object object;
-	uint32 geoflags;	// TODO: rename
+	uint32 flags;
 	int32 numTriangles;
 	int32 numVertices;
 	int32 numMorphTargets;
@@ -390,22 +405,15 @@ struct Geometry : PluginBase<Geometry>
 	float32 *texCoords[8];
 
 	MorphTarget *morphTargets;
-
-	// TODO: struct
-	int32 numMaterials;
-	Material **materialList;
+	MaterialList matList;
 
 	MeshHeader *meshHeader;
-
 	InstanceDataHeader *instData;
 
 	int32 refCount;
 
 	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
 	void destroy(void);
-	static Geometry *streamRead(Stream *stream);
-	bool streamWrite(Stream *stream);
-	uint32 streamGetSize(void);
 	void addMorphTargets(int32 n);
 	void calculateBoundingSphere(void);
 	bool32 hasColoredMaterial(void);
@@ -415,6 +423,9 @@ struct Geometry : PluginBase<Geometry>
 	void buildTristrips(void);
 	void correctTristripWinding(void);
 	void removeUnusedMaterials(void);
+	static Geometry *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
 
 	enum Flags
 	{
@@ -446,13 +457,13 @@ struct Atomic : PluginBase<Atomic>
 	typedef void (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
 	enum {
+	// flags
 		COLLISIONTEST = 0x01,	// unused here
 		RENDER = 0x04,
-	// private
-		WORLDBOUNDDIRTY = 0x01
-	};
-	enum {
-		SAMEBOUNDINGSPHERE = 0x01,	// for setGeometry
+	// private flags
+		WORLDBOUNDDIRTY = 0x01,
+	// for setGeometry
+		SAMEBOUNDINGSPHERE = 0x01,
 	};
 
 	ObjectWithFrame object;

@@ -197,9 +197,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -247,11 +247,11 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_XBOX);
-	geo->geoflags &= ~Geometry::NATIVE;
+	geo->flags &= ~Geometry::NATIVE;
 	geo->allocateData();
 	geo->meshHeader->allocateIndices();
 
@@ -293,7 +293,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 {
 	uint32 *vertexFmt = getVertexFmt(geo);
 	if(*vertexFmt == 0)
-		*vertexFmt = makeVertexFmt(geo->geoflags, geo->numTexCoordSets);
+		*vertexFmt = makeVertexFmt(geo->flags, geo->numTexCoordSets);
 	header->stride = getVertexFmtStride(*vertexFmt);
 	header->vertexBuffer = new uint8[header->stride*header->numVertices];
 	uint8 *dst = (uint8*)header->vertexBuffer;

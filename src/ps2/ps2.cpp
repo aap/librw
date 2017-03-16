@@ -333,8 +333,8 @@ instanceUV(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
 	uint32 *d = (uint32*)g->texCoords[0];
-	if((g->geoflags & Geometry::TEXTURED) ||
-	   (g->geoflags & Geometry::TEXTURED2))
+	if((g->flags & Geometry::TEXTURED) ||
+	   (g->flags & Geometry::TEXTURED2))
 		for(uint32 i = idx; i < idx+n; i++){
 			j = m->indices[i];
 			*p++ = d[j*2+0];
@@ -383,7 +383,7 @@ instanceRGBA(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
 	uint32 *d = (uint32*)g->colors;
-	if((g->geoflags & Geometry::PRELIT))
+	if((g->flags & Geometry::PRELIT))
 		for(uint32 i = idx; i < idx+n; i++){
 			j = m->indices[i];
 			*p++ = d[j];
@@ -402,7 +402,7 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 	uint16 j;
 	float *d = g->morphTargets[0].normals;
 	uint8 *p = (uint8*)wp;
-	if((g->geoflags & Geometry::NORMALS))
+	if((g->flags & Geometry::NORMALS))
 		for(uint32 i = idx; i < idx+n; i++){
 			j = m->indices[i];
 			*p++ = d[j*3+0]*127.0f;
@@ -742,7 +742,7 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
@@ -763,7 +763,7 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m->instance(geo, instance, mesh);
 		instance->material = mesh->material;
 	}
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 }
 
 static void
@@ -800,14 +800,14 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	// highest possible number of vertices
 	geo->numVertices = geo->meshHeader->totalIndices;
-	geo->geoflags &= ~Geometry::NATIVE;
+	geo->flags &= ~Geometry::NATIVE;
 	geo->allocateData();
 	geo->meshHeader->allocateIndices();
 	uint32 *flags = new uint32[geo->numVertices];
@@ -964,9 +964,9 @@ genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 		}
 
 	uint32 mask = 0x1;	// vertices
-	if(normals && geo->geoflags & Geometry::NORMALS)
+	if(normals && geo->flags & Geometry::NORMALS)
 		mask |= 0x10;
-	if(rgba && geo->geoflags & Geometry::PRELIT)
+	if(rgba && geo->flags & Geometry::PRELIT)
 		mask |= 0x100;
 	if((uv || uv2) && geo->numTexCoordSets > 0)
 		mask |= 0x1000;
@@ -1027,9 +1027,9 @@ defaultUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 	uint8 *colors      = (uint8*)data[AT_RGBA];
 	int8 *norms        = (int8*)data[AT_NORMAL];
 	uint32 mask = 0x1;	// vertices
-	if(geo->geoflags & Geometry::NORMALS)
+	if(geo->flags & Geometry::NORMALS)
 		mask |= 0x10;
-	if(geo->geoflags & Geometry::PRELIT)
+	if(geo->flags & Geometry::PRELIT)
 		mask |= 0x100;
 	for(int32 i = 0; i < geo->numTexCoordSets; i++)
 		mask |= 0x1000 << i;
@@ -1245,7 +1245,7 @@ writeADC(Stream *stream, int32 len, void *object, int32 offset, int32)
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_ADC, len-12);
-	if(geometry->geoflags & Geometry::NATIVE){
+	if(geometry->flags & Geometry::NATIVE){
 		stream->writeI32(0);
 		return stream;
 	}
@@ -1262,7 +1262,7 @@ getSizeADC(void *object, int32 offset, int32)
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
 	if(!adc->adcFormatted)
 		return 0;
-	if(geometry->geoflags & Geometry::NATIVE)
+	if(geometry->flags & Geometry::NATIVE)
 		return 16;
 	return 16 + (adc->numBits+3 & ~3);
 }

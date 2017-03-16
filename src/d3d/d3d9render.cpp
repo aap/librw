@@ -37,7 +37,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		d3d::setRenderState(D3DRS_AMBIENT, D3DCOLOR_ARGB(0xFF, 0x40, 0x40, 0x40));
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
-		if(geo->geoflags & Geometry::PRELIT)
+		if(geo->flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		d3d::flushCache();
 		device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,

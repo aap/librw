@@ -153,7 +153,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst->numIndex = *(uint32*)p; p += 4;
 		inst->minVert = *(uint32*)p; p += 4;
 		uint32 matid = *(uint32*)p; p += 4;
-		inst->material = geometry->materialList[matid];
+		inst->material = geometry->matList.materials[matid];
 		inst->vertexAlpha = *(bool32*)p; p += 4;
 		inst->vertexShader = nil; p += 4;
 		inst->baseIndex = 0; p += 4;
@@ -235,7 +235,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		*(uint32*)p = inst->numIndex; p += 4;
 		*(uint32*)p = inst->minVert; p += 4;
-		int32 matid = findPointer(inst->material, (void**)geometry->materialList, geometry->numMaterials);
+		int32 matid = geometry->matList.findIndex(inst->material);
 		*(int32*)p = matid; p += 4;
 		*(bool32*)p = inst->vertexAlpha; p += 4;
 		*(uint32*)p = 0; p += 4;		// vertex shader
@@ -312,9 +312,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -365,11 +365,11 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D9);
-	geo->geoflags &= ~Geometry::NATIVE;
+	geo->flags &= ~Geometry::NATIVE;
 	geo->allocateData();
 	geo->meshHeader->allocateIndices();
 
@@ -398,7 +398,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D9);
@@ -439,7 +439,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	uint16 stride = 12;
 	s->geometryFlags |= 0x2;
 
-	bool isPrelit = (geo->geoflags & Geometry::PRELIT) != 0;
+	bool isPrelit = (geo->flags & Geometry::PRELIT) != 0;
 	if(isPrelit){
 		dcl[i].stream = 0;
 		dcl[i].offset = stride;
@@ -464,7 +464,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		stride += 8;
 	}
 
-	bool hasNormals = (geo->geoflags & Geometry::NORMALS) != 0;
+	bool hasNormals = (geo->flags & Geometry::NORMALS) != 0;
 	if(hasNormals){
 		dcl[i].stream = 0;
 		dcl[i].offset = stride;
@@ -540,7 +540,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 		  header->totalNumVertex,
 		  header->vertexStream[dcl[i].stream].stride);
 
-	if(geo->geoflags & Geometry::PRELIT){
+	if(geo->flags & Geometry::PRELIT){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
 			;
 		uninstColor(vertFormatMap[dcl[i].type],
@@ -560,7 +560,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 			  header->vertexStream[dcl[i].stream].stride);
 	}
 
-	if(geo->geoflags & Geometry::NORMALS){
+	if(geo->flags & Geometry::NORMALS){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
 			;
 		uninstV3d(vertFormatMap[dcl[i].type],

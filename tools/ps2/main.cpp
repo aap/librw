@@ -115,7 +115,7 @@ void
 drawAtomic(rw::Atomic *atomic)
 {
 	rw::Geometry *geo = atomic->geometry;
-	if(!(geo->geoflags & rw::Geometry::NATIVE)){
+	if(!(geo->flags & rw::Geometry::NATIVE)){
 		if(atomic->pipeline)
 			atomic->pipeline->instance(atomic);
 		else

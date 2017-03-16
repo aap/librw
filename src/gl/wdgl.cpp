@@ -322,7 +322,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
@@ -331,9 +331,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->ibo = 0;
 	header->numAttribs =
 		pipe->numCustomAttribs + 1 + (geo->numTexCoordSets > 0);
-	if(geo->geoflags & Geometry::PRELIT)
+	if(geo->flags & Geometry::PRELIT)
 		header->numAttribs++;
-	if(geo->geoflags & Geometry::NORMALS)
+	if(geo->flags & Geometry::NORMALS)
 		header->numAttribs++;
 	int32 offset = 0;
 	header->attribs = new AttribDesc[header->numAttribs];
@@ -361,7 +361,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		firstCustom++;
 	}
 
-	if(geo->geoflags & Geometry::NORMALS){
+	if(geo->flags & Geometry::NORMALS){
 		a->index = 2;
 		a->type = 1;
 		a->normalized = 1;
@@ -372,7 +372,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		firstCustom++;
 	}
 
-	if(geo->geoflags & Geometry::PRELIT){
+	if(geo->flags & Geometry::PRELIT){
 		a->index = 3;
 		a->type = 2;
 		a->normalized = 1;
@@ -414,7 +414,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		a++;
 	}
 
-	if(geo->geoflags & Geometry::NORMALS){
+	if(geo->flags & Geometry::NORMALS){
 		p = header->data + a->offset;
 		float32 *norm = geo->morphTargets->normals;
 		for(int32 i = 0; i < geo->numVertices; i++){
@@ -425,7 +425,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		a++;
 	}
 
-	if(geo->geoflags & Geometry::PRELIT){
+	if(geo->flags & Geometry::PRELIT){
 		// TODO: this seems too complicated
 		p = header->data + a->offset;
 		uint8 *color = geo->colors;
@@ -441,7 +441,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		}
 		a++;
 	}
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 }
 
 static void
@@ -449,11 +449,11 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_WDGL);
-	geo->geoflags &= ~Geometry::NATIVE;
+	geo->flags &= ~Geometry::NATIVE;
 	geo->allocateData();
 
 	uint8 *p;

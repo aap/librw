@@ -428,7 +428,7 @@ Geometry::buildTristrips(void)
 	printf("%ld\n", sizeof(StripNode));
 
 	smesh.nodes = new StripNode[this->numTriangles];
-	for(int32 i = 0; i < this->numMaterials; i++){
+	for(int32 i = 0; i < this->matList.numMaterials; i++){
 		smesh.loneNodes.init();
 		smesh.endNodes.init();
 		collectFaces(this, &smesh, i);

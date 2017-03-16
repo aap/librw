@@ -264,9 +264,9 @@ skinUninstanceCB(MatPipeline*, Geometry *geo, uint32 flags[], Mesh *mesh, uint8 
 	int8 *norms        = (int8*)data[AT_NORMAL];
 	uint32 *wghts      = (uint32*)data[AT_NORMAL+1];
 	uint32 mask = 0x1;	// vertices
-	if(geo->geoflags & Geometry::NORMALS)
+	if(geo->flags & Geometry::NORMALS)
 		mask |= 0x10;
-	if(geo->geoflags & Geometry::PRELIT)
+	if(geo->flags & Geometry::PRELIT)
 		mask |= 0x100;
 	if(geo->numTexCoordSets > 0)
 		mask |= 0x1000;

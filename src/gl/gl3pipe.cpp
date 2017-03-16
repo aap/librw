@@ -27,9 +27,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -87,7 +87,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_GL3);
@@ -129,7 +129,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	// Normals
 	// TODO: compress
-	bool hasNormals = !!(geo->geoflags & Geometry::NORMALS);
+	bool hasNormals = !!(geo->flags & Geometry::NORMALS);
 	if(hasNormals){
 		a->index = ATTRIB_NORMAL;
 		a->size = 3;
@@ -141,7 +141,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 
 	// Prelighting
-	bool isPrelit = !!(geo->geoflags & Geometry::PRELIT);
+	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
 	if(isPrelit){
 		a->index = ATTRIB_COLOR;
 		a->size = 4;

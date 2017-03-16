@@ -129,7 +129,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst->numVertices = *(uint32*)p; p += 4;
 		inst->numIndices = *(uint32*)p; p += 4;
 		uint32 matid = *(uint32*)p; p += 4;
-		inst->material = geometry->materialList[matid];
+		inst->material = geometry->matList.materials[matid];
 		inst->vertexShader = *(uint32*)p; p += 4;
 		inst->primType = *(uint32*)p; p += 4;
 		inst->indexBuffer = nil; p += 4;
@@ -184,7 +184,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		*(uint32*)p = inst->stride; p += 4;
 		*(uint32*)p = inst->numVertices; p += 4;
 		*(uint32*)p = inst->numIndices; p += 4;
-		int32 matid = findPointer(inst->material, (void**)geometry->materialList, geometry->numMaterials);
+		int32 matid = geometry->matList.findIndex(inst->material);
 		*(int32*)p = matid; p += 4;
 		*(uint32*)p = inst->vertexShader; p += 4;
 		*(uint32*)p = inst->primType; p += 4;
@@ -248,9 +248,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->geoflags & Geometry::NATIVE)
+	if(geo->flags & Geometry::NATIVE)
 		return;
-	geo->geoflags |= Geometry::NATIVE;
+	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -295,11 +295,11 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
-	geo->geoflags &= ~Geometry::NATIVE;
+	geo->flags &= ~Geometry::NATIVE;
 	geo->allocateData();
 	geo->meshHeader->allocateIndices();
 
@@ -328,7 +328,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->geoflags & Geometry::NATIVE) == 0)
+	if((geo->flags & Geometry::NATIVE) == 0)
 		pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
@@ -350,8 +350,8 @@ ObjPipeline::ObjPipeline(uint32 platform)
 void
 defaultInstanceCB(Geometry *geo, InstanceData *inst)
 {
-	inst->vertexShader = makeFVFDeclaration(geo->geoflags, geo->numTexCoordSets);
-	inst->stride = getStride(geo->geoflags, geo->numTexCoordSets);
+	inst->vertexShader = makeFVFDeclaration(geo->flags, geo->numTexCoordSets);
+	inst->stride = getStride(geo->flags, geo->numTexCoordSets);
 
 	inst->vertexBuffer = createVertexBuffer(inst->numVertices*inst->stride,
 	                                              inst->vertexShader, D3DPOOL_MANAGED);
@@ -363,7 +363,7 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 		inst->numVertices, inst->stride);
 	dst += 12;
 
-	if(geo->geoflags & Geometry::NORMALS){
+	if(geo->flags & Geometry::NORMALS){
 		instV3d(VERT_FLOAT3, dst,
 		        &geo->morphTargets[0].normals[3*inst->minVert],
 		        inst->numVertices, inst->stride);
@@ -371,7 +371,7 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 	}
 
 	inst->vertexAlpha = 0;
-	if(geo->geoflags & Geometry::PRELIT){
+	if(geo->flags & Geometry::PRELIT){
 		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->colors[4*inst->minVert],
 		                              inst->numVertices, inst->stride);
 		dst += 4;
@@ -394,7 +394,7 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 		src, inst->numVertices, inst->stride);
 	src += 12;
 
-	if(geo->geoflags & Geometry::NORMALS){
+	if(geo->flags & Geometry::NORMALS){
 		uninstV3d(VERT_FLOAT3,
 		          &geo->morphTargets[0].normals[3*inst->minVert],
 		          src, inst->numVertices, inst->stride);
@@ -402,7 +402,7 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 	}
 
 	inst->vertexAlpha = 0;
-	if(geo->geoflags & Geometry::PRELIT){
+	if(geo->flags & Geometry::PRELIT){
 		uninstColor(VERT_ARGB, &geo->colors[4*inst->minVert], src,
 		            inst->numVertices, inst->stride);
 		src += 4;

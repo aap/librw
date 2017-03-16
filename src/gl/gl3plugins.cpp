@@ -287,7 +287,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	// Normals
 	// TODO: compress
-	bool hasNormals = !!(geo->geoflags & Geometry::NORMALS);
+	bool hasNormals = !!(geo->flags & Geometry::NORMALS);
 	if(hasNormals){
 		a->index = ATTRIB_NORMAL;
 		a->size = 3;
@@ -299,7 +299,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 
 	// Prelighting
-	bool isPrelit = !!(geo->geoflags & Geometry::PRELIT);
+	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
 	if(isPrelit){
 		a->index = ATTRIB_COLOR;
 		a->size = 4;
