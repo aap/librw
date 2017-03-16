@@ -89,6 +89,7 @@ struct V2d
 		this->x = x; this->y = y; }
 };
 
+inline V2d neg(const V2d &a) { return V2d(-a.x, -a.y); }
 inline V2d add(const V2d &a, const V2d &b) { return V2d(a.x+b.x, a.y+b.y); }
 inline V2d sub(const V2d &a, const V2d &b) { return V2d(a.x-b.x, a.y-b.y); }
 inline V2d scale(const V2d &a, float32 r) { return V2d(a.x*r, a.y*r); }
@@ -104,6 +105,7 @@ struct V3d
 		this->x = x; this->y = y; this->z = z; }
 };
 
+inline V3d neg(const V3d &a) { return V3d(-a.x, -a.y, -a.z); }
 inline V3d add(const V3d &a, const V3d &b) { return V3d(a.x+b.x, a.y+b.y, a.z+b.z); }
 inline V3d sub(const V3d &a, const V3d &b) { return V3d(a.x-b.x, a.y-b.y, a.z-b.z); }
 inline V3d scale(const V3d &a, float32 r) { return V3d(a.x*r, a.y*r, a.z*r); }
@@ -146,6 +148,12 @@ inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, Quat(v)), c
 Quat lerp(const Quat &q, const Quat &p, float32 r);
 Quat slerp(const Quat &q, const Quat &p, float32 a);
 
+enum CombineOp
+{
+	COMBINEREPLACE,
+	COMBINEPRECONCAT,
+	COMBINEPOSTCONCAT,
+};
 
 struct Matrix
 {
@@ -171,6 +179,10 @@ struct Matrix
 	static bool32 invert(Matrix *m1, Matrix *m2);
 	static void invertOrthonormal(Matrix *m1, Matrix *m2);
 	static void transpose(Matrix *m1, Matrix *m2);
+	// some more RW like helpers
+	void rotate(V3d *axis, float32 angle, CombineOp op);
+	void translate(V3d *translation, CombineOp op);
+	void scale(V3d *scl, CombineOp op);
 };
 
 struct Matrix3
@@ -202,6 +214,20 @@ struct Sphere
 {
 	V3d center;
 	float32 radius;
+};
+
+struct Plane
+{
+	V3d normal;
+	float32 distance;
+};
+
+struct BBox
+{
+	V3d sup;
+	V3d inf;
+
+	void calculate(V3d *points, int32 n);
 };
 
 enum PrimitiveType

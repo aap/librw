@@ -316,8 +316,10 @@ Clump::render(void)
 //
 
 static void
-atomicSync(ObjectWithFrame*)
+atomicSync(ObjectWithFrame *obj)
 {
+	// TODO: interpolate
+	obj->object.privateFlags |= Atomic::WORLDBOUNDDIRTY;
 }
 
 
@@ -339,13 +341,17 @@ Atomic::create(void)
 	atomic->object.object.init(Atomic::ID, 0);
 	atomic->object.syncCB = atomicSync;
 	atomic->geometry = nil;
+	atomic->boundingSphere.center.set(0.0f, 0.0f, 0.0f);
+	atomic->boundingSphere.radius = 0.0f;
 	atomic->worldBoundingSphere.center.set(0.0f, 0.0f, 0.0f);
 	atomic->worldBoundingSphere.radius = 0.0f;
 	atomic->setFrame(nil);
+	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	atomic->clump = nil;
 	atomic->pipeline = nil;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
+	// TODO: interpolator
 
 	// World extension
 	atomic->world = nil;
@@ -363,9 +369,9 @@ Atomic::clone()
 	if(atomic == nil)
 		return nil;
 	atomic->object.object.copy(&this->object.object);
-	atomic->object.object.privateFlags |= 1;
+	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	if(this->geometry)
-		atomic->setGeometry(this->geometry);
+		atomic->setGeometry(this->geometry, 0);
 	atomic->pipeline = this->pipeline;
 	s_plglist.copy(atomic, this);
 	return atomic;
@@ -393,28 +399,34 @@ Atomic::removeFromClump(void)
 }
 
 void
-Atomic::setGeometry(Geometry *geo)
+Atomic::setGeometry(Geometry *geo, uint32 flags)
 {
 	if(this->geometry)
 		this->geometry->destroy();
 	if(geo)
 		geo->refCount++;
 	this->geometry = geo;
-	// TODO: bounding stuff
+	if(flags & SAMEBOUNDINGSPHERE)
+		return;
+	if(geo){
+		this->boundingSphere = geo->morphTargets[0].boundingSphere;
+		if(this->getFrame())	// TODO: && getWorld???
+			this->getFrame()->updateObjects();
+	}
 }
 
 Sphere*
 Atomic::getWorldBoundingSphere(void)
 {
 	Sphere *s = &this->worldBoundingSphere;
+	// TODO: if we ever support morphing, check interpolation
 	if(!this->getFrame()->dirty() &&
 	   (this->object.object.privateFlags & WORLDBOUNDDIRTY) == 0)
 		return s;
 	Matrix *ltm = this->getFrame()->getLTM();
 	// TODO: support scaling
-	// TODO: if we ever support morphing, fix this:
-	s->center = ltm->transPoint(this->geometry->morphTargets[0].boundingSphere.center);
-	s->radius = this->geometry->morphTargets[0].boundingSphere.radius;
+	s->center = ltm->transPoint(this->boundingSphere.center);
+	s->radius = this->boundingSphere.radius;
 	this->object.object.privateFlags &= ~WORLDBOUNDDIRTY;
 	return s;
 }
@@ -445,10 +457,10 @@ Atomic::streamReadClump(Stream *stream,
 		g = Geometry::streamRead(stream);
 		if(g == nil)
 			goto fail;
-		atomic->setGeometry(g);
+		atomic->setGeometry(g, 0);
 		g->destroy();
 	}else
-		atomic->setGeometry(geometryList[buf[1]]);
+		atomic->setGeometry(geometryList[buf[1]], 0);
 	atomic->object.object.flags = buf[2];
 
 	atomicRights[0] = 0;

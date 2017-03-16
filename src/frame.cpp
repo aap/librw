@@ -249,6 +249,27 @@ Frame::syncDirty(void)
 }
 
 void
+Frame::rotate(V3d *axis, float32 angle, CombineOp op)
+{
+	this->matrix.rotate(axis, angle, op);
+	updateObjects();
+}
+
+void
+Frame::translate(V3d *trans, CombineOp op)
+{
+	this->matrix.translate(trans, op);
+	updateObjects();
+}
+
+void
+Frame::scale(V3d *scl, CombineOp op)
+{
+	this->matrix.scale(scl, op);
+	updateObjects();
+}
+
+void
 Frame::updateObjects(void)
 {
 	// Mark root as dirty and insert into dirty list if necessary

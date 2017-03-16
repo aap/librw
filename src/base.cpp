@@ -184,9 +184,9 @@ V3d
 Matrix::transPoint(const V3d &p)
 {
 	V3d res = this->pos;
-	res = add(res, scale(this->right, p.x));
-	res = add(res, scale(this->up, p.y));
-	res = add(res, scale(this->at, p.z));
+	res = add(res, rw::scale(this->right, p.x));
+	res = add(res, rw::scale(this->up, p.y));
+	res = add(res, rw::scale(this->at, p.z));
 	return res;
 }
 
@@ -194,9 +194,9 @@ V3d
 Matrix::transVec(const V3d &v)
 {
 	V3d res;
-	res = scale(this->right, v.x);
-	res = add(res, scale(this->up, v.y));
-	res = add(res, scale(this->at, v.z));
+	res = rw::scale(this->right, v.x);
+	res = add(res, rw::scale(this->up, v.y));
+	res = add(res, rw::scale(this->at, v.z));
 	return res;
 }
 
@@ -250,6 +250,87 @@ Matrix::transpose(Matrix *m1, Matrix *m2)
 {
 	matrixTranspose((float32*)m1, (float32*)m2);
 }
+
+void
+Matrix::rotate(V3d *axis, float32 angle, CombineOp op)
+{
+	Matrix tmp;
+	V3d v = normalize(*axis);
+	angle = angle*M_PI/180.0f;
+	float32 s = sin(angle);
+	float32 c = cos(angle);
+	float32 t = 1.0f - cos(angle);
+
+	Matrix rot = identMat;
+	rot.right.x = c + v.x*v.x*t;
+	rot.right.y = v.x*v.y*t + v.z*s;
+	rot.right.z = v.z*v.x*t - v.y*s;
+	rot.up.x = v.x*v.y*t - v.z*s;
+	rot.up.y = c + v.y*v.y*t;
+	rot.up.z = v.y*v.z*t + v.x*s;
+	rot.at.x = v.z*v.x*t + v.y*s;
+	rot.at.y = v.y*v.z*t - v.x*s;
+	rot.at.z = c + v.z*v.z*t;
+
+	switch(op){
+	case COMBINEREPLACE:
+		*this = rot;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, this, &rot);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, &rot, this);
+		*this = tmp;
+		break;
+	}
+}
+
+void
+Matrix::translate(V3d *translation, CombineOp op)
+{
+	Matrix tmp;
+	Matrix trans = identMat;
+	trans.pos = *translation;
+	switch(op){
+	case COMBINEREPLACE:
+		*this = trans;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, this, &trans);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, &trans, this);
+		*this = tmp;
+		break;
+	}
+}
+
+void
+Matrix::scale(V3d *scale, CombineOp op)
+{
+	Matrix tmp;
+	Matrix scl = identMat;
+	scl.right.x = scale->x;
+	scl.right.y = scale->y;
+	scl.right.z = scale->z;
+	switch(op){
+	case COMBINEREPLACE:
+		*this = scl;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, this, &scl);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, &scl, this);
+		*this = tmp;
+		break;
+	}
+}
+
 
 
 Matrix3

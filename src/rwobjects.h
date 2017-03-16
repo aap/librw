@@ -123,6 +123,9 @@ struct Frame : PluginBase<Frame>
 	bool32 dirty(void) {
 		return !!(this->root->object.privateFlags & HIERARCHYSYNC); }
 	Matrix *getLTM(void);
+	void rotate(V3d *axis, float32 angle, CombineOp op);
+	void translate(V3d *trans, CombineOp op);
+	void scale(V3d *trans, CombineOp op);
 	void updateObjects(void);
 
 
@@ -409,6 +412,7 @@ struct Geometry : PluginBase<Geometry>
 	void allocateData(void);
 	void generateTriangles(int8 *adc = nil);
 	void buildMeshes(void);
+	void buildTristrips(void);
 	void correctTristripWinding(void);
 	void removeUnusedMaterials(void);
 
@@ -447,9 +451,13 @@ struct Atomic : PluginBase<Atomic>
 	// private
 		WORLDBOUNDDIRTY = 0x01
 	};
+	enum {
+		SAMEBOUNDINGSPHERE = 0x01,	// for setGeometry
+	};
 
 	ObjectWithFrame object;
 	Geometry *geometry;
+	Sphere boundingSphere;
 	Sphere worldBoundingSphere;
 	Clump *clump;
 	LLLink inClump;
@@ -470,7 +478,7 @@ struct Atomic : PluginBase<Atomic>
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
 	void removeFromClump(void);
-	void setGeometry(Geometry *geo);
+	void setGeometry(Geometry *geo, uint32 flags);
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
 	void render(void) { this->renderCB(this); }
@@ -518,6 +526,8 @@ struct Light : PluginBase<Light>
 	float32 getAngle(void);
 	void setColor(float32 r, float32 g, float32 b);
 	int32 getType(void){ return this->object.object.subType; }
+	void setFlags(uint32 flags) { this->object.object.flags = flags; }
+	uint32 getFlags(void) { return this->object.object.flags; }
 	static Light *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -533,6 +543,17 @@ struct Light : PluginBase<Light>
 		LIGHTATOMICS = 1,
 		LIGHTWORLD = 2
 	};
+};
+
+struct FrustumPlane
+{
+	Plane plane;
+	/* Used for BBox tests:
+	 * 0 = inf is closer to normal direction
+	 * 1 = sup is closer to normal direction */
+	uint8 closestX;
+	uint8 closestY;
+	uint8 closestZ;
 };
 
 struct Camera : PluginBase<Camera>
@@ -552,6 +573,10 @@ struct Camera : PluginBase<Camera>
 
 	Matrix viewMatrix;
 	float32 zScale, zShift;
+
+	FrustumPlane frustumPlanes[6];
+	V3d frustumCorners[8];
+	BBox frustumBoundBox;
 
 	// clump link handled by plugin in RW
 	Clump *clump;

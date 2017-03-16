@@ -200,8 +200,8 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	rw::setRenderState(ALPHATESTFUNC, 1);
-	rw::setRenderState(ALPHATESTREF, 50);
+//	rw::setRenderState(ALPHATESTFUNC, 1);
+//	rw::setRenderState(ALPHATESTREF, 50);
 
 	int32 fx;
 	while(n--){
@@ -460,8 +460,8 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	rw::setRenderState(ALPHATESTFUNC, 1);
-	rw::setRenderState(ALPHATESTREF, 50);
+//	rw::setRenderState(ALPHATESTFUNC, 1);
+//	rw::setRenderState(ALPHATESTREF, 50);
 
 	skinShader->use();
 

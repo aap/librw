@@ -431,9 +431,26 @@ Geometry::generateTriangles(int8 *adc)
 	}
 }
 
+static void
+dumpMesh(Mesh *m)
+{
+	for(int32 i = 0; i < m->numIndices-2; i++) 
+//		if(i % 2)
+//			printf("%3d %3d %3d\n",
+//				m->indices[i+1],
+//				m->indices[i],
+//				m->indices[i+2]);
+//		else
+			printf("%d %d %d\n",
+				m->indices[i],
+				m->indices[i+1],
+				m->indices[i+2]);
+}
+
 void
 Geometry::buildMeshes(void)
 {
+//dumpMesh(this->meshHeader->mesh);
 	delete this->meshHeader;
 
 	Triangle *tri;
@@ -467,9 +484,8 @@ Geometry::buildMeshes(void)
 			h->mesh[tri->matId].numIndices = idx;
 			tri++;
 		}
-	}else{
-		assert(0 && "can't tristrip\n");
-	}
+	}else
+		this->buildTristrips();
 }
 
 /* The idea is that even in meshes where winding is not preserved
@@ -508,9 +524,11 @@ Geometry::correctTristripWinding(void)
 				/* Entering strip now,
 				 * make sure winding is correct */
 				inStrip = 1;
-				if(newmesh->numIndices % 2)
-					newmesh->indices[newmesh->numIndices++] =
+				if(newmesh->numIndices % 2){
+					newmesh->indices[newmesh->numIndices] =
 					  newmesh->indices[newmesh->numIndices-1];
+					newmesh->numIndices++;
+				}
 			}
 			newmesh->indices[newmesh->numIndices++] = mesh->indices[j];
 		}

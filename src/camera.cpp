@@ -27,6 +27,136 @@ defaultEndUpdateCB(Camera *cam)
 }
 
 static void
+buildPlanes(Camera *cam)
+{
+	V3d *c = cam->frustumCorners;
+	FrustumPlane *p = cam->frustumPlanes;
+	V3d v51 = sub(c[1], c[5]);
+	V3d v73 = sub(c[3], c[7]);
+
+	/* Far plane */
+	p[0].plane.normal = cam->getFrame()->getLTM()->at;
+	p[0].plane.distance = dot(p[0].plane.normal, c[4]);
+	p[0].closestX = p[0].plane.normal.x < 0.0f ? 0 : 1;
+	p[0].closestY = p[0].plane.normal.y < 0.0f ? 0 : 1;
+	p[0].closestZ = p[0].plane.normal.z < 0.0f ? 0 : 1;
+
+	/* Near plane */
+	p[1].plane.normal = neg(p[0].plane.normal);
+	p[1].plane.distance = dot(p[1].plane.normal, c[0]);
+	p[1].closestX = p[1].plane.normal.x < 0.0f ? 0 : 1;
+	p[1].closestY = p[1].plane.normal.y < 0.0f ? 0 : 1;
+	p[1].closestZ = p[1].plane.normal.z < 0.0f ? 0 : 1;
+
+	/* Right plane */
+	p[2].plane.normal = normalize(cross(v51,
+	                                    sub(c[6], c[5])));
+	p[2].plane.distance = dot(p[2].plane.normal, c[1]);
+	p[2].closestX = p[2].plane.normal.x < 0.0f ? 0 : 1;
+	p[2].closestY = p[2].plane.normal.y < 0.0f ? 0 : 1;
+	p[2].closestZ = p[2].plane.normal.z < 0.0f ? 0 : 1;
+
+	/* Top plane */
+	p[3].plane.normal = normalize(cross(sub(c[4], c[5]),
+	                                    v51));
+	p[3].plane.distance = dot(p[3].plane.normal, c[1]);
+	p[3].closestX = p[3].plane.normal.x < 0.0f ? 0 : 1;
+	p[3].closestY = p[3].plane.normal.y < 0.0f ? 0 : 1;
+	p[3].closestZ = p[3].plane.normal.z < 0.0f ? 0 : 1;
+
+	/* Left plane */
+	p[4].plane.normal = normalize(cross(v73,
+	                                    sub(c[4], c[7])));
+	p[4].plane.distance = dot(p[4].plane.normal, c[3]);
+	p[4].closestX = p[4].plane.normal.x < 0.0f ? 0 : 1;
+	p[4].closestY = p[4].plane.normal.y < 0.0f ? 0 : 1;
+	p[4].closestZ = p[4].plane.normal.z < 0.0f ? 0 : 1;
+
+	/* Bottom plane */
+	p[5].plane.normal = normalize(cross(sub(c[6], c[7]),
+	                                    v73));
+	p[5].plane.distance = dot(p[5].plane.normal, c[3]);
+	p[5].closestX = p[5].plane.normal.x < 0.0f ? 0 : 1;
+	p[5].closestY = p[5].plane.normal.y < 0.0f ? 0 : 1;
+	p[5].closestZ = p[5].plane.normal.z < 0.0f ? 0 : 1;
+}
+
+static void
+buildClipPersp(Camera *cam)
+{
+	Matrix *ltm = cam->getFrame()->getLTM();
+
+	/* First we calculate the 4 points on the view window. */
+	V3d up = scale(ltm->up, cam->viewWindow.y);
+	V3d left = scale(ltm->right, cam->viewWindow.x);
+	V3d *c = cam->frustumCorners;
+	c[0] = add(add(ltm->at, up), left);	// top left
+	c[1] = sub(add(ltm->at, up), left);	// top right
+	c[2] = sub(sub(ltm->at, up), left);	// bottom right
+	c[3] = add(sub(ltm->at, up), left);	// bottom left
+
+	/* Now Calculate near and far corners. */
+	V3d off = sub(scale(ltm->up, cam->viewOffset.y),
+	              scale(ltm->right, cam->viewOffset.x));
+	for(int32 i = 0; i < 4; i++){
+		V3d corner = sub(cam->frustumCorners[i], off);
+		V3d pos = add(ltm->pos, off);
+		c[i] = add(scale(corner, cam->nearPlane), pos);
+		c[i+4] = add(scale(corner, cam->farPlane), pos);
+	}
+
+	buildPlanes(cam);
+}
+
+static void
+buildClipParallel(Camera *cam)
+{
+	Matrix *ltm = cam->getFrame()->getLTM();
+	float32 nearoffx = -(1.0f - cam->nearPlane)*cam->viewOffset.x;
+	float32 nearoffy = (1.0f - cam->nearPlane)*cam->viewOffset.y;
+	float32 faroffx = -(1.0f - cam->farPlane)*cam->viewOffset.x;
+	float32 faroffy = (1.0f - cam->farPlane)*cam->viewOffset.y;
+
+	V3d *c = cam->frustumCorners;
+	c[0].x = nearoffx + cam->viewWindow.x;
+	c[0].y = nearoffy + cam->viewWindow.y;
+	c[0].z = cam->nearPlane;
+
+	c[1].x = nearoffx - cam->viewWindow.x;
+	c[1].y = nearoffy + cam->viewWindow.y;
+	c[1].z = cam->nearPlane;
+
+	c[2].x = nearoffx - cam->viewWindow.x;
+	c[2].y = nearoffy - cam->viewWindow.y;
+	c[2].z = cam->nearPlane;
+
+	c[3].x = nearoffx + cam->viewWindow.x;
+	c[3].y = nearoffy - cam->viewWindow.y;
+	c[3].z = cam->nearPlane;
+
+	c[4].x = faroffx + cam->viewWindow.x;
+	c[4].y = faroffy + cam->viewWindow.y;
+	c[4].z = cam->farPlane;
+
+	c[5].x = faroffx - cam->viewWindow.x;
+	c[5].y = faroffy + cam->viewWindow.y;
+	c[5].z = cam->farPlane;
+
+	c[6].x = faroffx - cam->viewWindow.x;
+	c[6].y = faroffy - cam->viewWindow.y;
+	c[6].z = cam->farPlane;
+
+	c[7].x = faroffx + cam->viewWindow.x;
+	c[7].y = faroffy - cam->viewWindow.y;
+	c[7].z = cam->farPlane;
+
+	for(int32 i = 0; i < 8; i++)
+		c[i] = ltm->transPoint(c[i]);
+
+	buildPlanes(cam);
+}
+
+static void
 cameraSync(ObjectWithFrame *obj)
 {
 	/*
@@ -85,6 +215,8 @@ cameraSync(ObjectWithFrame *obj)
 		proj.at.y = -proj.pos.y + 0.5f;
 		proj.at.z = 1.0f;
 		proj.atw = 1.0f;
+		Matrix::mult(&cam->viewMatrix, &proj, &inv);
+		buildClipPersp(cam);
 	}else{
 		proj.at.x = cam->viewOffset.x*xscl;
 		proj.at.y = -cam->viewOffset.y*yscl;
@@ -95,8 +227,10 @@ cameraSync(ObjectWithFrame *obj)
 		proj.pos.y = -proj.at.y + 0.5f;
 		proj.pos.z = 0.0f;
 		proj.posw = 1.0f;
+		Matrix::mult(&cam->viewMatrix, &proj, &inv);
+		buildClipParallel(cam);
 	}
-	Matrix::mult(&cam->viewMatrix, &proj, &inv);
+	cam->frustumBoundBox.calculate(cam->frustumCorners, 8);
 }
 
 void

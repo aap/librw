@@ -84,8 +84,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	rw::setRenderState(ALPHATESTFUNC, 1);
-	rw::setRenderState(ALPHATESTREF, 50);
+//	rw::setRenderState(ALPHATESTFUNC, 1);
+//	rw::setRenderState(ALPHATESTREF, 50);
 
 	simpleShader->use();
 
