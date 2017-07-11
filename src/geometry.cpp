@@ -105,6 +105,7 @@ Geometry::streamRead(Stream *stream)
 	GeoStreamData buf;
 	SurfaceProperties surfProps;
 	MaterialList *ret;
+	static SurfaceProperties reset = { 1.0f, 1.0f, 1.0f };
 
 	if(!findChunk(stream, ID_STRUCT, nil, &version)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
@@ -154,7 +155,7 @@ Geometry::streamRead(Stream *stream)
 		defaultSurfaceProps = surfProps;
 	ret = MaterialList::streamRead(stream, &geo->matList);
 	if(version < 0x34000)
-		defaultSurfaceProps = (SurfaceProperties){ 1.0f, 1.0f, 1.0f };
+		defaultSurfaceProps = reset;
 	if(ret == nil)
 		goto fail;
 	if(s_plglist.streamRead(stream, geo))

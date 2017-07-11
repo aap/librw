@@ -572,6 +572,8 @@ struct Camera : PluginBase<Camera>
 	enum { ID = 4 };
 	enum { PERSPECTIVE = 1, PARALLEL };
 	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2};
+	// return value of frustumTestSphere
+	enum { SPHEREOUTSIDE, SPHEREBOUNDARY, SPHEREINSIDE };
 
 	ObjectWithFrame object;
 	void (*beginUpdateCB)(Camera*);
@@ -612,6 +614,7 @@ struct Camera : PluginBase<Camera>
 	void clear(RGBA *col, uint32 mode);
 	void setNearPlane(float32);
 	void setFarPlane(float32);
+	int32 frustumTestSphere(Sphere *s);
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);

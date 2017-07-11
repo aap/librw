@@ -355,6 +355,21 @@ Camera::setFarPlane(float32 far)
 	calczShiftScale(this);
 }
 
+int32
+Camera::frustumTestSphere(Sphere *s)
+{
+	int32 res = SPHEREINSIDE;
+	FrustumPlane *p = this->frustumPlanes;
+	for(int32 i = 0; i < 6; i++){
+		float32 dist = dot(p->plane.normal, s->center) - p->plane.distance;
+		if(s->radius < dist)
+			return SPHEREOUTSIDE;
+		if(s->radius > -dist)
+			res = SPHEREBOUNDARY;
+	}
+	return res;
+}
+
 struct CameraChunkData
 {
 	V2d viewWindow;
