@@ -817,7 +817,7 @@ Material::streamRead(Stream *stream)
 	if(version < 0x30400)
 		mat->surfaceProps = defaultSurfaceProps;
 	else
-		stream->read(&mat->surfaceProps, sizeof(surfaceProps));
+		stream->read(&mat->surfaceProps, sizeof(SurfaceProperties));
 	if(buf.textured){
 		if(!findChunk(stream, ID_TEXTURE, &length, nil)){
 			RWERROR((ERR_CHUNK, "TEXTURE"));

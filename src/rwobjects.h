@@ -16,7 +16,7 @@ struct LLLink
 	}
 };
 
-#define LLLinkGetData(linkvar,type,entry)                           \
+#define LLLinkGetData(linkvar,type,entry) \
     ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
 
 // Have to be careful since the link might be deleted.

@@ -61,7 +61,7 @@ Clump::destroy(void)
 		Light::fromClump(lnk)->destroy();
 	FORLIST(lnk, this->cameras)
 		Camera::fromClump(lnk)->destroy();
-	if(f = this->getFrame())
+	if(f = this->getFrame(), f)
 		f->destroyHierarchy();
 	free(this);
 }

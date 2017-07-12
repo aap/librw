@@ -1,33 +1,10 @@
 CXX=ee-g++
-# null, opengl
-BUILD=ps2
+BUILD := ps2
+TARGET := librw-$(BUILD).a
+CFLAGS := -Wall -g
+INC := -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
 
-# e.g. null -> -DRW_NULL
-BUILDDEF:=$(shell echo $(BUILD) | tr a-z A-Z | sed 's/^/-DRW_/')
-BUILDDIR=build-$(BUILD)
-SRCDIR=src
-SRC := $(patsubst %.cpp,$(SRCDIR)/%.cpp, rwbase.cpp clump.cpp\
-                                         geometry.cpp plugins.cpp pipeline.cpp\
-                                         ps2.cpp ogl.cpp xbox.cpp\
-                                         image.cpp gtaplg.cpp)
-OBJ := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$(SRC))
-DEP := $(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.d,$(SRC))
-CFLAGS=-Wall -g $(BUILDDEF) -Wno-parentheses #-Wconversion
-INCPATH=-I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
-LIB=librw-$(BUILD).a
+include Make.common
 
-$(LIB): $(OBJ)
+$(TARGET): $(OBJ)
 	ar scr $@ $(OBJ)
-
-$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(INCPATH) -c $< -o $@
-
-$(BUILDDIR)/%.d: $(SRCDIR)/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) -MM -MT '$(patsubst $(SRCDIR)/%.cpp,$(BUILDDIR)/%.o,$<)' $(CFLAGS) $< > $@
-
-clean:
-	rm -f $(BUILDDIR)/*.[od]
-
--include $(DEP)

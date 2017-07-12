@@ -24,9 +24,10 @@ void
 Engine::init(void)
 {
 	engine = new Engine;
+	PluginList init = { sizeof(Driver), sizeof(Driver), nil, nil };
 
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
-		Driver::s_plglist[i] = { sizeof(Driver), sizeof(Driver), nil, nil };
+		Driver::s_plglist[i] = init;
 
 	Frame::dirtyList.init();
 

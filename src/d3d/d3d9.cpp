@@ -22,7 +22,8 @@ using namespace d3d;
 
 // TODO: move to header, but not as #define
 #ifndef RW_D3D9
-#define D3DDECL_END() {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0}
+static VertexElement _d3ddec_end = {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0};
+#define D3DDECL_END() _d3ddec_end
 #endif
 
 #define NUMDECLELT 12

@@ -229,7 +229,7 @@ Texture::read(const char *name, const char *mask)
 	Raster *raster = nil;
 	Texture *tex;
 
-	if(tex = Texture::findCB(name)){
+	if(tex = Texture::findCB(name), tex){
 		tex->refCount++;
 		return tex;
 	}
@@ -452,11 +452,11 @@ decompressDXT1(uint8 *adst, int32 w, int32 h, uint8 *src)
 {
 	/* j loops through old texels
 	 * x and y loop through new texels */
-	uint32 x = 0, y = 0;
+	int32 x = 0, y = 0;
 	uint32 c[4][4];
 	uint8 idx[16];
 	uint8 (*dst)[4] = (uint8(*)[4])adst;
-	for(uint32 j = 0; j < w*h/2; j += 8){
+	for(int32 j = 0; j < w*h/2; j += 8){
 		/* calculate colors */
 		uint32 col0 = *((uint16*)&src[j+0]);
 		uint32 col1 = *((uint16*)&src[j+2]);
@@ -519,12 +519,12 @@ decompressDXT3(uint8 *adst, int32 w, int32 h, uint8 *src)
 {
 	/* j loops through old texels
 	 * x and y loop through new texels */
-	uint32 x = 0, y = 0;
+	int32 x = 0, y = 0;
 	uint32 c[4][4];
 	uint8 idx[16];
 	uint8 a[16];
 	uint8 (*dst)[4] = (uint8(*)[4])adst;
-	for(uint32 j = 0; j < w*h; j += 16){
+	for(int32 j = 0; j < w*h; j += 16){
 		/* calculate colors */
 		uint32 col0 = *((uint16*)&src[j+8]);
 		uint32 col1 = *((uint16*)&src[j+10]);
@@ -577,13 +577,13 @@ decompressDXT5(uint8 *adst, int32 w, int32 h, uint8 *src)
 {
 	/* j loops through old texels
 	 * x and y loop through new texels */
-	uint32 x = 0, y = 0;
+	int32 x = 0, y = 0;
 	uint32 c[4][4];
 	uint32 a[8];
 	uint8 idx[16];
 	uint8 aidx[16];
 	uint8 (*dst)[4] = (uint8(*)[4])adst;
-	for(uint32 j = 0; j < w*h; j += 16){
+	for(int32 j = 0; j < w*h; j += 16){
 		/* calculate colors */
 		uint32 col0 = *((uint16*)&src[j+8]);
 		uint32 col1 = *((uint16*)&src[j+10]);

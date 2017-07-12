@@ -353,8 +353,8 @@ Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 
 
 
-static_assert(sizeof(Skin::RLEcount) == 2, "RLEcount size");
-static_assert(sizeof(Skin::RLE) == 2, "RLE size");
+//static_assert(sizeof(Skin::RLEcount) == 2, "RLEcount size");
+//static_assert(sizeof(Skin::RLE) == 2, "RLE size");
 
 void
 Skin::findNumWeights(int32 numVertices)

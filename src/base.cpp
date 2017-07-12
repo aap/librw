@@ -35,16 +35,16 @@ char *debugFile = nil;
 // TODO: comparison tolerances
 
 static Matrix identMat = {
-	{ 1.0f, 0.0f, 0.0f}, 0.0f,
-	{ 0.0f, 1.0f, 0.0f}, 0.0f,
-	{ 0.0f, 0.0f, 1.0f}, 0.0f,
-	{ 0.0f, 0.0f, 0.0f}, 1.0f
+	V3d( 1.0f, 0.0f, 0.0f), 0.0f,
+	V3d( 0.0f, 1.0f, 0.0f), 0.0f,
+	V3d( 0.0f, 0.0f, 1.0f), 0.0f,
+	V3d( 0.0f, 0.0f, 0.0f), 1.0f
 };
 
 static Matrix3 identMat3 = {
-	{ 1.0f, 0.0f, 0.0f},
-	{ 0.0f, 1.0f, 0.0f},
-	{ 0.0f, 0.0f, 1.0f}
+	V3d( 1.0f, 0.0f, 0.0f),
+	V3d( 0.0f, 1.0f, 0.0f),
+	V3d( 0.0f, 0.0f, 1.0f)
 };
 
 // lazy implementation

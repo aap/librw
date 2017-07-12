@@ -98,10 +98,10 @@ struct Driver
 extern Driver *driver[NUM_PLATFORMS];
 #define DRIVER driver[rw::platform]
 
-inline void setRenderState(int32 state, uint32 value){
+inline void SetRenderState(int32 state, uint32 value){
 	engine->setRenderState(state, value); }
 
-inline uint32 getRenderState(int32 state){
+inline uint32 GetRenderState(int32 state){
 	return engine->getRenderState(state); }
 
 namespace null {
