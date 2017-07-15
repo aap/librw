@@ -88,6 +88,7 @@
     <ClCompile Include="src\matfx.cpp" />
     <ClCompile Include="src\pipeline.cpp" />
     <ClCompile Include="src\plg.cpp" />
+    <ClCompile Include="src\prim.cpp" />
     <ClCompile Include="src\ps2\pds.cpp" />
     <ClCompile Include="src\ps2\ps2.cpp" />
     <ClCompile Include="src\ps2\ps2matfx.cpp" />
@@ -95,14 +96,14 @@
     <ClCompile Include="src\ps2\ps2skin.cpp" />
     <ClCompile Include="src\skin.cpp" />
     <ClCompile Include="src\tga.cpp" />
+    <ClCompile Include="src\tristrip.cpp" />
     <ClCompile Include="src\uvanim.cpp" />
     <ClCompile Include="src\world.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{30552BB0-3B19-49A4-ABF4-87CF68AF9E38}</ProjectGuid>
     <RootNamespace>librw</RootNamespace>
-    <WindowsTargetPlatformVersion>
-    </WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>7.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -167,33 +168,33 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug - null|Win32'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug - null|x64'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>.\lib\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>.\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(ProjectDir).\lib\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir).\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
