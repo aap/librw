@@ -103,7 +103,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 		setTexture(0, m->texture);
 
-		rw::setRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
 		flushCache();
 		glDrawElements(header->primType, inst->numIndex,

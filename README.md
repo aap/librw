@@ -22,8 +22,7 @@ is not maintained, it was only a test.
 
 * Get a solid GL3 driver working
 
-* Make building everything a bit easier
-
 # Building
 
-Edit the makefile(s) and type 'make BUILD=gl3'
+Get premake5. Generate a config, e.g. with ``premake5 gmake``,
+and look in the build directory.

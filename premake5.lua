@@ -40,6 +40,10 @@ workspace "librw"
 		system "windows"
 	filter { "platforms:linux*" }
 		system "linux"
+
+	filter "action:vs*"
+		buildoptions { "/wd4996" }
+
 	filter {}
 
 	Libdir = "lib/%{cfg.platform}/%{cfg.buildcfg}"

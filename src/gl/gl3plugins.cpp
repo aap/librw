@@ -76,7 +76,7 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 
 	setTexture(0, m->texture);
 
-	rw::setRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+	rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
 	flushCache();
 	glDrawElements(header->primType, inst->numIndex,
@@ -175,16 +175,16 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst)
 
 	setTexture(0, env->tex);
 
-	rw::setRenderState(VERTEXALPHA, 1);
-	rw::setRenderState(SRCBLEND, BLENDONE);
-	rw::setRenderState(DESTBLEND, BLENDONE);
+	rw::SetRenderState(VERTEXALPHA, 1);
+	rw::SetRenderState(SRCBLEND, BLENDONE);
+	rw::SetRenderState(DESTBLEND, BLENDONE);
 
 	flushCache();
 	glDrawElements(header->primType, inst->numIndex,
 	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 
-	rw::setRenderState(SRCBLEND, BLENDSRCALPHA);
-	rw::setRenderState(DESTBLEND, BLENDINVSRCALPHA);
+	rw::SetRenderState(SRCBLEND, BLENDSRCALPHA);
+	rw::SetRenderState(DESTBLEND, BLENDINVSRCALPHA);
 }
 
 void
@@ -200,8 +200,8 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-//	rw::setRenderState(ALPHATESTFUNC, 1);
-//	rw::setRenderState(ALPHATESTREF, 50);
+//	rw::SetRenderState(ALPHATESTFUNC, 1);
+//	rw::SetRenderState(ALPHATESTREF, 50);
 
 	int32 fx;
 	while(n--){
@@ -483,7 +483,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 		setTexture(0, m->texture);
 
-		rw::setRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
 		flushCache();
 		glDrawElements(header->primType, inst->numIndex,
