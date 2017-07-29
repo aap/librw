@@ -874,6 +874,7 @@ StreamMemory::getLength(void)
 StreamFile*
 StreamFile::open(const char *path, const char *mode)
 {
+	assert(this->file == nil);
 	this->file = fopen(path, mode);
 	if(this->file == nil){
 		RWERROR((ERR_FILE, path));
@@ -885,7 +886,9 @@ StreamFile::open(const char *path, const char *mode)
 void
 StreamFile::close(void)
 {
+	assert(this->file);
 	fclose(this->file);
+	this->file = nil;
 }
 
 uint32

@@ -300,6 +300,7 @@ class StreamFile : public Stream
 {
 	FILE *file;
 public:
+	StreamFile(void) { file = nil; }
 	void close(void);
 	uint32 write(const void *data, uint32 length);
 	uint32 read(void *data, uint32 length);

@@ -95,28 +95,37 @@ clearMatFX(MatFX *matfx)
 }
 
 void
-MatFX::setEffects(uint32 type)
+MatFX::setEffects(Material *mat, uint32 type)
 {
-	if(this->type != 0 && this->type != type)
-		clearMatFX(this);
-	this->type = type;
+	MatFX *matfx;
+
+	matfx = MatFX::get(mat);
+	if(matfx == nil){
+		matfx = new MatFX;
+		memset(matfx, 0, sizeof(MatFX));
+		*PLUGINOFFSET(MatFX*, mat, matFXGlobals.materialOffset) = matfx;
+	}
+
+	if(matfx->type != 0 && matfx->type != type)
+		clearMatFX(matfx);
+	matfx->type = type;
 	switch(type){
 	case BUMPMAP:
 	case ENVMAP:
 	case DUAL:
 	case UVTRANSFORM:
-		this->fx[0].type = type;
-		this->fx[1].type = NOTHING;
+		matfx->fx[0].type = type;
+		matfx->fx[1].type = NOTHING;
 		break;
 
 	case BUMPENVMAP:
-		this->fx[0].type = BUMPMAP;
-		this->fx[1].type = ENVMAP;
+		matfx->fx[0].type = BUMPMAP;
+		matfx->fx[1].type = ENVMAP;
 		break;
 
 	case DUALUVTRANSFORM:
-		this->fx[0].type = UVTRANSFORM;
-		this->fx[1].type = DUAL;
+		matfx->fx[0].type = UVTRANSFORM;
+		matfx->fx[1].type = DUAL;
 		break;
 	}
 }
@@ -261,16 +270,17 @@ copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
 static Stream*
 readMaterialMatFX(Stream *stream, int32, void *object, int32 offset, int32)
 {
+	Material *mat;
+	MatFX *matfx;
 	Texture *tex, *bumpedTex;
 	float coefficient;
 	int32 fbAlpha;
 	int32 srcBlend, dstBlend;
 	int32 idx;
 
-	MatFX *matfx = new MatFX;
-	memset(matfx, 0, sizeof(MatFX));
-	*PLUGINOFFSET(MatFX*, object, offset) = matfx;
-	matfx->setEffects(stream->readU32());
+	mat = (Material*)object;
+	MatFX::setEffects(mat, stream->readU32());
+	matfx = MatFX::get(mat);
 
 	for(int i = 0; i < 2; i++){
 		uint32 type = stream->readU32();
@@ -390,7 +400,7 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 		return -1;
 	int32 size = 4 + 4 + 4;
 
-	for(int i = 0; i < 2; i++)
+	for(int i = 0; i < 2; i++){
 		switch(matfx->fx[i].type){
 		case MatFX::BUMPMAP:
 			size += 4 + 4 + 4;
@@ -416,6 +426,7 @@ getSizeMaterialMatFX(void *object, int32 offset, int32)
 				  matfx->fx[i].dual.tex->streamGetSize();
 			break;
 		}
+	}
 	return size;
 }
 

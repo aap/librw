@@ -116,6 +116,7 @@ struct MatFX
 		float *dualTransform;
 	};
 	struct {
+//		uint32 foo[32];
 		uint32 type;
 		union {
 			Bump bump;
@@ -126,7 +127,7 @@ struct MatFX
 	} fx[2];
 	uint32 type;
 
-	void setEffects(uint32 flags);
+	static void setEffects(Material *m, uint32 flags);
 	static uint32 getEffects(Material *m);
 	static MatFX *get(Material *m);
 	uint32 getEffectIndex(uint32 type);
