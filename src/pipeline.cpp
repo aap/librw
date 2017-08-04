@@ -52,48 +52,48 @@ findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, i
 }
 
 void
-instV4d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride)
+instV4d(int type, uint8 *dst, V4d *src, uint32 numVertices, uint32 stride)
 {
 	if(type == VERT_FLOAT4)
 		for(uint32 i = 0; i < numVertices; i++){
 			memcpy(dst, src, 16);
 			dst += stride;
-			src += 4;
+			src++;
 		}
 	else
-		assert(0 && "unsupported instV3d type");
+		assert(0 && "unsupported instV4d type");
 }
 
 void
-instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride)
+instV3d(int type, uint8 *dst, V3d *src, uint32 numVertices, uint32 stride)
 {
 	if(type == VERT_FLOAT3)
 		for(uint32 i = 0; i < numVertices; i++){
 			memcpy(dst, src, 12);
 			dst += stride;
-			src += 3;
+			src++;
 		}
 	else if(type == VERT_COMPNORM)
 		for(uint32 i = 0; i < numVertices; i++){
-			uint32 n = ((((uint32)(src[2] *  511.0f)) & 0x3ff) << 22) |
-				   ((((uint32)(src[1] * 1023.0f)) & 0x7ff) << 11) |
-				   ((((uint32)(src[0] * 1023.0f)) & 0x7ff) <<  0);
+			uint32 n = ((((uint32)(src->z *  511.0f)) & 0x3ff) << 22) |
+				   ((((uint32)(src->y * 1023.0f)) & 0x7ff) << 11) |
+				   ((((uint32)(src->x * 1023.0f)) & 0x7ff) <<  0);
 			*(uint32*)dst = n;
 			dst += stride;
-			src += 3;
+			src++;
 		}
 	else
 		assert(0 && "unsupported instV3d type");
 }
 
 void
-uninstV3d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride)
+uninstV3d(int type, V3d *dst, uint8 *src, uint32 numVertices, uint32 stride)
 {
 	if(type == VERT_FLOAT3)
 		for(uint32 i = 0; i < numVertices; i++){
 			memcpy(dst, src, 12);
 			src += stride;
-			dst += 3;
+			dst++;
 		}
 	else if(type == VERT_COMPNORM)
 		for(uint32 i = 0; i < numVertices; i++){
@@ -106,63 +106,63 @@ uninstV3d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride)
 			if(normal[0] & 0x400) normal[0] |= ~0x7FF;
 			if(normal[1] & 0x400) normal[1] |= ~0x7FF;
 			if(normal[2] & 0x200) normal[2] |= ~0x3FF;
-			dst[0] = normal[0] / 1023.0f;
-			dst[1] = normal[1] / 1023.0f;
-			dst[2] = normal[2] / 511.0f;
+			dst->x = normal[0] / 1023.0f;
+			dst->y = normal[1] / 1023.0f;
+			dst->z = normal[2] / 511.0f;
 			src += stride;
-			dst += 3;
+			dst++;
 		}
 	else
 		assert(0 && "unsupported uninstV3d type");
 }
 
 void
-instV2d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride)
+instTexCoords(int type, uint8 *dst, TexCoords *src, uint32 numVertices, uint32 stride)
 {
 	assert(type == VERT_FLOAT2);
 	for(uint32 i = 0; i < numVertices; i++){
 		memcpy(dst, src, 8);
 		dst += stride;
-		src += 2;
+		src++;
 	}
 }
 
 void
-uninstV2d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride)
+uninstTexCoords(int type, TexCoords *dst, uint8 *src, uint32 numVertices, uint32 stride)
 {
 	assert(type == VERT_FLOAT2);
 	for(uint32 i = 0; i < numVertices; i++){
 		memcpy(dst, src, 8);
 		src += stride;
-		dst += 2;
+		dst++;
 	}
 }
 
 bool32
-instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
+instColor(int type, uint8 *dst, RGBA *src, uint32 numVertices, uint32 stride)
 {
 	bool32 hasAlpha = 0;
 	if(type == VERT_ARGB){
 		for(uint32 i = 0; i < numVertices; i++){
-			dst[0] = src[2];
-			dst[1] = src[1];
-			dst[2] = src[0];
-			dst[3] = src[3];
+			dst[0] = src->blue;
+			dst[1] = src->green;
+			dst[2] = src->red;
+			dst[3] = src->alpha;
 			if(dst[3] != 0xFF)
 				hasAlpha = 1;
 			dst += stride;
-			src += 4;
+			src++;
 		}
 	}else if(type == VERT_RGBA){
 		for(uint32 i = 0; i < numVertices; i++){
-			dst[0] = src[0];
-			dst[1] = src[1];
-			dst[2] = src[2];
-			dst[3] = src[3];
+			dst[0] = src->red;
+			dst[1] = src->green;
+			dst[2] = src->blue;
+			dst[3] = src->alpha;
 			if(dst[3] != 0xFF)
 				hasAlpha = 1;
 			dst += stride;
-			src += 4;
+			src++;
 		}
 	}else
 		assert(0 && "unsupported color type");
@@ -170,16 +170,16 @@ instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
 }
 
 void
-uninstColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride)
+uninstColor(int type, RGBA *dst, uint8 *src, uint32 numVertices, uint32 stride)
 {
 	assert(type == VERT_ARGB);
 	for(uint32 i = 0; i < numVertices; i++){
-		dst[0] = src[2];
-		dst[1] = src[1];
-		dst[2] = src[0];
-		dst[3] = src[3];
+		dst->red = src[2];
+		dst->green = src[1];
+		dst->blue = src[0];
+		dst->alpha = src[3];
 		src += stride;
-		dst += 4;
+		dst++;
 	}
 }
 

@@ -202,28 +202,23 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 		inds = skin->indices;
 	}
 
-	float32 *verts = g->morphTargets[0].vertices;
-	float32 *tex = g->texCoords[0];
-	float32 *tex1 = g->texCoords[1];
-	float32 *norms = g->morphTargets[0].normals;
-	uint8 *cols = g->colors;
+	V3d *verts = g->morphTargets[0].vertices;
+	TexCoords *tex = g->texCoords[0];
+	TexCoords *tex1 = g->texCoords[1];
+	V3d *norms = g->morphTargets[0].normals;
+	RGBA *cols = g->colors;
 
 	for(int32 i = 0; i < g->numVertices; i++){
 		uint32 flag = flags ? flags[i] : ~0;
-		if(mask & flag & 0x1 &&
-		   !(verts[0] == v->p[0] && verts[1] == v->p[1] && verts[2] == v->p[2]))
+		if(mask & flag & 0x1 && !equal(*verts, v->p))
 			goto cont;
-		if(mask & flag & 0x10 &&
-		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
+		if(mask & flag & 0x10 && !equal(*norms, v->n))
 			goto cont;
-		if(mask & flag & 0x100 &&
-		   !(cols[0] == v->c[0] && cols[1] == v->c[1] && cols[2] == v->c[2] && cols[3] == v->c[3]))
+		if(mask & flag & 0x100 && !equal(*cols, v->c))
 			goto cont;
-		if(mask & flag & 0x1000 &&
-		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
+		if(mask & flag & 0x1000 && !equal(*tex, v->t))
 			goto cont;
-		if(mask & flag & 0x2000 &&
-		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
+		if(mask & flag & 0x2000 && !equal(*tex1, v->t1))
 			goto cont;
 		if(mask & flag & 0x10000 &&
 		   !(wghts[0] == v->w[0] && wghts[1] == v->w[1] &&
@@ -233,10 +228,11 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 			goto cont;
 		return i;
 	cont:
-		verts += 3;
-		tex += 2;
-		norms += 3;
-		cols += 4;
+		verts++;
+		tex++;
+		tex1++;
+		norms++;
+		cols++;
 		wghts += 4;
 		inds += 4;
 	}

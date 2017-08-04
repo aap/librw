@@ -506,7 +506,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
 			;
-		instV2d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+		instTexCoords(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
 			geo->texCoords[n],
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
@@ -554,7 +554,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
 			;
-		uninstV2d(vertFormatMap[dcl[i].type],
+		uninstTexCoords(vertFormatMap[dcl[i].type],
 			  geo->texCoords[n],
 		          verts[dcl[i].stream] + dcl[i].offset,
 			  header->totalNumVertex,

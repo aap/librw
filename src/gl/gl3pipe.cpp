@@ -205,7 +205,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
 		for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
 			;
-		instV2d(VERT_FLOAT2, verts + a->offset,
+		instTexCoords(VERT_FLOAT2, verts + a->offset,
 			geo->texCoords[n],
 			header->totalNumVertex, a->stride);
 	}

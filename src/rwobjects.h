@@ -360,8 +360,8 @@ struct MeshHeader
 struct MorphTarget
 {
 	Sphere boundingSphere;
-	float32 *vertices;
-	float32 *normals;
+	V3d *vertices;
+	V3d *normals;
 };
 
 struct InstanceDataHeader
@@ -401,8 +401,8 @@ struct Geometry : PluginBase<Geometry>
 	int32 numTexCoordSets;
 
 	Triangle *triangles;
-	uint8 *colors;
-	float32 *texCoords[8];
+	RGBA *colors;
+	TexCoords *texCoords[8];
 
 	MorphTarget *morphTargets;
 	MaterialList matList;

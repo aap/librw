@@ -40,11 +40,11 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	geo->triangles = nil;
 	if(!(geo->flags & NATIVE) && geo->numVertices){
 		if(geo->flags & PRELIT)
-			geo->colors = new uint8[4*geo->numVertices];
+			geo->colors = new RGBA[geo->numVertices];
 		if((geo->flags & TEXTURED) || (geo->flags & TEXTURED2))
 			for(int32 i = 0; i < geo->numTexCoordSets; i++)
 				geo->texCoords[i] =
-					new float32[2*geo->numVertices];
+					new TexCoords[geo->numVertices];
 		geo->triangles = new Triangle[geo->numTriangles];
 	}
 	geo->morphTargets = new MorphTarget[1];
@@ -54,9 +54,9 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	m->vertices = nil;
 	m->normals = nil;
 	if(!(geo->flags & NATIVE) && geo->numVertices){
-		m->vertices = new float32[3*geo->numVertices];
+		m->vertices = new V3d[geo->numVertices];
 		if(geo->flags & NORMALS)
-			m->normals = new float32[3*geo->numVertices];
+			m->normals = new V3d[geo->numVertices];
 	}
 	geo->matList.init();
 	geo->meshHeader = nil;
@@ -275,9 +275,9 @@ Geometry::addMorphTargets(int32 n)
 		m->vertices = nil;
 		m->normals = nil;
 		if(!(this->flags & NATIVE)){
-			m->vertices = new float32[3*this->numVertices];
+			m->vertices = new V3d[this->numVertices];
 			if(this->flags & NORMALS)
-				m->normals = new float32[3*this->numVertices];
+				m->normals = new V3d[this->numVertices];
 		}
 	}
 	this->numMorphTargets += n;
@@ -290,15 +290,15 @@ Geometry::calculateBoundingSphere(void)
 		MorphTarget *m = &this->morphTargets[i];
 		V3d min {  1000000.0f,  1000000.0f,  1000000.0f };
 		V3d max { -1000000.0f, -1000000.0f, -1000000.0f };
-		float32 *v = m->vertices;
+		V3d *v = m->vertices;
 		for(int32 j = 0; j < this->numVertices; j++){
-			if(v[0] > max.x) max.x = v[0];
-			if(v[0] < min.x) min.x = v[0];
-			if(v[1] > max.y) max.y = v[1];
-			if(v[1] < min.y) min.y = v[1];
-			if(v[2] > max.z) max.z = v[2];
-			if(v[2] < min.z) min.z = v[2];
-			v += 3;
+			if(v->x > max.x) max.x = v->x;
+			if(v->x < min.x) min.x = v->x;
+			if(v->y > max.y) max.y = v->y;
+			if(v->y < min.y) min.y = v->y;
+			if(v->z > max.z) max.z = v->z;
+			if(v->z < min.z) min.z = v->z;
+			v++;
 		}
 		m->boundingSphere.center = scale(add(min, max), 1/2.0f);
 		max = sub(max, m->boundingSphere.center);
@@ -322,15 +322,15 @@ void
 Geometry::allocateData(void)
 {
 	if(this->flags & PRELIT)
-		this->colors = new uint8[4*this->numVertices];
+		this->colors = new RGBA[this->numVertices];
 	if((this->flags & TEXTURED) || (this->flags & TEXTURED2))
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			this->texCoords[i] =
-				new float32[2*this->numVertices];
+				new TexCoords[this->numVertices];
 	MorphTarget *m = this->morphTargets;
-	m->vertices = new float32[3*this->numVertices];
+	m->vertices = new V3d[this->numVertices];
 	if(this->flags & NORMALS)
-		m->normals = new float32[3*this->numVertices];
+		m->normals = new V3d[this->numVertices];
 	// TODO: morph targets (who cares anyway?)
 }
 

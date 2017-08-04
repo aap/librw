@@ -382,7 +382,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
 		for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
 			;
-		instV2d(VERT_FLOAT2, verts + a->offset,
+		instTexCoords(VERT_FLOAT2, verts + a->offset,
 			geo->texCoords[n],
 			header->totalNumVertex, a->stride);
 	}
@@ -390,8 +390,9 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	// Weights
 	for(a = attribs; a->index != ATTRIB_WEIGHTS; a++)
 		;
+	float *w = skin->weights;
 	instV4d(VERT_FLOAT4, verts + a->offset,
-	        skin->weights,
+	        (V4d*)w,
 	        header->totalNumVertex, a->stride);
 
 	// Indices
@@ -399,7 +400,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		;
 	// not really colors of course but what the heck
 	instColor(VERT_RGBA, verts + a->offset,
-	          skin->indices,
+	          (RGBA*)skin->indices,
 	          header->totalNumVertex, a->stride);
 
 	glGenBuffers(1, &header->vbo);

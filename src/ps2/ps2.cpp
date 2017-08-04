@@ -400,14 +400,14 @@ uint32*
 instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
-	float *d = g->morphTargets[0].normals;
+	V3d *d = g->morphTargets[0].normals;
 	uint8 *p = (uint8*)wp;
 	if((g->flags & Geometry::NORMALS))
 		for(uint32 i = idx; i < idx+n; i++){
 			j = m->indices[i];
-			*p++ = d[j*3+0]*127.0f;
-			*p++ = d[j*3+1]*127.0f;
-			*p++ = d[j*3+2]*127.0f;
+			*p++ = d[j].x*127.0f;
+			*p++ = d[j].y*127.0f;
+			*p++ = d[j].z*127.0f;
 		}
 	else
 		for(uint32 i = idx; i < idx+n; i++){
@@ -872,57 +872,19 @@ ObjPipeline::ObjPipeline(uint32 platform)
 	this->impl.uninstance = objUninstance;
 }
 
-/*
-int32
-findVertex(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
-{
-	float32 *verts = g->morphTargets[0].vertices;
-	float32 *tex = g->texCoords[0];
-	float32 *tex1 = g->texCoords[1];
-	float32 *norms = g->morphTargets[0].normals;
-	uint8 *cols = g->colors;
-
-	for(int32 i = 0; i < g->numVertices; i++){
-		if(mask & flags[i] & 0x1 &&
-		   !(verts[0] == v->p[0] && verts[1] == v->p[1] && verts[2] == v->p[2]))
-			goto cont;
-		if(mask & flags[i] & 0x10 &&
-		   !(norms[0] == v->n[0] && norms[1] == v->n[1] && norms[2] == v->n[2]))
-			goto cont;
-		if(mask & flags[i] & 0x100 &&
-		   !(cols[0] == v->c[0] && cols[1] == v->c[1] && cols[2] == v->c[2] && cols[3] == v->c[3]))
-			goto cont;
-		if(mask & flags[i] & 0x1000 &&
-		   !(tex[0] == v->t[0] && tex[1] == v->t[1]))
-			goto cont;
-		if(mask & flags[i] & 0x2000 &&
-		   !(tex1[0] == v->t1[0] && tex1[1] == v->t1[1]))
-			goto cont;
-		return i;
-	cont:
-		verts += 3;
-		tex += 2;
-		tex1 += 2;
-		norms += 3;
-		cols += 4;
-	}
-	return -1;
-}
-*/
-
 void
 insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 {
 	if(mask & 0x1)
-		memcpy(&geo->morphTargets[0].vertices[i*3], v->p, 12);
+		geo->morphTargets[0].vertices[i] = v->p;
 	if(mask & 0x10)
-		memcpy(&geo->morphTargets[0].normals[i*3], v->n, 12);
+		geo->morphTargets[0].normals[i] = v->n;
 	if(mask & 0x100)
-		memcpy(&geo->colors[i*4], v->c, 4);
+		geo->colors[i] = v->c;
 	if(mask & 0x1000)
-		memcpy(&geo->texCoords[0][i*2], v->t, 8);
+		geo->texCoords[0][i] = v->t;
 	if(mask & 0x2000)
-		memcpy(&geo->texCoords[1][i*2], v->t1, 8);
+		geo->texCoords[1][i] = v->t1;
 }
 
 void
@@ -983,9 +945,9 @@ genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 			memcpy(&v.p, xyz ? xyz : xyzw, 12);
 		if(mask & 0x10){
 			// TODO: figure out scaling :/
-			v.n[0] = normals[0]/128.0f;
-			v.n[1] = normals[1]/128.0f;
-			v.n[2] = normals[2]/128.0f;
+			v.n.x = normals[0]/128.0f;
+			v.n.y = normals[1]/128.0f;
+			v.n.z = normals[2]/128.0f;
 		}
 		if(mask & 0x100)
 			memcpy(&v.c, rgba, 4);

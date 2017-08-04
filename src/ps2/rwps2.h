@@ -121,11 +121,11 @@ public:
 };
 
 struct Vertex {
-	float32 p[3];
-	float32 t[2];
-	float32 t1[2];
-	uint8   c[4];
-	float32 n[3];
+	V3d       p;
+	TexCoords t;
+	TexCoords t1;
+	RGBA      c;
+	V3d       n;
 	// skin
 	float32 w[4];
 	uint8   i[4];

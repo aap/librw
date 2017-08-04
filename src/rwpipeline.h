@@ -47,12 +47,12 @@ enum {
 	VERT_COMPNORM
 };
 
-void instV4d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
-void instV3d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
-void uninstV3d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride);
-void instV2d(int type, uint8 *dst, float *src, uint32 numVertices, uint32 stride);
-void uninstV2d(int type, float *dst, uint8 *src, uint32 numVertices, uint32 stride);
-bool32 instColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride);
-void uninstColor(int type, uint8 *dst, uint8 *src, uint32 numVertices, uint32 stride);
+void instV4d(int type, uint8 *dst, V4d *src, uint32 numVertices, uint32 stride);
+void instV3d(int type, uint8 *dst, V3d *src, uint32 numVertices, uint32 stride);
+void uninstV3d(int type, V3d *dst, uint8 *src, uint32 numVertices, uint32 stride);
+void instTexCoords(int type, uint8 *dst, TexCoords *src, uint32 numVertices, uint32 stride);
+void uninstTexCoords(int type, TexCoords *dst, uint8 *src, uint32 numVertices, uint32 stride);
+bool32 instColor(int type, uint8 *dst, RGBA *src, uint32 numVertices, uint32 stride);
+void uninstColor(int type, RGBA *dst, uint8 *src, uint32 numVertices, uint32 stride);
 
 }

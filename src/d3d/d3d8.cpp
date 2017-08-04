@@ -378,7 +378,7 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 	}
 
 	for(int32 i = 0; i < geo->numTexCoordSets; i++){
-		instV2d(VERT_FLOAT2, dst, &geo->texCoords[i][2*inst->minVert],
+		instTexCoords(VERT_FLOAT2, dst, &geo->texCoords[i][2*inst->minVert],
 		        inst->numVertices, inst->stride);
 		dst += 8;
 	}
@@ -409,7 +409,7 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 	}
 
 	for(int32 i = 0; i < geo->numTexCoordSets; i++){
-		uninstV2d(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
+		uninstTexCoords(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
 		          inst->numVertices, inst->stride);
 		src += 8;
 	}

@@ -395,20 +395,20 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		a[i].stride = offset;
 
 	uint8 *p = header->data + a->offset;
-	float32 *vert = geo->morphTargets->vertices;
+	V3d *vert = geo->morphTargets->vertices;
 	for(int32 i = 0; i < geo->numVertices; i++){
-		packattrib(p, vert, a);
-		vert += 3;
+		packattrib(p, (float32*)vert, a);
+		vert++;
 		p += a->stride;
 	}
 	a++;
 
 	if(geo->numTexCoordSets){
 		p = header->data + a->offset;
-		float32 *texcoord = geo->texCoords[0];
+		TexCoords *texcoord = geo->texCoords[0];
 		for(int32 i = 0; i < geo->numVertices; i++){
-			packattrib(p, texcoord, a, 512.0f);
-			texcoord += 2;
+			packattrib(p, (float32*)texcoord, a, 512.0f);
+			texcoord++;
 			p += a->stride;
 		}
 		a++;
@@ -416,10 +416,10 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	if(geo->flags & Geometry::NORMALS){
 		p = header->data + a->offset;
-		float32 *norm = geo->morphTargets->normals;
+		V3d *norm = geo->morphTargets->normals;
 		for(int32 i = 0; i < geo->numVertices; i++){
-			packattrib(p, norm, a);
-			norm += 3;
+			packattrib(p, (float32*)norm, a);
+			norm++;
 			p += a->stride;
 		}
 		a++;
@@ -428,15 +428,15 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->flags & Geometry::PRELIT){
 		// TODO: this seems too complicated
 		p = header->data + a->offset;
-		uint8 *color = geo->colors;
+		RGBA *color = geo->colors;
 		float32 f[4];
 		for(int32 i = 0; i < geo->numVertices; i++){
-			f[0] = color[0]/255.0f;
-			f[1] = color[1]/255.0f;
-			f[2] = color[2]/255.0f;
-			f[3] = color[3]/255.0f;
-			packattrib(p, f, a);
-			color += 4;
+			f[0] = color->red/255.0f;
+			f[1] = color->green/255.0f;
+			f[2] = color->blue/255.0f;
+			f[3] = color->alpha/255.0f;
+			packattrib(p, (float32*)f, a);
+			color++;
 			p += a->stride;
 		}
 		a++;
@@ -457,10 +457,10 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	geo->allocateData();
 
 	uint8 *p;
-	float32 *texcoord = geo->texCoords[0];
-	uint8 *color = geo->colors;
-	float32 *vert = geo->morphTargets->vertices;
-	float32 *norm = geo->morphTargets->normals;
+	TexCoords *texcoord = geo->texCoords[0];
+	RGBA *color = geo->colors;
+	V3d *vert = geo->morphTargets->vertices;
+	V3d *norm = geo->morphTargets->normals;
 	float32 f[4];
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
@@ -471,24 +471,24 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		switch(a->index){
 		case 0:		// Vertices
 			for(int32 i = 0; i < geo->numVertices; i++){
-				unpackattrib(vert, p, a);
-				vert += 3;
+				unpackattrib((float32*)vert, p, a);
+				vert++;
 				p += a->stride;
 			}
 			break;
 
 		case 1:		// texCoords
 			for(int32 i = 0; i < geo->numVertices; i++){
-				unpackattrib(texcoord, p, a, 512.0f);
-				texcoord += 2;
+				unpackattrib((float32*)texcoord, p, a, 512.0f);
+				texcoord++;
 				p += a->stride;
 			}
 			break;
 
 		case 2:		// normals
 			for(int32 i = 0; i < geo->numVertices; i++){
-				unpackattrib(norm, p, a);
-				norm += 3;
+				unpackattrib((float32*)norm, p, a);
+				norm++;
 				p += a->stride;
 			}
 			break;
@@ -497,11 +497,11 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 			for(int32 i = 0; i < geo->numVertices; i++){
 				// TODO: this seems too complicated
 				unpackattrib(f, p, a);
-				color[0] = f[0]*255.0f;
-				color[1] = f[1]*255.0f;
-				color[2] = f[2]*255.0f;
-				color[3] = f[3]*255.0f;
-				color += 4;
+				color->red   = f[0]*255.0f;
+				color->green = f[1]*255.0f;
+				color->blue  = f[2]*255.0f;
+				color->alpha = f[3]*255.0f;
+				color++;
 				p += a->stride;
 			}
 			break;

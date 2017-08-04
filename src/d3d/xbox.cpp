@@ -321,7 +321,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		sel = (fmt >> (i*4 + 8)) & 0xF;
 		if(sel == 0)
 			break;
-		instV2d(v2dFormatMap[sel], dst, geo->texCoords[i],
+		instTexCoords(v2dFormatMap[sel], dst, geo->texCoords[i],
 		        header->numVertices, header->stride);
 		dst += sel == 4 ? 4 : 2*vertexFormatSizes[sel];
 	}
@@ -360,7 +360,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 		sel = (fmt >> (i*4 + 8)) & 0xF;
 		if(sel == 0)
 			break;
-		uninstV2d(v2dFormatMap[sel], geo->texCoords[i], src,
+		uninstTexCoords(v2dFormatMap[sel], geo->texCoords[i], src,
 		          header->numVertices, header->stride);
 		src += sel == 4 ? 4 : 2*vertexFormatSizes[sel];
 	}

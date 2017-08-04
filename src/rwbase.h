@@ -55,6 +55,7 @@ struct RGBA
 	uint8 blue;
 	uint8 alpha;
 };
+inline bool32 equal(const RGBA &c1, const RGBA &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
 
 struct RGBAf
 {
@@ -63,6 +64,7 @@ struct RGBAf
 	float32 blue;
 	float32 alpha;
 };
+inline bool32 equal(const RGBAf &c1, const RGBAf &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
 
 inline void convColor(RGBA *i, RGBAf *f){
 	int32 c;
@@ -83,6 +85,12 @@ inline void convColor(RGBAf *f, RGBA *i){
 	f->alpha = i->alpha/255.0f;
 }
 
+struct TexCoords
+{
+	float32 u, v;
+};
+inline bool32 equal(const TexCoords &t1, const TexCoords &t2) { return t1.u == t2.u && t1.v == t2.v; }
+
 struct V2d;
 struct V3d;
 struct Quat;
@@ -96,6 +104,7 @@ struct V2d
 };
 
 inline V2d makeV2d(float32 x, float32 y) { V2d v = { x, y }; return v; }
+inline bool32 equal(const V2d &v1, const V2d &v2) { return v1.x == v2.x && v1.y == v2.y; }
 inline V2d neg(const V2d &a) { return makeV2d(-a.x, -a.y); }
 inline V2d add(const V2d &a, const V2d &b) { return makeV2d(a.x+b.x, a.y+b.y); }
 inline V2d sub(const V2d &a, const V2d &b) { return makeV2d(a.x-b.x, a.y-b.y); }
@@ -113,6 +122,7 @@ struct V3d
 };
 
 inline V3d makeV3d(float32 x, float32 y, float32 z) { V3d v = { x, y, z }; return v; }
+inline bool32 equal(const V3d &v1, const V3d &v2) { return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z; }
 inline V3d neg(const V3d &a) { return makeV3d(-a.x, -a.y, -a.z); }
 inline V3d add(const V3d &a, const V3d &b) { return makeV3d(a.x+b.x, a.y+b.y, a.z+b.z); }
 inline V3d sub(const V3d &a, const V3d &b) { return makeV3d(a.x-b.x, a.y-b.y, a.z-b.z); }
@@ -127,6 +137,12 @@ inline V3d lerp(const V3d &a, const V3d &b, float32 r){
 	               a.y + r*(b.y - a.y),
 	               a.z + r*(b.z - a.z));
 };
+
+struct V4d
+{
+	float32 x, y, z, w;
+};
+inline bool32 equal(const V4d &v1, const V4d &v2) { return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w; }
 
 Quat makeQuat(float32 w, float32 x, float32 y, float32 z);
 Quat makeQuat(float32 w, const V3d &vec);
