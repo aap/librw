@@ -33,10 +33,10 @@ bool32 streamAppendFrames = 0;
 char *debugFile = nil;
 
 static Matrix identMat = {
-	V3d(1.0f, 0.0f, 0.0f), Matrix::IDENTITY|Matrix::TYPEORTHONORMAL,
-	V3d(0.0f, 1.0f, 0.0f), 0,
-	V3d(0.0f, 0.0f, 1.0f), 0,
-	V3d(0.0f, 0.0f, 0.0f), 0
+	{ 1.0f, 0.0f, 0.0f }, Matrix::IDENTITY|Matrix::TYPEORTHONORMAL,
+	{ 0.0f, 1.0f, 0.0f }, 0,
+	{ 0.0f, 0.0f, 1.0f }, 0,
+	{ 0.0f, 0.0f, 0.0f }, 0
 };
 
 // lazy implementation
@@ -60,10 +60,10 @@ strncmp_ci(const char *s1, const char *s2, int n)
 Quat
 mult(const Quat &q, const Quat &p)
 {
-	return Quat(q.w*p.w - q.x*p.x - q.y*p.y - q.z*p.z,
-	            q.w*p.x + q.x*p.w + q.y*p.z - q.z*p.y,
-	            q.w*p.y + q.y*p.w + q.z*p.x - q.x*p.z,
-	            q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
+	return makeQuat(q.w*p.w - q.x*p.x - q.y*p.y - q.z*p.z,
+	                q.w*p.x + q.x*p.w + q.y*p.z - q.z*p.y,
+	                q.w*p.y + q.y*p.w + q.z*p.x - q.x*p.z,
+	                q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
 }
 
 Quat
@@ -76,10 +76,10 @@ lerp(const Quat &q, const Quat &p, float32 r)
 		c = -c;
 		q1 = negate(q1);
 	}
-	return Quat(q1.w + r*(p.w - q1.w),
-	            q1.x + r*(p.x - q1.x),
-	            q1.y + r*(p.y - q1.y),
-	            q1.z + r*(p.z - q1.z));
+	return makeQuat(q1.w + r*(p.w - q1.w),
+	                q1.x + r*(p.x - q1.x),
+	                q1.y + r*(p.y - q1.y),
+	                q1.z + r*(p.z - q1.z));
 };
 
 Quat
@@ -108,9 +108,9 @@ slerp(const Quat &q, const Quat &p, float32 a)
 V3d
 cross(const V3d &a, const V3d &b)
 {
-	return V3d(a.y*b.z - a.z*b.y,
-	           a.z*b.x - a.x*b.z,
-	           a.x*b.y - a.y*b.x);
+	return makeV3d(a.y*b.z - a.z*b.y,
+	               a.z*b.x - a.x*b.z,
+	               a.x*b.y - a.y*b.x);
 }
 
 void
@@ -457,9 +457,9 @@ Matrix::orthogonalError(void)
 float32
 Matrix::identityError(void)
 {
-	V3d r(right.x-1.0, right.y, right.z);
-	V3d u(up.x, up.y-1.0, up.z);
-	V3d a(at.x, at.y, at.z-1.0);
+	V3d r { right.x-1.0f, right.y, right.z };
+	V3d u { up.x, up.y-1.0f, up.z };
+	V3d a { at.x, at.y, at.z-1.0f };
 	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
 
