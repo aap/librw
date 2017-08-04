@@ -106,6 +106,9 @@ rasterCreate(Raster *raster)
 	int32 pageWidth, pageHeight;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 
+	if(raster->flags & Raster::DONTALLOCATE)
+		return;
+
 	//printf("%x %x %x %x\n", raster->format, raster->flags, raster->type, noNewStyleRasters);
 	assert(raster->type == Raster::TEXTURE);
 	switch(raster->depth){

@@ -83,11 +83,18 @@ inline void convColor(RGBAf *f, RGBA *i){
 	f->alpha = i->alpha/255.0f;
 }
 
+struct V2d;
+struct V3d;
+struct Quat;
+struct Matrix;
+
 struct V2d
 {
 	float32 x, y;
+	// TODO: remove and make this POD
 	V2d(void) : x(0.0f), y(0.0f) {}
 	V2d(float32 x, float32 y) : x(x), y(y) {}
+
 	void set(float32 x, float32 y){
 		this->x = x; this->y = y; }
 };
@@ -102,10 +109,14 @@ inline V2d normalize(const V2d &v) { return scale(v, 1.0f/length(v)); }
 struct V3d
 {
 	float32 x, y, z;
+	// TODO: remove and make this POD
 	V3d(void) : x(0.0f), y(0.0f), z(0.0f) {}
 	V3d(float32 x, float32 y, float32 z) : x(x), y(y), z(z) {}
+
 	void set(float32 x, float32 y, float32 z){
 		this->x = x; this->y = y; this->z = z; }
+	static void transformPoints(V3d *out, V3d *in, int32 n, Matrix *m);
+	static void transformVectors(V3d *out, V3d *in, int32 n, Matrix *m);
 };
 
 inline V3d neg(const V3d &a) { return V3d(-a.x, -a.y, -a.z); }
@@ -158,7 +169,7 @@ enum CombineOp
 	COMBINEPOSTCONCAT,
 };
 
-struct Matrix
+struct RawMatrix
 {
 	V3d right;
 	float32 rightw;
@@ -167,51 +178,77 @@ struct Matrix
 	V3d at;
 	float32 atw;
 	V3d pos;
-	float32 posw;
+	float32 posw;;
+
+};
+
+struct Matrix
+{
+	enum Type {
+		TYPENORMAL	= 1,
+		TYPEORTHOGONAL	= 2,
+		TYPEORTHONORMAL	= 3,
+		TYPEMASK = 3
+	};
+	enum Flags {
+		IDENTITY = 0x20000
+	};
+	struct Tolerance {
+		float32 normal;
+		float32 orthogonal;
+		float32 identity;
+	};
+
+	V3d right;
+	uint32 flags;
+	V3d up;
+	uint32 pad1;
+	V3d at;
+	uint32 pad2;
+	V3d pos;
+	uint32 pad3;
 
 	static Matrix *create(void);
 	void destroy(void);
-	static Matrix makeRotation(const Quat &q);
 	void setIdentity(void);
-	void pointInDirection(const V3d &d, const V3d &up);
-	V3d transPoint(const V3d &p);
-	V3d transVec(const V3d &v);
+	void optimize(Tolerance *tolerance = nil);
+	void update(void) { flags &= ~(IDENTITY|TYPEMASK); }
+	static Matrix *mult(Matrix *dst, Matrix *src1, Matrix *src2);
+	static Matrix *invert(Matrix *m1, Matrix *m2);
+	Matrix *rotate(V3d *axis, float32 angle, CombineOp op);
+	Matrix *rotate(const Quat &q, CombineOp op);
+	Matrix *translate(V3d *translation, CombineOp op);
+	Matrix *scale(V3d *scl, CombineOp op);
+	void lookAt(const V3d &dir, const V3d &up);
+
+	// helper functions. consider private
+	static void mult_(Matrix *dst, Matrix *src1, Matrix *src2);
+	static void invertOrthonormal(Matrix *dst, Matrix *src);
+	static Matrix *invertGeneral(Matrix *dst, Matrix *src);
+	static void makeRotation(Matrix *dst, V3d *axis, float32 angle);
+	static void makeRotation(Matrix *dst, const Quat &q);
+/*
 	bool32 isIdentity(void);
-	// not very pretty :/
-	static void mult(Matrix *m1, Matrix *m2, Matrix *m3);
-	static bool32 invert(Matrix *m1, Matrix *m2);
-	static void invertOrthonormal(Matrix *m1, Matrix *m2);
 	static void transpose(Matrix *m1, Matrix *m2);
-	// some more RW like helpers
-	void rotate(V3d *axis, float32 angle, CombineOp op);
-	void translate(V3d *translation, CombineOp op);
-	void scale(V3d *scl, CombineOp op);
+*/
+private:
+	float32 normalError(void);
+	float32 orthogonalError(void);
+	float32 identityError(void);
 };
 
-struct Matrix3
-{
-	V3d right, up, at;
+inline void convMatrix(Matrix *dst, RawMatrix *src){
+	*dst = *(Matrix*)src;
+	dst->optimize();
+}
 
-	static Matrix3 makeRotation(const Quat &q);
-	void setIdentity(void);
-	V3d transVec(const V3d &v);
-	bool32 isIdentity(void);
-	float32 determinant(void);
-	// not very pretty :/
-	static void mult(Matrix3 *m1, Matrix3 *m2, Matrix3 *m3);
-	static bool32 invert(Matrix3 *m1, Matrix3 *m2);
-	static void transpose(Matrix3 *m1, Matrix3 *m2);
-};
-
-void matrixIdentity(float32 *mat);
-int matrixEqual(float32 *m1, float32 *m2);
-int matrixIsIdentity(float32 *mat);
-void matrixMult(float32 *out, float32 *a, float32 *b);
-void vecTrans(float32 *out, float32 *mat, float32 *vec);
-void matrixTranspose(float32 *out, float32 *in);
-bool32 matrixInvert(float32 *out, float32 *in);
-void matrixPrint(float32 *mat);
-bool32 equal(const Matrix &m1, const Matrix &m2);
+inline void convMatrix(RawMatrix *dst, Matrix *src){
+	*dst = *(RawMatrix*)src;
+	dst->rightw = 0.0;
+	dst->upw = 0.0;
+	dst->atw = 0.0;
+	dst->posw = 1.0;
+}
 
 struct Sphere
 {

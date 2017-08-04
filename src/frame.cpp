@@ -157,8 +157,8 @@ syncLTMRecurse(Frame *frame, uint8 hierarchyFlags)
 		// If frame is dirty or any parent was dirty, update LTM
 		hierarchyFlags |= frame->object.privateFlags;
 		if(hierarchyFlags & Frame::SUBTREESYNCLTM){
-			Matrix::mult(&frame->ltm, &frame->getParent()->ltm,
-			                          &frame->matrix);
+			Matrix::mult(&frame->ltm, &frame->matrix,
+			             &frame->getParent()->ltm);
 			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
 		}
 		// And synch all children
@@ -188,8 +188,8 @@ syncRecurse(Frame *frame, uint8 hierarchyFlags)
 		// If frame is dirty or any parent was dirty, update LTM
 		hierarchyFlags |= frame->object.privateFlags;
 		if(hierarchyFlags & Frame::SUBTREESYNCLTM)
-			Matrix::mult(&frame->ltm, &frame->getParent()->ltm,
-			                          &frame->matrix);
+			Matrix::mult(&frame->ltm, &frame->matrix,
+			             &frame->getParent()->ltm);
 		// Synch attached objects
 		FORLIST(lnk, frame->objectList)
 			ObjectWithFrame::fromFrame(lnk)->sync();
@@ -350,13 +350,10 @@ FrameList_::streamRead(Stream *stream)
 			return nil;
 		}
 		f->matrix.right = buf.right;
-		f->matrix.rightw = 0.0f;
 		f->matrix.up = buf.up;
-		f->matrix.upw = 0.0f;
 		f->matrix.at = buf.at;
-		f->matrix.atw = 0.0f;
 		f->matrix.pos = buf.pos;
-		f->matrix.posw = 1.0f;
+		f->matrix.optimize();
 		//f->matflag = buf.matflag;
 		if(buf.parent >= 0)
 			this->frames[buf.parent]->addChild(f, rw::streamAppendFrames);

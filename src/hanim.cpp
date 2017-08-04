@@ -293,7 +293,7 @@ hanimApplyCB(void *result, void *frame)
 {
 	Matrix *m = (Matrix*)result;
 	HAnimInterpFrame *f = (HAnimInterpFrame*)frame;
-	*m = Matrix::makeRotation(f->q);
+	m->rotate(f->q, COMBINEREPLACE);
 	m->pos = f->t;
 }
 

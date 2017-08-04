@@ -1,3 +1,16 @@
+- change naming convention? make globals stand out more
+- implement basic types
+- geometry lock/unlock
+ -> reinstance
+  -> revisit pipelines
+  -> implement tristrips
+- rasters
+ - lock/unlock
+ - camera rasters
+ - more file formats (PNG)
+- PS2 rendering!
+- Im2d and Im3d
+
 BUGS:
 	- fseek with negative offset on ps2 over ps2link messes up the current position
 

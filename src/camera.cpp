@@ -150,8 +150,7 @@ buildClipParallel(Camera *cam)
 	c[7].y = faroffy - cam->viewWindow.y;
 	c[7].z = cam->farPlane;
 
-	for(int32 i = 0; i < 8; i++)
-		c[i] = ltm->transPoint(c[i]);
+	V3d::transformPoints(c, c, 8, ltm);
 
 	buildPlanes(cam);
 }
@@ -195,39 +194,36 @@ cameraSync(ObjectWithFrame *obj)
 	float32 xscl = 2.0f/cam->viewWindow.x;
 	float32 yscl = 2.0f/cam->viewWindow.y;
 
+	proj.flags = 0;
 	proj.right.x = xscl;
 	proj.right.y = 0.0f;
 	proj.right.z = 0.0f;
-	proj.rightw = 0.0f;
 
 	proj.up.x = 0.0f;
 	proj.up.y = -yscl;
 	proj.up.z = 0.0f;
-	proj.upw = 0.0f;
 
 	if(cam->projection == Camera::PERSPECTIVE){
 		proj.pos.x = -cam->viewOffset.x*xscl;
 		proj.pos.y = cam->viewOffset.y*yscl;
 		proj.pos.z = 0.0f;
-		proj.posw = 0.0f;
 
 		proj.at.x = -proj.pos.x + 0.5f;
 		proj.at.y = -proj.pos.y + 0.5f;
 		proj.at.z = 1.0f;
-		proj.atw = 1.0f;
-		Matrix::mult(&cam->viewMatrix, &proj, &inv);
+		proj.optimize();
+		Matrix::mult(&cam->viewMatrix, &inv, &proj);
 		buildClipPersp(cam);
 	}else{
 		proj.at.x = cam->viewOffset.x*xscl;
 		proj.at.y = -cam->viewOffset.y*yscl;
 		proj.at.z = 1.0f;
-		proj.atw = 0.0f;
 
 		proj.pos.x = -proj.at.x + 0.5f;
 		proj.pos.y = -proj.at.y + 0.5f;
 		proj.pos.z = 0.0f;
-		proj.posw = 1.0f;
-		Matrix::mult(&cam->viewMatrix, &proj, &inv);
+		proj.optimize();
+		Matrix::mult(&cam->viewMatrix, &inv, &proj);
 		buildClipParallel(cam);
 	}
 	cam->frustumBoundBox.calculate(cam->frustumCorners, 8);

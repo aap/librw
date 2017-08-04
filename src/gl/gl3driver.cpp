@@ -50,10 +50,10 @@ struct UniformLight
 
 struct UniformObject
 {
-	Matrix world;
-	RGBAf  ambLight;
-	int32  numLights;
-	int32  pad[3];
+	RawMatrix    world;
+	RGBAf        ambLight;
+	int32        numLights;
+	int32        pad[3];
 	UniformLight lights[MAX_LIGHTS];
 };
 
@@ -221,7 +221,7 @@ resetRenderState(void)
 void
 setWorldMatrix(Matrix *mat)
 {
-	uniformObject.world = *mat;
+	convMatrix(&uniformObject.world, mat);
 	objectDirty = 1;
 }
 
@@ -345,8 +345,7 @@ beginUpdate(Camera *cam)
 	float view[16], proj[16];
 	// View Matrix
 	Matrix inv;
-	// TODO: maybe use matrix flags....
-	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
+	Matrix::invert(&inv, cam->getFrame()->getLTM());
 	// Since we're looking into positive Z,
 	// flip X to ge a left handed view space.
 	view[0]  = -inv.right.x;

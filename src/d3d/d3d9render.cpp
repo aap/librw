@@ -21,9 +21,12 @@ void defaultRenderCB(Atomic*, InstanceDataHeader*) {}
 void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
+	RawMatrix world;
+
 	Geometry *geo = atomic->geometry;
 	Frame *f = atomic->getFrame();
-	device->SetTransform(D3DTS_WORLD, (D3DMATRIX*)f->getLTM());
+	convMatrix(&world, f->getLTM());
+	device->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world);
 
 	device->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                        0, header->vertexStream[0].stride);

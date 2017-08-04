@@ -32,19 +32,11 @@ int32 build = 0xFFFF;
 bool32 streamAppendFrames = 0;
 char *debugFile = nil;
 
-// TODO: comparison tolerances
-
 static Matrix identMat = {
-	V3d( 1.0f, 0.0f, 0.0f), 0.0f,
-	V3d( 0.0f, 1.0f, 0.0f), 0.0f,
-	V3d( 0.0f, 0.0f, 1.0f), 0.0f,
-	V3d( 0.0f, 0.0f, 0.0f), 1.0f
-};
-
-static Matrix3 identMat3 = {
-	V3d( 1.0f, 0.0f, 0.0f),
-	V3d( 0.0f, 1.0f, 0.0f),
-	V3d( 0.0f, 0.0f, 1.0f)
+	V3d(1.0f, 0.0f, 0.0f), Matrix::IDENTITY|Matrix::TYPEORTHONORMAL,
+	V3d(0.0f, 1.0f, 0.0f), 0,
+	V3d(0.0f, 0.0f, 1.0f), 0,
+	V3d(0.0f, 0.0f, 0.0f), 0
 };
 
 // lazy implementation
@@ -109,6 +101,10 @@ slerp(const Quat &q, const Quat &p, float32 a)
 	return q1;
 }
 
+//
+// V3d
+//
+
 V3d
 cross(const V3d &a, const V3d &b)
 {
@@ -116,6 +112,38 @@ cross(const V3d &a, const V3d &b)
 	           a.z*b.x - a.x*b.z,
 	           a.x*b.y - a.y*b.x);
 }
+
+void
+V3d::transformPoints(V3d *out, V3d *in, int32 n, Matrix *m)
+{
+	int32 i;
+	V3d tmp;
+	for(i = 0; i < n; i++){
+		tmp.x = in[i].x*m->right.x + in[i].y*m->up.x + in[i].z*m->at.x + m->pos.x;
+		tmp.y = in[i].x*m->right.y + in[i].y*m->up.y + in[i].z*m->at.y + m->pos.y;
+		tmp.z = in[i].x*m->right.z + in[i].y*m->up.z + in[i].z*m->at.z + m->pos.z;
+		out[i] = tmp;
+	}
+}
+
+void
+V3d::transformVectors(V3d *out, V3d *in, int32 n, Matrix *m)
+{
+	int32 i;
+	V3d tmp;
+	for(i = 0; i < n; i++){
+		tmp.x = in[i].x*m->right.x + in[i].y*m->up.x + in[i].z*m->at.x;
+		tmp.y = in[i].x*m->right.y + in[i].y*m->up.y + in[i].z*m->at.y;
+		tmp.z = in[i].x*m->right.z + in[i].y*m->up.z + in[i].z*m->at.z;
+		out[i] = tmp;
+	}
+}
+
+//
+// Matrix
+//
+
+static Matrix::Tolerance matrixDefaultTolerance = { 0.01, 0.01, 0.01 };
 
 Matrix*
 Matrix::create(void)
@@ -131,40 +159,6 @@ Matrix::destroy(void)
 	free(this);
 }
 
-/* q must be normalized */
-Matrix
-Matrix::makeRotation(const Quat &q)
-{
-	Matrix res;
-	float xx = q.x*q.x;
-	float yy = q.y*q.y;
-	float zz = q.z*q.z;
-	float yz = q.y*q.z;
-	float zx = q.z*q.x;
-	float xy = q.x*q.y;
-	float wx = q.w*q.x;
-	float wy = q.w*q.y;
-	float wz = q.w*q.z;
-
-	res.right.x = 1.0f - 2.0f*(yy + zz);
-	res.right.y =        2.0f*(xy + wz);
-	res.right.z =        2.0f*(zx - wy);
-
-	res.up.x =        2.0f*(xy - wz);
-	res.up.y = 1.0f - 2.0f*(xx + zz);
-	res.up.z =        2.0f*(yz + wx);
-
-	res.at.x =        2.0f*(zx + wy);
-	res.at.y =        2.0f*(yz - wx);
-	res.at.z = 1.0f - 2.0f*(xx + yy);
-
-	res.pos.x = res.pos.y = res.pos.z = 0.0f;
-
-	res.rightw = res.upw = res.atw = 0.0f;
-	res.posw = 1.0f;
-	return res;
-}
-
 void
 Matrix::setIdentity(void)
 {
@@ -172,122 +166,96 @@ Matrix::setIdentity(void)
 }
 
 void
-Matrix::pointInDirection(const V3d &d, const V3d &up)
+Matrix::optimize(Tolerance *tolerance)
 {
-	// this->right is really pointing left
-	this->at = normalize(d);
-	this->right = normalize(cross(up, this->at));
-	this->up = cross(this->at, this->right);
+	bool32 isnormal, isorthogonal, isidentity;
+	if(tolerance == nil)
+		tolerance = &matrixDefaultTolerance;
+	isnormal = normalError() <= tolerance->normal;
+	isorthogonal = orthogonalError() <= tolerance->orthogonal;
+	isidentity = isnormal && isorthogonal && identityError() <= tolerance->identity;
+	if(isnormal)
+		flags |= TYPENORMAL;
+	else
+		flags &= ~TYPENORMAL;
+	if(isorthogonal)
+		flags |= TYPEORTHOGONAL;
+	else
+		flags &= ~TYPEORTHOGONAL;
+	if(isidentity)
+		flags |= IDENTITY;
+	else
+		flags &= ~IDENTITY;
 }
 
-V3d
-Matrix::transPoint(const V3d &p)
+Matrix*
+Matrix::mult(Matrix *dst, Matrix *src1, Matrix *src2)
 {
-	V3d res = this->pos;
-	res = add(res, rw::scale(this->right, p.x));
-	res = add(res, rw::scale(this->up, p.y));
-	res = add(res, rw::scale(this->at, p.z));
-	return res;
+	if(src1->flags & IDENTITY)
+		*dst = *src2;
+	else if(src2->flags & IDENTITY)
+		*dst = *src1;
+	else{
+		mult_(dst, src1, src2);
+		dst->flags = src1->flags & src2->flags;
+	}
+	return dst;
 }
 
-V3d
-Matrix::transVec(const V3d &v)
+Matrix*
+Matrix::invert(Matrix *dst, Matrix *src)
 {
-	V3d res;
-	res = rw::scale(this->right, v.x);
-	res = add(res, rw::scale(this->up, v.y));
-	res = add(res, rw::scale(this->at, v.z));
-	return res;
+	if(src->flags & IDENTITY)
+		*dst = *src;
+	else if((src->flags & TYPEMASK) == TYPEORTHONORMAL)
+		invertOrthonormal(dst, src);
+	else
+		return invertGeneral(dst, src);
+	return dst;
 }
 
-bool32
-Matrix::isIdentity(void)
-{
-	return matrixIsIdentity((float32*)this);
-}
-
-void
-Matrix::mult(Matrix *m1, Matrix *m2, Matrix *m3)
-{
-	matrixMult((float32*)m1, (float32*)m2, (float32*)m3);
-}
-
-bool32
-Matrix::invert(Matrix *m1, Matrix *m2)
-{
-	return matrixInvert((float32*)m1, (float32*)m2);
-}
-
-void
-Matrix::invertOrthonormal(Matrix *m1, Matrix *m2)
-{
-	m1->right.x = m2->right.x;
-	m1->right.y = m2->up.x;
-	m1->right.z = m2->at.x;
-	m1->up.x = m2->right.y;
-	m1->up.y = m2->up.y;
-	m1->up.z = m2->at.y;
-	m1->at.x = m2->right.z;
-	m1->at.y = m2->up.z;
-	m1->at.z = m2->at.z;
-	m1->pos.x = -(m2->pos.x*m2->right.x +
-	              m2->pos.y*m2->right.y +
-	              m2->pos.z*m2->right.z);
-	m1->pos.y = -(m2->pos.x*m2->up.x +
-	              m2->pos.y*m2->up.y +
-	              m2->pos.z*m2->up.z);
-	m1->pos.z = -(m2->pos.x*m2->at.x +
-	              m2->pos.y*m2->at.y +
-	              m2->pos.z*m2->at.z);
-	m1->rightw = 0.0f;
-	m1->upw = 0.0f;
-	m1->atw = 0.0f;
-	m1->posw = 1.0f;
-}
-
-void
-Matrix::transpose(Matrix *m1, Matrix *m2)
-{
-	matrixTranspose((float32*)m1, (float32*)m2);
-}
-
-void
+Matrix*
 Matrix::rotate(V3d *axis, float32 angle, CombineOp op)
 {
-	Matrix tmp;
-	V3d v = normalize(*axis);
-	angle = angle*M_PI/180.0f;
-	float32 s = sin(angle);
-	float32 c = cos(angle);
-	float32 t = 1.0f - cos(angle);
-
-	Matrix rot = identMat;
-	rot.right.x = c + v.x*v.x*t;
-	rot.right.y = v.x*v.y*t + v.z*s;
-	rot.right.z = v.z*v.x*t - v.y*s;
-	rot.up.x = v.x*v.y*t - v.z*s;
-	rot.up.y = c + v.y*v.y*t;
-	rot.up.z = v.y*v.z*t + v.x*s;
-	rot.at.x = v.z*v.x*t + v.y*s;
-	rot.at.y = v.y*v.z*t - v.x*s;
-	rot.at.z = c + v.z*v.z*t;
-
+	Matrix tmp, rot;
+	makeRotation(&rot, axis, angle);
 	switch(op){
 	case COMBINEREPLACE:
 		*this = rot;
 		break;
 	case COMBINEPRECONCAT:
-		mult(&tmp, this, &rot);
-		*this = tmp;
-		break;
-	case COMBINEPOSTCONCAT:
 		mult(&tmp, &rot, this);
 		*this = tmp;
 		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, &rot);
+		*this = tmp;
+		break;
 	}
+	return this;
 }
 
-void
+Matrix*
+Matrix::rotate(const Quat &q, CombineOp op)
+{
+	Matrix tmp, rot;
+	makeRotation(&rot, q);
+	switch(op){
+	case COMBINEREPLACE:
+		*this = rot;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, &rot, this);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, &rot);
+		*this = tmp;
+		break;
+	}
+	return this;
+}
+Matrix*
 Matrix::translate(V3d *translation, CombineOp op)
 {
 	Matrix tmp;
@@ -298,17 +266,18 @@ Matrix::translate(V3d *translation, CombineOp op)
 		*this = trans;
 		break;
 	case COMBINEPRECONCAT:
-		mult(&tmp, this, &trans);
-		*this = tmp;
-		break;
-	case COMBINEPOSTCONCAT:
 		mult(&tmp, &trans, this);
 		*this = tmp;
 		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, &trans);
+		*this = tmp;
+		break;
 	}
+	return this;
 }
 
-void
+Matrix*
 Matrix::scale(V3d *scale, CombineOp op)
 {
 	Matrix tmp;
@@ -321,313 +290,194 @@ Matrix::scale(V3d *scale, CombineOp op)
 		*this = scl;
 		break;
 	case COMBINEPRECONCAT:
-		mult(&tmp, this, &scl);
-		*this = tmp;
-		break;
-	case COMBINEPOSTCONCAT:
 		mult(&tmp, &scl, this);
 		*this = tmp;
 		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, &scl);
+		*this = tmp;
+		break;
 	}
-}
-
-
-
-Matrix3
-Matrix3::makeRotation(const Quat &q)
-{
-	Matrix3 res;
-	res.right.x = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
-	res.right.y = 2*q.w*q.z + 2*q.x*q.y;
-	res.right.z = 2*q.x*q.z - 2*q.w*q.y;
-	res.up.x    = 2*q.x*q.y - 2*q.w*q.z;
-	res.up.y    = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
-	res.up.z    = 2*q.w*q.x + 2*q.y*q.z;
-	res.at.x    = 2*q.w*q.y + 2*q.x*q.z;
-	res.at.y    = 2*q.y*q.z - 2*q.w*q.x;
-	res.at.z    = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
-	return res;
+	return this;
 }
 
 void
-Matrix3::setIdentity(void)
+Matrix::lookAt(const V3d &dir, const V3d &up)
 {
-	*this = identMat3;
+	// this->right is really pointing left
+	this->at = normalize(dir);
+	this->right = normalize(cross(up, this->at));
+	this->up = cross(this->at, this->right);
+	this->flags = TYPEORTHONORMAL;
 }
 
-V3d
-Matrix3::transVec(const V3d &v)
+void
+Matrix::mult_(Matrix *dst, Matrix *src1, Matrix *src2)
 {
-	V3d res;
-	res = scale(this->right, v.x);
-	res = add(res, scale(this->up, v.y));
-	res = add(res, scale(this->at, v.z));
-	return res;
+	dst->right.x = src1->right.x*src2->right.x + src1->right.y*src2->up.x + src1->right.z*src2->at.x;
+	dst->right.y = src1->right.x*src2->right.y + src1->right.y*src2->up.y + src1->right.z*src2->at.y;
+	dst->right.z = src1->right.x*src2->right.z + src1->right.y*src2->up.z + src1->right.z*src2->at.z;
+	dst->up.x    = src1->up.x*src2->right.x    + src1->up.y*src2->up.x    + src1->up.z*src2->at.x;
+	dst->up.y    = src1->up.x*src2->right.y    + src1->up.y*src2->up.y    + src1->up.z*src2->at.y;
+	dst->up.z    = src1->up.x*src2->right.z    + src1->up.y*src2->up.z    + src1->up.z*src2->at.z;
+	dst->at.x    = src1->at.x*src2->right.x    + src1->at.y*src2->up.x    + src1->at.z*src2->at.x;
+	dst->at.y    = src1->at.x*src2->right.y    + src1->at.y*src2->up.y    + src1->at.z*src2->at.y;
+	dst->at.z    = src1->at.x*src2->right.z    + src1->at.y*src2->up.z    + src1->at.z*src2->at.z;
+	dst->pos.x   = src1->pos.x*src2->right.x   + src1->pos.y*src2->up.x   + src1->pos.z*src2->at.x + src2->pos.x;
+	dst->pos.y   = src1->pos.x*src2->right.y   + src1->pos.y*src2->up.y   + src1->pos.z*src2->at.y + src2->pos.y;
+	dst->pos.z   = src1->pos.x*src2->right.z   + src1->pos.y*src2->up.z   + src1->pos.z*src2->at.z + src2->pos.z;
 }
 
-bool32
-Matrix3::isIdentity(void)
+void
+Matrix::invertOrthonormal(Matrix *dst, Matrix *src)
 {
-	return right.x == 1.0f && right.y == 0.0f && right.z == 0.0f &&
-	       up.x == 0.0f    && up.y == 1.0f    && up.z == 0.0f &&
-	       at.x == 0.0f    && at.y == 0.0f    && at.z == 1.0f;
+	dst->right.x = src->right.x;
+	dst->right.y = src->up.x;
+	dst->right.z = src->at.x;
+	dst->up.x = src->right.y;
+	dst->up.y = src->up.y;
+	dst->up.z = src->at.y;
+	dst->at.x = src->right.z;
+	dst->at.y = src->up.z;
+	dst->at.z = src->at.z;
+	dst->pos.x = -(src->pos.x*src->right.x +
+	               src->pos.y*src->right.y +
+	               src->pos.z*src->right.z);
+	dst->pos.y = -(src->pos.x*src->up.x +
+	               src->pos.y*src->up.y +
+	               src->pos.z*src->up.z);
+	dst->pos.z = -(src->pos.x*src->at.x +
+	               src->pos.y*src->at.y +
+	               src->pos.z*src->at.z);
+	dst->flags = TYPEORTHONORMAL;
+}
+
+Matrix*
+Matrix::invertGeneral(Matrix *dst, Matrix *src)
+{
+	float32 det, invdet;
+	// calculate a few cofactors
+	dst->right.x = src->up.y*src->at.z - src->up.z*src->at.y;
+	dst->right.y = src->at.y*src->right.z - src->at.z*src->right.y;
+	dst->right.z = src->right.y*src->up.z - src->right.z*src->up.y;
+	// get the determinant from that
+	det = src->up.x * dst->right.y + src->at.x * dst->right.z + dst->right.x * src->right.x;
+	invdet = 1.0;
+	if(det != 0.0)
+		invdet = 1.0/det;
+	dst->right.x *= invdet;
+	dst->right.y *= invdet;
+	dst->right.z *= invdet;
+	dst->up.x = invdet * (src->up.z*src->at.x - src->up.x*src->at.z);
+	dst->up.y = invdet * (src->at.z*src->right.x - src->at.x*src->right.z);
+	dst->up.z = invdet * (src->right.z*src->up.x - src->right.x*src->up.z);
+	dst->at.x = invdet * (src->up.x*src->at.y - src->up.y*src->at.x);
+	dst->at.y = invdet * (src->at.x*src->right.y - src->at.y*src->right.x);
+	dst->at.z = invdet * (src->right.x*src->up.y - src->right.y*src->up.x);
+	dst->pos.x = -(src->pos.x*dst->right.x + src->pos.y*dst->up.x + src->pos.z*dst->at.x);
+	dst->pos.y = -(src->pos.x*dst->right.y + src->pos.y*dst->up.y + src->pos.z*dst->at.y);
+	dst->pos.z = -(src->pos.x*dst->right.z + src->pos.y*dst->up.z + src->pos.z*dst->at.z);
+	dst->flags &= ~IDENTITY;
+	return dst;
+}
+
+void
+Matrix::makeRotation(Matrix *dst, V3d *axis, float32 angle)
+{
+	V3d v = normalize(*axis);
+	angle = angle*M_PI/180.0f;
+	float32 s = sin(angle);
+	float32 c = cos(angle);
+	float32 t = 1.0f - cos(angle);
+
+	dst->right.x = c + v.x*v.x*t;
+	dst->right.y = v.x*v.y*t + v.z*s;
+	dst->right.z = v.z*v.x*t - v.y*s;
+	dst->up.x = v.x*v.y*t - v.z*s;
+	dst->up.y = c + v.y*v.y*t;
+	dst->up.z = v.y*v.z*t + v.x*s;
+	dst->at.x = v.z*v.x*t + v.y*s;
+	dst->at.y = v.y*v.z*t - v.x*s;
+	dst->at.z = c + v.z*v.z*t;
+	dst->pos.x = 0.0;
+	dst->pos.y = 0.0;
+	dst->pos.z = 0.0;
+	dst->flags = TYPEORTHONORMAL;
+}
+
+/* q must be normalized */
+void
+Matrix::makeRotation(Matrix *dst, const Quat &q)
+{
+	float xx = q.x*q.x;
+	float yy = q.y*q.y;
+	float zz = q.z*q.z;
+	float yz = q.y*q.z;
+	float zx = q.z*q.x;
+	float xy = q.x*q.y;
+	float wx = q.w*q.x;
+	float wy = q.w*q.y;
+	float wz = q.w*q.z;
+
+	dst->right.x = 1.0f - 2.0f*(yy + zz);
+	dst->right.y =        2.0f*(xy + wz);
+	dst->right.z =        2.0f*(zx - wy);
+	dst->up.x =        2.0f*(xy - wz);
+	dst->up.y = 1.0f - 2.0f*(xx + zz);
+	dst->up.z =        2.0f*(yz + wx);
+	dst->at.x =        2.0f*(zx + wy);
+	dst->at.y =        2.0f*(yz - wx);
+	dst->at.z = 1.0f - 2.0f*(xx + yy);
+	dst->pos.x = 0.0;
+	dst->pos.y = 0.0;
+	dst->pos.z = 0.0;
+	dst->flags = TYPEORTHONORMAL;
 }
 
 float32
-Matrix3::determinant(void)
+Matrix::normalError(void)
 {
-	return right.x*(up.y*at.z    - up.z*at.y)
-	       +  up.x*(at.y*right.z - at.z*right.y)
-	       +  at.x*(right.y*up.z - right.z*up.y);
+	float32 x, y, z;
+	x = dot(right, right) - 1.0;
+	y = dot(up, up) - 1.0;
+	z = dot(at, at) - 1.0;
+	return x*x + y*y + z*z;
 }
 
-void
-mult(Matrix3 *m1, Matrix3 *m2, Matrix3 *m3)
+float32
+Matrix::orthogonalError(void)
 {
-	m1->right.x = m2->right.x*m3->right.x + m2->up.x*m3->right.y + m2->at.x*m3->right.z;
-	m1->right.y = m2->right.x*m3->up.x    + m2->up.x*m3->up.y    + m2->at.x*m3->up.z;
-	m1->right.z = m2->right.x*m3->at.x    + m2->up.x*m3->at.y    + m2->at.x*m3->at.z;
-	m1->up.x    = m2->right.y*m3->right.x + m2->up.y*m3->right.y + m2->at.y*m3->right.z;
-	m1->up.y    = m2->right.y*m3->up.x    + m2->up.y*m3->up.y    + m2->at.y*m3->up.z;
-	m1->up.z    = m2->right.y*m3->at.x    + m2->up.y*m3->at.y    + m2->at.y*m3->at.z;
-	m1->at.x    = m2->right.z*m3->right.x + m2->up.z*m3->right.y + m2->at.z*m3->right.z;
-	m1->at.y    = m2->right.z*m3->up.x    + m2->up.z*m3->up.y    + m2->at.z*m3->up.z;
-	m1->at.z    = m2->right.z*m3->at.x    + m2->up.z*m3->at.y    + m2->at.z*m3->at.z;
+	float32 x, y, z;
+	x = dot(at, up);
+	y = dot(at, right);
+	z = dot(up, right);
+	return x*x + y*y + z*z;
 }
 
-bool32
-invert(Matrix3 *m1, Matrix3 *m2)
+float32
+Matrix::identityError(void)
 {
-	float32 invdet = m2->determinant();
-	if(invdet == 0.0f)
-		return 0;
-	invdet = 1.0f/invdet;
-	m1->right.x = invdet*(m2->up.y * m2->at.z - m2->up.z * m2->at.y);
-	m1->right.y = invdet*(m2->at.y * m2->right.z - m2->at.z * m2->right.y);
-	m1->right.z = invdet*(m2->right.y * m2->up.z - m2->right.z * m2->up.y);
-	m1->up.x = invdet*(m2->up.z * m2->at.x - m1->up.x * m2->at.z);
-	m1->up.y = invdet*(m2->at.z * m2->right.x - m2->at.x * m2->right.z);
-	m1->up.z = invdet*(m2->right.z * m1->up.x - m2->right.x * m2->up.z);
-	m1->at.x = invdet*(m2->up.x * m2->at.y - m2->up.y * m2->at.x);
-	m1->at.y = invdet*(m2->at.x * m2->right.y - m2->at.y * m2->right.x);
-	m1->at.z = invdet*(m2->right.x * m2->up.y - m2->right.y * m2->up.x);
-	return 1;
+	V3d r(right.x-1.0, right.y, right.z);
+	V3d u(up.x, up.y-1.0, up.z);
+	V3d a(at.x, at.y, at.z-1.0);
+	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
 
-void
-transpose(Matrix3 *m1, Matrix3 *m2)
-{
-	m1->right.x = m2->right.x;
-	m1->right.y = m2->up.x;
-	m1->right.z = m2->at.x;
-	m1->up.x = m2->right.y;
-	m1->up.y = m2->up.y;
-	m1->up.z = m2->at.y;
-	m1->at.x = m2->right.z;
-	m1->at.y = m2->up.z;
-	m1->at.z = m2->at.z;
-}
+#if 0
 
 bool32
-equal(const Matrix &m1, const Matrix &m2)
+Matrix::isIdentity(void)
 {
-	return matrixEqual((float32*)&m1, (float32*)&m2);
+	return matrixIsIdentity((float32*)this);
 }
 
 void
-matrixIdentity(float32 *mat)
+Matrix::transpose(Matrix *m1, Matrix *m2)
 {
-	memset(mat, 0, 64);
-	mat[0] = 1.0f;
-	mat[5] = 1.0f;
-	mat[10] = 1.0f;
-	mat[15] = 1.0f;
+	matrixTranspose((float32*)m1, (float32*)m2);
 }
 
-int
-matrixEqual(float32 *m1, float32 *m2)
-{
-	for(int i = 0; i < 16; i++)
-		if(m1[i] != m2[i])
-			return 0;
-	return 1;
-}
-
-int
-matrixIsIdentity(float32 *mat)
-{
-	for(int32 i = 0; i < 4; i++)
-		for(int32 j = 0; j < 4; j++)
-			if(mat[i*4+j] != (i == j ? 1.0f : 0.0))
-				return 0;
-	return 1;
-}
-
-void
-matrixMult(float32 *out, float32 *a, float32 *b)
-{
-	// TODO: replace with platform optimized code
-	#define L(i,j) out[i*4+j]
-	#define A(i,j) a[i*4+j]
-	#define B(i,j) b[i*4+j]
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			L(i,j) = A(0,j)*B(i,0)
-			       + A(1,j)*B(i,1)
-			       + A(2,j)*B(i,2)
-			       + A(3,j)*B(i,3);
-	#undef L
-	#undef A
-	#undef B
-}
-
-void
-vecTrans(float32 *out, float32 *mat, float32 *vec)
-{
-	#define M(i,j) mat[i*4+j]
-	for(int i = 0; i < 4; i++)
-		out[i] = M(0,i)*vec[0]
-		       + M(1,i)*vec[1]
-		       + M(2,i)*vec[2]
-		       + M(3,i)*vec[3];
-	#undef M
-}
-
-void
-matrixTranspose(float32 *out, float32 *in)
-{
-	#define OUT(i,j) out[i*4+j]
-	#define IN(i,j) in[i*4+j]
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			OUT(i,j) = IN(j,i);
-	#undef IN
-	#undef OUT
-}
-
-bool32
-matrixInvert(float32 *out, float32 *m)
-{
-	float32 inv[16], det;
-	int i;
-
-	inv[0] = m[5]  * m[10] * m[15] -
-	         m[5]  * m[11] * m[14] -
-	         m[9]  * m[6]  * m[15] +
-	         m[9]  * m[7]  * m[14] +
-	         m[13] * m[6]  * m[11] -
-	         m[13] * m[7]  * m[10];
-	inv[4] = -m[4]  * m[10] * m[15] +
-	          m[4]  * m[11] * m[14] +
-	          m[8]  * m[6]  * m[15] -
-	          m[8]  * m[7]  * m[14] -
-	          m[12] * m[6]  * m[11] +
-	          m[12] * m[7]  * m[10];
-	inv[8] = m[4]  * m[9] * m[15] -
-	         m[4]  * m[11] * m[13] -
-	         m[8]  * m[5] * m[15] +
-	         m[8]  * m[7] * m[13] +
-	         m[12] * m[5] * m[11] -
-	         m[12] * m[7] * m[9];
-	inv[12] = -m[4]  * m[9] * m[14] +
-	           m[4]  * m[10] * m[13] +
-	           m[8]  * m[5] * m[14] -
-	           m[8]  * m[6] * m[13] -
-	           m[12] * m[5] * m[10] +
-	           m[12] * m[6] * m[9];
-	inv[1] = -m[1]  * m[10] * m[15] +
-	          m[1]  * m[11] * m[14] +
-	          m[9]  * m[2] * m[15] -
-	          m[9]  * m[3] * m[14] -
-	          m[13] * m[2] * m[11] +
-	          m[13] * m[3] * m[10];
-	inv[5] = m[0]  * m[10] * m[15] -
-	         m[0]  * m[11] * m[14] -
-	         m[8]  * m[2] * m[15] +
-	         m[8]  * m[3] * m[14] +
-	         m[12] * m[2] * m[11] -
-	         m[12] * m[3] * m[10];
-	inv[9] = -m[0]  * m[9] * m[15] +
-	          m[0]  * m[11] * m[13] +
-	          m[8]  * m[1] * m[15] -
-	          m[8]  * m[3] * m[13] -
-	          m[12] * m[1] * m[11] +
-	          m[12] * m[3] * m[9];
-	inv[13] = m[0]  * m[9] * m[14] -
-	          m[0]  * m[10] * m[13] -
-	          m[8]  * m[1] * m[14] +
-	          m[8]  * m[2] * m[13] +
-	          m[12] * m[1] * m[10] -
-	          m[12] * m[2] * m[9];
-	inv[2] = m[1]  * m[6] * m[15] -
-	         m[1]  * m[7] * m[14] -
-	         m[5]  * m[2] * m[15] +
-	         m[5]  * m[3] * m[14] +
-	         m[13] * m[2] * m[7] -
-	         m[13] * m[3] * m[6];
-	inv[6] = -m[0]  * m[6] * m[15] +
-	          m[0]  * m[7] * m[14] +
-	          m[4]  * m[2] * m[15] -
-	          m[4]  * m[3] * m[14] -
-	          m[12] * m[2] * m[7] +
-	          m[12] * m[3] * m[6];
-	inv[10] = m[0]  * m[5] * m[15] -
-	          m[0]  * m[7] * m[13] -
-	          m[4]  * m[1] * m[15] +
-	          m[4]  * m[3] * m[13] +
-	          m[12] * m[1] * m[7] -
-	          m[12] * m[3] * m[5];
-	inv[14] = -m[0]  * m[5] * m[14] +
-	           m[0]  * m[6] * m[13] +
-	           m[4]  * m[1] * m[14] -
-	           m[4]  * m[2] * m[13] -
-	           m[12] * m[1] * m[6] +
-	           m[12] * m[2] * m[5];
-	inv[3] = -m[1] * m[6] * m[11] +
-	          m[1] * m[7] * m[10] +
-	          m[5] * m[2] * m[11] -
-	          m[5] * m[3] * m[10] -
-	          m[9] * m[2] * m[7] +
-	          m[9] * m[3] * m[6];
-	inv[7] = m[0] * m[6] * m[11] -
-	         m[0] * m[7] * m[10] -
-	         m[4] * m[2] * m[11] +
-	         m[4] * m[3] * m[10] +
-	         m[8] * m[2] * m[7] -
-	         m[8] * m[3] * m[6];
-	inv[11] = -m[0] * m[5] * m[11] +
-	           m[0] * m[7] * m[9] +
-	           m[4] * m[1] * m[11] -
-	           m[4] * m[3] * m[9] -
-	           m[8] * m[1] * m[7] +
-	           m[8] * m[3] * m[5];
-	inv[15] = m[0] * m[5] * m[10] -
-	          m[0] * m[6] * m[9] -
-	          m[4] * m[1] * m[10] +
-	          m[4] * m[2] * m[9] +
-	          m[8] * m[1] * m[6] -
-	          m[8] * m[2] * m[5];
-	det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
-	if(det == 0)
-		return 0;
-	det = 1.0f / det;
-	for(i = 0; i < 16; i++)
-		out[i] = inv[i] * det;
-	return 1;
-}
-
-void
-matrixPrint(float32 *mat)
-{
-	printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
-	       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n",
-		mat[0], mat[4], mat[8], mat[12],
-		mat[1], mat[5], mat[9], mat[13],
-		mat[2], mat[6], mat[10], mat[14],
-		mat[3], mat[7], mat[11], mat[15]);
-}
+#endif
 
 #define PSEP_C '/'
 #define PSEP_S "/"

@@ -916,6 +916,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->texels = raster->palette = nil;
 	s_plglist.construct(raster);
 
+//	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
 	driver[raster->platform]->rasterCreate(raster);
 	return raster;
 }

@@ -425,7 +425,7 @@ Atomic::getWorldBoundingSphere(void)
 		return s;
 	Matrix *ltm = this->getFrame()->getLTM();
 	// TODO: support scaling
-	s->center = ltm->transPoint(this->boundingSphere.center);
+	V3d::transformPoints(&s->center, &this->boundingSphere.center, 1, ltm);
 	s->radius = this->boundingSphere.radius;
 	this->object.object.privateFlags &= ~WORLDBOUNDDIRTY;
 	return s;

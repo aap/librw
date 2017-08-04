@@ -112,7 +112,7 @@ calcEnvTexMatrix(Frame *f, float32 *mat)
 		inv.pos.z *= -0.5f;
 
 		Matrix m;
-		Matrix::mult(&m, &inv, &cam);
+		Matrix::mult(&m, &cam, &inv);
 
 		memcpy(mat, &m, 64);
 		mat[3] = mat[7] = mat[11] = 0.0f;
@@ -429,11 +429,8 @@ updateSkinMatrices(Atomic *a)
 	float *m;
 	m = (float*)skinMatrices;
 	for(int i = 0; i < hier->numNodes; i++){
-		invMats[i].rightw = 0.0f;
-		invMats[i].upw = 0.0f;
-		invMats[i].atw = 0.0f;
-		invMats[i].posw = 1.0f;
-		Matrix::mult((Matrix*)m, &hier->matrices[i], &invMats[i]);
+		invMats[i].flags = 0;
+		Matrix::mult((Matrix*)m, &invMats[i], &hier->matrices[i]);
 		m[3] = 0.0f;
 		m[7] = 0.0f;
 		m[11] = 0.0f;
