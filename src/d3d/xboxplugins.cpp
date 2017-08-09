@@ -35,7 +35,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	Geometry *geometry = (Geometry*)object;
 	uint32 vers, platform;
 	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();

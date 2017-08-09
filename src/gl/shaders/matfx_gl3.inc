@@ -78,7 +78,7 @@ const char *matfx_env_frag_src =
 "void\n"
 "main(void)\n"
 "{\n"
-"	color = v_color*texture2D(tex, vec2(v_tex0.x, v_tex0.y));\n"
+"	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));\n"
 "	switch(u_alphaTest){\n"
 "	default:\n"
 "	case 0: break;\n"

@@ -189,8 +189,10 @@ Shader::fromFiles(const char *vspath, const char *fspath)
 void
 Shader::use(void)
 {
-	glUseProgram(this->program);
-	currentShader = this;
+	if(currentShader != this){
+		glUseProgram(this->program);
+		currentShader = this;
+	}
 }
 
 }

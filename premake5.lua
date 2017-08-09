@@ -1,3 +1,6 @@
+GLEWdir = "C:/Users/aap/src/glew-2.1.0"
+GLFW64dir = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64"
+
 workspace "librw"
 	location "build"
 	language "C++"
@@ -41,8 +44,13 @@ workspace "librw"
 	filter { "platforms:linux*" }
 		system "linux"
 
+	filter { "platforms:win*gl3" }
+		defines { "GLEW_STATIC" }
+		includedirs { path.join(GLEWdir, "include") }
+		includedirs { path.join(GLFW64dir, "include") }
+
 	filter "action:vs*"
-		buildoptions { "/wd4996" }
+		buildoptions { "/wd4996", "/wd4244" }
 
 	filter {}
 

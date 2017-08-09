@@ -10,9 +10,12 @@
 #include "../rwengine.h"
 #ifdef RW_OPENGL
 #include <GL/glew.h>
+#include <GLFW/glfw3.h>
 #include "rwgl3.h"
 #include "rwgl3shader.h"
 #include "rwgl3impl.h"
+
+#define PLUGIN_ID 0
 
 namespace rw {
 namespace gl3 {
@@ -77,7 +80,9 @@ static uint32 srcblend, destblend;
 static uint32 zwrite;
 static uint32 ztest;
 
-uint32 blendMap[] = {
+static int32 activeTexture;
+
+static uint32 blendMap[] = {
 	GL_ZERO,
 	GL_ONE,
 	GL_SRC_COLOR,
@@ -91,18 +96,26 @@ uint32 blendMap[] = {
 	GL_SRC_ALPHA_SATURATE,
 };
 
-void
+static void
+setVertexAlpha(bool32 enable)
+{
+	if(vertexAlpha != enable){
+		vertexAlpha = enable;
+		if(!textureAlpha){
+			if(enable)
+				glEnable(GL_BLEND);
+			else
+				glDisable(GL_BLEND);
+		}
+	}
+}
+
+static void
 setRenderState(int32 state, uint32 value)
 {
 	switch(state){
 	case VERTEXALPHA:
-		if(vertexAlpha != value){
-			vertexAlpha = value;
-			if(vertexAlpha)
-				glEnable(GL_BLEND);
-			else if(!textureAlpha)
-				glDisable(GL_BLEND);
-		}
+		setVertexAlpha(value);
 		break;
 	case SRCBLEND:
 		if(srcblend != value){
@@ -158,7 +171,7 @@ setRenderState(int32 state, uint32 value)
 	}
 }
 
-uint32
+static uint32
 getRenderState(int32 state)
 {
 	RGBA rgba;
@@ -182,15 +195,15 @@ getRenderState(int32 state)
 	case ALPHATESTFUNC:
 		return uniformState.alphaFunc;
 	case ALPHATESTREF:
-		return uniformState.alphaRef*255.0f;
+		return (uint32)(uniformState.alphaRef*255.0f);
 	}
 	return 0;
 }
 
-void
+static void
 resetRenderState(void)
 {
-	uniformState.alphaFunc = ALPHAGREATERTHAN;
+	uniformState.alphaFunc = ALPHAGREATEREQUAL;
 	uniformState.alphaRef = 10.0f/255.0f;
 	uniformState.fogEnable = 0;
 	uniformState.fogStart = 0.0f;
@@ -254,7 +267,7 @@ setLight(int32 n, Light *light)
 		l->direction = m->at;
 	}
 	// light has position
-	l->w = light->getType() >= Light::POINT ? 1.0f : 0.0;
+	l->w = light->getType() >= Light::POINT ? 1.0f : 0.0f;
 	l->color = light->color;
 	l->radius = light->radius;
 	l->minusCosAngle = light->minusCosAngle;
@@ -275,11 +288,20 @@ setViewMatrix(float32 *mat)
 	sceneDirty = 1;
 }
 
+static void
+setActiveTexture(int32 n)
+{
+	if(activeTexture != n){
+		activeTexture = n;
+		glActiveTexture(n);
+	}
+}
+
 void
 setTexture(int32 n, Texture *tex)
 {
 	bool32 alpha;
-	glActiveTexture(GL_TEXTURE0+n);
+	setActiveTexture(GL_TEXTURE0+n);
 	if(tex == nil || tex->raster->platform != PLATFORM_GL3 ||
 	   tex->raster->width == 0){
 		glBindTexture(GL_TEXTURE_2D, whitetex);
@@ -291,12 +313,16 @@ setTexture(int32 n, Texture *tex)
 		alpha = natras->hasAlpha;
 	}
 
-	if(textureAlpha != alpha){
-		textureAlpha = alpha;
-		if(textureAlpha)
-			glEnable(GL_BLEND);
-		else if(!vertexAlpha)
-			glDisable(GL_BLEND);
+	if(n == 0){
+		if(alpha != textureAlpha){
+			textureAlpha = alpha;
+			if(!vertexAlpha){
+				if(alpha)
+					glEnable(GL_BLEND);
+				else
+					glDisable(GL_BLEND);
+			}
+		}
 	}
 }
 
@@ -323,7 +349,7 @@ flushCache(void)
 	}
 }
 
-void
+static void
 clearCamera(Camera *cam, RGBA *col, uint32 mode)
 {
 	RGBAf colf;
@@ -339,7 +365,16 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	glClear(mask);
 }
 
-void
+static GLFWwindow *glfwwindow;
+
+static void
+showRaster(Raster *raster)
+{
+	// TODO: do this properly!
+	glfwSwapBuffers(glfwwindow);
+}
+
+static void
 beginUpdate(Camera *cam)
 {
 	float view[16], proj[16];
@@ -410,17 +445,62 @@ beginUpdate(Camera *cam)
 	}
 }
 
-void
-initializeRender(void)
+static int
+startGLFW(EngineStartParams *startparams)
 {
-	engine->beginUpdate = beginUpdate;
-	engine->clearCamera = clearCamera;
-	engine->setRenderState = setRenderState;
-	engine->getRenderState = getRenderState;
-	engine->im2DRenderIndexedPrimitive = im2DRenderIndexedPrimitive;
-	engine->zNear = -1.0f;
-	engine->zFar  = 1.0f;
+	GLenum status;
+	GLFWwindow *win;
 
+	/* Init GLFW */
+	if(!glfwInit()){
+		RWERROR((ERR_GENERAL, "glfwInit() failed"));
+		return 0;
+	}
+	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+	win = glfwCreateWindow(startparams->width, startparams->height, startparams->windowtitle, 0, 0);
+	if(win == nil){
+		RWERROR((ERR_GENERAL, "glfwCreateWindow() failed"));
+		glfwTerminate();
+		return 0;
+	}
+	glfwMakeContextCurrent(win);
+
+	/* Init GLEW */
+	glewExperimental = GL_TRUE;
+	status = glewInit();
+	if(status != GLEW_OK){
+		RWERROR((ERR_GENERAL, glewGetErrorString(status)));
+		glfwDestroyWindow(win);
+		glfwTerminate();
+		return 0;
+	}
+	if(!GLEW_VERSION_3_3){
+		RWERROR((ERR_GENERAL, "OpenGL 3.3 needed"));
+		glfwDestroyWindow(win);
+		glfwTerminate();
+		return 0;
+	}
+	glfwwindow = win;
+	*startparams->window = win;
+	return 1;
+}
+
+static int
+stopGLFW(void)
+{
+	glfwDestroyWindow(glfwwindow);
+	glfwTerminate();
+	return 1;
+}
+
+static int
+initOpenGL(void)
+{
 #include "shaders/simple_gl3.inc"
 	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
 
@@ -438,7 +518,6 @@ initializeRender(void)
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-
 	glGenBuffers(1, &ubo_scene);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_scene);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("Scene"), ubo_scene);
@@ -446,14 +525,12 @@ initializeRender(void)
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-
 	glGenBuffers(1, &ubo_object);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("Object"), ubo_object);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), &uniformObject,
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
 
 	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 	glGenTextures(1, &whitetex);
@@ -464,7 +541,35 @@ initializeRender(void)
 	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
 
 	im2DInit();
+	return 1;
 }
+
+static int
+deviceSystem(DeviceReq req, void *arg0)
+{
+	switch(req){
+	case DEVICESTART:
+		return startGLFW((EngineStartParams*)arg0);
+	case DEVICEINIT:
+		return initOpenGL();
+	case DEVICESTOP:
+		return stopGLFW();
+	}
+	return 1;
+}
+
+Device renderdevice = {
+	-1.0f, 1.0f,
+	gl3::beginUpdate,
+	null::endUpdate,
+	gl3::clearCamera,
+	gl3::showRaster,
+	gl3::setRenderState,
+	gl3::getRenderState,
+	gl3::im2DRenderIndexedPrimitive,
+	gl3::deviceSystem
+};
+
 }
 }
 

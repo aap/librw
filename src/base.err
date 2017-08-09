@@ -10,3 +10,9 @@ ECODE(ERR_VERSION,
       "Unsupported version %X")
 ECODE(ERR_PLATFORM,
       "Unsupported platform %d")
+ECODE(ERR_ENGINEINIT,
+      "Engine could not be initialized")
+ECODE(ERR_ENGINEOPEN,
+      "Engine could not be opened")
+ECODE(ERR_ENGINESTART,
+      "Engine could not be started")

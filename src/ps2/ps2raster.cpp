@@ -559,7 +559,7 @@ registerNativeRaster(void)
 void
 printTEX0(uint64 tex0)
 {
-	printf("%016lX ", tex0);
+	printf("%016llX ", tex0);
 	uint32 tbp0 = tex0 & 0x3FFF; tex0 >>= 14;
 	uint32 tbw = tex0 & 0x3F; tex0 >>= 6;
 	uint32 psm = tex0 & 0x3F; tex0 >>= 6;
@@ -579,7 +579,7 @@ printTEX0(uint64 tex0)
 void
 printTEX1(uint64 tex1)
 {
-	printf("%016lX ", tex1);
+	printf("%016llX ", tex1);
 	uint32 lcm = tex1 & 0x1; tex1 >>= 2;
 	uint32 mxl = tex1 & 0x7; tex1 >>= 3;
 	uint32 mmag = tex1 & 0x1; tex1 >>= 1;

@@ -22,9 +22,9 @@ enum RenderState
 
 enum AlphaTestFunc
 {
-	ALPHANEVER = 0,
-	ALPHALESS,
-	ALPHAGREATERTHAN
+	ALPHAALWAYS = 0,
+	ALPHAGREATEREQUAL,
+	ALPHALESS
 };
 
 enum BlendFunction
@@ -43,37 +43,35 @@ enum BlendFunction
 	// TODO: add more perhaps
 };
 
-// This is for platform independent things and the render device (of which
-// there can only ever be one).
-// TODO: move more stuff into this
-struct Engine
+enum DeviceReq
 {
-	void *currentCamera;
-	void *currentWorld;
-	Texture *imtexture;
+	// Device/Context creation
+	DEVICESTART,
+	// Device initialization before Engine/Driver plugins are opened
+	DEVICEINIT,
+	// Device/Context shutdown
+	DEVICESTOP,
+};
 
-	TexDictionary *currentTexDictionary;
-	bool32 loadTextures;    // load textures from files
-	bool32 makeDummies;     // create dummy textures to store just names
+typedef int DeviceSystem(DeviceReq req, void *arg0);
 
-
-	// Device
+// This is for the render device, we only have one
+struct Device
+{
 	float32 zNear, zFar;
 	void   (*beginUpdate)(Camera*);
 	void   (*endUpdate)(Camera*);
 	void   (*clearCamera)(Camera*, RGBA *col, uint32 mode);
+	void   (*showRaster)(Raster *raster);
 	void   (*setRenderState)(int32 state, uint32 value);
 	uint32 (*getRenderState)(int32 state);
 	void   (*im2DRenderIndexedPrimitive)(PrimitiveType,
 	                                     void*, int32, void*, int32);
-
-	static void init(void);
+	DeviceSystem *system;
 };
 
-extern Engine *engine;
-
-// This is for platform driver implementations which have to be available
-// regardless of the render device.
+// This is for platform-dependent but portable things
+// so the engine has one for every platform
 struct Driver
 {
 	ObjPipeline *defaultPipeline;
@@ -87,7 +85,6 @@ struct Driver
 	Image *(*rasterToImage)(Raster*);
 
 	static PluginList s_plglist[NUM_PLATFORMS];
-	static void open(void);
 	static int32 registerPlugin(int32 platform, int32 size, uint32 id,
 	                            Constructor ctor, Destructor dtor){
 		return s_plglist[platform].registerPlugin(size, id,
@@ -95,14 +92,47 @@ struct Driver
 	}
 };
 
-extern Driver *driver[NUM_PLATFORMS];
-#define DRIVER driver[rw::platform]
+struct EngineStartParams;
+
+// This is for platform independent things
+// TODO: move more stuff into this
+// TODO: make this have plugins and allocate in Engine::open
+struct Engine
+{
+	enum State {
+		Dead = 0,
+		Initialized,
+		Opened,
+		Started
+	};
+	void *currentCamera;
+	void *currentWorld;
+	Texture *imtexture;
+
+	TexDictionary *currentTexDictionary;
+	// load textures from files
+	bool32 loadTextures;
+	// create dummy textures to store just names
+	bool32 makeDummies;
+	// Dynamically allocated because of plugins
+	Driver *driver[NUM_PLATFORMS];
+	Device device;
+
+	static State state;
+
+	static bool32 init(void);
+	static bool32 open(void);
+	static bool32 start(EngineStartParams*);
+	static void stop(void);
+};
+
+extern Engine *engine;
 
 inline void SetRenderState(int32 state, uint32 value){
-	engine->setRenderState(state, value); }
+	engine->device.setRenderState(state, value); }
 
 inline uint32 GetRenderState(int32 state){
-	return engine->getRenderState(state); }
+	return engine->device.getRenderState(state); }
 
 namespace null {
 	void beginUpdate(Camera*);
@@ -121,6 +151,10 @@ namespace null {
 
 	void   im2DRenderIndexedPrimitive(PrimitiveType,
 	                                  void*, int32, void*, int32);
+
+	int deviceSystem(DeviceReq req);
+
+	extern Device renderdevice;
 }
 
 }

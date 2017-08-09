@@ -26,14 +26,14 @@ void*
 driverOpen(void *o, int32, int32)
 {
 #ifdef RW_OPENGL
-	driver[PLATFORM_GL3]->defaultPipeline = makeDefaultPipeline();
+	engine->driver[PLATFORM_GL3]->defaultPipeline = makeDefaultPipeline();
 #endif
-	driver[PLATFORM_GL3]->rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_GL3]->rasterCreate       = rasterCreate;
-	driver[PLATFORM_GL3]->rasterLock         = rasterLock;
-	driver[PLATFORM_GL3]->rasterUnlock       = rasterUnlock;
-	driver[PLATFORM_GL3]->rasterNumLevels    = rasterNumLevels;
-	driver[PLATFORM_GL3]->rasterFromImage    = rasterFromImage;
+	engine->driver[PLATFORM_GL3]->rasterNativeOffset = nativeRasterOffset;
+	engine->driver[PLATFORM_GL3]->rasterCreate       = rasterCreate;
+	engine->driver[PLATFORM_GL3]->rasterLock         = rasterLock;
+	engine->driver[PLATFORM_GL3]->rasterUnlock       = rasterUnlock;
+	engine->driver[PLATFORM_GL3]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_GL3]->rasterFromImage    = rasterFromImage;
 
 	return o;
 }

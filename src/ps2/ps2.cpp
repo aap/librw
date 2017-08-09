@@ -24,13 +24,13 @@ namespace ps2 {
 void*
 driverOpen(void *o, int32, int32)
 {
-	driver[PLATFORM_PS2]->defaultPipeline = makeDefaultPipeline();
+	engine->driver[PLATFORM_PS2]->defaultPipeline = makeDefaultPipeline();
 
-	driver[PLATFORM_PS2]->rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_PS2]->rasterCreate = rasterCreate;
-	driver[PLATFORM_PS2]->rasterLock = rasterLock;
-	driver[PLATFORM_PS2]->rasterUnlock = rasterUnlock;
-	driver[PLATFORM_PS2]->rasterNumLevels = rasterNumLevels;
+	engine->driver[PLATFORM_PS2]->rasterNativeOffset = nativeRasterOffset;
+	engine->driver[PLATFORM_PS2]->rasterCreate = rasterCreate;
+	engine->driver[PLATFORM_PS2]->rasterLock = rasterLock;
+	engine->driver[PLATFORM_PS2]->rasterUnlock = rasterUnlock;
+	engine->driver[PLATFORM_PS2]->rasterNumLevels = rasterNumLevels;
 	return o;
 }
 
@@ -73,7 +73,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();

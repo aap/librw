@@ -612,6 +612,7 @@ struct Camera : PluginBase<Camera>
 	void beginUpdate(void) { this->beginUpdateCB(this); }
 	void endUpdate(void) { this->endUpdateCB(this); }
 	void clear(RGBA *col, uint32 mode);
+	void showRaster(void);
 	void setNearPlane(float32);
 	void setFarPlane(float32);
 	int32 frustumTestSphere(Sphere *s);

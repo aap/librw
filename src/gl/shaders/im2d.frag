@@ -10,6 +10,6 @@ out vec4 color;
 void
 main(void)
 {
-	color = v_color*texture2D(tex, vec2(v_tex0.x, v_tex0.y));
+	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));
 }
 

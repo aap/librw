@@ -4,14 +4,23 @@
 #endif
 
 namespace rw {
-namespace d3d {
 
-void initializeRender(void);
+#ifdef RW_D3D9
+struct EngineStartParams
+{
+	HWND window;
+};
+#endif
+
+namespace d3d {
 
 extern bool32 isP8supported;
 
 #ifdef RW_D3D9
-extern IDirect3DDevice9 *device;
+extern IDirect3DDevice9 *d3ddevice;
+extern Device renderdevice;
+
+void lightingCB(void);
 #else
 enum {
 	D3DLOCK_NOSYSLOCK     =  0,  // ignored

@@ -917,7 +917,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	s_plglist.construct(raster);
 
 //	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
-	driver[raster->platform]->rasterCreate(raster);
+	engine->driver[raster->platform]->rasterCreate(raster);
 	return raster;
 }
 
@@ -933,19 +933,19 @@ Raster::destroy(void)
 uint8*
 Raster::lock(int32 level)
 {
-	return driver[this->platform]->rasterLock(this, level);
+	return engine->driver[this->platform]->rasterLock(this, level);
 }
 
 void
 Raster::unlock(int32 level)
 {
-	driver[this->platform]->rasterUnlock(this, level);
+	engine->driver[this->platform]->rasterUnlock(this, level);
 }
 
 int32
 Raster::getNumLevels(void)
 {
-	return driver[this->platform]->rasterNumLevels(this);
+	return engine->driver[this->platform]->rasterNumLevels(this);
 }
 
 int32
@@ -964,14 +964,14 @@ Raster::createFromImage(Image *image, int32 platform)
 	Raster *raster = Raster::create(image->width, image->height,
 	                                image->depth, TEXTURE | DONTALLOCATE,
 	                                platform);
-	driver[raster->platform]->rasterFromImage(raster, image);
+	engine->driver[raster->platform]->rasterFromImage(raster, image);
 	return raster;
 }
 
 Image*
 Raster::toImage(void)
 {
-	return driver[this->platform]->rasterToImage(this);
+	return engine->driver[this->platform]->rasterToImage(this);
 }
 
 }

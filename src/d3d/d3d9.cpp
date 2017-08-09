@@ -31,15 +31,15 @@ static VertexElement _d3ddec_end = {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0};
 void*
 driverOpen(void *o, int32, int32)
 {
-	driver[PLATFORM_D3D9]->defaultPipeline = makeDefaultPipeline();
+	engine->driver[PLATFORM_D3D9]->defaultPipeline = makeDefaultPipeline();
 
-	driver[PLATFORM_D3D9]->rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_D3D9]->rasterCreate       = rasterCreate;
-	driver[PLATFORM_D3D9]->rasterLock         = rasterLock;
-	driver[PLATFORM_D3D9]->rasterUnlock       = rasterUnlock;
-	driver[PLATFORM_D3D9]->rasterNumLevels    = rasterNumLevels;
-	driver[PLATFORM_D3D9]->rasterFromImage    = rasterFromImage;
-	driver[PLATFORM_D3D9]->rasterToImage      = rasterToImage;
+	engine->driver[PLATFORM_D3D9]->rasterNativeOffset = nativeRasterOffset;
+	engine->driver[PLATFORM_D3D9]->rasterCreate       = rasterCreate;
+	engine->driver[PLATFORM_D3D9]->rasterLock         = rasterLock;
+	engine->driver[PLATFORM_D3D9]->rasterUnlock       = rasterUnlock;
+	engine->driver[PLATFORM_D3D9]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_D3D9]->rasterFromImage    = rasterFromImage;
+	engine->driver[PLATFORM_D3D9]->rasterToImage      = rasterToImage;
 	return o;
 }
 
@@ -64,7 +64,7 @@ createVertexDeclaration(VertexElement *elements)
 {
 #ifdef RW_D3D9
 	IDirect3DVertexDeclaration9 *decl = 0;
-	device->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &decl);
+	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &decl);
 	return decl;
 #else
 	int n = 0;
@@ -122,7 +122,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();
@@ -592,7 +592,7 @@ readNativeTexture(Stream *stream)
 {
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();

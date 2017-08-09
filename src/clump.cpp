@@ -523,7 +523,7 @@ Atomic::getPipeline(void)
 {
 	return this->pipeline ?
 		this->pipeline :
-		driver[platform]->defaultPipeline;
+		engine->driver[platform]->defaultPipeline;
 }
 
 void

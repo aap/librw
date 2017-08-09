@@ -23,15 +23,15 @@ using namespace d3d;
 void*
 driverOpen(void *o, int32, int32)
 {
-	driver[PLATFORM_D3D8]->defaultPipeline = makeDefaultPipeline();
+	engine->driver[PLATFORM_D3D8]->defaultPipeline = makeDefaultPipeline();
 
-	driver[PLATFORM_D3D8]->rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_D3D8]->rasterCreate       = rasterCreate;
-	driver[PLATFORM_D3D8]->rasterLock         = rasterLock;
-	driver[PLATFORM_D3D8]->rasterUnlock       = rasterUnlock;
-	driver[PLATFORM_D3D8]->rasterNumLevels    = rasterNumLevels;
-	driver[PLATFORM_D3D8]->rasterFromImage    = rasterFromImage;
-	driver[PLATFORM_D3D8]->rasterToImage      = rasterToImage;
+	engine->driver[PLATFORM_D3D8]->rasterNativeOffset = nativeRasterOffset;
+	engine->driver[PLATFORM_D3D8]->rasterCreate       = rasterCreate;
+	engine->driver[PLATFORM_D3D8]->rasterLock         = rasterLock;
+	engine->driver[PLATFORM_D3D8]->rasterUnlock       = rasterUnlock;
+	engine->driver[PLATFORM_D3D8]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_D3D8]->rasterFromImage    = rasterFromImage;
+	engine->driver[PLATFORM_D3D8]->rasterToImage      = rasterToImage;
 	return o;
 }
 
@@ -102,7 +102,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	Geometry *geometry = (Geometry*)object;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();
@@ -359,26 +359,26 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 
 	uint8 *dst = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	instV3d(VERT_FLOAT3, dst,
-		&geo->morphTargets[0].vertices[3*inst->minVert],
+		&geo->morphTargets[0].vertices[inst->minVert],
 		inst->numVertices, inst->stride);
 	dst += 12;
 
 	if(geo->flags & Geometry::NORMALS){
 		instV3d(VERT_FLOAT3, dst,
-		        &geo->morphTargets[0].normals[3*inst->minVert],
+		        &geo->morphTargets[0].normals[inst->minVert],
 		        inst->numVertices, inst->stride);
 		dst += 12;
 	}
 
 	inst->vertexAlpha = 0;
 	if(geo->flags & Geometry::PRELIT){
-		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->colors[4*inst->minVert],
+		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->colors[inst->minVert],
 		                              inst->numVertices, inst->stride);
 		dst += 4;
 	}
 
 	for(int32 i = 0; i < geo->numTexCoordSets; i++){
-		instTexCoords(VERT_FLOAT2, dst, &geo->texCoords[i][2*inst->minVert],
+		instTexCoords(VERT_FLOAT2, dst, &geo->texCoords[i][inst->minVert],
 		        inst->numVertices, inst->stride);
 		dst += 8;
 	}
@@ -390,26 +390,26 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 {
 	uint8 *src = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	uninstV3d(VERT_FLOAT3,
-		&geo->morphTargets[0].vertices[3*inst->minVert],
+		&geo->morphTargets[0].vertices[inst->minVert],
 		src, inst->numVertices, inst->stride);
 	src += 12;
 
 	if(geo->flags & Geometry::NORMALS){
 		uninstV3d(VERT_FLOAT3,
-		          &geo->morphTargets[0].normals[3*inst->minVert],
+		          &geo->morphTargets[0].normals[inst->minVert],
 		          src, inst->numVertices, inst->stride);
 		src += 12;
 	}
 
 	inst->vertexAlpha = 0;
 	if(geo->flags & Geometry::PRELIT){
-		uninstColor(VERT_ARGB, &geo->colors[4*inst->minVert], src,
+		uninstColor(VERT_ARGB, &geo->colors[inst->minVert], src,
 		            inst->numVertices, inst->stride);
 		src += 4;
 	}
 
 	for(int32 i = 0; i < geo->numTexCoordSets; i++){
-		uninstTexCoords(VERT_FLOAT2, &geo->texCoords[i][2*inst->minVert], src,
+		uninstTexCoords(VERT_FLOAT2, &geo->texCoords[i][inst->minVert], src,
 		          inst->numVertices, inst->stride);
 		src += 8;
 	}
@@ -481,7 +481,7 @@ readNativeTexture(Stream *stream)
 {
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();
