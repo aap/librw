@@ -270,6 +270,13 @@ Frame::scale(V3d *scl, CombineOp op)
 }
 
 void
+Frame::transform(Matrix *mat, CombineOp op)
+{
+	this->matrix.transform(mat, op);
+	updateObjects();
+}
+
+void
 Frame::updateObjects(void)
 {
 	// Mark root as dirty and insert into dirty list if necessary

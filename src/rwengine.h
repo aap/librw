@@ -123,6 +123,8 @@ struct Engine
 	static bool32 init(void);
 	static bool32 open(void);
 	static bool32 start(EngineStartParams*);
+	static void term(void);
+	static void close(void);
 	static void stop(void);
 };
 

@@ -71,3 +71,48 @@ project "dumprwtree"
 	includedirs { "." }
 	libdirs { Libdir }
 	links { "librw" }
+
+function findlibs()
+	filter { "platforms:linux*gl3" }
+		links { "GL", "GLEW", "glfw" }
+	filter { "platforms:win*gl3" }
+		defines { "GLEW_STATIC" }
+	filter { "platforms:win-amd64-gl3" }
+		libdirs { path.join(GLEWdir, "lib/Release/x64") }
+		libdirs { path.join(GLFW64dir, "lib-vc2015") }
+	filter { "platforms:win-x86-gl3" }
+		libdirs { path.join(GLEWdir, "lib/Release/Win32") }
+	filter { "platforms:win*gl3" }
+		links { "glew32s", "glfw3", "opengl32" }
+	filter { "platforms:*d3d9" }
+		links { "d3d9", "Xinput9_1_0" }
+	filter {}
+end
+
+function skeleton()
+	files { "skeleton/*.cpp", "skeleton/*.h" }
+	includedirs { "skeleton" }
+end
+
+function skeltool(dir)
+	targetdir (Bindir)
+	files { path.join("tools", dir, "*.cpp"),
+	        path.join("tools", dir, "*.h") }
+	vpaths {
+		{["src"] = { path.join("tools", dir, "*") }},
+		{["skeleton"] = { "skeleton/*" }},
+	}
+	skeleton()
+	debugdir ( path.join("tools", dir) )
+	includedirs { "." }
+	libdirs { Libdir }
+	links { "librw" }
+	findlibs()
+end
+
+project "clumpview"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("clumpview")
+	flags { "WinMain" }
+	removeplatforms { "*null" }

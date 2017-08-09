@@ -125,7 +125,8 @@ struct Frame : PluginBase<Frame>
 	Matrix *getLTM(void);
 	void rotate(V3d *axis, float32 angle, CombineOp op);
 	void translate(V3d *trans, CombineOp op);
-	void scale(V3d *trans, CombineOp op);
+	void scale(V3d *scale, CombineOp op);
+	void transform(Matrix *mat, CombineOp op);
 	void updateObjects(void);
 
 

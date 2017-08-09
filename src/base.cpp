@@ -301,6 +301,26 @@ Matrix::scale(V3d *scale, CombineOp op)
 	return this;
 }
 
+Matrix*
+Matrix::transform(Matrix *mat, CombineOp op)
+{
+	Matrix tmp;
+	switch(op){
+	case COMBINEREPLACE:
+		*this = *mat;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, mat, this);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, mat);
+		*this = tmp;
+		break;
+	}
+	return this;
+}
+
 void
 Matrix::lookAt(const V3d &dir, const V3d &up)
 {

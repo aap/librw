@@ -231,6 +231,7 @@ struct Matrix
 	Matrix *rotate(const Quat &q, CombineOp op);
 	Matrix *translate(V3d *translation, CombineOp op);
 	Matrix *scale(V3d *scl, CombineOp op);
+	Matrix *transform(Matrix *mat, CombineOp op);
 	void lookAt(const V3d &dir, const V3d &up);
 
 	// helper functions. consider private

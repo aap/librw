@@ -129,6 +129,16 @@ Engine::start(EngineStartParams *p)
 }
 
 void
+Engine::term(void)
+{
+}
+
+void
+Engine::close(void)
+{
+}
+
+void
 Engine::stop(void)
 {
 	engine->device.system(DEVICESTOP, nil);
