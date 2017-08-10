@@ -291,8 +291,8 @@ Geometry::calculateBoundingSphere(void)
 {
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		V3d min {  1000000.0f,  1000000.0f,  1000000.0f };
-		V3d max { -1000000.0f, -1000000.0f, -1000000.0f };
+		V3d min = {  1000000.0f,  1000000.0f,  1000000.0f };
+		V3d max = { -1000000.0f, -1000000.0f, -1000000.0f };
 		V3d *v = m->vertices;
 		for(int32 j = 0; j < this->numVertices; j++){
 			if(v->x > max.x) max.x = v->x;

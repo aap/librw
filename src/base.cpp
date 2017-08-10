@@ -477,9 +477,9 @@ Matrix::orthogonalError(void)
 float32
 Matrix::identityError(void)
 {
-	V3d r { right.x-1.0f, right.y, right.z };
-	V3d u { up.x, up.y-1.0f, up.z };
-	V3d a { at.x, at.y, at.z-1.0f };
+	V3d r = { right.x-1.0f, right.y, right.z };
+	V3d u = { up.x, up.y-1.0f, up.z };
+	V3d a = { at.x, at.y, at.z-1.0f };
 	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
 
