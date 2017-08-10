@@ -12,6 +12,8 @@
 
 namespace rw {
 
+PluginList Camera::s_plglist = { sizeof(Camera), sizeof(Camera), nil, nil };
+
 void
 defaultBeginUpdateCB(Camera *cam)
 {

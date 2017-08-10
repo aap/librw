@@ -12,6 +12,7 @@
 namespace rw {
 
 LinkList Frame::dirtyList;
+PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
 
 Frame*
 Frame::create(void)

@@ -14,6 +14,9 @@
 
 namespace rw {
 
+PluginList Geometry::s_plglist = { sizeof(Geometry), sizeof(Geometry), nil, nil };
+PluginList Material::s_plglist = { sizeof(Material), sizeof(Material), nil, nil };
+
 SurfaceProperties defaultSurfaceProps = { 1.0f, 1.0f, 1.0f };
 
 Geometry*

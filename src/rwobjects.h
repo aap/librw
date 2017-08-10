@@ -82,8 +82,9 @@ struct Object
 	}
 };
 
-struct Frame : PluginBase<Frame>
+struct Frame
 {
+	PLUGINBASE
 	typedef Frame *(*Callback)(Frame *f, void *data);
 	enum { ID = 0 };
 	enum {		// private flags
@@ -215,8 +216,9 @@ struct RasterLevels
 	} levels[1];	// 0 is illegal :/
 };
 
-struct Raster : PluginBase<Raster>
+struct Raster
 {
+	PLUGINBASE
 	int32 platform;
 
 	int32 type;	// hardly used
@@ -268,8 +270,9 @@ struct Raster : PluginBase<Raster>
 
 struct TexDictionary;
 
-struct Texture : PluginBase<Texture>
+struct Texture
 {
+	PLUGINBASE
 	Raster *raster;
 	TexDictionary *dict;
 	LLLink inDict;
@@ -317,8 +320,9 @@ struct SurfaceProperties
 	float32 diffuse;
 };
 
-struct Material : PluginBase<Material>
+struct Material
 {
+	PLUGINBASE
 	Texture *texture;
 	RGBA color;
 	SurfaceProperties surfaceProps;
@@ -391,8 +395,9 @@ struct MaterialList
 	uint32 streamGetSize(void);
 };
 
-struct Geometry : PluginBase<Geometry>
+struct Geometry
 {
+	PLUGINBASE
 	enum { ID = 8 };
 	Object object;
 	uint32 flags;
@@ -453,8 +458,9 @@ void registerNativeDataPlugin(void);
 struct Clump;
 struct World;
 
-struct Atomic : PluginBase<Atomic>
+struct Atomic
 {
+	PLUGINBASE
 	typedef void (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
 	enum {
@@ -509,8 +515,9 @@ struct Atomic : PluginBase<Atomic>
 
 void registerAtomicRightsPlugin(void);
 
-struct Light : PluginBase<Light>
+struct Light
 {
+	PLUGINBASE
 	enum { ID = 3 };
 	ObjectWithFrame object;
 	float32 radius;
@@ -568,8 +575,9 @@ struct FrustumPlane
 	uint8 closestZ;
 };
 
-struct Camera : PluginBase<Camera>
+struct Camera
 {
+	PLUGINBASE
 	enum { ID = 4 };
 	enum { PERSPECTIVE = 1, PARALLEL };
 	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2};
@@ -625,8 +633,9 @@ struct Camera : PluginBase<Camera>
 	void setFOV(float32 fov, float32 ratio);
 };
 
-struct Clump : PluginBase<Clump>
+struct Clump
 {
+	PLUGINBASE
 	enum { ID = 2 };
 	Object object;
 	LinkList atomics;
@@ -664,8 +673,9 @@ struct Clump : PluginBase<Clump>
 };
 
 // A bit of a stub right now
-struct World : PluginBase<World>
+struct World
 {
+	PLUGINBASE
 	enum { ID = 7 };
 	Object object;
 	LinkList lights;                // these have positions (type >= 0x80)
@@ -676,8 +686,9 @@ struct World : PluginBase<World>
 	void addCamera(Camera *cam);
 };
 
-struct TexDictionary : PluginBase<TexDictionary>
+struct TexDictionary
 {
+	PLUGINBASE
 	enum { ID = 6 };
 	Object object;
 	LinkList textures;

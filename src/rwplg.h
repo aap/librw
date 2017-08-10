@@ -49,27 +49,22 @@ struct PluginList
 	int32 getPluginOffset(uint32 id);
 };
 
-template <typename T>
-struct PluginBase
-{
-	static PluginList s_plglist;
+#define PLUGINBASE \
+	static PluginList s_plglist;						    \
+	static int32 registerPlugin(int32 size, uint32 id, Constructor ctor, 	    \
+			Destructor dtor, CopyConstructor copy){			    \
+		return s_plglist.registerPlugin(size, id, ctor, dtor, copy);	    \
+	}									    \
+	static int32 registerPluginStream(uint32 id, StreamRead read,		    \
+			StreamWrite write, StreamGetSize getSize){		    \
+		return s_plglist.registerStream(id, read, write, getSize);	    \
+	}									    \
+	static int32 setStreamRightsCallback(uint32 id, RightsCallback cb){	    \
+		return s_plglist.setStreamRightsCallback(id, cb);		    \
+	}									    \
+	static int32 getPluginOffset(uint32 id){				    \
+		return s_plglist.getPluginOffset(id);				    \
+	}
 
-	static int32 registerPlugin(int32 size, uint32 id, Constructor ctor,
-			Destructor dtor, CopyConstructor copy){
-		return s_plglist.registerPlugin(size, id, ctor, dtor, copy);
-	}
-	static int32 registerPluginStream(uint32 id, StreamRead read,
-			StreamWrite write, StreamGetSize getSize){
-		return s_plglist.registerStream(id, read, write, getSize);
-	}
-	static int32 setStreamRightsCallback(uint32 id, RightsCallback cb){
-		return s_plglist.setStreamRightsCallback(id, cb);
-	}
-	static int32 getPluginOffset(uint32 id){
-		return s_plglist.getPluginOffset(id);
-	}
-};
-template <typename T>
-PluginList PluginBase<T>::s_plglist = { sizeof(T), sizeof(T), nil, nil };
 
 }

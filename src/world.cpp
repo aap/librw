@@ -13,6 +13,8 @@
 
 namespace rw {
 
+PluginList World::s_plglist = { sizeof(World), sizeof(World), nil, nil };
+
 World*
 World::create(void)
 {

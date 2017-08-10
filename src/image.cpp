@@ -24,6 +24,10 @@
 
 namespace rw {
 
+PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
+PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
+PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
+
 //
 // TexDictionary
 //
