@@ -35,14 +35,19 @@ World::addLight(Light *light)
 	light->world = this;
 	if(light->getType() < Light::POINT){
 		this->directionalLights.append(&light->inWorld);
-	}else
+	}else{
 		this->lights.append(&light->inWorld);
+		if(light->getFrame())
+			light->getFrame()->updateObjects();
+	}
 }
 
 void
 World::addCamera(Camera *cam)
 {
 	cam->world = this;
+	if(cam->getFrame())
+		cam->getFrame()->updateObjects();
 }
 
 }

@@ -92,7 +92,6 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		uint32 buf[2];
 		stream->read(buf, 8);
 		instance->dataSize = buf[0];
-		instance->arePointersFixed = buf[1];
 // TODO: force alignment
 		instance->data = new uint8[instance->dataSize];
 #ifdef RW_PS2
@@ -100,6 +99,10 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		assert(a % 0x10 == 0);
 #endif
 		stream->read(instance->data, instance->dataSize);
+#ifdef RW_PS2
+		if(!buf[1])
+			fixDmaOffsets(instance);
+#endif
 		instance->material = geometry->meshHeader->mesh[i].material;
 //		sizedebug(instance);
 	}
@@ -118,13 +121,15 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
-		if(instance->arePointersFixed == 2)
-			unfixDmaOffsets(instance);
 		uint32 buf[2];
 		buf[0] = instance->dataSize;
-		buf[1] = instance->arePointersFixed;
+		buf[1] = unfixDmaOffsets(instance);
 		stream->write(buf, 8);
 		stream->write(instance->data, instance->dataSize);
+#ifdef RW_PS2
+		if(!buf[1])
+			fixDmaOffsets(instance);
+#endif
 	}
 	return stream;
 }
@@ -157,13 +162,11 @@ registerNativeDataPlugin(void)
 	                               getSizeNativeData);
 }
 
+// Patch DMA ref ADDR fields to point to the actual data.
 #ifdef RW_PS2
 void
 fixDmaOffsets(InstanceData *inst)
 {
-	if(inst->arePointersFixed)
-		return;
-
 	uint32 base = (uint32)inst->data;
 	uint32 *tag = (uint32*)inst->data;
 	for(;;){
@@ -184,7 +187,6 @@ fixDmaOffsets(InstanceData *inst)
 		// DMAret
 		case 0x60000000:
 			// we're done
-			inst->arePointersFixed = 2;
 			return;
 
 		default:
@@ -195,15 +197,17 @@ fixDmaOffsets(InstanceData *inst)
 }
 #endif
 
-void
+// Patch DMA ref ADDR fields to qword offsets and return whether
+// no ref tags were found.
+// Only under RW_PS2 are the addresses actually patched but we need
+// the return value for streaming out.
+bool32
 unfixDmaOffsets(InstanceData *inst)
 {
-	(void)inst;
+	bool32 norefs = 1;
 #ifdef RW_PS2
-	if(inst->arePointersFixed != 2)
-		return;
-
 	uint32 base = (uint32)inst->data;
+#endif
 	uint32 *tag = (uint32*)inst->data;
 	for(;;){
 		switch(tag[0]&0x70000000){
@@ -215,23 +219,23 @@ unfixDmaOffsets(InstanceData *inst)
 
 		// DMAref
 		case 0x30000000:
+			norefs = 0;
 			// unfix address and jump to next
+#ifdef RW_PS2
 			tag[1] = (tag[1] - base)>>4;
+#endif
 			tag += 4;
 			break;
 
 		// DMAret
 		case 0x60000000:
-			// we're done
-			inst->arePointersFixed = 0;
-			return;
+			return norefs;
 
 		default:
 			fprintf(stderr, "error: unknown DMAtag %X\n", tag[0]);
-			return;
+			return norefs;
 		}
 	}
-#endif
 }
 
 // Pipeline
@@ -586,7 +590,6 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
 	inst->dataSize = (im.size+im.size2)<<4;
-	inst->arePointersFixed = im.numBrokenAttribs == 0;
 	// TODO: force alignment
 	inst->data = new uint8[inst->dataSize];
 
@@ -685,6 +688,8 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 
 	if(this->instanceCB)
 		this->instanceCB(this, g, m, datap);
+	if(im.numBrokenAttribs)
+		fixDmaOffsets(inst);
 }
 
 uint8*
@@ -766,6 +771,7 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	geo->flags |= Geometry::NATIVE;
 }
 
+/*
 static void
 printVertCounts(InstanceData *inst, int flag)
 {
@@ -794,6 +800,7 @@ printVertCounts(InstanceData *inst, int flag)
 		}
 	}
 }
+*/
 
 static void
 objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
@@ -1241,6 +1248,7 @@ registerADCPlugin(void)
 }
 
 // misc stuff
+/*
 
 void
 printDMA(InstanceData *inst)
@@ -1300,6 +1308,7 @@ sizedebug(InstanceData *inst)
 		}
 	}
 }
+*/
 
 }
 }

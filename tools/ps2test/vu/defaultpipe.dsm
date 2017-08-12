@@ -1,0 +1,128 @@
+.global defaultPipe
+
+.equ vertexTop, 0x3d0
+.equ numInAttribs, 4
+.equ numOutAttribs, 3
+.equ numOutBuf, 2
+.equ vertCount, ((vertexTop-numOutBuf)/(numInAttribs*2+numOutAttribs*numOutBuf))
+.equ offset, (vertCount*numInAttribs)
+.equ outBuf1, (2*offset)
+.equ outSize, ((vertexTop-outBuf1-2)/2)
+.equ outBuf2, (outBuf1+outSize)
+
+.equ lightMat,		0x3d0
+.equ lightDir,		0x3d4
+.equ matrix, 		0x3f0
+.equ XYZScale, 		0x3f7
+.equ XYZOffset, 	0x3f8
+.equ gifTag, 		0x3fa
+.equ matColor, 		0x3fb
+.equ ambientLight, 	0x3fd
+
+/* This is the the projection matrix we start with:
+ * 1/2w       0    ox/2w + 1/2   -ox/2w
+ *    0   -1/2h   -oy/2h + 1/2    oy/2h
+ *    0       0              1        0
+ *    0       0              1        0
+ * To get rid of the +1/2 in the combined matrix we
+ * subtract the z-row/2 from the x- and y-rows.
+ *
+ * The z-row is then set to [0 0 0 1] such that multiplication
+ * by XYZscale gives [0 0 0 zScale]. After perspective division
+ * and addition of XYZoffset we then get zScale/w + zShift for z.
+ *
+ * XYZScale scales xy to the resolution and z by zScale.
+ * XYZOffset translates xy to the GS coordinate system (where
+ * [2048, 2048] is the center of the frame buffer) and add zShift to z.
+ */
+
+; constant:
+;	VF28-VF31	transformation matrix
+;	VF25		XYZ offset
+
+
+.balign 16,0
+defaultPipe:
+DMAret *
+MPG 0, *
+.vu
+Start:
+	SUB.z  VF28, VF28, VF28		LOI 0.5				; right.z = 0
+	SUB.z  VF29, VF29, VF29		LQ VF28, matrix(VI00)		; up.z = 0 - load matrix
+	SUB.z  VF30, VF30, VF30		LQ VF29, matrix+1(VI00)		; at.z = 0 - load matrix
+	ADDw.z VF31, VF00, VF00		LQ VF30, matrix+2(VI00)		; at.z = 1 - load matrix
+	NOP				LQ VF31, matrix+3(VI00)		;          - load matrix
+	MULi.w VF20, VF28, I		LQ.xyz VF01, XYZScale(VI00)	; fix matrix - load scale
+	MULi.w VF21, VF29, I		NOP				; fix matrix
+	MULi.w VF22, VF30, I		NOP				; fix matrix
+	MULi.w VF23, VF31, I		NOP				; fix matrix
+	SUBw.xy VF28, VF28, VF20	NOP				; fix matrix
+	SUBw.xy VF29, VF29, VF21	NOP				; fix matrix
+	SUBw.xy VF30, VF30, VF22	NOP				; fix matrix
+	SUBw.xy VF31, VF31, VF23	NOP				; fix matrix
+	MUL.xy  VF28, VF28, VF01	LQ.xyz VF25, XYZOffset(VI00)	; scale matrix
+	MUL.xy  VF29, VF29, VF01	IADDIU VI12, VI00, outBuf1	; scale matrix
+	MUL.xy  VF30, VF30, VF01	IADDIU VI13, VI00, outBuf2	; scale matrix
+	MUL.xyz VF31, VF31, VF01	NOP				; scale matrix
+Cnt:
+	NOP				XTOP VI02			; input pointer
+	NOP				LQ VF01, gifTag(VI00)
+	NOP				XITOP VI01			; vertex count
+	NOP				IADDIU VI05, VI00, 0x4000
+	NOP				IADD VI05, VI05, VI05
+	NOP				IOR VI05, VI05, VI01
+	NOP				SQ VF01, 0(VI12)
+	NOP				ISW.x VI05, 0(VI12)
+	NOP				IADDIU VI03, VI12, 1		; output pointer
+	NOP				LQ VF18, lightMat(VI00)
+	NOP				LQ VF19, lightMat+1(VI00)
+	NOP				LQ VF20, lightMat+2(VI00)
+
+Loop:
+	NOP				LQI VF01, (VI02++)		; vertex
+	NOP				LQI VF02, (VI02++)		; UV
+	NOP				LQI VF03, (VI02++)		; color
+	NOP				LQI VF04, (VI02++)		; normal
+
+	MULAw.xyzw ACC, VF31, VF00w	NOP				; transform vertex
+	MADDAx.xyw ACC, VF28, VF01x	NOP
+	MADDAy.xyw ACC, VF29, VF01y	NOP
+	MADDz.xyzw VF01, VF30, VF01z	NOP
+	ITOF0 VF03, VF03		NOP
+	ITOF0[I] VF04, VF04		LOI 0.0078125			; - normal scale
+	NOP				NOP
+	NOP				DIV Q, VF00w, VF01w
+	NOP				WAITQ
+	MULq VF01, VF01, Q		NOP				; perspective division
+	MULi VF04, VF04, I		NOP				; scale normal
+	NOP				MR32.z VF02, VF00
+	NOP				NOP
+	SUB.w VF01, VF01, VF01		NOP
+	MULAx.xyz ACC, VF18, VF04x	NOP				; transform normal
+	MADDAy.xyz ACC, VF19, VF04y	NOP
+	MADDz.xyz VF04, VF20, VF04z	NOP
+	ADD.xyz VF01, VF01, VF25	NOP
+	MULq VF02, VF02, Q		NOP
+	NOP				NOP
+	FTOI0 VF03, VF03		NOP
+	FTOI4 VF01, VF01		NOP
+	NOP				SQ VF04, -2(VI02)		; store normal
+	NOP				IADDI VI01, VI01, -1
+	NOP				SQI VF02, (VI03++)		; STQ
+	NOP				SQI VF03, (VI03++)		; color
+	NOP				SQI VF01, (VI03++)		; vertex
+	NOP				IBNE VI01, VI00, Loop
+	NOP				NOP
+
+#include "light.vu"
+
+	NOP				XGKICK VI12
+	NOP				IADD VI15,VI00,VI12
+	NOP				IADD VI12,VI00,VI13
+	NOP[E]				IADD VI13,VI00,VI15
+	NOP				NOP
+	NOP				B Cnt
+	NOP				NOP
+
+.EndMPG
+.EndDmaData

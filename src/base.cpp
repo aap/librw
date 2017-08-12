@@ -261,6 +261,7 @@ Matrix::translate(V3d *translation, CombineOp op)
 	Matrix tmp;
 	Matrix trans = identMat;
 	trans.pos = *translation;
+	trans.flags &= ~IDENTITY;
 	switch(op){
 	case COMBINEREPLACE:
 		*this = trans;
@@ -482,22 +483,6 @@ Matrix::identityError(void)
 	V3d a = { at.x, at.y, at.z-1.0f };
 	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
-
-#if 0
-
-bool32
-Matrix::isIdentity(void)
-{
-	return matrixIsIdentity((float32*)this);
-}
-
-void
-Matrix::transpose(Matrix *m1, Matrix *m2)
-{
-	matrixTranspose((float32*)m1, (float32*)m2);
-}
-
-#endif
 
 #define PSEP_C '/'
 #define PSEP_S "/"

@@ -12,8 +12,8 @@ workspace "librw"
 			"win-amd64-null", "win-amd64-gl3", "win-amd64-d3d9" }
 	filter { "system:linux" }
 		platforms { "linux-x86-null", "linux-x86-gl3",
-		"linux-amd64-null", "linux-amd64-gl3" }
-	-- TODO: ps2
+		"linux-amd64-null", "linux-amd64-gl3",
+		"ps2" }
 	filter {}
 
 	filter "configurations:Debug"
@@ -31,8 +31,12 @@ workspace "librw"
 		defines { "RW_GL3" }
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
-	filter { "platforms:*ps2" }
+	filter { "platforms:ps2" }
 		defines { "RW_PS2" }
+		toolset "gcc"
+		gccprefix 'ee-'
+		buildoptions { "-nostdlib", "-fno-common" }
+		includedirs { "$(PS2SDK)/ee/include", "$(PS2SDK)/common/include" }
 
 	filter { "platforms:*amd64*" }
 		architecture "x86_64"
@@ -110,9 +114,35 @@ function skeltool(dir)
 	findlibs()
 end
 
+function vucode()
+	filter "files:**.dsm"
+		buildcommands {
+			'cpp "%{file.relpath}" | dvp-as -o "%{cfg.objdir}/%{file.basename}.o"'
+		}
+		buildoutputs { '%{cfg.objdir}/%{file.basename}.o' }
+	filter {}
+end
+
 project "clumpview"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("clumpview")
 	flags { "WinMain" }
 	removeplatforms { "*null" }
+
+project "ps2test"
+	kind "ConsoleApp"
+	targetdir (Bindir)
+	vucode()
+	removeplatforms { "*gl3", "*d3d9", "*null" }
+	targetextension '.elf'
+	includedirs { "." }
+	files { "tools/ps2test/*.cpp",
+	        "tools/ps2test/vu/*.dsm",
+	        "tools/ps2test/*.h" }
+	linkoptions '$(PS2SDK)/ee/startup/crt0.o'
+	linkoptions { '-mno-crt0', "-T$(PS2SDK)/ee/startup/linkfile" }
+	libdirs { "$(PS2SDK)/ee/lib" }
+	links { "librw" }
+	-- "c -lc" is a hack because we need -lc twice for some reason
+	links { "c -lc", "kernel", "mf" }

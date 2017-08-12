@@ -184,7 +184,21 @@ cameraSync(ObjectWithFrame *obj)
 	 * and to clip space are handled by separate matrices there.
 	 * On these platforms the two matrices are built in the platform's
 	 * beginUpdate function.
-	 * On the PS2 the 1/2 translation/shear is removed again on the VU1.
+	 * On the PS2 the z- and w-rows are the same and the 
+	 * 1/2 translation/shear is removed again on the VU1 by
+	 * subtracting the w-row/2 from the x- and y-rows.
+	 *
+	 * perspective:
+	 * 1/2w       0    ox/2w   -ox/2w
+	 *    0   -1/2h   -oy/2h    oy/2h
+	 *    0       0        1        0
+	 *    0       0        1        0
+	 *
+	 * parallel:
+	 * 1/2w       0    ox/2w   -ox/2w
+	 *    0   -1/2h   -oy/2h    oy/2h
+	 *    0       0        1        0
+	 *    0       0        0        1
 	 *
 	 * RW builds this matrix directly without using explicit
 	 * inversion and matrix multiplication.
@@ -193,8 +207,8 @@ cameraSync(ObjectWithFrame *obj)
 	Camera *cam = (Camera*)obj;
 	Matrix inv, proj;
 	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
-	float32 xscl = 2.0f/cam->viewWindow.x;
-	float32 yscl = 2.0f/cam->viewWindow.y;
+	float32 xscl = 1.0f/(2.0f*cam->viewWindow.x);
+	float32 yscl = 1.0f/(2.0f*cam->viewWindow.y);
 
 	proj.flags = 0;
 	proj.right.x = xscl;
@@ -351,6 +365,8 @@ Camera::setNearPlane(float32 near)
 {
 	this->nearPlane = near;
 	calczShiftScale(this);
+	if(this->getFrame())
+		this->getFrame()->updateObjects();
 }
 
 void
@@ -358,6 +374,32 @@ Camera::setFarPlane(float32 far)
 {
 	this->farPlane = far;
 	calczShiftScale(this);
+	if(this->getFrame())
+		this->getFrame()->updateObjects();
+}
+
+void
+Camera::setViewWindow(const V2d *window)
+{
+	this->viewWindow = *window;
+	if(this->getFrame())
+		this->getFrame()->updateObjects();
+}
+
+void
+Camera::setViewOffset(const V2d *offset)
+{
+	this->viewOffset = *offset;
+	if(this->getFrame())
+		this->getFrame()->updateObjects();
+}
+
+void
+Camera::setProjection(int32 proj)
+{
+	this->projection = proj;
+	if(this->getFrame())
+		this->getFrame()->updateObjects();
 }
 
 int32
@@ -433,10 +475,12 @@ Camera::streamGetSize(void)
 void
 Camera::setFOV(float32 fov, float32 ratio)
 {
+	V2d v;
 	float32 a = tan(fov*3.14159f/360.0f);
-	this->viewWindow.x = a;
-	this->viewWindow.y = a/ratio;
-	this->viewOffset.set(0.0f, 0.0f);
+	v.set(a, a/ratio);
+	this->setViewWindow(&v);
+	v.set(0.0f, 0.0f);
+	this->setViewOffset(&v);
 }
 
 }

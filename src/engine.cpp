@@ -74,7 +74,9 @@ Engine::open(void)
 
 	// Initialize device
 	// Device and possibly OS specific!
-#ifdef RW_GL3
+#ifdef RW_PS2
+	engine->device = ps2::renderdevice;
+#elif RW_GL3
 	engine->device = gl3::renderdevice;
 #elif RW_D3D9
 	engine->device = d3d::renderdevice;
@@ -196,7 +198,7 @@ rasterToImage(Raster*)
 }
 
 int
-devicesystem(DeviceReq req, void *arg0)
+deviceSystem(DeviceReq req, void *arg0)
 {
 	return 1;
 }
@@ -210,7 +212,7 @@ Device renderdevice = {
 	null::setRenderState,
 	null::getRenderState,
 	null::im2DRenderIndexedPrimitive,
-	null::devicesystem
+	null::deviceSystem
 };
 
 }

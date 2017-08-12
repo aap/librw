@@ -145,7 +145,7 @@ MatFX::get(Material *m)
 	return *PLUGINOFFSET(MatFX*, m, matFXGlobals.materialOffset);
 }
 
-uint32
+int32
 MatFX::getEffectIndex(uint32 type)
 {
 	for(int i = 0; i < 2; i++)

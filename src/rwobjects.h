@@ -624,6 +624,9 @@ struct Camera
 	void showRaster(void);
 	void setNearPlane(float32);
 	void setFarPlane(float32);
+	void setViewWindow(const V2d *window);
+	void setViewOffset(const V2d *offset);
+	void setProjection(int32 proj);
 	int32 frustumTestSphere(Sphere *s);
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);

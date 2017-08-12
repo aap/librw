@@ -1,15 +1,19 @@
 namespace rw {
+
+#ifdef RW_PS2
+struct EngineStartParams
+{
+};
+#endif
+
 namespace ps2 {
 
 void initializePlatform(void);
 
+extern Device renderdevice;
+
 struct InstanceData
 {
-	// 0 - addresses in ref tags need fixing
-	// 1 - no ref tags, so no fixing
-	// set by the program:
-	// 2 - ref tags are fixed, need to unfix before stream write
-	uint32 arePointersFixed;
 	uint32 dataSize;
 	uint8 *data;
 	Material *material;
@@ -57,10 +61,8 @@ void registerNativeDataPlugin(void);
 void printDMA(InstanceData *inst);
 void sizedebug(InstanceData *inst);
 
-// only RW_PS2
-void fixDmaOffsets(InstanceData *inst);
-void unfixDmaOffsets(InstanceData *inst);
-//
+void fixDmaOffsets(InstanceData *inst);	// only RW_PS2
+int32 unfixDmaOffsets(InstanceData *inst);
 
 struct PipeAttribute
 {

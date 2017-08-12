@@ -1,0 +1,98 @@
+.data
+.global MyDmaPacket
+.global vuLightMat
+.global vuMat
+.global vuXYZScale
+.global vuXYZOffset
+.global vuOffset
+.global vuGIFtag
+.global vuMatcolor
+.global vuSurfProps
+.global vuAmbLight
+.global mpgCall
+.global textureCall
+.global geometryCall
+
+.align 4
+
+MyDmaPacket:
+DMAcnt *
+.EndDmaData
+
+mpgCall:
+DMAcall *, 0 ;vuProg
+.EndDmaData
+
+/*
+#define vuSDLightOffset     0x3d0
+#define vuSDBlockLow        0x3c3
+#define vuSDBlockHigh       0x3f0
+#define vuSDmat0            vuSDBlockHigh
+#define vuSDmat1            vuSDBlockHigh+1
+#define vuSDmat2            vuSDBlockHigh+2
+#define vuSDmat3            vuSDBlockHigh+3
+#define vuSDnearClip        vuSDBlockHigh+4
+#define vuSDfarClip         vuSDBlockHigh+5
+#define vuSDxMaxyMax        vuSDBlockHigh+6
+#define vuSDcamWcamHzScale  vuSDBlockHigh+7
+#define vuSDoffXoffYzShift  vuSDBlockHigh+8
+#define vuSDrealOffset      vuSDBlockHigh+9
+#define vuSDgifTag          vuSDBlockHigh+10
+#define vuSDcolScale        vuSDBlockHigh+11
+#define vuSDsurfProps       vuSDBlockHigh+12
+#define vuSDpingPongAddr    vuSDBlockHigh+13    
+#define vuSDpingPongCount   vuSDBlockHigh+14    
+#define vuSDClipvec1        vuSDBlockHigh+13                                     
+#define vuSDClipvec2        vuSDBlockHigh+14                                        
+#define vuSDVUSwitch        vuSDBlockHigh+15    
+*/
+
+DMAcnt *
+	UNPACK 4, 4, V4_32, 0x3d0, *
+vuLightMat:
+	.float 1.0, 0.0, 0.0, 0.0
+	.float 0.0, 1.0, 0.0, 0.0
+	.float 0.0, 0.0, 1.0, 0.0
+	.float 0.0, 0.0, 0.0, 1.0
+lightDir:
+	.float 0.5, -0.5, -0.70710, 0.0
+	.EndUnpack
+
+	UNPACK 4, 4, V4_32, 0x3f0, *
+vuMat:
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.float 0.0, 0.0, 0.0, 0.0
+	.EndUnpack
+
+	UNPACK 4, 4, V4_32, 0x3f7, *
+vuXYZScale:
+	.float 0.0, 0.0, 0.0, 0.0
+vuXYZOffset:
+	.float 0.0, 0.0, 0.0, 0.0
+vuOffset:
+	.float 0.0, 0.0, 0.0, 0.0
+vuGIFtag:
+	.int 0x00008000, 0x3005C000, 0x0000000412, 0x00000000
+vuMatcolor:
+	.float 1.0, 1.0, 1.0, 0.5
+vuSurfProps:
+	.float 1.0, 1.0, 1.0, 1.0
+vuAmbLight:
+	.float 0, 0, 0, 0
+	.EndUnpack
+.EndDmaData
+
+;;textureCall:
+;;DMAcall *, 0
+;;.EndDmaData
+
+geometryCall:
+DMAcall *, 0 ;vuGeometry
+	BASE 0
+	OFFSET 0x0
+.EndDmaData
+
+DMAend
+

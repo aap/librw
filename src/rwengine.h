@@ -140,6 +140,7 @@ namespace null {
 	void beginUpdate(Camera*);
 	void endUpdate(Camera*);
 	void clearCamera(Camera*, RGBA *col, uint32 mode);
+	void showRaster(Raster*);
 
 	void   setRenderState(int32 state, uint32 value);
 	uint32 getRenderState(int32 state);
@@ -154,7 +155,7 @@ namespace null {
 	void   im2DRenderIndexedPrimitive(PrimitiveType,
 	                                  void*, int32, void*, int32);
 
-	int deviceSystem(DeviceReq req);
+	int deviceSystem(DeviceReq req, void*);
 
 	extern Device renderdevice;
 }
