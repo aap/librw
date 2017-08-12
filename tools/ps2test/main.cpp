@@ -28,7 +28,20 @@ int *__errno() { return &errno; }
 // NONINTERLACED has half the vertical units
 
 uint128 packetbuf[128];
-uint128 chainbuf[128];
+uint128 vuXYZScale;
+uint128 vuXYZOffset;
+extern uint32 geometryCall[];
+extern uint32 skinPipe[];
+
+uint128 *curVifPtr;
+uint128 lightpacket[128];
+int32 numLightQ;
+
+
+
+rw::World *world;
+rw::Camera *camera;
+
 
 int frames;
 
@@ -38,6 +51,22 @@ printquad(uint128 p)
 	uint64 *lp;
 	lp = (uint64*)&p;
 	printf("%016lx %016lx\n", lp[1], lp[0]);
+}
+
+void
+printquad4(uint128 p)
+{
+	uint32 *lp;
+	lp = (uint32*)&p;
+	printf("%08x %08x %08x %08x\n", lp[0], lp[1], lp[2], lp[3]);
+}
+
+void
+dump4(uint128 *p, int n)
+{
+printf("data at %p\n", p);
+	while(n--)
+		printquad4(*p++);
 }
 
 struct DmaChannel {
@@ -393,29 +422,6 @@ drawtri(void)
 	toGIFchain(packetbuf);
 }
 
-
-rw::Matrix projMat, viewMat, worldMat;
-
-extern uint32 MyDmaPacket[];
-extern rw::RawMatrix vuMat;
-extern rw::RawMatrix vuLightMat;
-extern float  vuXYZScale[];
-extern float  vuXYZOffset[];
-extern float  vuOffset[];
-extern uint64 vuGIFtag[];
-extern float  vuMatcolor[];
-extern float  vuSurfProps[];
-extern float  vuAmbLight[];
-extern uint32 vuGeometry[];
-extern uint32 mpgCall[];
-extern uint32 textureCall[];
-extern uint32 geometryCall[];
-extern uint32 defaultPipe[];
-extern uint32 skinPipe[];
-
-rw::World *world;
-rw::Camera *camera;
-
 void
 printMatrix(rw::Matrix *m)
 {
@@ -436,59 +442,120 @@ printMatrix(rw::Matrix *m)
                   m->flags);
 }
 
+// This is not proper data, just for testing
+void
+setupLight(rw::Atomic *atomic)
+{
+	using namespace rw;
+	Matrix *lightmat;
+	float32 *lp;
+
+	numLightQ = 0;
+	lp = (float32*)lightpacket;
+
+	// TODO: this is the wrong matrix. we actually want to
+	// transform the light, not all normals.
+	lightmat = atomic->getFrame()->getLTM();
+	*lp++ = lightmat->right.x;
+	*lp++ = lightmat->right.y;
+	*lp++ = lightmat->right.z;
+	*lp++ = 0.0f;
+	*lp++ = lightmat->up.x;
+	*lp++ = lightmat->up.y;
+	*lp++ = lightmat->up.z;
+	*lp++ = 0.0f;
+	*lp++ = lightmat->at.x;
+	*lp++ = lightmat->at.y;
+	*lp++ = lightmat->at.z;
+	*lp++ = 0.0f;
+	*lp++ = lightmat->pos.x;
+	*lp++ = lightmat->pos.y;
+	*lp++ = lightmat->pos.z;
+	*lp++ = 1.0f;
+	// TODO: make a proper light block
+	// ambient
+	*lp++ = 80.0f;
+	*lp++ = 80.0f;
+	*lp++ = 80.0f;
+	*lp++ = 0.0f;
+	// directional
+	*lp++ = 0.5f;
+	*lp++ = -0.5f;
+	*lp++ = -0.7071f;
+	*lp++ = 0.0f;
+	numLightQ = 6;
+}
+
+void
+setupTransform(rw::Atomic *atomic, rw::Matrix *trans)
+{
+	rw::Matrix::mult(trans, atomic->getFrame()->getLTM(), &camera->viewMatrix);
+}
+
+enum {
+	DMAcnt       = 0x10000000,
+	DMAref       = 0x30000000,
+	DMAcall      = 0x50000000,
+	DMAret       = 0x60000000,
+	DMAend       = 0x70000000,
+
+	V4_32 = 0x6C
+};
+
+#define UNPACK(type, nq, offset) ((type)<<24 | (nq)<<16 | (offset))
+#define STCYCL(WL,CL) (0x01000000 | (WL)<<8 | (CL))
 
 void
 drawAtomic(rw::Atomic *atomic)
 {
 	using namespace rw;
 
-	int i;
+	Matrix trans;
 	Geometry *geo;
-	Matrix *vp;
-
-	printf("view matrix\n");
-	printMatrix(&camera->viewMatrix);
-	printf("camera matrix\n");
-	printMatrix(camera->getFrame()->getLTM());
-	printf("atomic ltm\n");
-	printMatrix(atomic->getFrame()->getLTM());
-
-/*
-	RpAtomicPS2AllGetMeshHeaderMeshCache(atomic, ps2AllPipeData);
-	RpAtomicPS2AllGatherObjMetrics(atomic);
-	RpAtomicPS2AllMorphSetup(atomic, ps2AllPipeData);
-	RpAtomicPS2AllObjInstanceTest(atomic, ps2AllPipeData);
-	RpAtomicPS2AllClear(atomic);
-	RpAtomicPS2AllTransformSetup(atomic, transform);
-	RpAtomicPS2AllFrustumTest(atomic, &inFrustum);
-	RpAtomicPS2AllPrimTypeTransTypeSetup(ps2AllPipeData, inFrustum);
-	RpAtomicPS2AllMatModulateSetup(atomic, ps2AllPipeData);
-	RpAtomicPS2AllLightingSetup(ps2AllPipeData);
-*/
-
-	// Transform Setup
-	Matrix::mult((Matrix*)&vuMat, atomic->getFrame()->getLTM(), &camera->viewMatrix);
-	vuMat.rightw = vuMat.right.z;
-	vuMat.upw = vuMat.up.z;
-	vuMat.atw = vuMat.at.z;
-	vuMat.posw = vuMat.pos.z;
-	
-	*(Matrix*)&vuLightMat = *atomic->getFrame()->getLTM();
-	vuLightMat.rightw = 0.0f;
-	vuLightMat.upw = 0.0f;
-	vuLightMat.atw = 0.0f;
-	vuLightMat.posw = 1.0f;
+	ps2::ObjPipeline *pipe;
+	ps2::MatPipeline *matpipe;
+	Material *material;
+	uint128 tmp, *lp;
+	uint32 *vec;
+	RGBAf color;
+	int i;
 
 	geo = atomic->geometry;
-	if(!(geo->flags & Geometry::NATIVE)){
-		printf("not instanced!\n");
+	pipe = (ps2::ObjPipeline*)atomic->getPipeline();
+	if(pipe->platform != PLATFORM_PS2)
 		return;
-	}
 
-	vuAmbLight[0] = 80;
-	vuAmbLight[1] = 80;
-	vuAmbLight[2] = 80;
-	vuAmbLight[3] = 0;
+	setupLight(atomic);
+	setupTransform(atomic, &trans);
+
+	curVifPtr = packetbuf;
+	// upload lights
+	MAKEQ(tmp, DMAcnt | numLightQ+8, 0, STCYCL(4,4), UNPACK(V4_32, numLightQ, 0x3d0));
+	*curVifPtr++ = tmp;
+	for(lp = lightpacket; numLightQ--;)
+		*curVifPtr++ = *lp++;
+
+	// upload transformation matrix
+	MAKEQ(tmp, 0, 0, STCYCL(4,4), UNPACK(V4_32, 4, 0x3f0));
+	*curVifPtr++ = tmp;
+	vec = (uint32*)&trans.right;
+	MAKEQ(tmp, vec[0], vec[1], vec[2], vec[2]);
+	*curVifPtr++ = tmp;
+	vec = (uint32*)&trans.up;
+	MAKEQ(tmp, vec[0], vec[1], vec[2], vec[2]);
+	*curVifPtr++ = tmp;
+	vec = (uint32*)&trans.at;
+	MAKEQ(tmp, vec[0], vec[1], vec[2], vec[2]);
+	*curVifPtr++ = tmp;
+	vec = (uint32*)&trans.pos;
+	MAKEQ(tmp, vec[0], vec[1], vec[2], vec[2]);
+	*curVifPtr++ = tmp;
+
+	// upload camera/screen info
+	MAKEQ(tmp, 0, 0, STCYCL(4,4), UNPACK(V4_32, 2, 0x3f7));
+	*curVifPtr++ = tmp;
+	*curVifPtr++ = vuXYZScale;
+	*curVifPtr++ = vuXYZOffset;
 
 	assert(geo->instData != NULL);
 	rw::ps2::InstanceDataHeader *instData =
@@ -496,27 +563,49 @@ drawAtomic(rw::Atomic *atomic)
 	rw::MeshHeader *meshHeader = geo->meshHeader;
 	rw::Mesh *mesh;
 	for(i = 0; i < instData->numMeshes; i++){
-		geometryCall[1] = (uint32)instData->instanceMeshes[i].data;
-		vuMatcolor[0] = 1.0f;
-		vuMatcolor[1] = 1.0f;
-		vuMatcolor[2] = 1.0f;
-		vuMatcolor[3] = 1.0f;
+		material = instData->instanceMeshes[i].material;
+		matpipe = pipe->groupPipeline;
+		if(matpipe == nil)
+			matpipe = (ps2::MatPipeline*)material->pipeline;
+		if(matpipe == nil)
+			matpipe = ps2::defaultMatPipe;
 
-		vuGIFtag[0] = GIF_MAKE_TAG(0, 1, 1, GS_MAKE_PRIM(GS_PRIM_TRI_STRIP,1,0,0,0,0,0,0,0), GIF_PACKED, 3);
-		vuGIFtag[1] = 0x412;
-
-		geometryCall[3] = 0x020000DC;
-		mpgCall[1] = (uint32)skinPipe;
-//		geometryCall[3] = 0x02000114;
-//		mpgCall[1] = (uint32)defaultPipe;
-		toVIF1chain(MyDmaPacket);
+		// call vu code
+		MAKEQ(tmp, DMAcall, (uint32)skinPipe, 0, 0);
+		*curVifPtr++ = tmp;
+		// unpack GIF tag, material color, surface properties
+		MAKEQ(tmp, DMAcnt | 3, 0, STCYCL(4,4), UNPACK(V4_32, 3, 0x3fa));
+		*curVifPtr++ = tmp;
+		MAKE128(tmp, 0x412,
+			GIF_MAKE_TAG(0, 1, 1, GS_MAKE_PRIM(GS_PRIM_TRI_STRIP,1,0,0,0,0,0,0,0), GIF_PACKED, 3));
+		*curVifPtr++ = tmp;
+		convColor(&color, &material->color);
+		color.alpha *= 128.0f/255.0f;
+		MAKEQ(tmp, *(uint32*)&color.red, *(uint32*)&color.green,
+			*(uint32*)&color.blue, *(uint32*)&color.alpha);
+		*curVifPtr++ = tmp;
+		MAKEQ(tmp, *(uint32*)&material->surfaceProps.ambient,
+			*(uint32*)&material->surfaceProps.specular,
+			*(uint32*)&material->surfaceProps.diffuse,
+			0.0f);	// extra
+		*curVifPtr++ = tmp;
+		// call geometry
+		MAKEQ(tmp, DMAcall, (uint32)instData->instanceMeshes[i].data, 0x03000000, 0x02000000 | matpipe->vifOffset);
+		*curVifPtr++ = tmp;
 	}
+	MAKEQ(tmp, DMAend, 0, 0, 0);
+	*curVifPtr++ = tmp;
+	for(lp = packetbuf; lp < curVifPtr; lp++)
+		printquad4(*lp);
+	toVIF1chain(packetbuf);
 }
 
 void
 beginCamera(void)
 {
 	uint128 *p, tmp;
+	float32 *f;
+
 	p = packetbuf;
 	MAKE128(tmp, 0xe, GIF_MAKE_TAG(2, 1, 0, 0, GIF_PACKED, 1));
 	*p++ = tmp;
@@ -525,14 +614,16 @@ beginCamera(void)
 	MAKE128(tmp, GS_TEST_1, GS_MAKE_TEST(0, 0, 0, 0, 0, 0, 1, 2));
 	*p++ = tmp;
 	toGIF(packetbuf, 3);
-	vuXYZScale[0] = WIDTH;
-	vuXYZScale[1] = HEIGHT;
-	vuXYZScale[2] = camera->zScale;
-	vuXYZScale[3] = 0.0f;
-	vuXYZOffset[0] = 2048.0f;
-	vuXYZOffset[1] = 2048.0f;
-	vuXYZOffset[2] = camera->zShift;
-	vuXYZOffset[3] = 0.0f;
+	f = (float32*)&vuXYZScale;
+	f[0] = WIDTH;
+	f[1] = HEIGHT;
+	f[2] = camera->zScale;
+	f[3] = 0.0f;
+	f = (float32*)&vuXYZOffset;
+	f[0] = 2048.0f;
+	f[1] = 2048.0f;
+	f[2] = camera->zShift;
+	f[3] = 0.0f;
 }
 
 rw::EngineStartParams engineStartParams;
@@ -636,12 +727,9 @@ main()
 	GsPutDispCtx(&gsCtx.disp[1]);
 	// PCSX2 needs a delay for some reason
 	{ int i; for(i = 0; i < 1000000; i++); }
-	clearscreen(0, 0, 0);
-	drawtest();
-	drawtri();
-
-	vuOffset[0] = 0.0f;
-	vuOffset[1] = 0.0f;
+	clearscreen(0x80, 0x80, 0x80);
+//	drawtest();
+//	drawtri();
 
 	camera->beginUpdate();
 	beginCamera();
