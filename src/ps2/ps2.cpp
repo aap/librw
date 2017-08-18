@@ -688,8 +688,10 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 
 	if(this->instanceCB)
 		this->instanceCB(this, g, m, datap);
+#ifdef RW_PS2
 	if(im.numBrokenAttribs)
 		fixDmaOffsets(inst);
+#endif
 }
 
 uint8*

@@ -146,3 +146,12 @@ project "ps2test"
 	links { "librw" }
 	-- "c -lc" is a hack because we need -lc twice for some reason
 	links { "c -lc", "kernel", "mf" }
+
+project "ps2rastertest"
+	kind "ConsoleApp"
+	targetdir (Bindir)
+	removeplatforms { "*gl3", "*d3d9" }
+	files { "tools/ps2rastertest/*.cpp" }
+	includedirs { "." }
+	libdirs { Libdir }
+	links { "librw" }

@@ -908,6 +908,7 @@ Image::getFilename(const char *name)
 Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
+	// TODO: pass arguments through to the driver and create the raster there
 	Raster *raster = (Raster*)malloc(s_plglist.size);
 	assert(raster != nil);
 	raster->platform = platform ? platform : rw::platform;

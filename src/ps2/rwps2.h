@@ -188,17 +188,16 @@ struct Ps2Raster
 		SWIZZLED4     = 0x4,
 	};
 
-	uint32 tex0[2];
-	uint32 paletteOffset;   // from beginning of GS data;
-	                        // in words/64
+	uint64 tex0;
+	uint32 paletteBase;   // block address from beginning of GS data (words/64)
 	uint16 kl;
 	uint8 tex1low;          // MXL and LCM of TEX1
 	uint8 unk2;
-	uint32 miptbp1[2];
-	uint32 miptbp2[2];
-	uint32 texelSize;
-	uint32 paletteSize;
-	uint32 gsSize;
+	uint64 miptbp1;
+	uint64 miptbp2;
+	uint32 pixelSize;	// in bytes
+	uint32 paletteSize;	// in bytes
+	uint32 totalSize;	// total size of texture on GS in words
 	int8 flags;
 
 	uint8 *data;	//tmp

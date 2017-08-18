@@ -221,13 +221,17 @@ struct Raster
 	PLUGINBASE
 	int32 platform;
 
-	int32 type;	// hardly used
+	// TODO: use bytes
+	int32 type;
 	int32 flags;
 	int32 format;
 	int32 width, height, depth;
 	int32 stride;
 	uint8 *texels;
 	uint8 *palette;
+	// TODO:
+	// original pixels, width, height, stride (used for locking)
+	// parent raster and offset
 
 	static Raster *create(int32 width, int32 height, int32 depth,
 	                      int32 format, int32 platform = 0);
