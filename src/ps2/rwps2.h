@@ -183,9 +183,18 @@ void registerPluginPDSPipes(void);
 struct Ps2Raster
 {
 	enum Flags {
-		HASGIFPACKETS = 0x1,
-		SWIZZLED8     = 0x2,
-		SWIZZLED4     = 0x4,
+		NEWSTYLE  = 0x1,	// has GIF tags and transfer DMA chain
+		SWIZZLED8 = 0x2,
+		SWIZZLED4 = 0x4,
+	};
+	struct PixelPtr {
+		// RW has pixels as second element but we don't want this struct
+		// to be longer than 16 bytes
+		uint8 *pixels;
+		// palette can be allocated in last level, in that case numTransfers is
+		// one less than numTotalTransfers.
+		int32 numTransfers;
+		int32 numTotalTransfers;
 	};
 
 	uint64 tex0;

@@ -820,7 +820,7 @@ Texture::upload(void)
 	switch(r->format & 0xF00){
 	case Raster::C8888:
 		glTexImage2D(GL_TEXTURE_2D, 0, 4, r->width, r->height,
-		             0, GL_RGBA, GL_UNSIGNED_BYTE, r->texels);
+		             0, GL_RGBA, GL_UNSIGNED_BYTE, r->pixels);
 		break;
 	default:
 		printf("unsupported raster format: %x\n", r->format);

@@ -918,7 +918,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->width = width;
 	raster->height = height;
 	raster->depth = depth;
-	raster->texels = raster->palette = nil;
+	raster->pixels = raster->palette = nil;
 	s_plglist.construct(raster);
 
 //	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);

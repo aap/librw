@@ -42,7 +42,7 @@ enum Psm {
 
 // i don't really understand this, stolen from RW
 static void
-ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
+transferMinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
 {
 	*minh = 1;
 	switch(psm){
@@ -66,16 +66,17 @@ ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
 		*minw = 8; // everything else
 		break;
 	}
-	if(flags & 0x2 && psm == 0x13){	// PSMT8
+	if(flags & 0x2 && psm == PSMT8){
 		*minw = 16;
 		*minh = 4;
 	}
-	if(flags & 0x4 && psm == 0x14){	// PSMT4
+	if(flags & 0x4 && psm == PSMT4){
 		*minw = 32;
 		*minh = 4;
 	}
 }
 
+#define ALIGN(x,a) ((x) + (a)-1 & ~((a)-1))
 #define ALIGN16(x) ((x) + 0xF & ~0xF)
 #define ALIGN64(x) ((x) + 0x3F & ~0x3F)
 #define NSIZE(dim,pagedim) (((dim) + (pagedim)-1)/(pagedim))
@@ -310,56 +311,73 @@ getRasterFormat(Raster *raster)
  */
 
 static uint8 blockmap_PSMCT32[32] = {
-	 0,  1,  4,  5, 16, 17, 20, 21, 
-	 2,  3,  6,  7, 18, 19, 22, 23, 
-	 8,  9, 12, 13, 24, 25, 28, 29, 
-	10, 11, 14, 15, 26, 27, 30, 31, 
+	 0,  1,  4,  5, 16, 17, 20, 21,
+	 2,  3,  6,  7, 18, 19, 22, 23,
+	 8,  9, 12, 13, 24, 25, 28, 29,
+	10, 11, 14, 15, 26, 27, 30, 31,
 };
 static uint8 blockmap_PSMCT16[32] = {
-	 0,  2,  8, 10, 
-	 1,  3,  9, 11, 
-	 4,  6, 12, 14, 
-	 5,  7, 13, 15, 
-	16, 18, 24, 26, 
-	17, 19, 25, 27, 
-	20, 22, 28, 30, 
-	21, 23, 29, 31, 
+	 0,  2,  8, 10,
+	 1,  3,  9, 11,
+	 4,  6, 12, 14,
+	 5,  7, 13, 15,
+	16, 18, 24, 26,
+	17, 19, 25, 27,
+	20, 22, 28, 30,
+	21, 23, 29, 31,
 };
 static uint8 blockmap_PSMCT16S[32] = {
-	 0,  2, 16, 18, 
-	 1,  3, 17, 19, 
-	 8, 10, 24, 26, 
-	 9, 11, 25, 27, 
-	 4,  6, 20, 22, 
-	 5,  7, 21, 23, 
-	12, 14, 28, 30, 
-	13, 15, 29, 31, 
+	 0,  2, 16, 18,
+	 1,  3, 17, 19,
+	 8, 10, 24, 26,
+	 9, 11, 25, 27,
+	 4,  6, 20, 22,
+	 5,  7, 21, 23,
+	12, 14, 28, 30,
+	13, 15, 29, 31,
 };
 static uint8 blockmap_PSMZ32[32] = {
-	24, 25, 28, 29,  8,  9, 12, 13, 
-	26, 27, 30, 31, 10, 11, 14, 15, 
-	16, 17, 20, 21,  0,  1,  4,  5, 
-	18, 19, 22, 23,  2,  3,  6,  7, 
+	24, 25, 28, 29,  8,  9, 12, 13,
+	26, 27, 30, 31, 10, 11, 14, 15,
+	16, 17, 20, 21,  0,  1,  4,  5,
+	18, 19, 22, 23,  2,  3,  6,  7,
 };
 static uint8 blockmap_PSMZ16[32] = {
-	24, 26, 16, 18, 
-	25, 27, 17, 19, 
-	28, 30, 20, 22, 
-	29, 31, 21, 23, 
-	 8, 10,  0,  2, 
-	 9, 11,  1,  3, 
-	12, 14,  4,  6, 
-	13, 15,  5,  7, 
+	24, 26, 16, 18,
+	25, 27, 17, 19,
+	28, 30, 20, 22,
+	29, 31, 21, 23,
+	 8, 10,  0,  2,
+	 9, 11,  1,  3,
+	12, 14,  4,  6,
+	13, 15,  5,  7,
 };
 static uint8 blockmap_PSMZ16S[32] = {
-	24, 26,  8, 10, 
-	25, 27,  9, 11, 
-	16, 18,  0,  2, 
-	17, 19,  1,  3, 
-	28, 30, 12, 14, 
-	29, 31, 13, 15, 
-	20, 22,  4,  6, 
-	21, 23,  5,  7, 
+	24, 26,  8, 10,
+	25, 27,  9, 11,
+	16, 18,  0,  2,
+	17, 19,  1,  3,
+	28, 30, 12, 14,
+	29, 31, 13, 15,
+	20, 22,  4,  6,
+	21, 23,  5,  7,
+};
+
+static uint8 blockmaprev_PSMCT32[32] = {
+	 0,  1,  8,  9,  2,  3, 10, 11,
+	16, 17, 24, 25, 18, 19, 26, 27,
+	 4,  5, 12, 13,  6,  7, 14, 15,
+	20, 21, 28, 29, 22, 23, 30, 31,
+};
+static uint8 blockmaprev_PSMCT16[32] = {
+	 0,  4,  1,  5,
+	 8, 12,  9, 13,
+	 2,  6,  3,  7,
+	10, 14, 11, 15,
+	16, 20, 17, 21,
+	24, 28, 25, 29,
+	18, 22, 19, 23,
+	26, 30, 27, 31,
 };
 
 /* Suffixes used:
@@ -603,7 +621,7 @@ calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, ui
 	uint32 bufpage_B = bufferPage_B[0];
 	uint32 pixeloff;
 	for(n = 0; n < nlevels; n++){
-		// Calculate TRXPOS register
+		// Calculate TRXPOS register (DSAX and DSAY, shifted up later)
 		// Start of buffer on current page (x in pixels, y in blocks)
 		pixeloff = (bufferBase_B[n] - bufpage_B) * blockWidth_Px;
 		// y coordinate of first pixel
@@ -612,7 +630,7 @@ calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, ui
 		xoff_Px =  pixeloff % (bufwidth_W*64);
 		if(bufferWidth_W[n] == bufwidth_W &&
 		   // Not quite sure what's the meaning of this.
-		   // SSAY is 11 bits, but so is SSAX and it is not checked?
+		   // DSAY is 11 bits, but so is DSAX and it is not checked?
 		   yoff_Px < 0x800){
 			trxpos[n] = yoff_Px<<16 | xoff_Px;
 		}else{
@@ -765,7 +783,7 @@ createTexRaster(Raster *raster)
 
 	uint64 bufferWidth[7];	// in number of pixels / 64
 	uint64 bufferBase[7];	// block address
-	uint32 trxpos[8];
+	uint32 trxpos_hi[8];
 	int32 width, height, depth;
 	int32 pageWidth, pageHeight;
 	int32 paletteWidth, paletteHeight, paletteDepth;
@@ -926,7 +944,7 @@ createTexRaster(Raster *raster)
 		// Do the real work here
 		uint32 paletteBase;
 		uint32 totalSize;
-		calcOffsets(width, height, psm, bufferBase, bufferWidth, trxpos, &totalSize, &paletteBase);
+		calcOffsets(width, height, psm, bufferBase, bufferWidth, trxpos_hi, &totalSize, &paletteBase);
 
 		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
 		ras->miptbp1 = 
@@ -1007,35 +1025,63 @@ createTexRaster(Raster *raster)
 	   (raster->width*raster->height*raster->depth/8/0x10) >= 0x7FFF){
 		ras->dataSize = ras->paletteSize+ras->pixelSize;
 		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
+		assert(data);
 		ras->data = data;
-		raster->texels = data;
+		raster->pixels = data;
 		if(ras->paletteSize)
 			raster->palette = data + ras->pixelSize;
 		if(raster->depth == 8)
 			ras->flags |= Ps2Raster::SWIZZLED8;
 	}else{
-		ras->flags |= Ps2Raster::HASGIFPACKETS;
-		//int32 cpsm = ras->tex0[1]>>19 & 0x3F;
+		ras->flags |= Ps2Raster::NEWSTYLE;
+		uint64 paltrxpos = 0;
+		uint32 dsax = trxpos_hi[numLevels-1] & 0x7FF;
+		uint32 dsay = trxpos_hi[numLevels-1]>>16 & 0x7FF;
+		// Set swizzle flags and calculate TRXPOS for palette
 		if(psm == PSMT8){
 			ras->flags |= Ps2Raster::SWIZZLED8;
-			// TODO: crazy stuff
+			if(cpsm == PSMCT32 && bufferWidth[numLevels-1] == 2){	// one page
+				// unswizzle the starting block of the last buffer and palette
+				uint32 bufbase_B = bufferBase[numLevels-1]&~0x1F | (uint64)blockmaprev_PSMCT32[bufferBase[numLevels-1]&0x1F];
+				uint32 palbase_B = ras->paletteBase&~0x1F | (uint64)blockmaprev_PSMCT32[ras->paletteBase&0x1F];
+				// find start of page of last level (16,16 are PSMT8 block dimensions)
+				uint32 page_B = bufbase_B - 8*(dsay/16) - dsax/16;
+				// find palette DSAX/Y (in PSMCT32!)
+				dsay = (palbase_B - page_B)/8 * 8;	// block/blocksPerPageX * blockHeight
+				dsax = (palbase_B - page_B)*8 % 64;	// block*blockWidth % pageWidth
+				if(dsay < 0x800)
+					paltrxpos = dsay<<16 | dsax;
+			}
 		}
 		if(psm == PSMT4){
-			// swizzle flag probably depends on version :/
+			// swizzle flag depends on version :/
 			// but which version? ....
-			if(rw::version > 0x31000)
+			if(rw::version > 0x31000){
 				ras->flags |= Ps2Raster::SWIZZLED4;
-			// TODO: crazy stuff
+				// Where can this come from? if anything we're using PSMCT16S
+				if(cpsm == PSMCT16){
+					// unswizzle the starting block of the last buffer and palette
+					uint32 bufbase_B = bufferBase[numLevels-1]&~0x1F | (uint64)blockmaprev_PSMCT16[bufferBase[numLevels-1]&0x1F];
+					uint32 palbase_B = ras->paletteBase&~0x1F | (uint64)blockmaprev_PSMCT16[ras->paletteBase&0x1F];
+					// find start of page of last level (32,16 are PSMT4 block dimensions)
+					uint32 page_B = bufbase_B - 4*(dsay/32) - dsax/16;
+					// find palette DSAX/Y (in PSMCT16!)
+					dsay = (palbase_B - page_B)/4 * 8;	// block/blocksPerPageX * blockHeight
+					dsax = (palbase_B - page_B)*16 % 128;	// block*blockWidth % pageWidth
+					if(dsay < 0x800)
+						paltrxpos = dsay<<16 | dsax;
+				}
+			}
 		}
 		ras->pixelSize = 0x50*numLevels;	// GIF packets
 		int32 minW, minH;
-		ps2MinSize(psm, ras->flags, &minW, &minH);
+		transferMinSize(psm, ras->flags, &minW, &minH);
 		w = raster->width;
 		h = raster->height;
 		n = numLevels;
 		while(n--){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
+			mipw = max(w, minW);
+			miph = max(h, minH);
 			ras->pixelSize += ALIGN16(mipw*miph*raster->depth/8);
 			w /= 2;
 			h /= 2;
@@ -1046,25 +1092,44 @@ createTexRaster(Raster *raster)
 			ras->paletteSize = 0x50 +
 			    paletteDepth*paletteWidth*paletteHeight;
 		}
-		// TODO: allocate space for more DMA packets
-		// every upload as 4 qwords:
+		// One transfer per buffer width, 4 qwords:
 		// DMAcnt(2) [NOP, DIRECT]
 		//   GIF tag  A+D
 		//     BITBLTBUF
 		// DMAref(pixel data) [NOP, DIRECT]
-		ras->dataSize = ras->paletteSize+ras->pixelSize;
+		uint32 extrasize = 0x10;	// PixelPtr
+		int32 numTransfers = 0;
+		for(n = 0; n < numLevels; n++)
+			if(trxpos_hi[n] == 0){
+				extrasize += 0x40;
+				numTransfers++;
+			}
+		if(ras->paletteSize){
+			extrasize += 0x40;
+			numTransfers++;
+		}
+		// What happens here?
+		if(ras->paletteSize && paltrxpos == 0)
+			ras->dataSize = ALIGN(ras->pixelSize,128) + ALIGN(ras->paletteSize,64) + extrasize + 0x70;
+		else
+			ras->dataSize = ALIGN(ras->paletteSize+ras->pixelSize,64) + extrasize + 0x70;
 		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
+		uint32 *xferchain = (uint32*)(data + 0x10);
 		assert(data);
 		ras->data = data;
-		raster->texels = data + 0x50;
+		Ps2Raster::PixelPtr *pp = (Ps2Raster::PixelPtr*)data;
+		pp->numTransfers = numTransfers;
+		pp->numTotalTransfers = numTransfers;
+		pp->pixels = (uint8*)ALIGN((uintptr)data + extrasize, 128);
+		raster->pixels = (uint8*)pp;
 		if(ras->paletteSize)
-			raster->palette = data + ras->pixelSize + 0x50;
-		uint32 *p = (uint32*)data;
+			raster->palette = pp->pixels + ALIGN(ras->pixelSize, 128) + 0x50;
+		uint32 *p = (uint32*)pp->pixels;
 		w = raster->width;
 		h = raster->height;
 		for(n = 0; n < numLevels; n++){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
+			mipw = max(w, minW);
+			miph = max(h, minH);
 
 			// GIF tag
 			*p++ = 3;          // NLOOP = 3
@@ -1073,8 +1138,14 @@ createTexRaster(Raster *raster)
 			*p++ = 0;
 
 			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
+			if(ras->flags & Ps2Raster::SWIZZLED8 && psm == PSMT8 ||
+			   ras->flags & Ps2Raster::SWIZZLED4 && psm == PSMT4){
+				*p++ = 0;	// SSAX/Y is always 0
+				*p++ = (trxpos_hi[n] & ~0x10001)/2;	// divide both DSAX/Y by 2
+			}else{
+				*p++ = 0;
+				*p++ = trxpos_hi[n];
+			}
 			*p++ = 0x51;
 			*p++ = 0;
 
@@ -1097,11 +1168,52 @@ createTexRaster(Raster *raster)
 			*p++ = 0;
 
 			// GIF tag
-			uint32 sz = mipw*miph*raster->depth/8 + 0xF >> 4;
-			*p++ = sz;
+			uint32 sz = ALIGN16(mipw*miph*raster->depth/8)/16;
+			*p++ = sz & 0x7FFF;
 			*p++ = 0x08000000; // IMAGE
 			*p++ = 0;
 			*p++ = 0;
+
+			if(trxpos_hi[n] == 0){
+				// Add a transfer, see above for layout
+
+				*xferchain++ = 0x10000002;	// DMAcnt, 2 qwords
+				*xferchain++ = 0;
+				*xferchain++ = 0;		// VIF nop
+				*xferchain++ = 0x50000002;	// VIF DIRECT 2 qwords
+
+				// GIF tag
+				*xferchain++ = 1;          // NLOOP = 1
+				*xferchain++ = 0x10000000; // NREG = 1
+				*xferchain++ = 0xE;        // A+D
+				*xferchain++ = 0;
+
+				// BITBLTBUF
+				if(ras->flags & Ps2Raster::SWIZZLED8 && psm == PSMT8){
+					// PSMT8 is swizzled to PSMCT32 and dimensions are halved
+					*xferchain++ = PSMCT32<<24 | bufferWidth[n]/2<<16;	// src buffer
+					*xferchain++ = PSMCT32<<24 | bufferWidth[n]/2<<16 | bufferBase[n];	// dst buffer
+				}else if(ras->flags & Ps2Raster::SWIZZLED4 && psm == PSMT4){
+					// PSMT4 is swizzled to PSMCT16 and dimensions are halved
+					*xferchain++ = PSMCT16<<24 | bufferWidth[n]/2<<16;	// src buffer
+					*xferchain++ = PSMCT16<<24 | bufferWidth[n]/2<<16 | bufferBase[n];	// dst buffer
+				}else{
+					*xferchain++ = psm<<24 | bufferWidth[n]<<16;	// src buffer
+					*xferchain++ = psm<<24 | bufferWidth[n]<<16 | bufferBase[n];	// dst buffer
+				}
+				*xferchain++ = 0x50;
+				*xferchain++ = 0;
+
+				*xferchain++ = 0x30000000 | sz+5;	// DMAref
+				// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
+				*xferchain++ = (uint32)(uintptr)p - 0x50;
+				*xferchain++ = 0;		// VIF nop
+				*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
+			}else{
+				// Add to existing transfer
+				xferchain[-4] = 0x30000000 | (xferchain[-4]&0xFFFF) + sz+5;	// last DMAref
+				xferchain[-1] = 0x50000000 | (xferchain[-1]&0xFFFF) + sz+5;	// last DIRECT
+			}
 
 			p += sz*4;
 			w /= 2;
@@ -1109,6 +1221,9 @@ createTexRaster(Raster *raster)
 		}
 
 		if(ras->paletteSize){
+			// huh?
+			if(paltrxpos)
+				raster->palette = (uint8*)p + 0x50;
 			p = (uint32*)(raster->palette - 0x50);
 			// GIF tag
 			*p++ = 3;          // NLOOP = 3
@@ -1117,8 +1232,8 @@ createTexRaster(Raster *raster)
 			*p++ = 0;
 
 			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
+			*(uint64*)p = paltrxpos;
+			p += 2;
 			*p++ = 0x51;
 			*p++ = 0;
 
@@ -1135,13 +1250,54 @@ createTexRaster(Raster *raster)
 			*p++ = 0;
 
 			// GIF tag
-			uint32 sz = ras->paletteSize - 0x50 + 0xF >> 4;
-			*p++ = sz;
+			uint32 sz = ALIGN16(ras->paletteSize - 0x50)/16;
+			*p++ = sz & 0x7FFF;
 			*p++ = 0x08000000; // IMAGE
 			*p++ = 0;
 			*p++ = 0;
+
+			// Transfer
+			*xferchain++ = 0x10000002;	// DMAcnt, 2 qwords
+			*xferchain++ = 0;
+			*xferchain++ = 0;		// VIF nop
+			*xferchain++ = 0x50000002;	// VIF DIRECT 2 qwords
+
+			// GIF tag
+			*xferchain++ = 1;          // NLOOP = 1
+			*xferchain++ = 0x10000000; // NREG = 1
+			*xferchain++ = 0xE;        // A+D
+			*xferchain++ = 0;
+
+			// BITBLTBUF
+			if(paltrxpos == 0){
+				*xferchain++ = cpsm<<24 | 1<<16;	// src buffer
+				*xferchain++ = cpsm<<24 | 1<<16 | ras->paletteBase;	// dst buffer
+				*xferchain++ = 0x50;
+				*xferchain++ = 0;
+			}else{
+				// copy last pixel bitbltbuf...if uploading palette separately it's still the same buffer
+				xferchain[0] = xferchain[-16];
+				xferchain[1] = xferchain[-15];
+				xferchain[2] = xferchain[-14];
+				xferchain[3] = xferchain[-13];
+				// Add to last transfer
+				xferchain[-16] = 0x30000000 | (xferchain[-16]&0xFFFF) + sz+5;	// last DMAref
+				xferchain[-13] = 0x50000000 | (xferchain[-13]&0xFFFF) + sz+5;	// last DIRECT
+				xferchain += 4;
+				pp->numTransfers--;
+			}
+
+			*xferchain++ = 0x30000000 | sz+5;	// DMAref
+			// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
+			*xferchain++ = (uint32)(uintptr)p - 0x50;
+			*xferchain++ = 0;		// VIF nop
+			*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
 		}
 	}
+	raster->originalPixels = raster->pixels;
+	raster->originalStride = raster->stride;
+	if(ras->flags & Ps2Raster::NEWSTYLE)
+		raster->pixels = ((Ps2Raster::PixelPtr*)raster->pixels)->pixels + 0x50;
 }
 
 void
@@ -1151,9 +1307,15 @@ rasterCreate(Raster *raster)
 		return;
 
 	// init raster
+	raster->pixels = nil;
+	raster->palette = nil;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->originalPixels = raster->pixels;
 	if(raster->width == 0 || raster->height == 0){
 		raster->flags = Raster::DONTALLOCATE;
 		raster->stride = 0;
+		raster->originalStride = 0;
 		return;
 	}
 
@@ -1203,7 +1365,7 @@ int32
 rasterNumLevels(Raster *raster)
 {
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	if(raster->texels == nil) return 0;
+	if(raster->pixels == nil) return 0;
 	if(raster->format & Raster::MIPMAP)
 		return MAXLEVEL(ras)+1;
 	return 1;
@@ -1489,9 +1651,9 @@ streamExt.mipmapVal);
 		goto fail;
 	}
 	if(streamExt.type < 2){
-		stream->read(raster->texels, length);
+		stream->read(raster->pixels, length);
 	}else{
-		stream->read(raster->texels-0x50, natras->pixelSize);
+		stream->read(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, natras->pixelSize);
 		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
 //printf("\n");
@@ -1528,7 +1690,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.type = 0;
 	if(ras->flags == Ps2Raster::SWIZZLED8 && raster->depth == 8)
 		streamExt.type = 1;
-	if(ras->flags & Ps2Raster::HASGIFPACKETS)
+	if(ras->flags & Ps2Raster::NEWSTYLE)
 		streamExt.type = 2;
 	streamExt.tex0 = ras->tex0;
 	streamExt.paletteOffset = ras->paletteBase;
@@ -1543,9 +1705,9 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	writeChunkHeader(stream, ID_STRUCT, sz);
 	if(streamExt.type < 2){
-		stream->write(raster->texels, sz);
+		stream->write(raster->pixels, sz);
 	}else{
-		stream->write(raster->texels-0x50, ras->pixelSize);
+		stream->write(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, ras->pixelSize);
 		stream->write(raster->palette-0x50, ras->paletteSize);
 	}
 }

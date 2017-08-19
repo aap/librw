@@ -227,10 +227,14 @@ struct Raster
 	int32 format;
 	int32 width, height, depth;
 	int32 stride;
-	uint8 *texels;
+	uint8 *pixels;
 	uint8 *palette;
+	uint8 *originalPixels;
+	// TODO: use them (for locking mainly)
+	int32 originalWidth;
+	int32 originalHeight;
+	int32 originalStride;
 	// TODO:
-	// original pixels, width, height, stride (used for locking)
 	// parent raster and offset
 
 	static Raster *create(int32 width, int32 height, int32 depth,
