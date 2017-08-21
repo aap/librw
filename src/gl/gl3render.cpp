@@ -43,7 +43,7 @@ void
 lightingCB(void)
 {
 	World *world;
-	RGBAf ambLight = (RGBAf){0.0, 0.0, 0.0, 1.0};
+	RGBAf ambLight = { 0.0, 0.0, 0.0, 1.0 };
 	int n = 0;
 
 	world = (World*)engine->currentWorld;
@@ -83,9 +83,6 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
-
-//	rw::setRenderState(ALPHATESTFUNC, 1);
-//	rw::setRenderState(ALPHATESTREF, 50);
 
 	simpleShader->use();
 

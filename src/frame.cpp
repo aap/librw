@@ -12,6 +12,7 @@
 namespace rw {
 
 LinkList Frame::dirtyList;
+PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
 
 Frame*
 Frame::create(void)
@@ -266,6 +267,13 @@ void
 Frame::scale(V3d *scl, CombineOp op)
 {
 	this->matrix.scale(scl, op);
+	updateObjects();
+}
+
+void
+Frame::transform(Matrix *mat, CombineOp op)
+{
+	this->matrix.transform(mat, op);
 	updateObjects();
 }
 

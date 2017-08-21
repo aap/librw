@@ -7,6 +7,7 @@
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+#include "../rwengine.h"
 #include "rwd3d.h"
 #include "rwd3d9.h"
 
@@ -23,29 +24,32 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	RawMatrix world;
 
+	d3d::lightingCB();
+
 	Geometry *geo = atomic->geometry;
+	d3d::setRenderState(D3DRS_LIGHTING, !!(geo->flags & rw::Geometry::LIGHT));
+
 	Frame *f = atomic->getFrame();
 	convMatrix(&world, f->getLTM());
-	device->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world);
+	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world);
 
-	device->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
-	                        0, header->vertexStream[0].stride);
-	device->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	device->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	                           0, header->vertexStream[0].stride);
+	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		d3d::setTexture(0, inst->material->texture);
 		d3d::setMaterial(inst->material);
-		d3d::setRenderState(D3DRS_AMBIENT, D3DCOLOR_ARGB(0xFF, 0x40, 0x40, 0x40));
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		d3d::flushCache();
-		device->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
-		                             0, inst->numVertices,
-		                             inst->startIndex, inst->numPrimitives);
+		d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
+		                                0, inst->numVertices,
+		                                inst->startIndex, inst->numPrimitives);
 		inst++;
 	}
 }

@@ -21,13 +21,13 @@ namespace xbox {
 void*
 driverOpen(void *o, int32, int32)
 {
-	driver[PLATFORM_XBOX]->defaultPipeline = makeDefaultPipeline();
+	engine->driver[PLATFORM_XBOX]->defaultPipeline = makeDefaultPipeline();
 
-	driver[PLATFORM_XBOX]->rasterNativeOffset = nativeRasterOffset;
-	driver[PLATFORM_XBOX]->rasterCreate = rasterCreate;
-	driver[PLATFORM_XBOX]->rasterLock = rasterLock;
-	driver[PLATFORM_XBOX]->rasterUnlock = rasterUnlock;
-	driver[PLATFORM_XBOX]->rasterNumLevels = rasterNumLevels;
+	engine->driver[PLATFORM_XBOX]->rasterNativeOffset = nativeRasterOffset;
+	engine->driver[PLATFORM_XBOX]->rasterCreate = rasterCreate;
+	engine->driver[PLATFORM_XBOX]->rasterLock = rasterLock;
+	engine->driver[PLATFORM_XBOX]->rasterUnlock = rasterUnlock;
+	engine->driver[PLATFORM_XBOX]->rasterNumLevels = rasterNumLevels;
 	// TODO: from image
 
 	return o;
@@ -71,7 +71,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	uint32 vers;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();
@@ -622,7 +622,7 @@ readNativeTexture(Stream *stream)
 {
 	uint32 vers, platform;
 	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
-		RWERROR((ERR_CHUNK, "STRUCT"))
+		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
 	platform = stream->readU32();

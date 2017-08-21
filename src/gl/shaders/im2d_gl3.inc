@@ -36,7 +36,7 @@ const char *im2d_frag_src =
 "void\n"
 "main(void)\n"
 "{\n"
-"	color = v_color*texture2D(tex, vec2(v_tex0.x, v_tex0.y));\n"
+"	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));\n"
 "}\n"
 
 ;

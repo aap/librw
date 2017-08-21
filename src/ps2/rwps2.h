@@ -1,15 +1,19 @@
 namespace rw {
+
+#ifdef RW_PS2
+struct EngineStartParams
+{
+};
+#endif
+
 namespace ps2 {
 
 void initializePlatform(void);
 
+extern Device renderdevice;
+
 struct InstanceData
 {
-	// 0 - addresses in ref tags need fixing
-	// 1 - no ref tags, so no fixing
-	// set by the program:
-	// 2 - ref tags are fixed, need to unfix before stream write
-	uint32 arePointersFixed;
 	uint32 dataSize;
 	uint8 *data;
 	Material *material;
@@ -57,10 +61,8 @@ void registerNativeDataPlugin(void);
 void printDMA(InstanceData *inst);
 void sizedebug(InstanceData *inst);
 
-// only RW_PS2
-void fixDmaOffsets(InstanceData *inst);
-void unfixDmaOffsets(InstanceData *inst);
-//
+void fixDmaOffsets(InstanceData *inst);	// only RW_PS2
+int32 unfixDmaOffsets(InstanceData *inst);
 
 struct PipeAttribute
 {
@@ -181,22 +183,30 @@ void registerPluginPDSPipes(void);
 struct Ps2Raster
 {
 	enum Flags {
-		HASGIFPACKETS = 0x1,
-		SWIZZLED8     = 0x2,
-		SWIZZLED4     = 0x4,
+		NEWSTYLE  = 0x1,	// has GIF tags and transfer DMA chain
+		SWIZZLED8 = 0x2,
+		SWIZZLED4 = 0x4,
+	};
+	struct PixelPtr {
+		// RW has pixels as second element but we don't want this struct
+		// to be longer than 16 bytes
+		uint8 *pixels;
+		// palette can be allocated in last level, in that case numTransfers is
+		// one less than numTotalTransfers.
+		int32 numTransfers;
+		int32 numTotalTransfers;
 	};
 
-	uint32 tex0[2];
-	uint32 paletteOffset;   // from beginning of GS data;
-	                        // in words/64
+	uint64 tex0;
+	uint32 paletteBase;   // block address from beginning of GS data (words/64)
 	uint16 kl;
 	uint8 tex1low;          // MXL and LCM of TEX1
 	uint8 unk2;
-	uint32 miptbp1[2];
-	uint32 miptbp2[2];
-	uint32 texelSize;
-	uint32 paletteSize;
-	uint32 gsSize;
+	uint64 miptbp1;
+	uint64 miptbp2;
+	uint32 pixelSize;	// in bytes
+	uint32 paletteSize;	// in bytes
+	uint32 totalSize;	// total size of texture on GS in words
 	int8 flags;
 
 	uint8 *data;	//tmp

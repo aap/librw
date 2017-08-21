@@ -13,6 +13,9 @@
 
 namespace rw {
 
+PluginList Clump::s_plglist = { sizeof(Clump), sizeof(Clump), nil, nil };
+PluginList Atomic::s_plglist = { sizeof(Atomic), sizeof(Atomic), nil, nil };
+
 //
 // Clump
 //
@@ -523,7 +526,7 @@ Atomic::getPipeline(void)
 {
 	return this->pipeline ?
 		this->pipeline :
-		driver[platform]->defaultPipeline;
+		engine->driver[platform]->defaultPipeline;
 }
 
 void

@@ -24,6 +24,10 @@
 
 namespace rw {
 
+PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
+PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
+PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
+
 //
 // TexDictionary
 //
@@ -904,6 +908,7 @@ Image::getFilename(const char *name)
 Raster*
 Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
 {
+	// TODO: pass arguments through to the driver and create the raster there
 	Raster *raster = (Raster*)malloc(s_plglist.size);
 	assert(raster != nil);
 	raster->platform = platform ? platform : rw::platform;
@@ -913,11 +918,11 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->width = width;
 	raster->height = height;
 	raster->depth = depth;
-	raster->texels = raster->palette = nil;
+	raster->pixels = raster->palette = nil;
 	s_plglist.construct(raster);
 
 //	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
-	driver[raster->platform]->rasterCreate(raster);
+	engine->driver[raster->platform]->rasterCreate(raster);
 	return raster;
 }
 
@@ -933,19 +938,19 @@ Raster::destroy(void)
 uint8*
 Raster::lock(int32 level)
 {
-	return driver[this->platform]->rasterLock(this, level);
+	return engine->driver[this->platform]->rasterLock(this, level);
 }
 
 void
 Raster::unlock(int32 level)
 {
-	driver[this->platform]->rasterUnlock(this, level);
+	engine->driver[this->platform]->rasterUnlock(this, level);
 }
 
 int32
 Raster::getNumLevels(void)
 {
-	return driver[this->platform]->rasterNumLevels(this);
+	return engine->driver[this->platform]->rasterNumLevels(this);
 }
 
 int32
@@ -964,14 +969,14 @@ Raster::createFromImage(Image *image, int32 platform)
 	Raster *raster = Raster::create(image->width, image->height,
 	                                image->depth, TEXTURE | DONTALLOCATE,
 	                                platform);
-	driver[raster->platform]->rasterFromImage(raster, image);
+	engine->driver[raster->platform]->rasterFromImage(raster, image);
 	return raster;
 }
 
 Image*
 Raster::toImage(void)
 {
-	return driver[this->platform]->rasterToImage(this);
+	return engine->driver[this->platform]->rasterToImage(this);
 }
 
 }

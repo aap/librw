@@ -15,9 +15,6 @@
 #include "src/d3d/rwd3d.h"
 #include "src/d3d/rwd3d8.h"
 #include "src/d3d/rwd3d9.h"
-#ifdef RW_OPENGL
-#include <GL/glew.h>
-#endif
 #include "src/gl/rwwdgl.h"
 #include "src/gl/rwgl3.h"
 #include "src/gl/rwgl3shader.h"

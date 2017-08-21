@@ -95,7 +95,7 @@ const char *simple_frag_src =
 "void\n"
 "main(void)\n"
 "{\n"
-"	color = v_color*texture2D(tex, vec2(v_tex0.x, v_tex0.y));\n"
+"	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));\n"
 "	if(u_fogEnable != 0)\n"
 "		color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);\n"
 "	switch(u_alphaTest){\n"

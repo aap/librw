@@ -11,6 +11,8 @@
 
 namespace rw {
 
+PluginList Light::s_plglist = { sizeof(Light), sizeof(Light), nil, nil };
+
 static void
 lightSync(ObjectWithFrame*)
 {

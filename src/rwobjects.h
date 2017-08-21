@@ -82,8 +82,9 @@ struct Object
 	}
 };
 
-struct Frame : PluginBase<Frame>
+struct Frame
 {
+	PLUGINBASE
 	typedef Frame *(*Callback)(Frame *f, void *data);
 	enum { ID = 0 };
 	enum {		// private flags
@@ -125,7 +126,8 @@ struct Frame : PluginBase<Frame>
 	Matrix *getLTM(void);
 	void rotate(V3d *axis, float32 angle, CombineOp op);
 	void translate(V3d *trans, CombineOp op);
-	void scale(V3d *trans, CombineOp op);
+	void scale(V3d *scale, CombineOp op);
+	void transform(Matrix *mat, CombineOp op);
 	void updateObjects(void);
 
 
@@ -214,17 +216,26 @@ struct RasterLevels
 	} levels[1];	// 0 is illegal :/
 };
 
-struct Raster : PluginBase<Raster>
+struct Raster
 {
+	PLUGINBASE
 	int32 platform;
 
-	int32 type;	// hardly used
+	// TODO: use bytes
+	int32 type;
 	int32 flags;
 	int32 format;
 	int32 width, height, depth;
 	int32 stride;
-	uint8 *texels;
+	uint8 *pixels;
 	uint8 *palette;
+	uint8 *originalPixels;
+	// TODO: use them (for locking mainly)
+	int32 originalWidth;
+	int32 originalHeight;
+	int32 originalStride;
+	// TODO:
+	// parent raster and offset
 
 	static Raster *create(int32 width, int32 height, int32 depth,
 	                      int32 format, int32 platform = 0);
@@ -267,8 +278,9 @@ struct Raster : PluginBase<Raster>
 
 struct TexDictionary;
 
-struct Texture : PluginBase<Texture>
+struct Texture
 {
+	PLUGINBASE
 	Raster *raster;
 	TexDictionary *dict;
 	LLLink inDict;
@@ -316,8 +328,9 @@ struct SurfaceProperties
 	float32 diffuse;
 };
 
-struct Material : PluginBase<Material>
+struct Material
 {
+	PLUGINBASE
 	Texture *texture;
 	RGBA color;
 	SurfaceProperties surfaceProps;
@@ -390,8 +403,9 @@ struct MaterialList
 	uint32 streamGetSize(void);
 };
 
-struct Geometry : PluginBase<Geometry>
+struct Geometry
 {
+	PLUGINBASE
 	enum { ID = 8 };
 	Object object;
 	uint32 flags;
@@ -452,8 +466,9 @@ void registerNativeDataPlugin(void);
 struct Clump;
 struct World;
 
-struct Atomic : PluginBase<Atomic>
+struct Atomic
 {
+	PLUGINBASE
 	typedef void (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
 	enum {
@@ -508,8 +523,9 @@ struct Atomic : PluginBase<Atomic>
 
 void registerAtomicRightsPlugin(void);
 
-struct Light : PluginBase<Light>
+struct Light
 {
+	PLUGINBASE
 	enum { ID = 3 };
 	ObjectWithFrame object;
 	float32 radius;
@@ -567,8 +583,9 @@ struct FrustumPlane
 	uint8 closestZ;
 };
 
-struct Camera : PluginBase<Camera>
+struct Camera
 {
+	PLUGINBASE
 	enum { ID = 4 };
 	enum { PERSPECTIVE = 1, PARALLEL };
 	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2};
@@ -612,8 +629,12 @@ struct Camera : PluginBase<Camera>
 	void beginUpdate(void) { this->beginUpdateCB(this); }
 	void endUpdate(void) { this->endUpdateCB(this); }
 	void clear(RGBA *col, uint32 mode);
+	void showRaster(void);
 	void setNearPlane(float32);
 	void setFarPlane(float32);
+	void setViewWindow(const V2d *window);
+	void setViewOffset(const V2d *offset);
+	void setProjection(int32 proj);
 	int32 frustumTestSphere(Sphere *s);
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
@@ -623,8 +644,9 @@ struct Camera : PluginBase<Camera>
 	void setFOV(float32 fov, float32 ratio);
 };
 
-struct Clump : PluginBase<Clump>
+struct Clump
 {
+	PLUGINBASE
 	enum { ID = 2 };
 	Object object;
 	LinkList atomics;
@@ -662,8 +684,9 @@ struct Clump : PluginBase<Clump>
 };
 
 // A bit of a stub right now
-struct World : PluginBase<World>
+struct World
 {
+	PLUGINBASE
 	enum { ID = 7 };
 	Object object;
 	LinkList lights;                // these have positions (type >= 0x80)
@@ -674,8 +697,9 @@ struct World : PluginBase<World>
 	void addCamera(Camera *cam);
 };
 
-struct TexDictionary : PluginBase<TexDictionary>
+struct TexDictionary
 {
+	PLUGINBASE
 	enum { ID = 6 };
 	Object object;
 	LinkList textures;

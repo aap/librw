@@ -261,6 +261,7 @@ Matrix::translate(V3d *translation, CombineOp op)
 	Matrix tmp;
 	Matrix trans = identMat;
 	trans.pos = *translation;
+	trans.flags &= ~IDENTITY;
 	switch(op){
 	case COMBINEREPLACE:
 		*this = trans;
@@ -295,6 +296,26 @@ Matrix::scale(V3d *scale, CombineOp op)
 		break;
 	case COMBINEPOSTCONCAT:
 		mult(&tmp, this, &scl);
+		*this = tmp;
+		break;
+	}
+	return this;
+}
+
+Matrix*
+Matrix::transform(Matrix *mat, CombineOp op)
+{
+	Matrix tmp;
+	switch(op){
+	case COMBINEREPLACE:
+		*this = *mat;
+		break;
+	case COMBINEPRECONCAT:
+		mult(&tmp, mat, this);
+		*this = tmp;
+		break;
+	case COMBINEPOSTCONCAT:
+		mult(&tmp, this, mat);
 		*this = tmp;
 		break;
 	}
@@ -457,27 +478,11 @@ Matrix::orthogonalError(void)
 float32
 Matrix::identityError(void)
 {
-	V3d r { right.x-1.0f, right.y, right.z };
-	V3d u { up.x, up.y-1.0f, up.z };
-	V3d a { at.x, at.y, at.z-1.0f };
+	V3d r = { right.x-1.0f, right.y, right.z };
+	V3d u = { up.x, up.y-1.0f, up.z };
+	V3d a = { at.x, at.y, at.z-1.0f };
 	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
-
-#if 0
-
-bool32
-Matrix::isIdentity(void)
-{
-	return matrixIsIdentity((float32*)this);
-}
-
-void
-Matrix::transpose(Matrix *m1, Matrix *m2)
-{
-	matrixTranspose((float32*)m1, (float32*)m2);
-}
-
-#endif
 
 #define PSEP_C '/'
 #define PSEP_S "/"

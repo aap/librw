@@ -15,9 +15,7 @@ namespace d3d {
 
 bool32 isP8supported = 1;
 
-#ifdef RW_D3D9
-IDirect3DDevice9 *device = nil;
-#else
+#ifndef RW_D3D9
 #define MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
             ((uint32)(uint8)(ch0) | ((uint32)(uint8)(ch1) << 8) |       \
             ((uint32)(uint8)(ch2) << 16) | ((uint32)(uint8)(ch3) << 24 ))
@@ -186,7 +184,7 @@ createIndexBuffer(uint32 length)
 {
 #ifdef RW_D3D9
 	IDirect3DIndexBuffer9 *ibuf;
-	device->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
+	d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
 	return ibuf;
 #else
 	return new uint8[length];
@@ -227,7 +225,7 @@ createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
 {
 #ifdef RW_D3D9
 	IDirect3DVertexBuffer9 *vbuf;
-	device->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, fvf, (D3DPOOL)pool, &vbuf, 0);
+	d3ddevice->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, fvf, (D3DPOOL)pool, &vbuf, 0);
 	return vbuf;
 #else
 	(void)fvf;
@@ -270,7 +268,7 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 {
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex;
-	device->CreateTexture(width, height, numlevels, 0,
+	d3ddevice->CreateTexture(width, height, numlevels, 0,
 	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, nil);
 	return tex;
 #else

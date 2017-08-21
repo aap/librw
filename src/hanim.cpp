@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwanim.h"
 #include "rwplugins.h"
 #include "ps2/rwps2.h"

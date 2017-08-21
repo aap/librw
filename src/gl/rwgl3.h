@@ -1,8 +1,24 @@
+#ifdef RW_GL3
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#endif
+
 namespace rw {
+
+#ifdef RW_GL3
+struct EngineStartParams
+{
+	GLFWwindow **window;
+	int width, height;
+	const char *windowtitle;
+};
+#endif
+
 namespace gl3 {
 
 void initializePlatform(void);
-void initializeRender(void);
+
+extern Device renderdevice;
 
 // arguments to glVertexAttribPointer basically
 struct AttribDesc

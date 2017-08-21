@@ -13,6 +13,7 @@
 
 #define PLUGIN_ID 0
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 namespace rw {
@@ -22,45 +23,6 @@ int32 nativeRasterOffset;
 
 #define MAXLEVEL(r) ((r)->tex1low >> 2)
 static bool32 noNewStyleRasters;
-
-// i don't really understand this, stolen from RW
-static void
-ps2MinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
-{
-	*minh = 1;
-	switch(psm){
-	case 0x00:
-	case 0x30:
-		*minw = 2; // 32 bit
-		break;
-	case 0x02:
-	case 0x0A:
-	case 0x32:
-	case 0x3A:
-		*minw = 4; // 16 bit
-		break;
-	case 0x01:
-	case 0x13:
-	case 0x14:
-	case 0x1B:
-	case 0x24:
-	case 0x2C:
-	case 0x31:
-		*minw = 8; // everything else
-		break;
-	}
-	if(flags & 0x2 && psm == 0x13){	// PSMT8
-		*minw = 16;
-		*minh = 4;
-	}
-	if(flags & 0x4 && psm == 0x14){	// PSMT4
-		*minw = 32;
-		*minh = 4;
-	}
-}
-
-#define ALIGN16(x) ((x) + 0xF & ~0xF)
-#define ALIGN64(x) ((x) + 0x3F & ~0x3F)
 
 enum Psm {
 	PSMCT32  = 0x0,
@@ -72,7 +34,52 @@ enum Psm {
 	PSMT8H   = 0x1B,
 	PSMT4HL  = 0x24,
 	PSMT4HH  = 0x2C,
+	PSMZ32   = 0x30,
+	PSMZ24   = 0x31,
+	PSMZ16   = 0x32,
+	PSMZ16S  = 0x3A,
 };
+
+// i don't really understand this, stolen from RW
+static void
+transferMinSize(int32 psm, int32 flags, int32 *minw, int32 *minh)
+{
+	*minh = 1;
+	switch(psm){
+	case PSMCT32:
+	case PSMZ32:
+		*minw = 2; // 32 bit
+		break;
+	case PSMCT16:
+	case PSMCT16S:
+	case PSMZ16:
+	case PSMZ16S:
+		*minw = 4; // 16 bit
+		break;
+	case PSMCT24:
+	case PSMT8:
+	case PSMT4:
+	case PSMT8H:
+	case PSMT4HL:
+	case PSMT4HH:
+	case PSMZ24:
+		*minw = 8; // everything else
+		break;
+	}
+	if(flags & 0x2 && psm == PSMT8){
+		*minw = 16;
+		*minh = 4;
+	}
+	if(flags & 0x4 && psm == PSMT4){
+		*minw = 32;
+		*minh = 4;
+	}
+}
+
+#define ALIGN(x,a) ((x) + (a)-1 & ~((a)-1))
+#define ALIGN16(x) ((x) + 0xF & ~0xF)
+#define ALIGN64(x) ((x) + 0x3F & ~0x3F)
+#define NSIZE(dim,pagedim) (((dim) + (pagedim)-1)/(pagedim))
 
 void*
 mallocalign(size_t size, int32 alignment)
@@ -95,106 +102,771 @@ freealign(void *p)
 	free(pp);
 }
 
-void
-rasterCreate(Raster *raster)
+// TODO: these depend on video mode, set in deviceSystem!
+int32 cameraFormat = Raster::C8888;
+int32 cameraDepth = 32;
+int32 cameraZDepth = 16;
+
+int32 defaultMipMapKL = 0xFC0;
+int32 maxMipLevels = 7;
+
+int32
+getRasterFormat(Raster *raster)
 {
+	int32 palformat, pixelformat, mipmapflags;
+	pixelformat = raster->format & 0xF00;
+	palformat = raster->format & 0x6000;
+	mipmapflags = raster->format & 0x9000;
+	switch(raster->type){
+	case Raster::ZBUFFER:
+		if(palformat || mipmapflags){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		if(raster->depth && raster->depth != cameraZDepth){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		raster->depth = cameraZDepth;
+		if(pixelformat){
+			if(raster->depth == 16 && pixelformat != Raster::D16 ||
+			   raster->depth == 32 && pixelformat != Raster::D32){
+				RWERROR((ERR_INVRASTER));
+				return 0;
+			}
+		}
+		pixelformat = raster->depth == 16 ? Raster::D16 : Raster::D32;
+		raster->format = pixelformat;
+		break;
+	case Raster::CAMERA:
+		if(palformat || mipmapflags){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		if(raster->depth && raster->depth != cameraDepth){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		raster->depth = cameraDepth;
+		if(pixelformat && pixelformat != cameraFormat){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		pixelformat = cameraFormat;
+		raster->format = pixelformat;
+		break;
+	case Raster::NORMAL:
+	case Raster::CAMERATEXTURE:
+		if(palformat || mipmapflags){
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		/* fallthrough */
+	case Raster::TEXTURE:
+		// Find raster format by depth if none was given
+		if(pixelformat == 0)
+			switch(raster->depth){
+			case 4:
+				pixelformat = Raster::C1555;
+				palformat = Raster::PAL4;
+				break;
+			case 8:
+				pixelformat = Raster::C1555;
+				palformat = Raster::PAL8;
+				break;
+			case 24:
+				pixelformat = Raster::C888;
+				palformat = 0;
+				break;
+			case 32:
+				pixelformat = Raster::C8888;
+				palformat = 0;
+				break;
+			default:
+				pixelformat = Raster::C1555;
+				palformat = 0;
+				break;
+			}
+		raster->format = pixelformat | palformat | mipmapflags;
+		// Sanity check raster format and depth; set depth if none given
+		if(palformat){
+			if(palformat == Raster::PAL8){
+				if(raster->depth && raster->depth != 8){
+					RWERROR((ERR_INVRASTER));
+					return 0;
+				}
+				raster->depth = 8;
+				if(pixelformat != Raster::C1555 && pixelformat != Raster::C8888){
+					RWERROR((ERR_INVRASTER));
+					return 0;
+				}
+			}else if(palformat == Raster::PAL4){
+				if(raster->depth && raster->depth != 4){
+					RWERROR((ERR_INVRASTER));
+					return 0;
+				}
+				raster->depth = 4;
+				if(pixelformat != Raster::C1555 && pixelformat != Raster::C8888){
+					RWERROR((ERR_INVRASTER));
+					return 0;
+				}
+			}else{
+				RWERROR((ERR_INVRASTER));
+				return 0;
+			}
+		}else if(pixelformat == Raster::C1555){
+			if(raster->depth && raster->depth != 16){
+				RWERROR((ERR_INVRASTER));
+				return 0;
+			}
+			raster->depth = 16;
+		}else if(pixelformat == Raster::C8888){
+			if(raster->depth && raster->depth != 32){
+				RWERROR((ERR_INVRASTER));
+				return 0;
+			}
+			raster->depth = 32;
+		}else if(pixelformat == Raster::C888){
+			if(raster->depth && raster->depth != 24){
+				RWERROR((ERR_INVRASTER));
+				return 0;
+			}
+			raster->depth = 24;
+		}else{
+			RWERROR((ERR_INVRASTER));
+			return 0;
+		}
+		break;
+	default:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
+	return 1;
+}
+
+/*
+ * Memory units:
+ * Column: 64 bytes (single cycle access)
+ * Block: 256 bytes, 64 words, 4 columns. texture base pointers
+ * Page: 8 kbytes, 2 kwords, 128 columns, 32 blocks. frame buffer base pointers
+ * entire memory: 4 mbytes, 64k columns, 16k blocks, 512 pages
+ *
+ * PSMT4:     128x128 pixels, 4x8 blocks per page, 32x16 pixels per block
+ * PSMT8:     128x64  pixels, 8x4 blocks per page, 16x16 pixels per block
+ * PSMCT16(S): 64x64  pixels, 4x8 blocks per page, 16x8  pixels per block
+ * PSMCT24:    64x32  pixels, 8x4 blocks per page,  8x8  pixels per block
+ * PSMCT32:    64x32  pixels, 8x4 blocks per page,  8x8  pixels per block
+ *
+ *   Layout of blocks in page:
+ *
+ *   PSMCT24, PSMCT32, PSMT8
+ *   +----+----+----+----+----+----+----+----+
+ *   |  0 |  1 |  4 |  5 | 16 | 17 | 20 | 21 |
+ *   +----+----+----+----+----+----+----+----+
+ *   |  2 |  3 |  6 |  7 | 18 | 19 | 22 | 23 |
+ *   +----+----+----+----+----+----+----+----+
+ *   |  8 |  9 | 12 | 13 | 24 | 25 | 28 | 29 |
+ *   +----+----+----+----+----+----+----+----+
+ *   | 10 | 11 | 14 | 15 | 26 | 27 | 30 | 31 |
+ *   +----+----+----+----+----+----+----+----+
+ *
+ *   PSMCT16, PSMT4
+ *   +----+----+----+----+
+ *   |  0 |  2 |  8 | 10 |
+ *   +----+----+----+----+
+ *   |  1 |  3 |  9 | 11 |
+ *   +----+----+----+----+
+ *   |  4 |  6 | 12 | 14 |
+ *   +----+----+----+----+
+ *   |  5 |  7 | 13 | 15 |
+ *   +----+----+----+----+
+ *   | 16 | 18 | 24 | 26 |
+ *   +----+----+----+----+
+ *   | 17 | 19 | 25 | 27 |
+ *   +----+----+----+----+
+ *   | 20 | 22 | 28 | 30 |
+ *   +----+----+----+----+
+ *   | 21 | 23 | 29 | 31 |
+ *   +----+----+----+----+
+ *
+ *   PSMCT16S
+ *   +----+----+----+----+
+ *   |  0 |  2 | 16 | 18 |
+ *   +----+----+----+----+
+ *   |  1 |  3 | 17 | 19 |
+ *   +----+----+----+----+
+ *   |  8 | 10 | 24 | 26 |
+ *   +----+----+----+----+
+ *   |  9 | 11 | 25 | 27 |
+ *   +----+----+----+----+
+ *   |  4 |  6 | 20 | 22 |
+ *   +----+----+----+----+
+ *   |  5 |  7 | 21 | 23 |
+ *   +----+----+----+----+
+ *   | 12 | 14 | 28 | 30 |
+ *   +----+----+----+----+
+ *   | 13 | 15 | 29 | 31 |
+ *   +----+----+----+----+
+ *
+ */
+
+static uint8 blockmap_PSMCT32[32] = {
+	 0,  1,  4,  5, 16, 17, 20, 21,
+	 2,  3,  6,  7, 18, 19, 22, 23,
+	 8,  9, 12, 13, 24, 25, 28, 29,
+	10, 11, 14, 15, 26, 27, 30, 31,
+};
+static uint8 blockmap_PSMCT16[32] = {
+	 0,  2,  8, 10,
+	 1,  3,  9, 11,
+	 4,  6, 12, 14,
+	 5,  7, 13, 15,
+	16, 18, 24, 26,
+	17, 19, 25, 27,
+	20, 22, 28, 30,
+	21, 23, 29, 31,
+};
+static uint8 blockmap_PSMCT16S[32] = {
+	 0,  2, 16, 18,
+	 1,  3, 17, 19,
+	 8, 10, 24, 26,
+	 9, 11, 25, 27,
+	 4,  6, 20, 22,
+	 5,  7, 21, 23,
+	12, 14, 28, 30,
+	13, 15, 29, 31,
+};
+static uint8 blockmap_PSMZ32[32] = {
+	24, 25, 28, 29,  8,  9, 12, 13,
+	26, 27, 30, 31, 10, 11, 14, 15,
+	16, 17, 20, 21,  0,  1,  4,  5,
+	18, 19, 22, 23,  2,  3,  6,  7,
+};
+static uint8 blockmap_PSMZ16[32] = {
+	24, 26, 16, 18,
+	25, 27, 17, 19,
+	28, 30, 20, 22,
+	29, 31, 21, 23,
+	 8, 10,  0,  2,
+	 9, 11,  1,  3,
+	12, 14,  4,  6,
+	13, 15,  5,  7,
+};
+static uint8 blockmap_PSMZ16S[32] = {
+	24, 26,  8, 10,
+	25, 27,  9, 11,
+	16, 18,  0,  2,
+	17, 19,  1,  3,
+	28, 30, 12, 14,
+	29, 31, 13, 15,
+	20, 22,  4,  6,
+	21, 23,  5,  7,
+};
+
+static uint8 blockmaprev_PSMCT32[32] = {
+	 0,  1,  8,  9,  2,  3, 10, 11,
+	16, 17, 24, 25, 18, 19, 26, 27,
+	 4,  5, 12, 13,  6,  7, 14, 15,
+	20, 21, 28, 29, 22, 23, 30, 31,
+};
+static uint8 blockmaprev_PSMCT16[32] = {
+	 0,  4,  1,  5,
+	 8, 12,  9, 13,
+	 2,  6,  3,  7,
+	10, 14, 11, 15,
+	16, 20, 17, 21,
+	24, 28, 25, 29,
+	18, 22, 19, 23,
+	26, 30, 27, 31,
+};
+
+/* Suffixes used:
+ * _Px - pixels
+ * _W - width units (pixels/64)
+ * _B - blocks
+ * _P - pages
+ */
+
+/* Layout mipmaps and palette in GS memory */
+static void
+calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, uint64 *bufferWidth_W, uint32 *trxpos, uint32 *totalSize, uint32 *paletteBase)
+{
+	int32 pageWidth_Px, pageHeight_Px;
+	int32 blockWidth_Px, blockHeight_Px;
+	int32 mindim_Px;
+	int32 nlevels;
+	int32 n;
+	int32 mipw_Px, miph_Px;
+	int32 lastmipw_Px, lastmiph_Px;
+	uint32 bufferHeight_P[8];
+	uint32 bufferPage_B[8];	// address of page in which the level is allocated
+	uint32 xoff_Px, yoff_Px;	// x/y offset the last level starts at
+	// Whenever we allocate horizontally inside a page,
+	//  keep track of the region below it on this stack.
+	uint32 sp;
+	uint32 xoffstack_Px[8];	// actually unused...
+	uint32 widthstack_Px[8];
+	uint32 heightstack_Px[8];
+	uint32 basestack_B[8];
+	int32 flag;
+
+	switch(psm){
+	case PSMCT32:
+	case PSMCT24:
+	case PSMT8H:
+	case PSMT4HL:
+	case PSMT4HH:
+	case PSMZ32:
+	case PSMZ24:
+		pageWidth_Px = 64;
+		pageHeight_Px = 32;
+		blockWidth_Px = 8;
+		blockHeight_Px = 8;
+		break;
+	case PSMT8:
+		pageWidth_Px = 128;
+		pageHeight_Px = 64;
+		blockWidth_Px = 16;
+		blockHeight_Px = 16;
+		break;
+	case PSMT4:
+		pageWidth_Px = 128;
+		pageHeight_Px = 128;
+		blockWidth_Px = 32;
+		blockHeight_Px = 16;
+		break;
+	case PSMCT16:
+	case PSMCT16S:
+	case PSMZ16:
+	case PSMZ16S:
+	default:
+		pageWidth_Px = 64;
+		pageHeight_Px = 64;
+		blockWidth_Px = 16;
+		blockHeight_Px = 8;
+		break;
+	}
+
+	mindim_Px = min(width_Px, height_Px);
+	for(nlevels = 1; mindim_Px > 8; nlevels++){
+		if(nlevels >= maxMipLevels)
+			break;
+		mindim_Px /= 2;
+	}
+
+#define PAGEWIDTH_B (pageWidth_Px/blockWidth_Px)	// number of horizontal blocks per page
+#define NBLKX(dim) (NSIZE((dim), blockWidth_Px))
+#define NBLKY(dim) (NSIZE((dim), blockHeight_Px))
+#define NPGX(dim) (NSIZE((dim), pageWidth_Px))
+#define NPGY(dim) (NSIZE((dim), pageHeight_Px))
+#define REALWIDTH(w) (max((w), blockWidth_Px))
+#define REALHEIGHT(w) (max((w), blockHeight_Px))
+
+	bufferBase_B[0] = 0;
+	bufferWidth_W[0] = NPGX(width_Px)*pageWidth_Px/64;
+	bufferHeight_P[0] = NPGY(height_Px);
+	bufferPage_B[0] = 0;
+	lastmipw_Px = width_Px;
+	lastmiph_Px = height_Px;
+	sp = 0;
+	xoff_Px = 0;
+	yoff_Px = 0;
+	flag = 0;
+	// Calculate info for all mipmap levels.
+	// mipwidth/height are actually the dimensions of level n-1!
+	// This code was reversed from RW and is rather complicated...
+	// partially because it's not clear what the assumptions are,
+	// can width/height be non-powers of 2?
+	for(n = 1; n < nlevels; n++){
+		mipw_Px = lastmipw_Px/2;
+		miph_Px = lastmiph_Px/2;
+		if(lastmipw_Px >= pageWidth_Px){
+			if(lastmiph_Px >= pageHeight_Px){
+				// CASE 0
+				// We allocate full pages
+				// This is the only place bufferWidth can change. Similarly bufferBase_2, which is related
+				bufferBase_B[n] = bufferBase_B[n-1] + (lastmipw_Px/blockWidth_Px)*(lastmiph_Px/blockHeight_Px);
+				bufferPage_B[n] = bufferBase_B[n];
+				bufferWidth_W[n] = NPGX(mipw_Px)*pageWidth_Px/64;
+				bufferHeight_P[n] = NPGY(miph_Px);
+				xoff_Px = 0;
+				yoff_Px = 0;
+			}else{
+				// CASE 1
+				// Allocate vertically in the current page
+				bufferPage_B[n] = bufferPage_B[n-1];
+				bufferHeight_P[n] = bufferHeight_P[n-1];
+				bufferWidth_W[n] = bufferWidth_W[n-1];
+				// How do we know pageHeight - yoff - REALHEIGHT(lastmiph) >= miph?
+				// And how is this condition ever false?
+				// Assuming lastmipw >= pageWidth for any number of levels, lastmiph must be pageHeight/2
+				// or lower to reach this code. No dimension is lower than 8. Then consequent mipmaps
+				// will have heights halved but even with PSMT4 we will only (vertically) fill the
+				// page with the last mipmap and not go beyond...
+				if(REALHEIGHT(lastmiph_Px) + yoff_Px < pageHeight_Px){
+					// CASE 2
+					yoff_Px += REALHEIGHT(lastmiph_Px);
+					bufferBase_B[n] = bufferBase_B[n-1] +
+						PAGEWIDTH_B * NBLKY(lastmiph_Px) *
+						bufferWidth_W[n]*64/pageWidth_Px;	// number of horizontal pages for level
+				}else{
+					// CASE 3
+					// Can this happen?
+					xoff_Px += REALWIDTH(lastmipw_Px);
+					bufferBase_B[n] = bufferBase_B[n-1] + NBLKX(lastmipw_Px);
+				}
+			}
+		}else if(lastmiph_Px >= pageHeight_Px){
+			// CASE 4
+			// Allocate horizontally
+			bufferPage_B[n] = bufferPage_B[n-1];
+			bufferHeight_P[n] = bufferHeight_P[n-1];
+			bufferWidth_W[n] = bufferWidth_W[n-1];
+			if(REALWIDTH(lastmipw_Px) + xoff_Px < pageWidth_Px){
+				// CASE 5
+				xoffstack_Px[sp] = xoff_Px;	// unused...
+				heightstack_Px[sp] = REALHEIGHT(lastmiph_Px);
+				widthstack_Px[sp] = REALWIDTH(lastmipw_Px);
+				basestack_B[sp] = bufferBase_B[n-1] +  NBLKY(lastmiph_Px) * PAGEWIDTH_B;
+				sp++;
+				xoff_Px += REALWIDTH(lastmipw_Px);
+				bufferBase_B[n] = bufferBase_B[n-1] + NBLKX(lastmipw_Px);
+			}else if(sp){
+				// CASE 7
+				bufferBase_B[n] = basestack_B[sp-1];
+				if(REALWIDTH(mipw_Px) < widthstack_Px[sp-1]){
+					// CASE 9
+					basestack_B[sp-1] += NBLKX(mipw_Px);
+					widthstack_Px[sp-1] -= REALWIDTH(mipw_Px);
+				}else if(REALHEIGHT(miph_Px) < heightstack_Px[sp-1]){
+					// CASE 8
+					basestack_B[sp-1] += NBLKY(miph_Px) * PAGEWIDTH_B;
+					heightstack_Px[sp-1] -= REALHEIGHT(miph_Px);
+				}else{
+					// CASE 10
+					sp--;
+				}
+				flag = 1;
+			}else{
+				// CASE 6
+				yoff_Px += REALHEIGHT(lastmiph_Px);
+				bufferBase_B[n] = bufferBase_B[n-1] + PAGEWIDTH_B*NBLKY(lastmiph_Px);
+			}
+		}else{
+			// CASE 11
+			bufferHeight_P[n] = bufferHeight_P[n-1];
+			bufferPage_B[n] = bufferPage_B[n-1];
+			bufferWidth_W[n] = bufferWidth_W[n-1];
+			if(REALWIDTH(lastmipw_Px) + xoff_Px < bufferWidth_W[n-1]*64){
+				// CASE 12
+				xoffstack_Px[sp] = xoff_Px;	// unused...
+				widthstack_Px[sp] = REALWIDTH(lastmipw_Px);
+				heightstack_Px[sp] = REALHEIGHT(lastmiph_Px);
+				basestack_B[sp] = bufferBase_B[n-1] + PAGEWIDTH_B * NBLKY(lastmiph_Px);
+				sp++;
+				xoff_Px += REALWIDTH(lastmipw_Px);
+				bufferBase_B[n] = bufferBase_B[n-1] + NBLKX(lastmipw_Px);
+			}else if(REALHEIGHT(lastmiph_Px) + yoff_Px < pageHeight_Px*bufferHeight_P[n] && flag == 0){
+				// CASE 13
+				bufferBase_B[n] = bufferBase_B[n-1] + PAGEWIDTH_B * NBLKY(lastmiph_Px);
+				yoff_Px += blockHeight_Px ? lastmiph_Px : 0;	// how exactly can blockHeight be 0?? This looks wrong...
+				flag = n;
+			}else{
+				// CASE 14
+				bufferBase_B[n] = basestack_B[sp-1];
+				if(REALWIDTH(mipw_Px) < widthstack_Px[sp-1]){
+					// CASE 15
+					basestack_B[sp-1] += NBLKX(mipw_Px);
+					widthstack_Px[sp-1] -= REALWIDTH(mipw_Px);
+				}else if(REALHEIGHT(miph_Px) < heightstack_Px[sp-1]){
+					// CASE 16
+					basestack_B[sp-1] += PAGEWIDTH_B * NBLKY(miph_Px);
+					heightstack_Px[sp-1] -= REALHEIGHT(miph_Px);
+				}else{
+					// CASE 17
+					sp--;
+				}
+			}
+		}
+		lastmipw_Px = mipw_Px;
+		lastmiph_Px = miph_Px;
+	}
+
+	// Calculate position of palette.
+	uint32 paletteBase_B = 0;
+	uint64 bufwidth_Px = bufferWidth_W[nlevels-1]*64;
+	uint64 bufheight_Px = bufferHeight_P[nlevels-1]*pageHeight_Px;
+	// != means > really
+	if(bufwidth_Px != lastmipw_Px || bufheight_Px != lastmiph_Px){
+		if(psm == PSMT8){
+			// 2x2 blocks at the end of the page (even for PSMCT16S)
+			paletteBase_B = bufferPage_B[nlevels-1] +
+				((bufwidth_Px/pageWidth_Px)*bufferHeight_P[nlevels-1] << 5)	// total number of blocks
+				- (bufheight_Px/pageWidth_Px) * PAGEWIDTH_B	// one block up
+				- 2;	// two blocks left
+		}else if(psm == PSMT4){
+			// One block at the end of the page
+			paletteBase_B = bufferPage_B[nlevels-1] +
+				((bufwidth_Px/pageWidth_Px) * bufferHeight_P[nlevels-1] << 5)
+				- 1;
+		}
+	}else{
+		if(psm == PSMT8 || psm == PSMT4){
+			paletteBase_B = bufferPage_B[nlevels-1] +
+				(bufwidth_Px/blockWidth_Px) * (bufheight_Px/blockHeight_Px);
+		}
+	}
+
+	uint32 bufwidth_W = bufferWidth_W[0];
+	uint32 bufpage_B = bufferPage_B[0];
+	uint32 pixeloff;
+	for(n = 0; n < nlevels; n++){
+		// Calculate TRXPOS register (DSAX and DSAY, shifted up later)
+		// Start of buffer on current page (x in pixels, y in blocks)
+		pixeloff = (bufferBase_B[n] - bufpage_B) * blockWidth_Px;
+		// y coordinate of first pixel
+		yoff_Px = (pixeloff / (bufwidth_W*64)) * blockHeight_Px;
+		// x coordinate of first pixel
+		xoff_Px =  pixeloff % (bufwidth_W*64);
+		if(bufferWidth_W[n] == bufwidth_W &&
+		   // Not quite sure what's the meaning of this.
+		   // DSAY is 11 bits, but so is DSAX and it is not checked?
+		   yoff_Px < 0x800){
+			trxpos[n] = yoff_Px<<16 | xoff_Px;
+		}else{
+			bufwidth_W = bufferWidth_W[n];
+			bufpage_B = bufferPage_B[n];
+			trxpos[n] = 0;
+		}
+
+		// If using more than one page we have to swizzle rows inside page rows
+		if(bufwidth_W*64 / pageWidth_Px > 1){
+			uint32 bufpagestride_B = bufwidth_W*64 * 32 / pageWidth_Px;	// one row of pages
+			uint32 bufwidth_B = bufwidth_W*64 / blockWidth_Px;	// one row of blocks
+			// To illustrate assume:
+			// - 8x4 block pages
+			// - texture is 4 pages wide
+			// Then the lower bits of an input block address look like: RRRPPCC
+			// where the C bits are the block's column inside a page
+			//       the P bits are the block's page horizontally
+			//       the R bits are the block's row in a row of pages
+			// We want to swap P and R: PPRRRCC
+			bufferBase_B[n] =
+				(bufferBase_B[n] & ~(bufpagestride_B - PAGEWIDTH_B))	// mask out R and P
+				| ((bufferBase_B[n] & (bufwidth_B - PAGEWIDTH_B)) * (bufpagestride_B/bufwidth_B))	// extract P and shift left
+				| ((bufferBase_B[n] & (bufpagestride_B - bufwidth_B)) / (bufwidth_B/PAGEWIDTH_B));	// extract R and shift right
+		}
+
+		// Always have to swizzle blocks inside pages. We use a lookup, RW does bit operations
+		switch(psm){
+		case PSMCT32:
+		case PSMCT24:
+		case PSMT8:
+		case PSMT8H:
+		case PSMT4HL:
+		case PSMT4HH:
+			// ABCDE -> CADBE
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMCT32[bufferBase_B[n]&0x1F];
+			break;
+		case PSMT4:
+		case PSMCT16:
+			// ABCDE -> ADBEC
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMCT16[bufferBase_B[n]&0x1F];
+			break;
+		case PSMCT16S:
+			// ABCDE -> DBAEC
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMCT16S[bufferBase_B[n]&0x1F];
+			break;
+		case PSMZ32:
+		case PSMZ24:
+			// ABCDE -> ~C~ADBE
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMZ32[bufferBase_B[n]&0x1F];
+			break;
+		case PSMZ16:
+			// ABCDE -> ~A~DBEC
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMZ16[bufferBase_B[n]&0x1F];
+			break;
+		case PSMZ16S:
+			// ABCDE -> ~D~BAEC
+			bufferBase_B[n] = bufferBase_B[n]&~0x1F | (uint64)blockmap_PSMZ16S[bufferBase_B[n]&0x1F];
+			break;
+		default: break;
+		}
+	}
+
+	// Same dance as above, with the palette
+	if(bufwidth_W*64 / pageWidth_Px > 1){
+		uint32 bufpagestride_B = bufwidth_W*64 * 32 / pageWidth_Px;	// one row of pages
+		uint32 bufwidth_B = bufwidth_W*64 / blockWidth_Px;	// one row of blocks
+		paletteBase_B =
+			(paletteBase_B & ~(bufpagestride_B - PAGEWIDTH_B))	// mask out R and P
+			| ((paletteBase_B & (bufwidth_B - PAGEWIDTH_B)) * (bufpagestride_B/bufwidth_B))	// extract P and shift left
+			| ((paletteBase_B & (bufpagestride_B - bufwidth_B)) / (bufwidth_B/PAGEWIDTH_B));	// extract R and shift right
+	}
+	switch(psm){
+	case PSMCT32:
+	case PSMCT24:
+	case PSMT8:
+	case PSMT8H:
+	case PSMT4HL:
+	case PSMT4HH:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMCT32[paletteBase_B&0x1F];
+		break;
+	case PSMT4:
+	case PSMCT16:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMCT16[paletteBase_B&0x1F];
+		break;
+	case PSMCT16S:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMCT16S[paletteBase_B&0x1F];
+		break;
+	case PSMZ32:
+	case PSMZ24:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMZ32[paletteBase_B&0x1F];
+		break;
+	case PSMZ16:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMZ16[paletteBase_B&0x1F];
+		break;
+	case PSMZ16S:
+		paletteBase_B = paletteBase_B&~0x1F | (uint64)blockmap_PSMZ16S[paletteBase_B&0x1F];
+		break;
+	default: break;
+	}
+	*paletteBase = paletteBase_B;
+	*totalSize = bufferPage_B[nlevels-1] +	// start of last buffer`
+		bufferWidth_W[nlevels-1]*64/blockWidth_Px *	// number of horizontal blocks in last level
+		pageHeight_Px*bufferHeight_P[nlevels-1]/blockHeight_Px;	// number of vertical blocks in last level
+	*totalSize *= 64;	// to words
+
+#undef BLKSTRIDE
+#undef NBLKX
+#undef NBLKY
+#undef NPGX
+#undef NPGY
+#undef REALWIDTH
+#undef REALHEIGHT
+}
+
+static void
+createTexRaster(Raster *raster)
+{
+	// We use a map for fast lookup, even for impossible depths
+	static int32 pageWidths[32] = {
+		128, 128, 128, 128,
+		128, 128, 128, 128,
+		64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64,
+	};
+	static int32 pageHeights[32] = {
+		128, 128, 128, 128,
+		64, 64, 64, 64,
+		64, 64, 64, 64, 64, 64, 64, 64,
+		32, 32, 32, 32, 32, 32, 32, 32,
+		32, 32, 32, 32, 32, 32, 32, 32,
+	};
 	enum {
 		TCC_RGBA = 1 << 2,
 		CLD_1 = 1 << 29,
-	};
-	uint64 bufferWidth[7], bufferBase[7];
-	int32 pageWidth, pageHeight;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 
+		WD2BLK = 64,	// words per block
+		WD2PG = 2048,	// words per page
+	};
+	int32 pixelformat, palformat;
+	// TEX0 fields (not all)
+	int64 tbw	= 0;	// texture buffer width, texels/64
+	int64 psm	= 0;	// pixel storage mode
+	int64 tw	= 0;	// texture width exponent, width = 2^tw
+	int64 th	= 0;	// texture height exponent, height = 2^th
+	int64 tcc	= 0;	// texture color component, 0 = rgb, 1 = rgba
+	int64 cpsm	= 0;	// CLUT pixel storage mode
+	int64 cld	= 0;	// CLUT buffer load control
+
+	uint64 bufferWidth[7];	// in number of pixels / 64
+	uint64 bufferBase[7];	// block address
+	uint32 trxpos_hi[8];
+	int32 width, height, depth;
+	int32 pageWidth, pageHeight;
+	int32 paletteWidth, paletteHeight, paletteDepth;
+	int32 palettePagewidth, palettePageheight;
+
+
+	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	pixelformat = raster->format & 0xF00;
+	palformat = raster->format & 0x6000;
+	width = raster->width;
+	height = raster->height;
+	depth = raster->depth;
+
+
+	// RW doesn't seem to check this, hm...
 	if(raster->flags & Raster::DONTALLOCATE)
 		return;
 
 	//printf("%x %x %x %x\n", raster->format, raster->flags, raster->type, noNewStyleRasters);
-	assert(raster->type == Raster::TEXTURE);
-	switch(raster->depth){
-	case 4:
-		pageWidth = 128;
-		pageHeight = 128;
-		break;
-	case 8:
-		pageWidth = 128;
-		pageHeight = 64;
-		break;
-	case 16:
-		pageWidth = 64;
-		pageHeight = 64;
-		break;
-	case 32:
-		pageWidth = 64;
-		pageHeight = 32;
-		break;
-	default:
-		assert(0 && "unsupported depth");
-	}
-	int32 logw = 0, logh = 0;
+	pageWidth = pageWidths[depth-1];
+	pageHeight = pageHeights[depth-1];
+
 	int32 s;
-	for(s = 1; s < raster->width; s *= 2)
-		logw++;
-	for(s = 1; s < raster->height; s *= 2)
-		logh++;
-	ras->kl = 0xFC0;
+	tw = 0;
+	for(s = 1; s < width; s *= 2)
+		tw++;
+	th = 0;
+	for(s = 1; s < height; s *= 2)
+		th++;
+	ras->kl = defaultMipMapKL;
+	// unk2[0] = 1
 	//printf("%d %d %d %d\n", raster->width, logw, raster->height, logh);
 
 	// round up to page width, set TBW, TW, TH
-	ras->tex0[0] |= (raster->width < pageWidth ? pageWidth : raster->width)/64 << 14;
-	ras->tex0[0] |= logw << 26;
-	ras->tex0[0] |= logh << 30;
-	ras->tex0[1] |= logh >> 2;
+	tbw = max(width,pageWidth)/64;
 
 	// set PSM, TCC, CLD, CPSM and figure out palette format
-	int32 paletteWidth, paletteHeight, paletteDepth;
-	int32 palettePagewidth, palettePageheight;
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		switch(raster->format & 0xF00){
-		case Raster::C1555:
-			ras->tex0[1] |= PSMCT16S << 19;
+	if(palformat){
+		if(palformat == Raster::PAL8){
+			psm = PSMT8;
+			paletteWidth = 16;
+			paletteHeight = 16;
+		}else if(palformat == Raster::PAL4){
+			psm = PSMT4;
+			paletteWidth = 8;
+			paletteHeight = 2;
+		}else{
+			// can't happen, sanity check in getRasterFormat
+			return;
+		}
+		tcc = 1;	// RGBA
+		cld = 1;
+		if(pixelformat == Raster::C1555){
 			paletteDepth = 2;
-			palettePagewidth = palettePageheight = 64;
-			break;
-		case Raster::C8888:
-			ras->tex0[1] |= PSMCT32 << 19;
+			cpsm = PSMCT16S;
+			palettePagewidth = 64;
+			palettePageheight = 64;
+		}else if(pixelformat == Raster::C8888){
 			paletteDepth = 4;
+			cpsm = PSMCT32;
 			palettePagewidth = 64;
 			palettePageheight = 32;
-			break;
-		default:
-			assert(0 && "unsupported palette format\n");
-		}
-	if(raster->format & Raster::PAL4){
-		ras->tex0[0] |= PSMT4 << 20;
-		ras->tex0[1] |= CLD_1 | TCC_RGBA;
-		paletteWidth = 8;
-		paletteHeight = 2;
-	}else if(raster->format & Raster::PAL8){
-		ras->tex0[0] |= PSMT8 << 20;
-		ras->tex0[1] |= CLD_1 | TCC_RGBA;
-		paletteWidth = paletteHeight = 16;
+		}else
+			// can't happen, sanity check in getRasterFormat
+			return;
 	}else{
 		paletteWidth = 0;
 		paletteHeight = 0;
 		paletteDepth = 0;
 		palettePagewidth = 0;
 		palettePageheight = 0;
-		switch(raster->format & 0xF00){
-		case Raster::C1555:
-			ras->tex0[0] |= PSMCT16S << 20;
-			ras->tex0[1] |= TCC_RGBA;
-			break;
-		case Raster::C8888:
-			ras->tex0[0] |= PSMCT32 << 20;
-			ras->tex0[1] |= TCC_RGBA;
-			break;
-		case Raster::C888:
-			ras->tex0[0] |= PSMCT24 << 20;
-			break;
-		default:
-			assert(0 && "unsupported raster format\n");
-		}
+		if(pixelformat == Raster::C8888){
+			psm = PSMCT32;
+			tcc = 1;	// RGBA
+		}else if(pixelformat == Raster::C888){
+			psm = PSMCT24;
+			tcc = 0;	// RGB
+		}else if(pixelformat == Raster::C1555){
+			psm = PSMCT16S;
+			tcc = 1;	// RGBA
+		}else
+			// can't happen, sanity check in getRasterFormat
+			return;
 	}
 
 	for(int i = 0; i < 7; i++){
@@ -203,142 +875,214 @@ rasterCreate(Raster *raster)
 	}
 
 	int32 mipw, miph;
+	int32 w, h;
 	int32 n;
 	int32 nPagW, nPagH;
-	int32 w = raster->width;
-	int32 h = raster->height;
-	int32 d = raster->depth;
-	raster->stride = w*d/8;
+	raster->stride = width*depth/8;
 
 	if(raster->format & Raster::MIPMAP){
+		// NOTE: much of this code seems to be totally useless.
+		// calcOffsets overwrites what we calculate here. I wonder
+		// why this code even is in RW. Maybe it's older code that used
+		// the GS' automatic base pointer calculation?
+
+		// see the left columns in the maps above
 		static uint32 blockOffset32_24_8[8] = { 0, 2, 2, 8, 8, 10, 10, 32 };
 		static uint32 blockOffset16_4[8] = { 0, 1, 4, 5, 16, 17, 20, 21 };
 		static uint32 blockOffset16S[8] = { 0, 1, 8, 9, 4, 5, 12, 13 };
 		uint64 lastBufferWidth;
-		mipw = w;
-		miph = h;
-		lastBufferWidth = max(pageWidth, w)/64;
-		ras->texelSize = 0;
-		int32 gsoffset = 0;
-		int32 gsaddress = 0;
-		for(n = 0; n < 7; n++){
-			if(w >= 8 && h >= 8 && (mipw < 8 || miph < 8))
+		mipw = width;
+		miph = height;
+		lastBufferWidth = max(pageWidth, width)/64;
+		ras->pixelSize = 0;
+		int32 lastaddress = 0;	// word address
+		int32 nextaddress = 0;	// word address
+		int32 stride;	// in bytes
+		for(n = 0; mipw != 0 && miph != 0 && n < maxMipLevels; n++){
+			if(width >= 8 && height >= 8 && (mipw < 8 || miph < 8))
 				break;
-			ras->texelSize += ALIGN64(mipw*miph*d/8);
+			ras->pixelSize += ALIGN64(mipw*miph*depth/8);
 			bufferWidth[n] = max(pageWidth, mipw)/64;
+			stride = bufferWidth[n]*64*depth/8;
 
+			// If buffer width changes, align next address to page
 			if(bufferWidth[n] != lastBufferWidth){
-				nPagW = ((w >> n-1) + pageWidth-1)/pageWidth;
-				nPagH = ((h >> n-1) + pageHeight-1)/pageHeight;
-				gsaddress = (gsoffset + nPagW*nPagH*0x800) & ~0x7FF;
+				nPagW = ((width >> n-1) + pageWidth-1)/pageWidth;
+				nPagH = ((height >> n-1) + pageHeight-1)/pageHeight;
+				nextaddress = (lastaddress + nPagW*nPagH*WD2PG) & ~(WD2PG-1);
 			}
 			lastBufferWidth = bufferWidth[n];
-			gsaddress = ALIGN64(gsaddress);
-			uint32 b = gsaddress/256 & 7;
-			switch(ras->tex0[0]>>20 & 0x3F){
-			case 0: case 1: case 0x13:
+			nextaddress = ALIGN64(nextaddress);	// this should already be the case...
+			uint32 b = nextaddress>>(11-3) & 7;	// upper three bits of block-in-page address
+			switch(psm){
+			case PSMCT32:
+			case PSMCT24:	
+			case PSMT8:
 				b = blockOffset32_24_8[b];
 				break;
-			case 2: case 0x14:
+			case PSMCT16:
+			case PSMT4:
 				b = blockOffset16_4[b];
 				break;
-			case 0xA:
+			case PSMCT16S:
 				b = blockOffset16S[b];
 				break;
 			default:
 				// can't happen
 				break;
 			}
-			bufferBase[n] = b + (gsaddress>>11 << 5);
-			int32 stride = bufferWidth[n]/64*d/8;
-			gsaddress = ALIGN64(miph*stride/4 + gsoffset);
+			// shift to page address, then to block address and add offset inside page
+			bufferBase[n] = b + (nextaddress>>11 << 5);
+
+			lastaddress = nextaddress;
+			nextaddress = ALIGN64(miph*stride/4 + lastaddress);
 
 			mipw /= 2;
 			miph /= 2;
 		}
-		assert(0);
+
+		// Do the real work here
+		uint32 paletteBase;
+		uint32 totalSize;
+		calcOffsets(width, height, psm, bufferBase, bufferWidth, trxpos_hi, &totalSize, &paletteBase);
+
+		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
+		ras->miptbp1 = 
+			  bufferWidth[1]<<14 | (bufferBase[1] & 0x3FFF)<<0
+			| bufferWidth[2]<<34 | (bufferBase[2] & 0x3FFF)<<20
+			| bufferWidth[3]<<54 | (bufferBase[3] & 0x3FFF)<<40;
+		ras->miptbp2 = 
+			  bufferWidth[4]<<14 | (bufferBase[4] & 0x3FFF)<<0
+			| bufferWidth[5]<<34 | (bufferBase[5] & 0x3FFF)<<20
+			| bufferWidth[6]<<54 | (bufferBase[6] & 0x3FFF)<<40;
+		ras->tex1low = (n-1)<<2;
+		ras->totalSize = totalSize;
+		if(ras->paletteSize){
+			ras->paletteBase = paletteBase;
+			if(ras->paletteBase*64 == ras->totalSize)
+				ras->totalSize += WD2PG;
+		}else
+			ras->paletteBase = 0;
 	}else{
 		// No mipmaps
 
-		ras->texelSize = ALIGN16(raster->stride*raster->height);
+		ras->pixelSize = ALIGN16(raster->stride*raster->height);
 		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
-		ras->miptbp1[0] |= 1<<14;        // TBW1
-		ras->miptbp1[1] |= 1<<2 | 1<<22; // TBW2,3
-		ras->miptbp2[0] |= 1<<14;	 // TBW4
-		ras->miptbp2[1] |= 1<<2 | 1<<22; // TBW5,6
+		ras->miptbp1 = 1<<54 | 1<<34 | 1<<14;
+		ras->miptbp2 = 1<<54 | 1<<34 | 1<<14;
 		ras->tex1low = 0;	// one mipmap level
 
 		// find out number of pages needed
-		nPagW = (raster->width + pageWidth-1)/pageWidth;
-		nPagH = (raster->height + pageHeight-1)/pageHeight;
+		nPagW = (width + pageWidth-1)/pageWidth;
+		nPagH = (height + pageHeight-1)/pageHeight;
 
 		// calculate buffer width in units of pixels/64
 		bufferBase[0] = 0;
 		bufferWidth[0] = nPagW*pageWidth / 64;
 
 		// calculate whole buffer size in words
-		ras->gsSize = nPagW*nPagH*0x800;
+		ras->totalSize = nPagW*nPagH*WD2PG;
 
 		// calculate palette offset on GS in units of words/64
 		if(ras->paletteSize){
-			// Maximum palette size will be 256 words.
+			// Maximum palette size is 256 words.
 			// If there is still room, use it!
-			// TODO: find out why this check works
-			if(pageWidth*nPagW > raster->width ||
-			   pageHeight*nPagH > raster->height)
-				ras->paletteOffset = (ras->gsSize - 256)/ 64;
+			// If dimensions don't fill a page, we have at least
+			// half a page left, enough for any palette
+			if(pageWidth*nPagW > width ||
+			   pageHeight*nPagH > height)
+				ras->paletteBase = (ras->totalSize - 256) / WD2BLK;
 			else{
 				// Otherwise allocate more space...
-				ras->paletteOffset = ras->gsSize / 64;
-				// ...using the same calculation as above
+				ras->paletteBase = ras->totalSize / WD2BLK;
+				// ...using the same calculation as above.
+				// WHY? we never need more than one page!
 				nPagW = (paletteWidth + palettePagewidth-1)/palettePagewidth;
 				nPagH = (paletteHeight + palettePageheight-1)/palettePageheight;
-				ras->gsSize += nPagW*nPagH*0x800;
+				ras->totalSize += nPagW*nPagH*WD2PG;
 			}
 		}else
-			ras->paletteOffset = 0;
+			ras->paletteBase = 0;
 	}
+	ras->tex0 = tbw << 14 |
+		psm << 20 |
+		tw << 26 |
+		th << 30 |
+		tcc << 34 |
+		cpsm << 51 |
+		0 << 55 |	// csm0
+		0 << 56 |	// entry offset
+		cld << 61;
+
+
 
 	// allocate data and fill with GIF packets
-	ras->texelSize = ALIGN16(ras->texelSize);
+	ras->pixelSize = ALIGN16(ras->pixelSize);
 	int32 numLevels = MAXLEVEL(ras)+1;
 	// No GIF packet because we either don't want it (pre 0x310 rasters)
 	// or the data wouldn't fit into a DMA packet
 	if(noNewStyleRasters ||
 	   (raster->width*raster->height*raster->depth/8/0x10) >= 0x7FFF){
-		ras->dataSize = ras->paletteSize+ras->texelSize;
+		ras->dataSize = ras->paletteSize+ras->pixelSize;
 		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
+		assert(data);
 		ras->data = data;
-		raster->texels = data;
+		raster->pixels = data;
 		if(ras->paletteSize)
-			raster->palette = data + ras->texelSize;
+			raster->palette = data + ras->pixelSize;
 		if(raster->depth == 8)
 			ras->flags |= Ps2Raster::SWIZZLED8;
 	}else{
-		ras->flags |= Ps2Raster::HASGIFPACKETS;
-		int32 psm = ras->tex0[0]>>20 & 0x3F;
-		//int32 cpsm = ras->tex0[1]>>19 & 0x3F;
+		ras->flags |= Ps2Raster::NEWSTYLE;
+		uint64 paltrxpos = 0;
+		uint32 dsax = trxpos_hi[numLevels-1] & 0x7FF;
+		uint32 dsay = trxpos_hi[numLevels-1]>>16 & 0x7FF;
+		// Set swizzle flags and calculate TRXPOS for palette
 		if(psm == PSMT8){
 			ras->flags |= Ps2Raster::SWIZZLED8;
-			// TODO: crazy stuff
+			if(cpsm == PSMCT32 && bufferWidth[numLevels-1] == 2){	// one page
+				// unswizzle the starting block of the last buffer and palette
+				uint32 bufbase_B = bufferBase[numLevels-1]&~0x1F | (uint64)blockmaprev_PSMCT32[bufferBase[numLevels-1]&0x1F];
+				uint32 palbase_B = ras->paletteBase&~0x1F | (uint64)blockmaprev_PSMCT32[ras->paletteBase&0x1F];
+				// find start of page of last level (16,16 are PSMT8 block dimensions)
+				uint32 page_B = bufbase_B - 8*(dsay/16) - dsax/16;
+				// find palette DSAX/Y (in PSMCT32!)
+				dsay = (palbase_B - page_B)/8 * 8;	// block/blocksPerPageX * blockHeight
+				dsax = (palbase_B - page_B)*8 % 64;	// block*blockWidth % pageWidth
+				if(dsay < 0x800)
+					paltrxpos = dsay<<16 | dsax;
+			}
 		}
 		if(psm == PSMT4){
-			// swizzle flag probably depends on version :/
+			// swizzle flag depends on version :/
 			// but which version? ....
-			if(rw::version > 0x31000)
+			if(rw::version > 0x31000){
 				ras->flags |= Ps2Raster::SWIZZLED4;
-			// TODO: crazy stuff
+				// Where can this come from? if anything we're using PSMCT16S
+				if(cpsm == PSMCT16){
+					// unswizzle the starting block of the last buffer and palette
+					uint32 bufbase_B = bufferBase[numLevels-1]&~0x1F | (uint64)blockmaprev_PSMCT16[bufferBase[numLevels-1]&0x1F];
+					uint32 palbase_B = ras->paletteBase&~0x1F | (uint64)blockmaprev_PSMCT16[ras->paletteBase&0x1F];
+					// find start of page of last level (32,16 are PSMT4 block dimensions)
+					uint32 page_B = bufbase_B - 4*(dsay/32) - dsax/16;
+					// find palette DSAX/Y (in PSMCT16!)
+					dsay = (palbase_B - page_B)/4 * 8;	// block/blocksPerPageX * blockHeight
+					dsax = (palbase_B - page_B)*16 % 128;	// block*blockWidth % pageWidth
+					if(dsay < 0x800)
+						paltrxpos = dsay<<16 | dsax;
+				}
+			}
 		}
-		ras->texelSize = 0x50*numLevels;	// GIF packets
+		ras->pixelSize = 0x50*numLevels;	// GIF packets
 		int32 minW, minH;
-		ps2MinSize(psm, ras->flags, &minW, &minH);
+		transferMinSize(psm, ras->flags, &minW, &minH);
 		w = raster->width;
 		h = raster->height;
 		n = numLevels;
 		while(n--){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
-			ras->texelSize += ALIGN16(mipw*miph*raster->depth/8);
+			mipw = max(w, minW);
+			miph = max(h, minH);
+			ras->pixelSize += ALIGN16(mipw*miph*raster->depth/8);
 			w /= 2;
 			h /= 2;
 		}
@@ -348,25 +1092,44 @@ rasterCreate(Raster *raster)
 			ras->paletteSize = 0x50 +
 			    paletteDepth*paletteWidth*paletteHeight;
 		}
-		// TODO: allocate space for more DMA packets
-		// every upload as 4 qwords:
+		// One transfer per buffer width, 4 qwords:
 		// DMAcnt(2) [NOP, DIRECT]
 		//   GIF tag  A+D
 		//     BITBLTBUF
 		// DMAref(pixel data) [NOP, DIRECT]
-		ras->dataSize = ras->paletteSize+ras->texelSize;
+		uint32 extrasize = 0x10;	// PixelPtr
+		int32 numTransfers = 0;
+		for(n = 0; n < numLevels; n++)
+			if(trxpos_hi[n] == 0){
+				extrasize += 0x40;
+				numTransfers++;
+			}
+		if(ras->paletteSize){
+			extrasize += 0x40;
+			numTransfers++;
+		}
+		// What happens here?
+		if(ras->paletteSize && paltrxpos == 0)
+			ras->dataSize = ALIGN(ras->pixelSize,128) + ALIGN(ras->paletteSize,64) + extrasize + 0x70;
+		else
+			ras->dataSize = ALIGN(ras->paletteSize+ras->pixelSize,64) + extrasize + 0x70;
 		uint8 *data = (uint8*)mallocalign(ras->dataSize, 0x40);
+		uint32 *xferchain = (uint32*)(data + 0x10);
 		assert(data);
 		ras->data = data;
-		raster->texels = data + 0x50;
+		Ps2Raster::PixelPtr *pp = (Ps2Raster::PixelPtr*)data;
+		pp->numTransfers = numTransfers;
+		pp->numTotalTransfers = numTransfers;
+		pp->pixels = (uint8*)ALIGN((uintptr)data + extrasize, 128);
+		raster->pixels = (uint8*)pp;
 		if(ras->paletteSize)
-			raster->palette = data + ras->texelSize + 0x50;
-		uint32 *p = (uint32*)data;
+			raster->palette = pp->pixels + ALIGN(ras->pixelSize, 128) + 0x50;
+		uint32 *p = (uint32*)pp->pixels;
 		w = raster->width;
 		h = raster->height;
 		for(n = 0; n < numLevels; n++){
-			mipw = w < minW ? minW : w;
-			miph = h < minH ? minH : h;
+			mipw = max(w, minW);
+			miph = max(h, minH);
 
 			// GIF tag
 			*p++ = 3;          // NLOOP = 3
@@ -375,8 +1138,14 @@ rasterCreate(Raster *raster)
 			*p++ = 0;
 
 			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
+			if(ras->flags & Ps2Raster::SWIZZLED8 && psm == PSMT8 ||
+			   ras->flags & Ps2Raster::SWIZZLED4 && psm == PSMT4){
+				*p++ = 0;	// SSAX/Y is always 0
+				*p++ = (trxpos_hi[n] & ~0x10001)/2;	// divide both DSAX/Y by 2
+			}else{
+				*p++ = 0;
+				*p++ = trxpos_hi[n];
+			}
 			*p++ = 0x51;
 			*p++ = 0;
 
@@ -399,11 +1168,52 @@ rasterCreate(Raster *raster)
 			*p++ = 0;
 
 			// GIF tag
-			uint32 sz = mipw*miph*raster->depth/8 + 0xF >> 4;
-			*p++ = sz;
+			uint32 sz = ALIGN16(mipw*miph*raster->depth/8)/16;
+			*p++ = sz & 0x7FFF;
 			*p++ = 0x08000000; // IMAGE
 			*p++ = 0;
 			*p++ = 0;
+
+			if(trxpos_hi[n] == 0){
+				// Add a transfer, see above for layout
+
+				*xferchain++ = 0x10000002;	// DMAcnt, 2 qwords
+				*xferchain++ = 0;
+				*xferchain++ = 0;		// VIF nop
+				*xferchain++ = 0x50000002;	// VIF DIRECT 2 qwords
+
+				// GIF tag
+				*xferchain++ = 1;          // NLOOP = 1
+				*xferchain++ = 0x10000000; // NREG = 1
+				*xferchain++ = 0xE;        // A+D
+				*xferchain++ = 0;
+
+				// BITBLTBUF
+				if(ras->flags & Ps2Raster::SWIZZLED8 && psm == PSMT8){
+					// PSMT8 is swizzled to PSMCT32 and dimensions are halved
+					*xferchain++ = PSMCT32<<24 | bufferWidth[n]/2<<16;	// src buffer
+					*xferchain++ = PSMCT32<<24 | bufferWidth[n]/2<<16 | bufferBase[n];	// dst buffer
+				}else if(ras->flags & Ps2Raster::SWIZZLED4 && psm == PSMT4){
+					// PSMT4 is swizzled to PSMCT16 and dimensions are halved
+					*xferchain++ = PSMCT16<<24 | bufferWidth[n]/2<<16;	// src buffer
+					*xferchain++ = PSMCT16<<24 | bufferWidth[n]/2<<16 | bufferBase[n];	// dst buffer
+				}else{
+					*xferchain++ = psm<<24 | bufferWidth[n]<<16;	// src buffer
+					*xferchain++ = psm<<24 | bufferWidth[n]<<16 | bufferBase[n];	// dst buffer
+				}
+				*xferchain++ = 0x50;
+				*xferchain++ = 0;
+
+				*xferchain++ = 0x30000000 | sz+5;	// DMAref
+				// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
+				*xferchain++ = (uint32)(uintptr)p - 0x50;
+				*xferchain++ = 0;		// VIF nop
+				*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
+			}else{
+				// Add to existing transfer
+				xferchain[-4] = 0x30000000 | (xferchain[-4]&0xFFFF) + sz+5;	// last DMAref
+				xferchain[-1] = 0x50000000 | (xferchain[-1]&0xFFFF) + sz+5;	// last DIRECT
+			}
 
 			p += sz*4;
 			w /= 2;
@@ -411,6 +1221,9 @@ rasterCreate(Raster *raster)
 		}
 
 		if(ras->paletteSize){
+			// huh?
+			if(paltrxpos)
+				raster->palette = (uint8*)p + 0x50;
 			p = (uint32*)(raster->palette - 0x50);
 			// GIF tag
 			*p++ = 3;          // NLOOP = 3
@@ -419,8 +1232,8 @@ rasterCreate(Raster *raster)
 			*p++ = 0;
 
 			// TRXPOS
-			*p++ = 0;	// TODO
-			*p++ = 0;	// TODO
+			*(uint64*)p = paltrxpos;
+			p += 2;
 			*p++ = 0x51;
 			*p++ = 0;
 
@@ -437,13 +1250,98 @@ rasterCreate(Raster *raster)
 			*p++ = 0;
 
 			// GIF tag
-			uint32 sz = ras->paletteSize - 0x50 + 0xF >> 4;
-			*p++ = sz;
+			uint32 sz = ALIGN16(ras->paletteSize - 0x50)/16;
+			*p++ = sz & 0x7FFF;
 			*p++ = 0x08000000; // IMAGE
 			*p++ = 0;
 			*p++ = 0;
+
+			// Transfer
+			*xferchain++ = 0x10000002;	// DMAcnt, 2 qwords
+			*xferchain++ = 0;
+			*xferchain++ = 0;		// VIF nop
+			*xferchain++ = 0x50000002;	// VIF DIRECT 2 qwords
+
+			// GIF tag
+			*xferchain++ = 1;          // NLOOP = 1
+			*xferchain++ = 0x10000000; // NREG = 1
+			*xferchain++ = 0xE;        // A+D
+			*xferchain++ = 0;
+
+			// BITBLTBUF
+			if(paltrxpos == 0){
+				*xferchain++ = cpsm<<24 | 1<<16;	// src buffer
+				*xferchain++ = cpsm<<24 | 1<<16 | ras->paletteBase;	// dst buffer
+				*xferchain++ = 0x50;
+				*xferchain++ = 0;
+			}else{
+				// copy last pixel bitbltbuf...if uploading palette separately it's still the same buffer
+				xferchain[0] = xferchain[-16];
+				xferchain[1] = xferchain[-15];
+				xferchain[2] = xferchain[-14];
+				xferchain[3] = xferchain[-13];
+				// Add to last transfer
+				xferchain[-16] = 0x30000000 | (xferchain[-16]&0xFFFF) + sz+5;	// last DMAref
+				xferchain[-13] = 0x50000000 | (xferchain[-13]&0xFFFF) + sz+5;	// last DIRECT
+				xferchain += 4;
+				pp->numTransfers--;
+			}
+
+			*xferchain++ = 0x30000000 | sz+5;	// DMAref
+			// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
+			*xferchain++ = (uint32)(uintptr)p - 0x50;
+			*xferchain++ = 0;		// VIF nop
+			*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
 		}
 	}
+	raster->originalPixels = raster->pixels;
+	raster->originalStride = raster->stride;
+	if(ras->flags & Ps2Raster::NEWSTYLE)
+		raster->pixels = ((Ps2Raster::PixelPtr*)raster->pixels)->pixels + 0x50;
+}
+
+void
+rasterCreate(Raster *raster)
+{
+	if(!getRasterFormat(raster))
+		return;
+
+	// init raster
+	raster->pixels = nil;
+	raster->palette = nil;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->originalPixels = raster->pixels;
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags = Raster::DONTALLOCATE;
+		raster->stride = 0;
+		raster->originalStride = 0;
+		return;
+	}
+
+	switch(raster->type){
+	case Raster::NORMAL:
+		// TODO
+		break;
+	case Raster::ZBUFFER:
+		// TODO. only RW_PS2
+		// get info from video mode
+		raster->flags = Raster::DONTALLOCATE;
+		break;
+	case Raster::CAMERA:
+		// TODO. only RW_PS2
+		// get info from video mode
+		raster->flags = Raster::DONTALLOCATE;
+		break;
+	case Raster::TEXTURE:
+		createTexRaster(raster);
+		break;
+	case Raster::CAMERATEXTURE:
+		// TODO. only RW_PS2
+		// check wdith/height and fall through to texture
+		break;
+	}
+
 }
 
 uint8*
@@ -467,7 +1365,7 @@ int32
 rasterNumLevels(Raster *raster)
 {
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-	if(raster->texels == nil) return 0;
+	if(raster->pixels == nil) return 0;
 	if(raster->format & Raster::MIPMAP)
 		return MAXLEVEL(ras)+1;
 	return 1;
@@ -477,19 +1375,16 @@ static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
-	raster->tex0[0] = 0;
-	raster->tex0[1] = 0;
-	raster->paletteOffset = 0;
+	raster->tex0 = 0;
+	raster->paletteBase = 0;
 	raster->kl = 0xFC0;
 	raster->tex1low = 0;
 	raster->unk2 = 0;
-	raster->miptbp1[0] = 0;
-	raster->miptbp1[1] = 0;
-	raster->miptbp2[0] = 0;
-	raster->miptbp2[1] = 0;
-	raster->texelSize = 0;
+	raster->miptbp1 = 0;
+	raster->miptbp2 = 0;
+	raster->pixelSize = 0;
 	raster->paletteSize = 0;
-	raster->gsSize = 0;
+	raster->totalSize = 0;
 	raster->flags = 0;
 
 	raster->dataSize = 0;
@@ -559,7 +1454,7 @@ registerNativeRaster(void)
 void
 printTEX0(uint64 tex0)
 {
-	printf("%016lX ", tex0);
+	printf("%016llX ", tex0);
 	uint32 tbp0 = tex0 & 0x3FFF; tex0 >>= 14;
 	uint32 tbw = tex0 & 0x3F; tex0 >>= 6;
 	uint32 psm = tex0 & 0x3F; tex0 >>= 6;
@@ -579,7 +1474,7 @@ printTEX0(uint64 tex0)
 void
 printTEX1(uint64 tex1)
 {
-	printf("%016lX ", tex1);
+	printf("%016llX ", tex1);
 	uint32 lcm = tex1 & 0x1; tex1 >>= 2;
 	uint32 mxl = tex1 & 0x7; tex1 >>= 3;
 	uint32 mmag = tex1 & 0x1; tex1 >>= 1;
@@ -644,14 +1539,14 @@ struct StreamRasterExt
 	int32 depth;
 	uint16 rasterFormat;
 	int16  type;
-	uint32 tex0[2];
+	uint64 tex0;
 	uint32 paletteOffset;
 	uint32 tex1low;
-	uint32 miptbp1[2];
-	uint32 miptbp2[2];
-	uint32 texelSize;
+	uint64 miptbp1;
+	uint64 miptbp2;
+	uint32 pixelSize;
 	uint32 paletteSize;
-	uint32 gsSize;
+	uint32 totalSize;
 	uint32 mipmapVal;
 };
 
@@ -700,23 +1595,20 @@ readNativeTexture(Stream *stream)
 		goto fail;
 	}
 	stream->read(&streamExt, 0x40);
-printf("%X %X %X %X %X %08X%08X %X %X %08X%08X %08X%08X %X %X %X %X\n",
+printf("%X %X %X %X %X %016llX %X %X %016llX %016llX %X %X %X %X\n",
 streamExt.width,
 streamExt.height,
 streamExt.depth,
 streamExt.rasterFormat,
 streamExt.type,
-streamExt.tex0[1],
-streamExt.tex0[0],
+streamExt.tex0,
 streamExt.paletteOffset,
 streamExt.tex1low,
-streamExt.miptbp1[1],
-streamExt.miptbp1[0],
-streamExt.miptbp2[1],
-streamExt.miptbp2[0],
-streamExt.texelSize,
+streamExt.miptbp1,
+streamExt.miptbp2,
+streamExt.pixelSize,
 streamExt.paletteSize,
-streamExt.gsSize,
+streamExt.totalSize,
 streamExt.mipmapVal);
 
 	noNewStyleRasters = streamExt.type < 2;
@@ -737,17 +1629,14 @@ streamExt.mipmapVal);
 	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
 //	printTEX1(tex1);
 
-	natras->tex0[0] = streamExt.tex0[0];
-	natras->tex0[1] = streamExt.tex0[1];
-	natras->paletteOffset = streamExt.paletteOffset;
+	natras->tex0 = streamExt.tex0;
+	natras->paletteBase = streamExt.paletteOffset;
 	natras->tex1low = streamExt.tex1low;
-	natras->miptbp1[0] = streamExt.miptbp1[0];
-	natras->miptbp1[1] = streamExt.miptbp1[1];
-	natras->miptbp2[0] = streamExt.miptbp2[0];
-	natras->miptbp2[1] = streamExt.miptbp2[1];
-	natras->texelSize = streamExt.texelSize;
+	natras->miptbp1 = streamExt.miptbp1;
+	natras->miptbp2 = streamExt.miptbp2;
+	natras->pixelSize = streamExt.pixelSize;
 	natras->paletteSize = streamExt.paletteSize;
-	natras->gsSize = streamExt.gsSize;
+	natras->totalSize = streamExt.totalSize;
 	natras->kl = streamExt.mipmapVal;
 //printf("%X %X\n", natras->paletteOffset, natras->tex1low);
 //	printf("%08X%08X %08X%08X %08X%08X\n",
@@ -762,9 +1651,9 @@ streamExt.mipmapVal);
 		goto fail;
 	}
 	if(streamExt.type < 2){
-		stream->read(raster->texels, length);
+		stream->read(raster->pixels, length);
 	}else{
-		stream->read(raster->texels-0x50, natras->texelSize);
+		stream->read(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, natras->pixelSize);
 		stream->read(raster->palette-0x50, natras->paletteSize);
 	}
 //printf("\n");
@@ -790,7 +1679,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	writeChunkHeader(stream, ID_STRING, len);
 	stream->write(tex->mask, len);
 
-	int32 sz = ras->texelSize + ras->paletteSize;
+	int32 sz = ras->pixelSize + ras->paletteSize;
 	writeChunkHeader(stream, ID_STRUCT, 12 + 64 + 12 + sz);
 	writeChunkHeader(stream, ID_STRUCT, 64);
 	StreamRasterExt streamExt;
@@ -801,27 +1690,24 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.type = 0;
 	if(ras->flags == Ps2Raster::SWIZZLED8 && raster->depth == 8)
 		streamExt.type = 1;
-	if(ras->flags & Ps2Raster::HASGIFPACKETS)
+	if(ras->flags & Ps2Raster::NEWSTYLE)
 		streamExt.type = 2;
-	streamExt.tex0[0] = ras->tex0[0];
-	streamExt.tex0[1] = ras->tex0[1];
-	streamExt.paletteOffset = ras->paletteOffset;
+	streamExt.tex0 = ras->tex0;
+	streamExt.paletteOffset = ras->paletteBase;
 	streamExt.tex1low = ras->tex1low;
-	streamExt.miptbp1[0] = ras->miptbp1[0];
-	streamExt.miptbp1[1] = ras->miptbp1[1];
-	streamExt.miptbp2[0] = ras->miptbp2[0];
-	streamExt.miptbp2[1] = ras->miptbp2[1];
-	streamExt.texelSize = ras->texelSize;
+	streamExt.miptbp1 = ras->miptbp1;
+	streamExt.miptbp2 = ras->miptbp2;
+	streamExt.pixelSize = ras->pixelSize;
 	streamExt.paletteSize = ras->paletteSize;
-	streamExt.gsSize = ras->gsSize;
+	streamExt.totalSize = ras->totalSize;
 	streamExt.mipmapVal = ras->kl;
 	stream->write(&streamExt, 64);
 
 	writeChunkHeader(stream, ID_STRUCT, sz);
 	if(streamExt.type < 2){
-		stream->write(raster->texels, sz);
+		stream->write(raster->pixels, sz);
 	}else{
-		stream->write(raster->texels-0x50, ras->texelSize);
+		stream->write(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, ras->pixelSize);
 		stream->write(raster->palette-0x50, ras->paletteSize);
 	}
 }
@@ -835,7 +1721,7 @@ getSizeNativeTexture(Texture *tex)
 	size += 12;
 	size += 12 + 64;
 	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
-	size += 12 + ras->texelSize + ras->paletteSize;
+	size += 12 + ras->pixelSize + ras->paletteSize;
 	return size;
 }
 

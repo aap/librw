@@ -20,6 +20,6 @@ char *dbgsprint(int32 code, ...);
 	fprintf(stderr, "%s:%d: ", __FILE__, __LINE__); \
 	fprintf(stderr, "%s\n", rw::dbgsprint ecode);       \
 	rw::setError(&_e);              \
-}while(0);
+}while(0)
 
 }

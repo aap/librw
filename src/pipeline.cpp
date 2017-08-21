@@ -7,7 +7,6 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
-#include "ps2/rwps2.h"
 
 #define COLOR_ARGB(a,r,g,b) \
     ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
