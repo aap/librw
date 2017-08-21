@@ -19,6 +19,7 @@ PluginList Material::s_plglist = { sizeof(Material), sizeof(Material), nil, nil 
 
 SurfaceProperties defaultSurfaceProps = { 1.0f, 1.0f, 1.0f };
 
+// TODO: allocate everything in one chunk
 Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
@@ -321,6 +322,7 @@ Geometry::hasColoredMaterial(void)
 	return 0;
 }
 
+// TODO: allocate as one chunk
 void
 Geometry::allocateData(void)
 {
@@ -475,7 +477,7 @@ Geometry::correctTristripWinding(void)
 {
 	MeshHeader *header = this->meshHeader;
 	if(header == nil || header->flags != MeshHeader::TRISTRIP ||
-	   this->flags & NATIVE)
+	   this->instData)
 		return;
 	MeshHeader *newhead = new MeshHeader;
 	newhead->flags = header->flags;

@@ -403,6 +403,7 @@ struct MaterialList
 	uint32 streamGetSize(void);
 };
 
+// TODO: implement locking
 struct Geometry
 {
 	PLUGINBASE
@@ -451,6 +452,10 @@ struct Geometry
 		LIGHT     = 0x20,
 		MODULATE  = 0x40,
 		TEXTURED2 = 0x80,
+		// When this flag is set the geometry has
+		// native geometry. When streamed out this geometry
+		// is written out instead of the platform independent data.
+		// When streamed in with this flag, the geometry is mostly empty.
 		NATIVE         = 0x01000000,
 		// Just for documentation: RW sets this flag
 		// to prevent rendering when executing a pipeline,
@@ -507,6 +512,8 @@ struct Atomic
 	void setGeometry(Geometry *geo, uint32 flags);
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
+	void instance(void);
+	void uninstance(void);
 	void render(void) { this->renderCB(this); }
 	void setRenderCB(RenderCB renderCB){
 		this->renderCB = renderCB;

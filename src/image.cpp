@@ -85,8 +85,9 @@ TexDictionary::streamRead(Stream *stream)
 		return nil;
 	}
 	int32 numTex = stream->readI16();
-	stream->readI16(); // some platform id (1 = d3d8, 2 = d3d9, 5 = opengl,
-	                   //                   6 = ps2, 8 = xbox)
+	stream->readI16(); // device id (0 = unknown, 1 = d3d8, 2 = d3d9,
+	                   // 3 = gcn, 4 = null, 5 = opengl,
+	                   // 6 = ps2, 7 = softras, 8 = xbox, 9 = psp)
 	TexDictionary *txd = TexDictionary::create();
 	if(txd == nil)
 		return nil;

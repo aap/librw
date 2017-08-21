@@ -530,6 +530,25 @@ Atomic::getPipeline(void)
 }
 
 void
+Atomic::instance(void)
+{
+	if(this->geometry->flags & Geometry::NATIVE)
+		return;
+	this->getPipeline()->instance(this);
+	this->geometry->flags |= Geometry::NATIVE;
+}
+
+void
+Atomic::uninstance(void)
+{
+	if(!(this->geometry->flags & Geometry::NATIVE))
+		return;
+	this->getPipeline()->uninstance(this);
+	// this should be done by the CB already, just make sure
+	this->geometry->flags &= ~Geometry::NATIVE;
+}
+
+void
 Atomic::defaultRenderCB(Atomic *atomic)
 {
 	atomic->getPipeline()->render(atomic);

@@ -248,9 +248,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->flags & Geometry::NATIVE)
+	// TODO: allow for REINSTANCE
+	if(geo->instData)
 		return;
-	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -328,7 +328,8 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if((geo->flags & Geometry::NATIVE) == 0)
+	// TODO: allow for REINSTANCE
+	if(geo->instData == nil)
 		pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);

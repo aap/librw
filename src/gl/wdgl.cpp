@@ -322,7 +322,8 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->flags & Geometry::NATIVE)
+	// TODO: allow for REINSTANCE (or not, wdgl can't render)
+	if(geo->instData)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
@@ -441,7 +442,6 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		}
 		a++;
 	}
-	geo->flags |= Geometry::NATIVE;
 }
 
 static void

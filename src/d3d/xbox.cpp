@@ -197,9 +197,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->flags & Geometry::NATIVE)
+	// TODO: allow for REINSTANCE (or not, xbox can't render)
+	if(geo->instData)
 		return;
-	geo->flags |= Geometry::NATIVE;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;

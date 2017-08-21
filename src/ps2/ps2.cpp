@@ -749,7 +749,8 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	if(geo->flags & Geometry::NATIVE)
+	// TODO: allow for REINSTANCE
+	if(geo->instData)
 		return;
 	InstanceDataHeader *header = new InstanceDataHeader;
 	geo->instData = header;
@@ -770,7 +771,6 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		m->instance(geo, instance, mesh);
 		instance->material = mesh->material;
 	}
-	geo->flags |= Geometry::NATIVE;
 }
 
 /*
