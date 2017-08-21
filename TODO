@@ -1,5 +1,7 @@
-- change naming convention? make globals stand out more
-- implement basic types
+TODO:
+- maintain the TODO list properly
+- skeleton
+- examples
 - geometry lock/unlock
  -> reinstance
   -> revisit pipelines
@@ -10,8 +12,7 @@
  - more file formats (PNG)
 - PS2 rendering!
 - Im2d and Im3d
-- skeleton
-- examples
+- change naming convention? make globals stand out more
 
 BUGS:
 	- fseek with negative offset on ps2 over ps2link messes up the current position
@@ -37,12 +38,6 @@ Clump & related:
 				R* 2dfx       0x253F2F8
 				R* Collision  0x253F2FA
 
-Texture Dictionary / Native Textures
-
 - Pipelines (PDS, Xbox, PC)
 
 - ADC conversion
-
-- uninstance geometry (PS2)
-
-- anim interpolation (only stubs right now)

@@ -262,6 +262,18 @@ inline void convMatrix(RawMatrix *dst, Matrix *src){
 	dst->posw = 1.0;
 }
 
+struct Line
+{
+	V3d start;
+	V3d end;
+};
+
+struct Rect
+{
+	int32 h, w;
+	int32 x, y;
+};
+
 struct Sphere
 {
 	V3d center;
