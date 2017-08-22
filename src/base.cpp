@@ -214,6 +214,27 @@ Matrix::invert(Matrix *dst, Matrix *src)
 	return dst;
 }
 
+// transpose the 3x3 submatrix, pos is set to 0
+Matrix*
+Matrix::transpose(Matrix *dst, Matrix *src)
+{
+	if(src->flags & IDENTITY)
+		*dst = *src;
+	dst->right.x = src->right.x;
+	dst->up.x = src->right.y;
+	dst->at.x = src->right.z;
+	dst->right.y = src->up.x;
+	dst->up.y = src->up.y;
+	dst->at.y = src->up.z;
+	dst->right.z = src->at.x;
+	dst->up.z = src->at.y;
+	dst->at.z = src->at.z;
+	dst->pos.x = 0.0;
+	dst->pos.y = 0.0;
+	dst->pos.z = 0.0;
+	return dst;
+}
+
 Matrix*
 Matrix::rotate(V3d *axis, float32 angle, CombineOp op)
 {

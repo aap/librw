@@ -227,6 +227,7 @@ struct Matrix
 	void update(void) { flags &= ~(IDENTITY|TYPEMASK); }
 	static Matrix *mult(Matrix *dst, Matrix *src1, Matrix *src2);
 	static Matrix *invert(Matrix *m1, Matrix *m2);
+	static Matrix *transpose(Matrix *m1, Matrix *m2);
 	Matrix *rotate(V3d *axis, float32 angle, CombineOp op);
 	Matrix *rotate(const Quat &q, CombineOp op);
 	Matrix *translate(V3d *translation, CombineOp op);
@@ -240,10 +241,6 @@ struct Matrix
 	static Matrix *invertGeneral(Matrix *dst, Matrix *src);
 	static void makeRotation(Matrix *dst, V3d *axis, float32 angle);
 	static void makeRotation(Matrix *dst, const Quat &q);
-/*
-	bool32 isIdentity(void);
-	static void transpose(Matrix *m1, Matrix *m2);
-*/
 private:
 	float32 normalError(void);
 	float32 orthogonalError(void);
