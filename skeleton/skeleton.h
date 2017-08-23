@@ -82,6 +82,13 @@ struct Globals
 };
 extern Globals globals;
 
+struct Args
+{
+	int argc;
+	char **argv;
+};
+extern Args args;
+
 bool InitRW(void);
 void TerminateRW(void);
 EventStatus EventHandler(Event e, void *param);

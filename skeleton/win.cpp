@@ -204,14 +204,11 @@ int WINAPI
 WinMain(HINSTANCE instance, HINSTANCE,
         PSTR cmdLine, int showCmd)
 {
-	char *argv[1] = {
-		"clumpview",
-	};
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
 
-	return main(1, argv);
+	return main(__argc, __argv);
 }
 #endif

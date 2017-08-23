@@ -153,6 +153,9 @@ keypress(GLFWwindow *window, int key, int scancode, int action, int mods)
 int
 main(int argc, char *argv[])
 {
+	args.argc = argc;
+	args.argv = argv;
+
 	EventHandler(INITIALIZE, nil);
 
 	engineStartParams.width = sk::globals.width;

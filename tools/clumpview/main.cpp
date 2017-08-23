@@ -30,11 +30,119 @@ attachPlugins(void)
 	rw::registerMaterialRightsPlugin();
 	rw::xbox::registerVertexFormatPlugin();
 	rw::registerSkinPlugin();
+	rw::registerUserDataPlugin();
 	rw::registerHAnimPlugin();
 	rw::registerMatFXPlugin();
 	rw::registerUVAnimPlugin();
 	rw::ps2::registerADCPlugin();
 	return true;
+}
+
+void
+dumpUserData(rw::UserDataArray *ar)
+{
+	int i;
+	printf("name: %s\n", ar->name);
+	for(i = 0; i < ar->numElements; i++){
+		switch(ar->datatype){
+		case rw::USERDATAINT:
+			printf("	%d\n", ar->getInt(i));
+			break;
+		case rw::USERDATAFLOAT:
+			printf("	%f\n", ar->getFloat(i));
+			break;
+		case rw::USERDATASTRING:
+			printf("	%s\n", ar->getString(i));
+			break;
+		}
+	}
+}
+
+static rw::Frame*
+dumpFrameUserDataCB(rw::Frame *f, void*)
+{
+	using namespace rw;
+	int32 i;
+	UserDataArray *ar;
+	int32 n = UserDataArray::frameGetCount(f);
+	for(i = 0; i < n; i++){
+		ar = UserDataArray::frameGet(f, i);
+		dumpUserData(ar);
+	}
+	f->forAllChildren(dumpFrameUserDataCB, nil);
+	return f;
+}
+
+void
+dumpUserData(rw::Clump *clump)
+{
+	printf("Frames\n");
+	dumpFrameUserDataCB(clump->getFrame(), nil);
+}
+
+static rw::Frame*
+getHierCB(rw::Frame *f, void *data)
+{
+	using namespace rw;
+	HAnimData *hd = rw::HAnimData::get(f);
+	if(hd->hierarchy){
+		*(HAnimHierarchy**)data = hd->hierarchy;
+		return nil;
+	}
+	f->forAllChildren(getHierCB, data);
+	return f;
+}
+
+rw::HAnimHierarchy*
+getHAnimHierarchyFromClump(rw::Clump *clump)
+{
+	using namespace rw;
+	HAnimHierarchy *hier = nil;
+	getHierCB(clump->getFrame(), &hier);
+	return hier;
+}
+
+void
+setupAtomic(rw::Atomic *atomic)
+{
+	using namespace rw;
+	// just remove pipelines that we can't handle for now
+//	if(atomic->pipeline && atomic->pipeline->platform != rw::platform)
+		atomic->pipeline = NULL;
+
+	// Attach hierarchy to atomic if we're skinned
+	HAnimHierarchy *hier = getHAnimHierarchyFromClump(atomic->clump);
+	if(hier)
+		Skin::setHierarchy(atomic, hier);
+}
+
+static void
+initHierFromFrames(rw::HAnimHierarchy *hier)
+{
+	using namespace rw;
+	int32 i;
+	for(i = 0; i < hier->numNodes; i++){
+		if(hier->nodeInfo[i].frame){
+			hier->matrices[hier->nodeInfo[i].index] = *hier->nodeInfo[i].frame->getLTM();
+		}else
+			assert(0);
+	}
+}
+
+void
+setupClump(rw::Clump *clump)
+{
+	using namespace rw;
+	HAnimHierarchy *hier = getHAnimHierarchyFromClump(clump);
+	if(hier){
+		hier->attach();
+		initHierFromFrames(hier);
+	}
+
+	FORLIST(lnk, clump->atomics){
+		rw::Atomic *a = rw::Atomic::fromClump(lnk);
+		setupAtomic(a);
+	}
 }
 
 bool
@@ -45,6 +153,8 @@ InitRW(void)
 		return false;
 
 	char *filename = "teapot.dff";
+	if(sk::args.argc > 1)
+		filename = sk::args.argv[1];
 	rw::StreamFile in;
 	if(in.open(filename, "rb") == NULL){
 		printf("couldn't open file\n");
@@ -57,12 +167,8 @@ InitRW(void)
 
 	clump->getFrame()->translate(&zero, rw::COMBINEREPLACE);
 
-	FORLIST(lnk, clump->atomics){
-		rw::Atomic *a = rw::Atomic::fromClump(lnk);
-		if(a->pipeline && a->pipeline->platform != rw::platform)
-			a->pipeline = NULL;
-	}
-
+	dumpUserData(clump);
+	setupClump(clump);
 
 	world = rw::World::create();
 

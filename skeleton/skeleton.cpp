@@ -4,6 +4,7 @@
 namespace sk {
 
 Globals globals;
+Args args;
 
 bool
 InitRW(void)
