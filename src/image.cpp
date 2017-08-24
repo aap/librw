@@ -15,387 +15,16 @@
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
 
-#ifdef _WIN32
-/* srsly? */
-#define strdup _strdup
-#endif
-
-#define PLUGIN_ID 0
+#define PLUGIN_ID ID_IMAGE
 
 namespace rw {
 
-PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
-PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
-PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
-
-//
-// TexDictionary
-//
-
-TexDictionary*
-TexDictionary::create(void)
-{
-	TexDictionary *dict = (TexDictionary*)malloc(s_plglist.size);
-	if(dict == nil){
-		RWERROR((ERR_ALLOC, s_plglist.size));
-		return nil;
-	}
-	dict->object.init(TexDictionary::ID, 0);
-	dict->textures.init();
-	s_plglist.construct(dict);
-	return dict;
-}
-
-void
-TexDictionary::destroy(void)
-{
-	if(engine->currentTexDictionary == this)
-		engine->currentTexDictionary = nil;
-	FORLIST(lnk, this->textures)
-		Texture::fromDict(lnk)->destroy();
-	s_plglist.destruct(this);
-	free(this);
-}
-
-void
-TexDictionary::add(Texture *t)
-{
-	if(t->dict)
-		t->inDict.remove();
-	t->dict = this;
-	this->textures.append(&t->inDict);
-}
-
-Texture*
-TexDictionary::find(const char *name)
-{
-	FORLIST(lnk, this->textures){
-		Texture *tex = Texture::fromDict(lnk);
-		if(strncmp_ci(tex->name, name, 32) == 0)
-			return tex;
-	}
-	return nil;
-}
-
-TexDictionary*
-TexDictionary::streamRead(Stream *stream)
-{
-	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"));
-		return nil;
-	}
-	int32 numTex = stream->readI16();
-	stream->readI16(); // device id (0 = unknown, 1 = d3d8, 2 = d3d9,
-	                   // 3 = gcn, 4 = null, 5 = opengl,
-	                   // 6 = ps2, 7 = softras, 8 = xbox, 9 = psp)
-	TexDictionary *txd = TexDictionary::create();
-	if(txd == nil)
-		return nil;
-	Texture *tex;
-	for(int32 i = 0; i < numTex; i++){
-		if(!findChunk(stream, ID_TEXTURENATIVE, nil, nil)){
-			RWERROR((ERR_CHUNK, "TEXTURENATIVE"));
-			goto fail;
-		}
-		tex = Texture::streamReadNative(stream);
-		if(tex == nil)
-			goto fail;
-		Texture::s_plglist.streamRead(stream, tex);
-		txd->add(tex);
-	}
-	if(s_plglist.streamRead(stream, txd))
-		return txd;
-fail:
-	txd->destroy();
-	return nil;
-}
-
-void
-TexDictionary::streamWrite(Stream *stream)
-{
-	writeChunkHeader(stream, ID_TEXDICTIONARY, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, 4);
-	int32 numTex = this->count();
-	stream->writeI16(numTex);
-	stream->writeI16(0);
-	FORLIST(lnk, this->textures){
-		Texture *tex = Texture::fromDict(lnk);
-		uint32 sz = tex->streamGetSizeNative();
-		sz += 12 + Texture::s_plglist.streamGetSize(tex);
-		writeChunkHeader(stream, ID_TEXTURENATIVE, sz);
-		tex->streamWriteNative(stream);
-		Texture::s_plglist.streamWrite(stream, tex);
-	}
-	s_plglist.streamWrite(stream, this);
-}
-
-uint32
-TexDictionary::streamGetSize(void)
-{
-	uint32 size = 12 + 4;
-	FORLIST(lnk, this->textures){
-		Texture *tex = Texture::fromDict(lnk);
-		size += 12 + tex->streamGetSizeNative();
-		size += 12 + Texture::s_plglist.streamGetSize(tex);
-	}
-	size += 12 + s_plglist.streamGetSize(this);
-	return size;
-}
-
-void
-TexDictionary::setCurrent(TexDictionary *txd)
-{
-	engine->currentTexDictionary = txd;
-}
-
-TexDictionary*
-TexDictionary::getCurrent(void)
-{
-	return engine->currentTexDictionary;
-}
-
-//
-// Texture
-//
-
-static Texture *defaultFindCB(const char *name);
-static Texture *defaultReadCB(const char *name, const char *mask);
-
-Texture *(*Texture::findCB)(const char *name) = defaultFindCB;
-Texture *(*Texture::readCB)(const char *name, const char *mask) = defaultReadCB;
-
-Texture*
-Texture::create(Raster *raster)
-{
-	Texture *tex = (Texture*)malloc(s_plglist.size);
-	if(tex == nil){
-		RWERROR((ERR_ALLOC, s_plglist.size));
-		return nil;
-	}
-	tex->dict = nil;
-	tex->inDict.init();
-	memset(tex->name, 0, 32);
-	memset(tex->mask, 0, 32);
-	tex->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
-	tex->raster = raster;
-	tex->refCount = 1;
-	s_plglist.construct(tex);
-	return tex;
-}
-
-void
-Texture::destroy(void)
-{
-	this->refCount--;
-	if(this->refCount <= 0){
-		s_plglist.destruct(this);
-		if(this->dict)
-			this->inDict.remove();
-		if(this->raster)
-			this->raster->destroy();
-		free(this);
-	}
-}
-
-static Texture*
-defaultFindCB(const char *name)
-{
-	if(engine->currentTexDictionary)
-		return engine->currentTexDictionary->find(name);
-	// TODO: RW searches *all* TXDs otherwise
-	return nil;
-}
-
-static Texture*
-defaultReadCB(const char *name, const char *mask)
-{
-	Texture *tex;
-	Image *img;
-	char *n = (char*)malloc(strlen(name) + 5);
-	strcpy(n, name);
-	strcat(n, ".tga");
-	img = readTGA(n);
-	free(n);
-	if(img){
-		tex = Texture::create(Raster::createFromImage(img));
-		strncpy(tex->name, name, 32);
-		if(mask)
-			strncpy(tex->mask, mask, 32);
-		img->destroy();
-		return tex;
-	}else
-		return nil;
-}
-
-Texture*
-Texture::read(const char *name, const char *mask)
-{
-	(void)mask;
-	Raster *raster = nil;
-	Texture *tex;
-
-	if(tex = Texture::findCB(name), tex){
-		tex->refCount++;
-		return tex;
-	}
-	if(engine->loadTextures){
-		tex = Texture::readCB(name, mask);
-		if(tex == nil)
-			goto dummytex;
-	}else dummytex: if(engine->makeDummies){
-		tex = Texture::create(nil);
-		if(tex == nil)
-			return nil;
-		strncpy(tex->name, name, 32);
-		if(mask)
-			strncpy(tex->mask, mask, 32);
-		raster = Raster::create(0, 0, 0, Raster::DONTALLOCATE);
-		tex->raster = raster;
-	}
-	if(tex && engine->currentTexDictionary){
-		if(tex->dict)
-			tex->inDict.remove();
-		engine->currentTexDictionary->add(tex);
-	}
-	return tex;
-}
-
-Texture*
-Texture::streamRead(Stream *stream)
-{
-	uint32 length;
-	char name[128], mask[128];
-	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"));
-		return nil;
-	}
-	uint32 filterAddressing = stream->readU32();
-	// TODO: if V addressing is 0, copy U
-	// if using mipmap filter mode, set automipmapping,
-	// if 0x10000 is set, set mipmapping
-
-	if(!findChunk(stream, ID_STRING, &length, nil)){
-		RWERROR((ERR_CHUNK, "STRING"));
-		return nil;
-	}
-	stream->read(name, length);
-
-	if(!findChunk(stream, ID_STRING, &length, nil)){
-		RWERROR((ERR_CHUNK, "STRING"));
-		return nil;
-	}
-	stream->read(mask, length);
-
-	Texture *tex = Texture::read(name, mask);
-	if(tex == nil)
-		return nil;
-	if(tex->refCount == 1)
-		tex->filterAddressing = filterAddressing;
-
-	if(s_plglist.streamRead(stream, tex))
-		return tex;
-
-	tex->destroy();
-	return nil;
-}
-
-bool
-Texture::streamWrite(Stream *stream)
-{
-	int size;
-	char buf[36];
-	writeChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
-	writeChunkHeader(stream, ID_STRUCT, 4);
-	stream->writeU32(this->filterAddressing);
-
-	memset(buf, 0, 36);
-	strncpy(buf, this->name, 32);
-	size = strlen(buf)+4 & ~3;
-	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(buf, size);
-
-	memset(buf, 0, 36);
-	strncpy(buf, this->mask, 32);
-	size = strlen(buf)+4 & ~3;
-	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(buf, size);
-
-	s_plglist.streamWrite(stream, this);
-	return true;
-}
-
-uint32
-Texture::streamGetSize(void)
-{
-	uint32 size = 0;
-	size += 12 + 4;
-	size += 12 + 12;
-	size += strlen(this->name)+4 & ~3;
-	size += strlen(this->mask)+4 & ~3;
-	size += 12 + s_plglist.streamGetSize(this);
-	return size;
-}
-
-Texture*
-Texture::streamReadNative(Stream *stream)
-{
-	if(!findChunk(stream, ID_STRUCT, nil, nil)){
-		RWERROR((ERR_CHUNK, "STRUCT"));
-		return nil;
-	}
-	uint32 platform = stream->readU32();
-	stream->seek(-16);
-	if(platform == FOURCC_PS2)
-		return ps2::readNativeTexture(stream);
-	if(platform == PLATFORM_D3D8)
-		return d3d8::readNativeTexture(stream);
-	if(platform == PLATFORM_D3D9)
-		return d3d9::readNativeTexture(stream);
-	if(platform == PLATFORM_XBOX)
-		return xbox::readNativeTexture(stream);
-	assert(0 && "unsupported platform");
-	return nil;
-}
-
-void
-Texture::streamWriteNative(Stream *stream)
-{
-	if(this->raster->platform == PLATFORM_PS2)
-		ps2::writeNativeTexture(this, stream);
-	else if(this->raster->platform == PLATFORM_D3D8)
-		d3d8::writeNativeTexture(this, stream);
-	else if(this->raster->platform == PLATFORM_D3D9)
-		d3d9::writeNativeTexture(this, stream);
-	else if(this->raster->platform == PLATFORM_XBOX)
-		xbox::writeNativeTexture(this, stream);
-	else
-		assert(0 && "unsupported platform");
-}
-
-uint32
-Texture::streamGetSizeNative(void)
-{
-	if(this->raster->platform == PLATFORM_PS2)
-		return ps2::getSizeNativeTexture(this);
-	if(this->raster->platform == PLATFORM_D3D8)
-		return d3d8::getSizeNativeTexture(this);
-	if(this->raster->platform == PLATFORM_D3D9)
-		return d3d9::getSizeNativeTexture(this);
-	if(this->raster->platform == PLATFORM_XBOX)
-		return xbox::getSizeNativeTexture(this);
-	assert(0 && "unsupported platform");
-	return 0;
-}
-
-//
-// Image
-//
 // TODO: full 16 bit support
 
 Image*
 Image::create(int32 width, int32 height, int32 depth)
 {
-	Image *img = (Image*)malloc(sizeof(Image));
+	Image *img = (Image*)rwMalloc(sizeof(Image), MEMDUR_EVENT | ID_IMAGE);
 	if(img == nil){
 		RWERROR((ERR_ALLOC, sizeof(Image)));
 		return nil;
@@ -414,7 +43,7 @@ void
 Image::destroy(void)
 {
 	this->free();
-	::free(this);
+	rwFree(this);
 }
 
 void
@@ -836,14 +465,25 @@ Image::extractMask(void)
 static char *searchPaths = nil;
 int numSearchPaths = 0;
 
+static char*
+rwstrdup(const char *s)
+{
+	char *t;
+	int32 len = strlen(s)+1;
+	t = (char*)rwMalloc(len, MEMDUR_EVENT);
+	if(t)
+		memcpy(t, s, len);
+	return t;
+}
+
 void
 Image::setSearchPath(const char *path)
 {
 	char *p, *end;
-	::free(searchPaths);
+	rwFree(searchPaths);
 	numSearchPaths = 0;
 	if(path)
-		searchPaths = p = strdup(path);
+		searchPaths = p = rwstrdup(path);
 	else{
 		searchPaths = nil;
 		return;
@@ -878,12 +518,12 @@ Image::getFilename(const char *name)
 		if(f){
 			fclose(f);
 			printf("found %s\n", name);
-			return strdup(name);
+			return rwstrdup(name);
 		}
 		return nil;
 	}else
 		for(int i = 0; i < numSearchPaths; i++){
-			s = (char*)malloc(strlen(p)+len);
+			s = (char*)rwMalloc(strlen(p)+len, MEMDUR_EVENT | ID_IMAGE);
 			if(s == nil){
 				RWERROR((ERR_ALLOC, strlen(p)+len));
 				return nil;
@@ -896,88 +536,10 @@ Image::getFilename(const char *name)
 				printf("found %s\n", name);
 				return s;
 			}
-			::free(s);
+			rwFree(s);
 			p += strlen(p) + 1;
 		}
 	return nil;
-}
-
-//
-// Raster
-//
-
-Raster*
-Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platform)
-{
-	// TODO: pass arguments through to the driver and create the raster there
-	Raster *raster = (Raster*)malloc(s_plglist.size);
-	assert(raster != nil);
-	raster->platform = platform ? platform : rw::platform;
-	raster->type = format & 0x7;
-	raster->flags = format & 0xF8;
-	raster->format = format & 0xFF00;
-	raster->width = width;
-	raster->height = height;
-	raster->depth = depth;
-	raster->pixels = raster->palette = nil;
-	s_plglist.construct(raster);
-
-//	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
-	engine->driver[raster->platform]->rasterCreate(raster);
-	return raster;
-}
-
-void
-Raster::destroy(void)
-{
-	s_plglist.destruct(this);
-//	delete[] this->texels;
-//	delete[] this->palette;
-	free(this);
-}
-
-uint8*
-Raster::lock(int32 level)
-{
-	return engine->driver[this->platform]->rasterLock(this, level);
-}
-
-void
-Raster::unlock(int32 level)
-{
-	engine->driver[this->platform]->rasterUnlock(this, level);
-}
-
-int32
-Raster::getNumLevels(void)
-{
-	return engine->driver[this->platform]->rasterNumLevels(this);
-}
-
-int32
-Raster::calculateNumLevels(int32 width, int32 height)
-{
-	int32 size = width >= height ? width : height;
-	int32 n;
-	for(n = 0; size != 0; n++)
-		size /= 2;
-	return n;
-}
-
-Raster*
-Raster::createFromImage(Image *image, int32 platform)
-{
-	Raster *raster = Raster::create(image->width, image->height,
-	                                image->depth, TEXTURE | DONTALLOCATE,
-	                                platform);
-	engine->driver[raster->platform]->rasterFromImage(raster, image);
-	return raster;
-}
-
-Image*
-Raster::toImage(void)
-{
-	return engine->driver[this->platform]->rasterToImage(this);
 }
 
 }

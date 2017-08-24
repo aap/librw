@@ -94,6 +94,26 @@ struct Driver
 
 struct EngineStartParams;
 
+enum MemHint
+{
+	MEMDUR_NA = 0,
+	// used inside function
+	MEMDUR_FUNCTION = 0x10000,
+	// used for one frame
+	MEMDUR_FRAME = 0x20000,
+	// used for longer time
+	MEMDUR_EVENT = 0x30000,
+	// used while the engine is running
+	MEMDUR_GLOBAL = 0x40000
+};
+
+struct MemoryFunctions
+{
+	void *(*malloc)(size_t sz, uint32 hint);
+	void *(*realloc)(void *p, size_t sz, uint32 hint);
+	void  (*free)(void *p);
+};
+
 // This is for platform independent things
 // TODO: move more stuff into this
 // TODO: make this have plugins and allocate in Engine::open
@@ -118,6 +138,8 @@ struct Engine
 	Driver *driver[NUM_PLATFORMS];
 	Device device;
 
+	// These must always be available
+	static MemoryFunctions memfuncs;
 	static State state;
 
 	static bool32 init(void);
@@ -135,6 +157,10 @@ inline void SetRenderState(int32 state, uint32 value){
 
 inline uint32 GetRenderState(int32 state){
 	return engine->device.getRenderState(state); }
+
+#define rwMalloc(s, h) rw::Engine::memfuncs.malloc(s,h)
+#define rwRealloc(p, s, h) rw::Engine::memfuncs.realloc(p,s,h)
+#define rwFree(p) rw::Engine::memfuncs.free(p)
 
 namespace null {
 	void beginUpdate(Camera*);

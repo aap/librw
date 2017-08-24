@@ -39,7 +39,7 @@ destroySkin(void *object, int32 offset, int32)
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin){
 		delete[] skin->data;
-		free(skin->remapIndices);
+		rwFree(skin->remapIndices);
 //		delete[] skin->platformData;
 	}
 	delete skin;
@@ -83,7 +83,7 @@ readSkinSplitData(Stream *stream, Skin *skin)
 	skin->rleSize = stream->readI32();
 	if(skin->numMeshes){
 		sz = skin->numBones + 2*(skin->numMeshes+skin->rleSize);
-		data = (int8*)malloc(sz);
+		data = (int8*)rwMalloc(sz, MEMDUR_EVENT | ID_SKIN);
 		stream->read(data, sz);
 		skin->remapIndices = data;
 		skin->rleCount = (Skin::RLEcount*)(data + skin->numBones);

@@ -143,12 +143,12 @@ V3d::transformVectors(V3d *out, V3d *in, int32 n, Matrix *m)
 // Matrix
 //
 
-static Matrix::Tolerance matrixDefaultTolerance = { 0.01, 0.01, 0.01 };
+static Matrix::Tolerance matrixDefaultTolerance = { 0.01f, 0.01f, 0.01f };
 
 Matrix*
 Matrix::create(void)
 {
-	Matrix *m = (Matrix*)malloc(sizeof(Matrix));
+	Matrix *m = (Matrix*)rwMalloc(sizeof(Matrix), MEMDUR_EVENT | ID_MATRIX);
 	m->setIdentity();
 	return m;
 }
@@ -156,7 +156,7 @@ Matrix::create(void)
 void
 Matrix::destroy(void)
 {
-	free(this);
+	rwFree(this);
 }
 
 void
@@ -770,13 +770,13 @@ StreamFile::close(void)
 uint32
 StreamFile::write(const void *data, uint32 length)
 {
-	return fwrite(data, length, 1, this->file);
+	return (uint32)fwrite(data, length, 1, this->file);
 }
 
 uint32
 StreamFile::read(void *data, uint32 length)
 {
-	return fread(data, length, 1, this->file);
+	return (uint32)fread(data, length, 1, this->file);
 }
 
 void

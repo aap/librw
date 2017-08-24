@@ -17,14 +17,16 @@ namespace rw {
 
 UserDataGlobals userDataGlobals;
 
+#define udMalloc(sz) rwMalloc(sz, MEMDUR_EVENT | ID_USERDATA)
+
 void
 UserDataArray::setString(int32 n, const char *s)
 {
 	int32 len;
 	char **sp = &((char**)this->data)[n];
-	free(*sp);
-	len = strlen(s)+1;
-	*sp = (char*)malloc(len);
+	rwFree(*sp);
+	len = (int32)strlen(s)+1;
+	*sp = (char*)udMalloc(len);
 	if(*sp)
 		strncpy(*sp, s, len);
 }
@@ -47,21 +49,21 @@ destroyUserData(void *object, int32 offset, int32)
 	UserDataExtension *ext = PLUGINOFFSET(UserDataExtension, object, offset);
 	a = ext->arrays;
 	for(i = 0; i < ext->numArrays; i++){
-		free(a->name);
+		rwFree(a->name);
 		switch(a->datatype){
 		case USERDATASTRING:
 			strar = (char**)a->data;
 			for(j = 0; j < a->numElements; j++)
-				free(strar[j]);
+				rwFree(strar[j]);
 			/* fallthrough */
 		case USERDATAINT:
 		case USERDATAFLOAT:
-			free(a->data);
+			rwFree(a->data);
 			break;
 		}
 		a++;
 	}
-	free(ext->arrays);
+	rwFree(ext->arrays);
 	ext->numArrays = 0;
 	ext->arrays = nil;
 	return object;
@@ -76,30 +78,31 @@ copyUserData(void *dst, void *src, int32 offset, int32)
 	UserDataExtension *srcext = PLUGINOFFSET(UserDataExtension, src, offset);
 	UserDataExtension *dstext = PLUGINOFFSET(UserDataExtension, dst, offset);
 	dstext->numArrays = srcext->numArrays;
-	dstext->arrays = (UserDataArray*)malloc(dstext->numArrays*sizeof(UserDataArray));
+	dstext->arrays = (UserDataArray*)udMalloc(dstext->numArrays*sizeof(UserDataArray));
 	srca = srcext->arrays;
 	dsta = srcext->arrays;
 	for(i = 0; i < srcext->numArrays; i++){
-		int32 len = strlen(srca->name)+1;
-		dsta->name = (char*)malloc(len);
+		int32 len = (int32)strlen(srca->name)+1;
+		dsta->name = (char*)udMalloc(len);
 		strncpy(dsta->name, srca->name, len);
 		dsta->datatype = srca->datatype;
 		dsta->numElements = srca->numElements;
 		switch(srca->datatype){
 		case USERDATAINT:
-			dsta->data = (int32*)malloc(sizeof(int32)*dsta->numElements);
+			dsta->data = (int32*)udMalloc(sizeof(int32)*dsta->numElements);
 			memcpy(dsta->data, srca->data, sizeof(int32)*dsta->numElements);
 			break;
 		case USERDATAFLOAT:
-			dsta->data = (float32*)malloc(sizeof(float32)*dsta->numElements);
+			dsta->data = (float32*)udMalloc(sizeof(float32)*dsta->numElements);
 			memcpy(dsta->data, srca->data, sizeof(float32)*dsta->numElements);
 			break;
 		case USERDATASTRING:
-			dststrar = (char**)malloc(sizeof(char*)*dsta->numElements);
+			dststrar = (char**)udMalloc(sizeof(char*)*dsta->numElements);
 			dsta->data = dststrar;
+			srcstrar = (char**)srca->data;
 			for(j = 0; j < dsta->numElements; j++){
-				len = strlen(srcstrar[j])+1;
-				dststrar[j] = (char*)malloc(len);
+				len = (int32)strlen(srcstrar[j])+1;
+				dststrar[j] = (char*)udMalloc(len);
 				strncpy(dststrar[j], srcstrar[j], len);
 			}
 			break;
@@ -118,29 +121,29 @@ readUserData(Stream *stream, int32, void *object, int32 offset, int32)
 	UserDataArray *a;
 	UserDataExtension *ext = PLUGINOFFSET(UserDataExtension, object, offset);
 	ext->numArrays = stream->readI32();
-	ext->arrays = (UserDataArray*)malloc(ext->numArrays*sizeof(UserDataArray));
+	ext->arrays = (UserDataArray*)udMalloc(ext->numArrays*sizeof(UserDataArray));
 	a = ext->arrays;
 	for(i = 0; i < ext->numArrays; i++){
 		int32 len = stream->readI32();
-		a->name = (char*)malloc(len);
+		a->name = (char*)udMalloc(len);
 		stream->read(a->name, len);
 		a->datatype = stream->readU32();
 		a->numElements = stream->readI32();
 		switch(a->datatype){
 		case USERDATAINT:
-			a->data = (int32*)malloc(sizeof(int32)*a->numElements);
+			a->data = (int32*)udMalloc(sizeof(int32)*a->numElements);
 			stream->read(a->data, sizeof(int32)*a->numElements);
 			break;
 		case USERDATAFLOAT:
-			a->data = (float32*)malloc(sizeof(float32)*a->numElements);
+			a->data = (float32*)udMalloc(sizeof(float32)*a->numElements);
 			stream->read(a->data, sizeof(float32)*a->numElements);
 			break;
 		case USERDATASTRING:
-			strar = (char**)malloc(sizeof(char*)*a->numElements);
+			strar = (char**)udMalloc(sizeof(char*)*a->numElements);
 			a->data = strar;
 			for(j = 0; j < a->numElements; j++){
 				len = stream->readI32();
-				strar[j] = (char*)malloc(len);
+				strar[j] = (char*)udMalloc(len);
 				stream->read(strar[j], len);
 			}
 			break;
@@ -161,7 +164,7 @@ writeUserData(Stream *stream, int32, void *object, int32 offset, int32)
 	stream->writeI32(ext->numArrays);
 	a = ext->arrays;
 	for(i = 0; i < ext->numArrays; i++){
-		len = strlen(a->name)+1;
+		len = (int32)strlen(a->name)+1;
 		stream->writeI32(len);
 		stream->write(a->name, len);
 		stream->writeU32(a->datatype);
@@ -176,7 +179,7 @@ writeUserData(Stream *stream, int32, void *object, int32 offset, int32)
 		case USERDATASTRING:
 			strar = (char**)a->data;
 			for(j = 0; j < a->numElements; j++){
-				len = strlen(strar[j])+1;
+				len = (int32)strlen(strar[j])+1;
 				stream->writeI32(len);
 				stream->write(strar[j], len);
 			}
@@ -201,7 +204,7 @@ getSizeUserData(void *object, int32 offset, int32)
 	size = 4;	// numArrays
 	a = ext->arrays;
 	for(i = 0; i < ext->numArrays; i++){
-		len = strlen(a->name)+1;
+		len = (int32)strlen(a->name)+1;
 		size += 4 + len + 4 + 4;	// name len, name, type, numElements
 		switch(a->datatype){
 		case USERDATAINT:
@@ -213,7 +216,7 @@ getSizeUserData(void *object, int32 offset, int32)
 		case USERDATASTRING:
 			strar = (char**)a->data;
 			for(j = 0; j < a->numElements; j++){
-				len = strlen(strar[j])+1;
+				len = (int32)strlen(strar[j])+1;
 				size += 4 + len;	// len and string
 			}
 			break;
@@ -235,17 +238,17 @@ add(UserDataExtension *ext, const char *name, int32 datatype, int32 numElements)
 		if(ext->arrays[i].datatype == USERDATANA)
 			goto alloc;
 	// have to realloc
-	a = (UserDataArray*)malloc((ext->numArrays+1)*sizeof(UserDataArray));
+	a = (UserDataArray*)udMalloc((ext->numArrays+1)*sizeof(UserDataArray));
 	if(a == nil)
 		return -1;
 	memcpy(a, ext->arrays, ext->numArrays*sizeof(UserDataArray));
-	free(ext->arrays);
+	rwFree(ext->arrays);
 	ext->arrays = a;
 	i = ext->numArrays++;
 alloc:
 	a = &ext->arrays[i];
-	len = strlen(name)+1;
-	a->name = (char*)malloc(len+1);
+	len = (int32)strlen(name)+1;
+	a->name = (char*)udMalloc(len+1);
 	assert(a->name);
 	strncpy(a->name, name, len);
 	a->datatype = datatype;
@@ -253,7 +256,7 @@ alloc:
 	typesz = datatype == USERDATAINT ? sizeof(int32) :
 		datatype == USERDATAFLOAT ? sizeof(float32) :
 		datatype == USERDATASTRING ? sizeof(char*) : 0;
-	a->data = malloc(typesz*numElements);
+	a->data = udMalloc(typesz*numElements);
 	assert(a->data);
 	memset(a->data, 0, typesz*numElements);
 	return i;
@@ -265,14 +268,14 @@ remove(UserDataExtension *ext, int32 n)
 	int32 i;
 	UserDataArray *a = &ext->arrays[n];
 	if(a->name){
-		free(a->name);
+		rwFree(a->name);
 		a->name = nil;
 	}
 	if(a->datatype == USERDATASTRING)
 		for(i = 0; i < a->numElements; i++)
-			free(((char**)a->data)[i]);
+			rwFree(((char**)a->data)[i]);
 	if(a->data){
-		free(a->data);
+		rwFree(a->data);
 		a->data = nil;
 	}
 	a->datatype = USERDATANA;

@@ -8,10 +8,11 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwanim.h"
 #include "rwplugins.h"
 
-#define PLUGIN_ID 0
+#define PLUGIN_ID ID_ANIMANIMATION
 
 namespace rw {
 
@@ -55,7 +56,7 @@ Animation::create(AnimInterpolatorInfo *interpInfo, int32 numFrames,
 	int32 sz = sizeof(Animation) +
 	           numFrames*interpInfo->animKeyFrameSize +
 	           interpInfo->customDataSize;
-	uint8 *data = (uint8*)malloc(sz);
+	uint8 *data = (uint8*)rwMalloc(sz, MEMDUR_EVENT | ID_ANIMANIMATION);
 	if(data == nil){
 		RWERROR((ERR_ALLOC, sz));
 		return nil;
@@ -75,7 +76,7 @@ Animation::create(AnimInterpolatorInfo *interpInfo, int32 numFrames,
 void
 Animation::destroy(void)
 {
-	free(this);
+	rwFree(this);
 }
 
 int32
@@ -179,7 +180,7 @@ AnimInterpolator::create(int32 numNodes, int32 maxFrameSize)
 	if(sizeof(void*) > 4)
 		realsz += 16;
 	sz = sizeof(AnimInterpolator) + numNodes*realsz;
-	interp = (AnimInterpolator*)malloc(sz);
+	interp = (AnimInterpolator*)rwMalloc(sz, MEMDUR_EVENT | ID_ANIMANIMATION);
 	if(interp == nil){
 		RWERROR((ERR_ALLOC, sz));
 		return nil;
@@ -198,7 +199,7 @@ AnimInterpolator::create(int32 numNodes, int32 maxFrameSize)
 void
 AnimInterpolator::destroy(void)
 {
-	free(this);
+	rwFree(this);
 }
 
 bool32

@@ -30,7 +30,11 @@ HAnimHierarchy*
 HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
                        int32 flags, int32 maxKeySize)
 {
-	HAnimHierarchy *hier = (HAnimHierarchy*)malloc(sizeof(*hier));
+	HAnimHierarchy *hier = (HAnimHierarchy*)rwMalloc(sizeof(*hier), MEMDUR_EVENT | ID_HANIM);
+	if(hier == nil){
+		RWERROR((ERR_ALLOC, sizeof(*hier)));
+		return nil;
+	}
 	hier->currentAnim = AnimInterpolator::create(numNodes, maxKeySize);
 
 	hier->numNodes = numNodes;
@@ -61,7 +65,7 @@ HAnimHierarchy::destroy(void)
 {
 	delete[] (uint8*)this->matricesUnaligned;
 	delete[] this->nodeInfo;
-	free(this);
+	rwFree(this);
 }
 
 static Frame*
@@ -313,10 +317,10 @@ assert(t >= in1->time && t <= in2->time);
 void
 registerHAnimPlugin(void)
 {
-	hAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIMPLUGIN,
+	hAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIM,
 	                                    createHAnim,
 	                                    destroyHAnim, copyHAnim);
-	Frame::registerPluginStream(ID_HANIMPLUGIN,
+	Frame::registerPluginStream(ID_HANIM,
 	                            readHAnim,
 	                            writeHAnim,
 	                            getSizeHAnim);

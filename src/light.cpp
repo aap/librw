@@ -6,8 +6,9 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
-#define PLUGIN_ID 2
+#define PLUGIN_ID ID_LIGHT
 
 namespace rw {
 
@@ -28,7 +29,7 @@ worldLightSync(ObjectWithFrame *obj)
 Light*
 Light::create(int32 type)
 {
-	Light *light = (Light*)malloc(s_plglist.size);
+	Light *light = (Light*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_LIGHT);
 	if(light == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -65,7 +66,7 @@ Light::destroy(void)
 	if(this->clump)
 		this->inClump.remove();
 	// we do not remove from world, be careful
-	free(this);
+	rwFree(this);
 }
 
 void

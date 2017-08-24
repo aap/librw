@@ -8,7 +8,7 @@
 #include "rwobjects.h"
 #include "rwengine.h"
 
-#define PLUGIN_ID 0
+#define PLUGIN_ID ID_CAMERA
 
 namespace rw {
 
@@ -268,7 +268,7 @@ worldCameraSync(ObjectWithFrame *obj)
 Camera*
 Camera::create(void)
 {
-	Camera *cam = (Camera*)malloc(s_plglist.size);
+	Camera *cam = (Camera*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_CAMERA);
 	if(cam == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -325,7 +325,7 @@ Camera::destroy(void)
 	s_plglist.destruct(this);
 	if(this->clump)
 		this->inClump.remove();
-	free(this);
+	rwFree(this);
 }
 
 void

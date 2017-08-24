@@ -23,7 +23,7 @@ PluginList Atomic::s_plglist = { sizeof(Atomic), sizeof(Atomic), nil, nil };
 Clump*
 Clump::create(void)
 {
-	Clump *clump = (Clump*)malloc(s_plglist.size);
+	Clump *clump = (Clump*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_CLUMP);
 	if(clump == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -66,7 +66,7 @@ Clump::destroy(void)
 		Camera::fromClump(lnk)->destroy();
 	if(f = this->getFrame(), f)
 		f->destroyHierarchy();
-	free(this);
+	rwFree(this);
 }
 
 Clump*
@@ -120,7 +120,7 @@ Clump::streamRead(Stream *stream)
 		numGeometries = stream->readI32();
 		if(numGeometries){
 			size_t sz = numGeometries*sizeof(Geometry*);
-			geometryList = (Geometry**)malloc(sz);
+			geometryList = (Geometry**)rwMalloc(sz, MEMDUR_FUNCTION | ID_CLUMP);
 			if(geometryList == nil){
 				RWERROR((ERR_ALLOC, sz));
 				goto fail;
@@ -193,8 +193,8 @@ Clump::streamRead(Stream *stream)
 	for(int32 i = 0; i < numGeometries; i++)
 		if(geometryList[i])
 			geometryList[i]->destroy();
-	free(geometryList);
-	free(frmlst.frames);
+	rwFree(geometryList);
+	rwFree(frmlst.frames);
 	if(s_plglist.streamRead(stream, clump))
 		return clump;
 
@@ -202,9 +202,9 @@ failgeo:
 	for(int32 i = 0; i < numGeometries; i++)
 		if(geometryList[i])
 			geometryList[i]->destroy();
-	free(geometryList);
+	rwFree(geometryList);
 fail:
-	free(frmlst.frames);
+	rwFree(frmlst.frames);
 	clump->destroy();
 	return nil;
 }
@@ -224,7 +224,7 @@ Clump::streamWrite(Stream *stream)
 
 	FrameList_ frmlst;
 	frmlst.numFrames = this->getFrame()->count();
-	frmlst.frames = (Frame**)malloc(frmlst.numFrames*sizeof(Frame*));
+	frmlst.frames = (Frame**)rwMalloc(frmlst.numFrames*sizeof(Frame*), MEMDUR_FUNCTION | ID_CLUMP);
 	makeFrameList(this->getFrame(), frmlst.frames);
 	frmlst.streamWrite(stream);
 
@@ -262,7 +262,7 @@ Clump::streamWrite(Stream *stream)
 		c->streamWrite(stream);
 	}
 
-	free(frmlst.frames);
+	rwFree(frmlst.frames);
 
 	s_plglist.streamWrite(stream, this);
 	return true;
@@ -336,7 +336,7 @@ worldAtomicSync(ObjectWithFrame *obj)
 Atomic*
 Atomic::create(void)
 {
-	Atomic *atomic = (Atomic*)malloc(s_plglist.size);
+	Atomic *atomic = (Atomic*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_ATOMIC);
 	if(atomic == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -389,7 +389,7 @@ Atomic::destroy(void)
 	if(this->clump)
 		this->inClump.remove();
 	this->setFrame(nil);
-	free(this);
+	rwFree(this);
 }
 
 void

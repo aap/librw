@@ -23,6 +23,10 @@ namespace rw {
 Engine *engine;
 PluginList Driver::s_plglist[NUM_PLATFORMS];
 Engine::State Engine::state = Dead;
+MemoryFunctions Engine::memfuncs;
+
+void *malloc_h(size_t sz, uint32 hint) { return malloc(sz); }
+void *realloc_h(void *p, size_t sz, uint32 hint) { return realloc(p, sz); }
 
 // This function mainly registers engine plugins
 // RW initializes memory related things here too and
@@ -35,6 +39,10 @@ Engine::init(void)
 		RWERROR((ERR_ENGINEINIT));
 		return 0;
 	}
+
+	memfuncs.malloc = malloc_h;
+	memfuncs.realloc = realloc_h;
+	memfuncs.free = free;
 
 	PluginList init = { sizeof(Driver), sizeof(Driver), nil, nil };
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
@@ -64,7 +72,7 @@ Engine::open(void)
 	}
 
 	// Allocate engine
-	engine = (Engine*)malloc(sizeof(Engine));
+	engine = (Engine*)rwMalloc(sizeof(Engine), MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
 	engine->currentTexDictionary = nil;
@@ -133,11 +141,14 @@ Engine::start(EngineStartParams *p)
 void
 Engine::term(void)
 {
+	// TODO
 }
 
 void
 Engine::close(void)
 {
+	// TODO
+	rwFree(engine);
 }
 
 void

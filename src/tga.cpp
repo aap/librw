@@ -57,7 +57,7 @@ readTGA(const char *afilename)
 	uint32 length;
 	uint8 *data = getFileContents(filename, &length);
 	assert(data != nil);
-	free(filename);
+	rwFree(filename);
 	StreamMemory file;
 	file.open(data, length);
 	file.read(&header, sizeof(header));

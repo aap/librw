@@ -8,6 +8,9 @@
 #include "rwbase.h"
 #include "rwerror.h"
 #include "rwplg.h"
+#include "rwpipeline.h"
+#include "rwobjects.h"
+#include "rwengine.h"
 
 namespace rw {
 
@@ -103,7 +106,7 @@ int32
 PluginList::registerPlugin(int32 size, uint32 id,
 	Constructor ctor, Destructor dtor, CopyConstructor copy)
 {
-	Plugin *p = (Plugin*)malloc(sizeof(Plugin));
+	Plugin *p = (Plugin*)rwMalloc(sizeof(Plugin), MEMDUR_GLOBAL);
 	p->offset = this->size;
 	this->size += size;
 	int32 round = sizeof(void*)-1;

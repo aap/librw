@@ -6,8 +6,9 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
-#define PLUGIN_ID 0
+#define PLUGIN_ID ID_FRAMELIST
 
 namespace rw {
 
@@ -17,7 +18,7 @@ PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
 Frame*
 Frame::create(void)
 {
-	Frame *f = (Frame*)malloc(s_plglist.size);
+	Frame *f = (Frame*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_FRAMELIST);
 	if(f == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -51,7 +52,7 @@ Frame::destroy(void)
 		this->inDirtyList.remove();
 	for(Frame *f = this->child; f; f = f->next)
 		f->object.parent = nil;
-	free(this);
+	rwFree(this);
 }
 
 void
@@ -65,7 +66,7 @@ Frame::destroyHierarchy(void)
 	s_plglist.destruct(this);
 	if(this->object.privateFlags & Frame::HIERARCHYSYNC)
 		this->inDirtyList.remove();
-	free(this);
+	rwFree(this);
 }
 
 Frame*
@@ -343,7 +344,7 @@ FrameList_::streamRead(Stream *stream)
 		return nil;
 	}
 	this->numFrames = stream->readI32();
-	this->frames = (Frame**)malloc(this->numFrames*sizeof(Frame*));
+	this->frames = (Frame**)rwMalloc(this->numFrames*sizeof(Frame*), MEMDUR_EVENT | ID_FRAMELIST);
 	if(this->frames == nil){
 		RWERROR((ERR_ALLOC, this->numFrames*sizeof(Frame*)));
 		return nil;
@@ -354,7 +355,7 @@ FrameList_::streamRead(Stream *stream)
 		this->frames[i] = f = Frame::create();
 		if(f == nil){
 			// TODO: clean up frames?
-			free(this->frames);
+			rwFree(this->frames);
 			return nil;
 		}
 		f->matrix.right = buf.right;

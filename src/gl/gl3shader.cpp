@@ -74,7 +74,7 @@ loadfile(const char *path)
 	}
 	fseek(f, 0, SEEK_END);
 	len = ftell(f);
-	buf = (char*)malloc(len+1);
+	buf = (char*)rwMalloc(len+1, MEMDUR_EVENT);
 	rewind(f);
 	fread(buf, 1, len, f);
 	buf[len] = '\0';
@@ -97,10 +97,10 @@ compileshader(GLenum type, const char *src, GLuint *shader)
 		fprintf(stderr, "Error in %s shader\n",
 		  type == GL_VERTEX_SHADER ? "vertex" : "fragment");
 		glGetShaderiv(shdr, GL_INFO_LOG_LENGTH, &len);
-		log = (char*)malloc(len);
+		log = (char*)rwMalloc(len, MEMDUR_FUNCTION);
 		glGetShaderInfoLog(shdr, len, nil, log);
 		fprintf(stderr, "%s\n", log);
-		free(log);
+		rwFree(log);
 		return 1;
 	}
 	*shader = shdr;
@@ -123,10 +123,10 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 	if(!success){
 		fprintf(stderr, "Error in program\n");
 		glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &len);
-		log = (char*)malloc(len);
+		log = (char*)rwMalloc(len, MEMDUR_FUNCTION);
 		glGetProgramInfoLog(prog, len, nil, log);
 		fprintf(stderr, "%s\n", log);
-		free(log);
+		rwFree(log);
 		return 1;
 	}
 	*program = prog;
@@ -181,8 +181,8 @@ Shader::fromFiles(const char *vspath, const char *fspath)
 	vsrc = loadfile(vspath);
 	fsrc = loadfile(fspath);
 	Shader *s = fromStrings(vsrc, fsrc);
-	free(vsrc);
-	free(fsrc);
+	rwFree(vsrc);
+	rwFree(fsrc);
 	return s;
 }
 

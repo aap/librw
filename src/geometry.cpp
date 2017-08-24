@@ -9,8 +9,9 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
-#define PLUGIN_ID 2
+#define PLUGIN_ID ID_GEOMETRY
 
 namespace rw {
 
@@ -23,7 +24,7 @@ SurfaceProperties defaultSurfaceProps = { 1.0f, 1.0f, 1.0f };
 Geometry*
 Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 {
-	Geometry *geo = (Geometry*)malloc(s_plglist.size);
+	Geometry *geo = (Geometry*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_GEOMETRY);
 	if(geo == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -90,7 +91,7 @@ Geometry::destroy(void)
 		delete[] this->morphTargets;
 		delete this->meshHeader;
 		this->matList.deinit();
-		free(this);
+		rwFree(this);
 	}
 }
 
@@ -269,7 +270,8 @@ Geometry::addMorphTargets(int32 n)
 {
 	if(n == 0)
 		return;
-	MorphTarget *morphTargets = new MorphTarget[this->numMorphTargets+n];
+	n += this->numMorphTargets;
+	MorphTarget *morphTargets = new MorphTarget[n];
 	memcpy(morphTargets, this->morphTargets,
 	       this->numMorphTargets*sizeof(MorphTarget));
 	delete[] this->morphTargets;
@@ -284,7 +286,7 @@ Geometry::addMorphTargets(int32 n)
 				m->normals = new V3d[this->numVertices];
 		}
 	}
-	this->numMorphTargets += n;
+	this->numMorphTargets = n;
 }
 
 void
@@ -332,11 +334,12 @@ Geometry::allocateData(void)
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			this->texCoords[i] =
 				new TexCoords[this->numVertices];
-	MorphTarget *m = this->morphTargets;
-	m->vertices = new V3d[this->numVertices];
-	if(this->flags & NORMALS)
-		m->normals = new V3d[this->numVertices];
-	// TODO: morph targets (who cares anyway?)
+	for(int32 i = 0; i < this->numMorphTargets; i++){
+		MorphTarget *m = &morphTargets[i];
+		m->vertices = new V3d[this->numVertices];
+		if(this->flags & NORMALS)
+			m->normals = new V3d[this->numVertices];
+	}
 }
 
 static int
@@ -553,7 +556,7 @@ Geometry::removeUnusedMaterials(void)
 	}
 	for(int32 i = 0; i < this->matList.numMaterials; i++)
 		this->matList.materials[i]->destroy();
-	free(this->matList.materials);
+	rwFree(this->matList.materials);
 	this->matList.materials = materials;
 	this->matList.space = this->matList.numMaterials;
 	this->matList.numMaterials = numMaterials;
@@ -596,6 +599,8 @@ Geometry::removeUnusedMaterials(void)
 //
 // MaterialList
 //
+#undef PLUGIN_ID
+#define PLUGIN_ID ID_MATERIAL
 
 void
 MaterialList::init(void)
@@ -611,7 +616,7 @@ MaterialList::deinit(void)
 	if(this->materials){
 		for(int32 i = 0; i < this->numMaterials; i++)
 			this->materials[i]->destroy();
-		free(this->materials);
+		rwFree(this->materials);
 	}
 }
 
@@ -623,10 +628,12 @@ MaterialList::appendMaterial(Material *mat)
 	if(this->numMaterials >= this->space){
 		space = this->space + 20;
 		if(this->materials)
-			ml = (Material**)realloc(this->materials,
-						space*sizeof(Material*));
+			ml = (Material**)rwRealloc(this->materials,
+						space*sizeof(Material*),
+						MEMDUR_EVENT | ID_MATERIAL);
 		else
-			ml = (Material**)malloc(space*sizeof(Material*));
+			ml = (Material**)rwMalloc(space*sizeof(Material*),
+						MEMDUR_EVENT | ID_MATERIAL);
 		if(ml == nil)
 			return -1;
 		this->space = space;
@@ -659,12 +666,12 @@ MaterialList::streamRead(Stream *stream, MaterialList *matlist)
 	numMat = stream->readI32();
 	if(numMat == 0)
 		return matlist;
-	matlist->materials = (Material**)malloc(numMat*sizeof(Material*));
+	matlist->materials = (Material**)rwMalloc(numMat*sizeof(Material*), MEMDUR_EVENT | ID_MATERIAL);
 	if(matlist->materials == nil)
 		goto fail;
 	matlist->space = numMat;
 
-	indices = (int32*)malloc(numMat*4);
+	indices = (int32*)rwMalloc(numMat*4, MEMDUR_FUNCTION | ID_MATERIAL);
 	stream->read(indices, numMat*4);
 
 	Material *m;
@@ -684,10 +691,10 @@ MaterialList::streamRead(Stream *stream, MaterialList *matlist)
 		matlist->appendMaterial(m);
 		m->destroy();
 	}
-	free(indices);
+	rwFree(indices);
 	return matlist;
 fail:
-	free(indices);
+	rwFree(indices);
 	matlist->deinit();
 	return nil;
 }
@@ -741,7 +748,7 @@ MaterialList::streamGetSize(void)
 Material*
 Material::create(void)
 {
-	Material *mat = (Material*)malloc(s_plglist.size);
+	Material *mat = (Material*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_MATERIAL);
 	if(mat == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
@@ -780,7 +787,7 @@ Material::destroy(void)
 		s_plglist.destruct(this);
 		if(this->texture)
 			this->texture->destroy();
-		free(this);
+		rwFree(this);
 	}
 }
 

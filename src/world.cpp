@@ -9,7 +9,7 @@
 #include "rwobjects.h"
 #include "rwengine.h"
 
-#define PLUGIN_ID 2
+#define PLUGIN_ID ID_WORLD
 
 namespace rw {
 
@@ -18,7 +18,7 @@ PluginList World::s_plglist = { sizeof(World), sizeof(World), nil, nil };
 World*
 World::create(void)
 {
-	World *world = (World*)malloc(s_plglist.size);
+	World *world = (World*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_WORLD);
 	if(world == nil){
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;

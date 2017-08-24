@@ -71,6 +71,7 @@ project "librw"
 project "dumprwtree"
 	kind "ConsoleApp"
 	targetdir (Bindir)
+	removeplatforms { "*gl3", "*d3d9", "ps2" }
 	files { "tools/dumprwtree/*" }
 	includedirs { "." }
 	libdirs { Libdir }

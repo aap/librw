@@ -8,6 +8,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 #include "rwanim.h"
 #include "rwplugins.h"
 
@@ -32,7 +33,7 @@ UVAnimDictionary *currentUVAnimDictionary;
 UVAnimDictionary*
 UVAnimDictionary::create(void)
 {
-	UVAnimDictionary *dict = (UVAnimDictionary*)malloc(sizeof(UVAnimDictionary));
+	UVAnimDictionary *dict = (UVAnimDictionary*)rwMalloc(sizeof(UVAnimDictionary), MEMDUR_EVENT | ID_UVANIMATION);
 	if(dict == nil){
 		RWERROR((ERR_ALLOC, sizeof(UVAnimDictionary)));
 		return nil;
@@ -50,7 +51,7 @@ UVAnimDictionary::destroy(void)
 		cust->destroy(de->anim);
 		delete de;
 	}
-	free(this);
+	rwFree(this);
 }
 
 void

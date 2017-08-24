@@ -86,7 +86,7 @@ mallocalign(size_t size, int32 alignment)
 {
 	void *p;
 	void **pp;
-	p = malloc(size + alignment + sizeof(void*));
+	p = rwMalloc(size + alignment + sizeof(void*), MEMDUR_EVENT | ID_RASTERPS2);
 	if(p == nil) return nil;
 	pp = (void**)(((uintptr)p + sizeof(void*) + alignment)&~(alignment-1));
 	pp[-1] = p;
@@ -99,7 +99,7 @@ freealign(void *p)
 	void *pp;
 	if(p == nil) return;
 	pp = ((void**)p)[-1];
-	free(pp);
+	rwFree(pp);
 }
 
 // TODO: these depend on video mode, set in deviceSystem!
@@ -391,13 +391,13 @@ static uint8 blockmaprev_PSMCT16[32] = {
 static void
 calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, uint64 *bufferWidth_W, uint32 *trxpos, uint32 *totalSize, uint32 *paletteBase)
 {
-	int32 pageWidth_Px, pageHeight_Px;
-	int32 blockWidth_Px, blockHeight_Px;
-	int32 mindim_Px;
+	uint32 pageWidth_Px, pageHeight_Px;
+	uint32 blockWidth_Px, blockHeight_Px;
+	uint32 mindim_Px;
 	int32 nlevels;
 	int32 n;
-	int32 mipw_Px, miph_Px;
-	int32 lastmipw_Px, lastmiph_Px;
+	uint32 mipw_Px, miph_Px;
+	uint32 lastmipw_Px, lastmiph_Px;
 	uint32 bufferHeight_P[8];
 	uint32 bufferPage_B[8];	// address of page in which the level is allocated
 	uint32 xoff_Px, yoff_Px;	// x/y offset the last level starts at
@@ -408,7 +408,7 @@ calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, ui
 	uint32 widthstack_Px[8];
 	uint32 heightstack_Px[8];
 	uint32 basestack_B[8];
-	int32 flag;
+	uint32 flag;
 
 	switch(psm){
 	case PSMCT32:
@@ -652,7 +652,7 @@ calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, ui
 			//       the R bits are the block's row in a row of pages
 			// We want to swap P and R: PPRRRCC
 			bufferBase_B[n] =
-				(bufferBase_B[n] & ~(bufpagestride_B - PAGEWIDTH_B))	// mask out R and P
+				(bufferBase_B[n] & ~((uint64)bufpagestride_B - PAGEWIDTH_B))	// mask out R and P
 				| ((bufferBase_B[n] & (bufwidth_B - PAGEWIDTH_B)) * (bufpagestride_B/bufwidth_B))	// extract P and shift left
 				| ((bufferBase_B[n] & (bufpagestride_B - bufwidth_B)) / (bufwidth_B/PAGEWIDTH_B));	// extract R and shift right
 		}
@@ -968,8 +968,8 @@ createTexRaster(Raster *raster)
 
 		ras->pixelSize = ALIGN16(raster->stride*raster->height);
 		ras->paletteSize = paletteWidth*paletteHeight*paletteDepth;
-		ras->miptbp1 = 1<<54 | 1<<34 | 1<<14;
-		ras->miptbp2 = 1<<54 | 1<<34 | 1<<14;
+		ras->miptbp1 = 1ULL<<54 | 1ULL<<34 | 1ULL<<14;
+		ras->miptbp2 = 1ULL<<54 | 1ULL<<34 | 1ULL<<14;
 		ras->tex1low = 0;	// one mipmap level
 
 		// find out number of pages needed
@@ -1010,8 +1010,8 @@ createTexRaster(Raster *raster)
 		th << 30 |
 		tcc << 34 |
 		cpsm << 51 |
-		0 << 55 |	// csm0
-		0 << 56 |	// entry offset
+		0ULL << 55 |	// csm0
+		0ULL << 56 |	// entry offset
 		cld << 61;
 
 
