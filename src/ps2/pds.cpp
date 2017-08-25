@@ -61,7 +61,7 @@ registerPDSPlugin(int32 n)
 {
 	pdsGlobals.maxPipes = n;
 	pdsGlobals.numPipes = 0;
-	pdsGlobals.pipes = new Pipeline*[n];
+	pdsGlobals.pipes = rwNewT(Pipeline*, n, MEMDUR_GLOBAL | ID_PDS);
 	Atomic::registerPlugin(0, ID_PDS, nil, nil, nil);
 	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
 

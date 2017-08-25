@@ -18,6 +18,14 @@
 
 #define PLUGIN_ID 0
 
+// on windows
+//#ifdef DEBUG
+//#include <crtdbg.h>
+//#define free(p) _free_dbg(p, _NORMAL_BLOCK);
+//#define malloc(sz) _malloc_dbg(sz, _NORMAL_BLOCK, __FILE__, __LINE__)
+//#define realloc(p, sz) _realloc_dbg(p, sz, _NORMAL_BLOCK, __FILE__, __LINE__)
+//#endif
+
 namespace rw {
 
 Engine *engine;
@@ -25,8 +33,29 @@ PluginList Driver::s_plglist[NUM_PLATFORMS];
 Engine::State Engine::state = Dead;
 MemoryFunctions Engine::memfuncs;
 
-void *malloc_h(size_t sz, uint32 hint) { return malloc(sz); }
+void *malloc_h(size_t sz, uint32 hint) { if(sz == 0) return nil; return malloc(sz); }
 void *realloc_h(void *p, size_t sz, uint32 hint) { return realloc(p, sz); }
+// TODO: make the debug out configurable
+void *mustmalloc_h(size_t sz, uint32 hint)
+{
+	void *ret;
+	ret = rwMalloc(sz, hint);
+	if(ret)
+		return ret;
+	fprintf(stderr, "Error: out of memory\n");
+	exit(1);
+	return nil;
+}
+void *mustrealloc_h(void *p, size_t sz, uint32 hint)
+{
+	void *ret;
+	ret = rwRealloc(p, sz, hint);
+	if(ret)
+		return ret;
+	fprintf(stderr, "Error: out of memory\n");
+	exit(1);
+	return nil;
+}
 
 // This function mainly registers engine plugins
 // RW initializes memory related things here too and
@@ -40,9 +69,11 @@ Engine::init(void)
 		return 0;
 	}
 
-	memfuncs.malloc = malloc_h;
-	memfuncs.realloc = realloc_h;
-	memfuncs.free = free;
+	memfuncs.rwmalloc = malloc_h;
+	memfuncs.rwrealloc = realloc_h;
+	memfuncs.rwfree = free;
+	memfuncs.rwmustmalloc = mustmalloc_h;
+	memfuncs.rwmustrealloc = mustrealloc_h;
 
 	PluginList init = { sizeof(Driver), sizeof(Driver), nil, nil };
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
@@ -72,7 +103,7 @@ Engine::open(void)
 	}
 
 	// Allocate engine
-	engine = (Engine*)rwMalloc(sizeof(Engine), MEMDUR_GLOBAL);
+	engine = rwNewT(Engine, 1, MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
 	engine->currentTexDictionary = nil;
@@ -97,7 +128,8 @@ Engine::open(void)
 	// TODO: init driver functions
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
-		rw::engine->driver[i] = (Driver*)malloc(Driver::s_plglist[i].size);
+		rw::engine->driver[i] = (Driver*)rwNew(Driver::s_plglist[i].size,
+			MEMDUR_GLOBAL);
 
 		engine->driver[i]->defaultPipeline = defpipe;
 

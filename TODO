@@ -1,7 +1,11 @@
 TODO:
 - maintain the TODO list properly
-- skeleton
+- get the error system in better shape
+- move everything to custom malloc
+- proper cleanup! and check for memory leaks
+- skeleton (partially done)
 - examples
+- morph targets and morphing
 - geometry lock/unlock
  -> reinstance
   -> revisit pipelines
@@ -13,16 +17,13 @@ TODO:
 - PS2 rendering!
 - Im2d and Im3d
 - change naming convention? make globals stand out more
+- Pipelines (PDS, Xbox, PC)
+- ADC conversion
 
 BUGS:
 	- fseek with negative offset on ps2 over ps2link messes up the current position
 
 Clump & related:
-	- !!! work on ref counts, destruction, copying etc.
-	- define and use types:
-		color
-		triangle
-		texcoord
 	- implement plugins:
 		Clump
 			Animation (old III dffs)
@@ -37,7 +38,3 @@ Clump & related:
 	- only stubs:
 				R* 2dfx       0x253F2F8
 				R* Collision  0x253F2FA
-
-- Pipelines (PDS, Xbox, PC)
-
-- ADC conversion

@@ -118,7 +118,7 @@ readTGA(const char *afilename)
 	}
 
 	file.close();
-	delete[] data;
+	rwFree(data);
 	return image;
 }
 

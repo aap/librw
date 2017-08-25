@@ -187,7 +187,7 @@ createIndexBuffer(uint32 length)
 	d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
 	return ibuf;
 #else
-	return new uint8[length];
+	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
 #endif
 }
 
@@ -230,7 +230,7 @@ createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
 #else
 	(void)fvf;
 	(void)pool;
-	return new uint8[length];
+	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
 #endif
 }
 
@@ -282,7 +282,8 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 		h /= 2;
 		if(h == 0) h = 1;
 	}
-	uint8 *data = new uint8[sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1)+size];
+	uint8 *data = (uint8*)rwNew(sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1)+size,
+		MEMDUR_EVENT | ID_DRIVER);
 	RasterLevels *levels = (RasterLevels*)data;
 	data += sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1);
 	levels->numlevels = numlevels;
@@ -338,7 +339,7 @@ deleteObject(void *object)
 	IUnknown *unk = (IUnknown*)object;
 	unk->Release();
 #else
-	delete[] (uint*)object;
+	rwFree(object);
 #endif
 }
 
@@ -379,7 +380,7 @@ rasterCreate(Raster *raster)
 	uint32 format;
 	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
 		format = D3DFMT_P8;
-		natras->palette = new uint8[4*256];
+		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
 	}else
 		format = formatMap[(raster->format >> 8) & 0xF];
 	natras->format = 0;

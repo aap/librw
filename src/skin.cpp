@@ -38,11 +38,11 @@ destroySkin(void *object, int32 offset, int32)
 {
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	if(skin){
-		delete[] skin->data;
+		rwFree(skin->data);
 		rwFree(skin->remapIndices);
 //		delete[] skin->platformData;
 	}
-	delete skin;
+	rwFree(skin);
 	return object;
 }
 
@@ -55,7 +55,7 @@ copySkin(void *dst, void *src, int32 offset, int32)
 	Geometry *geometry = (Geometry*)src;
 	assert(geometry->instData == nil);
 	assert(((Geometry*)src)->numVertices == ((Geometry*)dst)->numVertices);
-	Skin *dstskin = new Skin;
+	Skin *dstskin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, dst, offset) = dstskin;
 	dstskin->numBones = srcskin->numBones;
 	dstskin->numUsedBones = srcskin->numUsedBones;
@@ -134,7 +134,7 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 
 	stream->read(header, 4);  // numBones, numUsedBones,
 	                          // numWeights, unused
-	Skin *skin = new Skin;
+	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
 	// numUsedBones and numWeights appear in/after 34003
@@ -315,7 +315,7 @@ Skin::init(int32 numBones, int32 numUsedBones, int32 numVertices)
 	uint32 size = this->numUsedBones +
 	              this->numBones*64 +
 	              numVertices*(16+4) + 0xF;
-	this->data = new uint8[size];
+	this->data = rwNewT(uint8, size, MEMDUR_EVENT | ID_SKIN);
 	uint8 *p = this->data;
 
 	this->usedBones = nil;

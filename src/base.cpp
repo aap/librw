@@ -863,7 +863,7 @@ getFileContents(char *name, uint32 *len)
 	fseek(cf, 0, SEEK_END);
 	*len = ftell(cf);
 	fseek(cf, 0, SEEK_SET);
-	uint8 *data = new uint8[*len];
+	uint8 *data = rwNewT(uint8, *len, MEMDUR_EVENT);
 	fread(data, *len, 1, cf);
 	fclose(cf);
 	return data;

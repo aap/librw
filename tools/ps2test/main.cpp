@@ -703,7 +703,7 @@ main()
 	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
 	rw::Clump *clump = rw::Clump::streamRead(&in);
 	in.close();
-	delete[] data;
+	rwFree(data);
 
 	GsCtx gsCtx;
 

@@ -109,9 +109,13 @@ enum MemHint
 
 struct MemoryFunctions
 {
-	void *(*malloc)(size_t sz, uint32 hint);
-	void *(*realloc)(void *p, size_t sz, uint32 hint);
-	void  (*free)(void *p);
+	void *(*rwmalloc)(size_t sz, uint32 hint);
+	void *(*rwrealloc)(void *p, size_t sz, uint32 hint);
+	void  (*rwfree)(void *p);
+	// These are temporary until we have better error handling
+	// TODO: Maybe don't put them here since they shouldn't really be switched out
+	void *(*rwmustmalloc)(size_t sz, uint32 hint);
+	void *(*rwmustrealloc)(void *p, size_t sz, uint32 hint);
 };
 
 // This is for platform independent things
@@ -158,9 +162,16 @@ inline void SetRenderState(int32 state, uint32 value){
 inline uint32 GetRenderState(int32 state){
 	return engine->device.getRenderState(state); }
 
-#define rwMalloc(s, h) rw::Engine::memfuncs.malloc(s,h)
-#define rwRealloc(p, s, h) rw::Engine::memfuncs.realloc(p,s,h)
-#define rwFree(p) rw::Engine::memfuncs.free(p)
+// These must be macros because we might want to pass __FILE__ and __LINE__ later
+#define rwMalloc(s, h) rw::Engine::memfuncs.rwmalloc(s,h)
+#define rwMallocT(t, s, h) (t*)rw::Engine::memfuncs.rwmalloc((s)*sizeof(t),h)
+#define rwRealloc(p, s, h) rw::Engine::memfuncs.rwrealloc(p,s,h)
+#define rwReallocT(t, p, s, h) (t*)rw::Engine::memfuncs.rwrealloc(p,(s)*sizeof(t),h)
+#define rwFree(p) rw::Engine::memfuncs.rwfree(p)
+#define rwNew(s, h) rw::Engine::memfuncs.rwmustmalloc(s,h)
+#define rwNewT(t, s, h) (t*)rw::Engine::memfuncs.rwmustmalloc((s)*sizeof(t),h)
+#define rwResize(p, s, h) rw::Engine::memfuncs.rwmustrealloc(p,s,h)
+#define rwResizeT(t, p, s, h) (t*)rw::Engine::memfuncs.rwmustrealloc(p,(s)*sizeof(t),h)
 
 namespace null {
 	void beginUpdate(Camera*);

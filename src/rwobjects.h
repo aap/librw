@@ -362,16 +362,21 @@ struct MeshHeader
 	};
 	uint32 flags;
 	uint16 numMeshes;
-	// RW has uint16 serialNum here
+	uint16 serialNum;	// not used yet
 	uint32 totalIndices;
-	Mesh *mesh;	// RW has a byte offset here
+	uint32 pad;	// needed for alignment of Meshes
+	// after this the meshes
 
-	void allocateIndices(void);
-	~MeshHeader(void);
+	Mesh *getMeshes(void) { return (Mesh*)(this+1); }
+	void setupIndices(void);
+	uint32 guessNumTriangles(void);
 };
+
+struct Geometry;
 
 struct MorphTarget
 {
+	Geometry *parent;
 	Sphere boundingSphere;
 	V3d *vertices;
 	V3d *normals;
@@ -433,6 +438,7 @@ struct Geometry
 	void calculateBoundingSphere(void);
 	bool32 hasColoredMaterial(void);
 	void allocateData(void);
+	MeshHeader *allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices);
 	void generateTriangles(int8 *adc = nil);
 	void buildMeshes(void);
 	void buildTristrips(void);
@@ -463,6 +469,7 @@ struct Geometry
 		// librw's pipelines are different so it's unused here.
 		NATIVEINSTANCE = 0x02000000
 	};
+
 };
 
 void registerMeshPlugin(void);

@@ -30,7 +30,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_GL3;
@@ -40,11 +40,11 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->primType = meshh->flags == 1 ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
 	header->totalNumVertex = geo->numVertices;
 	header->totalNumIndex = meshh->totalIndices;
-	header->inst = new InstanceData[header->numMeshes];
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
-	header->indexBuffer = new uint16[header->totalNumIndex];
+	header->indexBuffer = rwNewT(uint16, header->totalNumIndex, MEMDUR_EVENT | ID_GEOMETRY);
 	InstanceData *inst = header->inst;
-	Mesh *mesh = meshh->mesh;
+	Mesh *mesh = meshh->getMeshes();
 	uint32 offset = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
@@ -167,14 +167,14 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	header->numAttribs = a - attribs;
 	for(a = attribs; a != &attribs[header->numAttribs]; a++)
 		a->stride = stride;
-	header->attribDesc = new AttribDesc[header->numAttribs];
+	header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
 	memcpy(header->attribDesc, attribs,
 	       header->numAttribs*sizeof(AttribDesc));
 
 	//
 	// Allocate and fill vertex buffer
 	//
-	uint8 *verts = new uint8[header->totalNumVertex*stride];
+	uint8 *verts = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
 	header->vertexBuffer = verts;
 
 	// Positions

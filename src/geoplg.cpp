@@ -25,39 +25,119 @@ namespace rw {
 
 // Mesh
 
+// Allocate a mesh header, meshes and optionally indices.
+// If existing meshes already exist, retain their information.
+MeshHeader*
+Geometry::allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices)
+{
+	uint32 sz;
+	MeshHeader *mh;
+	Mesh *m;
+	uint16 *indices;
+	int32 oldNumMeshes;
+	int32 i;
+	sz = sizeof(MeshHeader) + numMeshes*sizeof(Mesh);
+	if(!noIndices)
+		sz += numIndices*sizeof(uint16);
+	if(this->meshHeader){
+		oldNumMeshes = this->meshHeader->numMeshes;
+		mh = (MeshHeader*)rwResize(this->meshHeader, sz, MEMDUR_EVENT | ID_GEOMETRY);
+	}else{
+		oldNumMeshes = 0;
+		mh = (MeshHeader*)rwNew(sz, MEMDUR_EVENT | ID_GEOMETRY);
+		mh->flags = 0;
+		this->meshHeader = mh;
+	}
+	mh->numMeshes = numMeshes;
+	mh->serialNum = 0;	// TODO
+	mh->totalIndices = numIndices;
+	m = mh->getMeshes();
+	indices = (uint16*)&m[numMeshes];
+	for(i = 0; i < mh->numMeshes; i++){
+		// keep these
+		if(i >= oldNumMeshes){
+			m->material = nil;
+			m->numIndices = 0;
+		}
+		// always init indices
+		if(noIndices)
+			m->indices = nil;
+		else{
+			m->indices = indices;
+			indices += m->numIndices;
+		}
+		m++;
+	}
+	return mh;
+}
+
+void
+MeshHeader::setupIndices(void)
+{
+	int32 i;
+	uint16 *indices;
+	Mesh *m;
+	m = this->getMeshes();
+	indices = m->indices;
+	// return if native
+	if(indices == nil)
+		return;
+	for(i = 0; i < this->numMeshes; i++){
+		m->indices = indices;
+		indices += m->numIndices;
+		m++;
+	}
+}
+
+struct MeshHeaderStream
+{
+	uint32 flags;
+	uint32 numMeshes;
+	uint32 totalIndices;
+};
+
+struct MeshStream
+{
+	uint32 numIndices;
+	int32 matIndex;
+};
+
 static Stream*
 readMesh(Stream *stream, int32 len, void *object, int32, int32)
 {
-	Geometry *geo = (Geometry*)object;
+	MeshHeaderStream mhs;
+	MeshStream ms;
+	MeshHeader *mh;
+	Mesh *mesh;
 	int32 indbuf[256];
-	uint32 buf[3];
-	stream->read(buf, 12);
-	geo->meshHeader = new MeshHeader;
-	geo->meshHeader->flags = buf[0];
-	geo->meshHeader->numMeshes = buf[1];
-	geo->meshHeader->totalIndices = buf[2];
-	geo->meshHeader->mesh = new Mesh[geo->meshHeader->numMeshes];
-	Mesh *mesh = geo->meshHeader->mesh;
-	bool hasData = len > 12+geo->meshHeader->numMeshes*8;
-	uint16 *p = nil;
-	if(!(geo->flags & Geometry::NATIVE) || hasData)
-		p = new uint16[geo->meshHeader->totalIndices];
-	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
-		stream->read(buf, 8);
-		mesh->numIndices = buf[0];
-		mesh->material = geo->matList.materials[buf[1]];
-		mesh->indices = nil;
+	uint16 *indices;
+	Geometry *geo = (Geometry*)object;
+
+	stream->read(&mhs, sizeof(MeshHeaderStream));
+	// Have to do this dance for War Drum's meshes
+	bool32 hasData = len > sizeof(MeshHeaderStream)+mhs.numMeshes*sizeof(MeshStream);
+	assert(geo->meshHeader == nil);
+	geo->meshHeader = nil;
+	mh = geo->allocateMeshes(mhs.numMeshes, mhs.totalIndices, 
+		geo->flags & Geometry::NATIVE && !hasData);
+
+	mesh = mh->getMeshes();
+	indices = mesh->indices;
+	for(uint32 i = 0; i < mh->numMeshes; i++){
+		stream->read(&ms, sizeof(MeshStream));
+		mesh->numIndices = ms.numIndices;
+		mesh->material = geo->matList.materials[ms.matIndex];
 		if(geo->flags & Geometry::NATIVE){
-			// OpenGL stores uint16 indices here
+			// War Drum OpenGL stores uint16 indices here
 			if(hasData){
-				mesh->indices = p;
-				p += mesh->numIndices;
+				mesh->indices = indices;
+				indices += mesh->numIndices;
 				stream->read(mesh->indices,
 				            mesh->numIndices*2);
 			}
 		}else{
-			mesh->indices = p;
-			p += mesh->numIndices;
+			mesh->indices = indices;
+			indices += mesh->numIndices;
 			uint16 *ind = mesh->indices;
 			int32 numIndices = mesh->numIndices;
 			for(; numIndices > 0; numIndices -= 256){
@@ -76,18 +156,19 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 static Stream*
 writeMesh(Stream *stream, int32, void *object, int32, int32)
 {
-	Geometry *geo = (Geometry*)object;
+	MeshHeaderStream mhs;
+	MeshStream ms;
 	int32 indbuf[256];
-	uint32 buf[3];
-	buf[0] = geo->meshHeader->flags;
-	buf[1] = geo->meshHeader->numMeshes;
-	buf[2] = geo->meshHeader->totalIndices;
-	stream->write(buf, 12);
-	Mesh *mesh = geo->meshHeader->mesh;
+	Geometry *geo = (Geometry*)object;
+	mhs.flags = geo->meshHeader->flags;
+	mhs.numMeshes = geo->meshHeader->numMeshes;
+	mhs.totalIndices = geo->meshHeader->totalIndices;
+	stream->write(&mhs, sizeof(MeshHeaderStream));
+	Mesh *mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
-		buf[0] = mesh->numIndices;
-		buf[1] = geo->matList.findIndex(mesh->material);
-		stream->write(buf, 8);
+		ms.numIndices = mesh->numIndices;
+		ms.matIndex = geo->matList.findIndex(mesh->material);
+		stream->write(&ms, sizeof(MeshStream));
 		if(geo->flags & Geometry::NATIVE){
 			assert(geo->instData != nil);
 			if(geo->instData->platform == PLATFORM_WDGL)
@@ -133,23 +214,17 @@ registerMeshPlugin(void)
 	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
 }
 
-MeshHeader::~MeshHeader(void)
+// Returns the maximum number of triangles. Just so
+// we can allocate enough before instancing. This does not
+// take into account degerate triangles or ADC bits as
+// we don't look at the data.
+uint32
+MeshHeader::guessNumTriangles(void)
 {
-	// first mesh holds pointer to all indices
-	delete[] this->mesh[0].indices;
-	delete[] this->mesh;
-}
-
-void
-MeshHeader::allocateIndices(void)
-{
-	uint16 *p = new uint16[this->totalIndices];
-	Mesh *mesh = this->mesh;
-	for(uint32 i = 0; i < this->numMeshes; i++){
-		mesh->indices = p;
-		p += mesh->numIndices;
-		mesh++;
-	}
+	if(this->flags == MeshHeader::TRISTRIP)
+		return this->totalIndices - 2*this->numMeshes;
+	else
+		return this->totalIndices/3;
 }
 
 // Native Data

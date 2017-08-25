@@ -57,10 +57,10 @@ destroyNativeData(void *object, int32, int32)
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = nil;
-	delete[] (uint8*)header->vertexBuffer;
-	delete[] header->begin;
-	delete[] header->data;
-	delete header;
+	rwFree(header->vertexBuffer);
+	rwFree(header->begin);
+	rwFree(header->data);
+	rwFree(header);
 	return object;
 }
 
@@ -83,14 +83,14 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		RWERROR((ERR_VERSION, vers));
 		return nil;
 	}
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_XBOX;
 
 	int32 size = stream->readI32();
 	// The 0x18 byte are the resentryheader.
 	// We don't have it but it's used for alignment.
-	header->data = new uint8[size + 0x18];
+	header->data = rwNewT(uint8, size + 0x18, MEMDUR_EVENT | ID_GEOMETRY);
 	uint8 *p = header->data+0x18+4;
 	stream->read(p, size-4);
 
@@ -105,7 +105,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->vertexAlpha = *(bool32*)p; p += 4;
 	p += 8; // skip begin, end pointers
 
-	InstanceData *inst  = new InstanceData[header->numMeshes];
+	InstanceData *inst  = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 	header->begin = inst;
 	for(int i = 0; i < header->numMeshes; i++){
 		inst->minVert = *(uint32*)p; p += 4;
@@ -119,7 +119,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	}
 	header->end = inst;
 
-	header->vertexBuffer = new uint8[header->stride*header->numVertices];
+	header->vertexBuffer = rwNewT(uint8, header->stride*header->numVertices, MEMDUR_EVENT | ID_GEOMETRY);
 	stream->read(header->vertexBuffer, header->stride*header->numVertices);
 	return stream;
 }
@@ -200,18 +200,18 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE (or not, xbox can't render)
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_XBOX;
 
 	header->size = 0x24 + meshh->numMeshes*0x18 + 0x10;
-	Mesh *mesh = meshh->mesh;
+	Mesh *mesh = meshh->getMeshes();
 	for(uint32 i = 0; i < meshh->numMeshes; i++)
 		header->size += (mesh++->numIndices*2 + 0xF) & ~0xF;
 	// The 0x18 byte are the resentryheader.
 	// We don't have it but it's used for alignment.
-	header->data = new uint8[header->size + 0x18];
+	header->data = rwNewT(uint8, header->size + 0x18, MEMDUR_EVENT | ID_GEOMETRY);
 	header->serialNumber = 0;
 	header->numMeshes = meshh->numMeshes;
 	header->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
@@ -221,9 +221,9 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->stride = 0;
 	header->vertexBuffer = nil;
 
-	InstanceData *inst = new InstanceData[header->numMeshes];
+	InstanceData *inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 	header->begin = inst;
-	mesh = meshh->mesh;
+	mesh = meshh->getMeshes();
 	uint8 *indexbuf = (uint8*)header->data + ((0x18 + 0x24 + header->numMeshes*0x18 + 0xF)&~0xF);
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
@@ -251,13 +251,13 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_XBOX);
-	geo->flags &= ~Geometry::NATIVE;
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
 	geo->allocateData();
-	geo->meshHeader->allocateIndices();
+	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	InstanceData *inst = header->begin;
-	Mesh *mesh = geo->meshHeader->mesh;
+	Mesh *mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = (uint16*)inst->indexBuffer;
 		memcpy(mesh->indices, indices, inst->numIndices*2);
@@ -267,6 +267,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	pipe->uninstanceCB(geo, header);
 	geo->generateTriangles();
+	geo->flags &= ~Geometry::NATIVE;
 	destroyNativeData(geo, 0, 0);
 }
 
@@ -295,7 +296,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	if(*vertexFmt == 0)
 		*vertexFmt = makeVertexFmt(geo->flags, geo->numTexCoordSets);
 	header->stride = getVertexFmtStride(*vertexFmt);
-	header->vertexBuffer = new uint8[header->stride*header->numVertices];
+	header->vertexBuffer = rwNewT(uint8, header->stride*header->numVertices, MEMDUR_EVENT | ID_GEOMETRY);
 	uint8 *dst = (uint8*)header->vertexBuffer;
 
 	uint32 fmt = *vertexFmt;
@@ -476,7 +477,8 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 		if(h == 0) h = 1;
 	}
 	size = (size+3)&~3;
-	uint8 *data = new uint8[sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1)+size];
+	uint8 *data = (uint8*)rwNew(sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1)+size,
+		MEMDUR_EVENT | ID_DRIVER);
 	RasterLevels *levels = (RasterLevels*)data;
 	data += sizeof(RasterLevels)+sizeof(RasterLevels::Level)*(numlevels-1);
 	levels->numlevels = numlevels;
@@ -536,7 +538,7 @@ rasterCreate(Raster *raster)
 	uint32 format;
 	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
 		format = D3DFMT_P8;
-		natras->palette = new uint8[4*256];
+		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
 	}else
 		format = formatMap[(raster->format >> 8) & 0xF];
 	natras->format = 0;

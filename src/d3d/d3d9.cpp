@@ -71,7 +71,7 @@ createVertexDeclaration(VertexElement *elements)
 	VertexElement *e = (VertexElement*)elements;
 	while(e[n++].stream != 0xFF)
 		;
-	e = (VertexElement*)new uint8[n*sizeof(VertexElement)];
+	e = rwNewT(VertexElement, n, MEMDUR_EVENT | ID_DRIVER);
 	memcpy(e, elements, n*sizeof(VertexElement));
 	return e;
 #endif
@@ -111,8 +111,8 @@ destroyNativeData(void *object, int32, int32)
 	deleteObject(header->indexBuffer);
 	deleteObject(header->vertexStream[0].vertexBuffer);
 	deleteObject(header->vertexStream[1].vertexBuffer);
-	delete[] header->inst;
-	delete header;
+	rwFree(header->inst);
+	rwFree(header);
 	return object;
 }
 
@@ -130,12 +130,12 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_D3D9;
 
 	int32 size = stream->readI32();
-	uint8 *data = new uint8[size];
+	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->read(data, size);
 	uint8 *p = data;
 	header->serialNumber = *(uint32*)p; p += 4;
@@ -147,7 +147,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->vertexDeclaration = nil; p += 4;
 	header->totalNumIndex = *(uint32*)p; p += 4;
 	header->totalNumVertex = *(uint32*)p; p += 4;
-	header->inst = new InstanceData[header->numMeshes];
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -203,7 +203,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst++;
 	}
 
-	delete[] data;
+	rwFree(data);
 	return stream;
 }
 
@@ -218,7 +218,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	stream->writeU32(PLATFORM_D3D9);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	int32 size = 64 + geometry->meshHeader->numMeshes*36;
-	uint8 *data = new uint8[size];
+	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->writeI32(size);
 
 	uint8 *p = data;
@@ -276,7 +276,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		unlockVertices(s->vertexBuffer);
 	}
 
-	delete[] data;
+	rwFree(data);
 	return stream;
 }
 
@@ -316,7 +316,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_D3D9;
@@ -327,13 +327,13 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->useOffsets = 0;
 	header->totalNumVertex = geo->numVertices;
 	header->totalNumIndex = meshh->totalIndices;
-	header->inst = new InstanceData[header->numMeshes];
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
 	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2);
 
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	InstanceData *inst = header->inst;
-	Mesh *mesh = meshh->mesh;
+	Mesh *mesh = meshh->getMeshes();
 	uint32 startindex = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
@@ -370,14 +370,14 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D9);
-	geo->flags &= ~Geometry::NATIVE;
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
 	geo->allocateData();
-	geo->meshHeader->allocateIndices();
+	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	InstanceData *inst = header->inst;
-	Mesh *mesh = geo->meshHeader->mesh;
+	Mesh *mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		if(inst->minVert == 0)
 			memcpy(mesh->indices, &indices[inst->startIndex], inst->numIndex*2);
@@ -391,6 +391,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	pipe->uninstanceCB(geo, header);
 	geo->generateTriangles();
+	geo->flags &= ~Geometry::NATIVE;
 	destroyNativeData(geo, 0, 0);
 }
 

@@ -51,12 +51,12 @@ Image::allocate(void)
 {
 	if(this->pixels == nil){
 		this->stride = this->width*(this->depth==4 ? 1 : this->depth/8);
-		this->pixels = new uint8[this->stride*this->height];
+		this->pixels = rwNewT(uint8, this->stride*this->height, MEMDUR_EVENT | ID_IMAGE);
 		this->flags |= 1;
 	}
 	if(this->palette == nil){
 		if(this->depth == 4 || this->depth == 8)
-			this->palette = new uint8[(this->depth==4? 16 : 256)*4];
+			this->palette = rwNewT(uint8, (this->depth==4? 16 : 256)*4, MEMDUR_EVENT | ID_IMAGE);
 		this->flags |= 2;
 	}
 }
@@ -65,11 +65,11 @@ void
 Image::free(void)
 {
 	if(this->flags&1){
-		delete[] this->pixels;
+		rwFree(this->pixels);
 		this->pixels = nil;
 	}
 	if(this->flags&2){
-		delete[] this->palette;
+		rwFree(this->palette);
 		this->palette = nil;
 	}
 }
@@ -355,7 +355,7 @@ Image::unindex(void)
 
 	int32 ndepth = this->hasAlpha() ? 32 : 24;
 	int32 nstride = this->width*ndepth/8;
-	uint8 *npixels = new uint8[nstride*this->height];
+	uint8 *npixels = rwNewT(uint8, nstride*this->height, MEMDUR_EVENT | ID_IMAGE);
 
 	uint8 *line = this->pixels;
 	uint8 *nline = npixels;

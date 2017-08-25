@@ -48,12 +48,12 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 		return nil;
 	}
 
-	Skin *skin = new Skin;
+	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
 	int32 numBones = stream->readI32();
 	skin->init(numBones, 0, 0);
-	NativeSkin *natskin = new NativeSkin;
+	NativeSkin *natskin = rwNewT(NativeSkin, 1, MEMDUR_EVENT | ID_SKIN);
 	skin->platformData = natskin;
 	stream->read(natskin->table1, 256*sizeof(int32));
 	stream->read(natskin->table2, 256*sizeof(int32));
@@ -62,7 +62,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	stream->seek(4);	// skip pointer to vertexBuffer
 	natskin->stride = stream->readI32();
 	int32 size = geometry->numVertices*natskin->stride;
-	natskin->vertexBuffer = new uint8[size];
+	natskin->vertexBuffer = rwNewT(uint8, size, MEMDUR_EVENT | ID_SKIN);
 	stream->read(natskin->vertexBuffer, size);
 	stream->read(skin->inverseMatrices, skin->numBones*64);
 
@@ -119,7 +119,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	Skin *skin = Skin::get(geo);
 	if(skin == nil)
 		return;
-	NativeSkin *natskin = new NativeSkin;
+	NativeSkin *natskin = rwNewT(NativeSkin, 1, MEMDUR_EVENT | ID_SKIN);
 	skin->platformData = natskin;
 
 	natskin->numUsedBones = skin->numUsedBones;
@@ -131,7 +131,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 
 	natskin->stride = 3*skin->numWeights;
-	uint8 *vbuf = new uint8[header->numVertices*natskin->stride];
+	uint8 *vbuf = rwNewT(uint8, header->numVertices*natskin->stride, MEMDUR_EVENT | ID_SKIN);
 	natskin->vertexBuffer = vbuf;
 
 	int32 w[4];
@@ -179,7 +179,7 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	float *invMats = skin->inverseMatrices;
 	skin->init(skin->numBones, natskin->numUsedBones, geo->numVertices);
 	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
-	delete[] data;
+	rwFree(data);
 
 	for(int32 j = 0; j < skin->numUsedBones; j++)
 		skin->usedBones[j] = natskin->table1[j];
@@ -211,8 +211,8 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 		}
 	}
 
-	delete[] (uint8*)natskin->vertexBuffer;
-	delete natskin;
+	rwFree(natskin->vertexBuffer);
+	rwFree(natskin);
 }
 
 static void*

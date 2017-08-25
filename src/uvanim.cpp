@@ -49,7 +49,7 @@ UVAnimDictionary::destroy(void)
 		UVAnimDictEntry *de = UVAnimDictEntry::fromDict(lnk);
 		UVAnimCustomData *cust = UVAnimCustomData::get(de->anim);
 		cust->destroy(de->anim);
-		delete de;
+		rwFree(de);
 	}
 	rwFree(this);
 }
@@ -57,7 +57,7 @@ UVAnimDictionary::destroy(void)
 void
 UVAnimDictionary::add(Animation *anim)
 {
-	UVAnimDictEntry *de = new UVAnimDictEntry;
+	UVAnimDictEntry *de = rwNewT(UVAnimDictEntry, 1, MEMDUR_EVENT | ID_UVANIMDICT);
 	de->anim = anim;
 	this->animations.append(&de->inDict);
 }
@@ -172,7 +172,7 @@ static void
 registerUVAnimInterpolator(void)
 {
 	// Linear
-	AnimInterpolatorInfo *info = new AnimInterpolatorInfo;
+	AnimInterpolatorInfo *info = rwNewT(AnimInterpolatorInfo, 1, MEMDUR_GLOBAL | ID_UVANIMATION);
 	info->id = 0x1C0;
 	info->interpKeyFrameSize = sizeof(UVAnimInterpFrame);
 	info->animKeyFrameSize = sizeof(UVAnimKeyFrame);
@@ -188,7 +188,7 @@ registerUVAnimInterpolator(void)
 	AnimInterpolatorInfo::registerInterp(info);
 
 	// Param
-	info = new AnimInterpolatorInfo;
+	info = rwNewT(AnimInterpolatorInfo, 1, MEMDUR_GLOBAL | ID_UVANIMATION);
 	info->id = 0x1C1;
 	info->interpKeyFrameSize = sizeof(UVAnimInterpFrame);
 	info->animKeyFrameSize = sizeof(UVAnimKeyFrame);
@@ -226,7 +226,7 @@ destroyUVAnim(void *object, int32 offset, int32)
 			UVAnimCustomData *custom =
 				UVAnimCustomData::get(ip->currentAnim);
 			custom->destroy(ip->currentAnim);
-			delete ip;
+			rwFree(ip);
 		}
 	}
 	return object;

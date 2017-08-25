@@ -91,8 +91,8 @@ destroyNativeData(void *object, int32, int32)
 		deleteObject(inst->vertexBuffer);
 		inst++;
 	}
-	delete[] header->inst;
-	delete header;
+	rwFree(header->inst);
+	rwFree(header);
 	return object;
 }
 
@@ -110,17 +110,17 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_D3D8;
 
 	int32 size = stream->readI32();
-	uint8 *data = new uint8[size];
+	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->read(data, size);
 	uint8 *p = data;
 	header->serialNumber = *(uint16*)p; p += 2;
 	header->numMeshes = *(uint16*)p; p += 2;
-	header->inst = new InstanceData[header->numMeshes];
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -140,7 +140,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		inst->remapped = 0; p++;	// TODO: really unused? and what's that anyway?
 		inst++;
 	}
-	delete[] data;
+	rwFree(data);
 
 	inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -172,7 +172,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 
 	int32 size = 4 + geometry->meshHeader->numMeshes*0x2C;
-	uint8 *data = new uint8[size];
+	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->writeI32(size);
 	uint8 *p = data;
 	*(uint16*)p = header->serialNumber; p += 2;
@@ -197,7 +197,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		inst++;
 	}
 	stream->write(data, size);
-	delete[] data;
+	rwFree(data);
 
 	inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -251,17 +251,17 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
 	header->platform = PLATFORM_D3D8;
 
 	header->serialNumber = 0;
 	header->numMeshes = meshh->numMeshes;
-	header->inst = new InstanceData[header->numMeshes];
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
 	InstanceData *inst = header->inst;
-	Mesh *mesh = meshh->mesh;
+	Mesh *mesh = meshh->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
 		                          &inst->minVert, &inst->numVertices);
@@ -299,13 +299,13 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
-	geo->flags &= ~Geometry::NATIVE;
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
 	geo->allocateData();
-	geo->meshHeader->allocateIndices();
+	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	InstanceData *inst = header->inst;
-	Mesh *mesh = geo->meshHeader->mesh;
+	Mesh *mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		if(inst->minVert == 0)
@@ -320,6 +320,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		inst++;
 	}
 	geo->generateTriangles();
+	geo->flags &= ~Geometry::NATIVE;
 	destroyNativeData(geo, 0, 0);
 }
 
@@ -448,7 +449,7 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 	for(int32 i = 0; i < numLevels; i++){
 		uint32 size = stream->readU32();
 		if(i == 0){
-			data = new uint8[size];
+			data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_IMAGE);
 			stream->read(data, size);
 		}else
 			stream->seek(size);
@@ -471,7 +472,7 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 		}
 	}
 
-	delete[] data;
+	rwFree(data);
 	Raster *ras = Raster::createFromImage(img, PLATFORM_D3D8);
 	img->destroy();
 	return ras;

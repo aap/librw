@@ -83,7 +83,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 		return nil;
 	}
 	stream->read(header, 4);
-	Skin *skin = new Skin;
+	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
 	// numUsedBones and numWeights appear in/after 34003
@@ -313,7 +313,7 @@ skinPreCB(MatPipeline*, Geometry *geo)
 	// meshHeader->totalIndices is highest possible number of vertices again
 	skin->init(skin->numBones, skin->numBones, geo->meshHeader->totalIndices);
 	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
-	delete[] data;
+	rwFree(data);
 }
 
 void

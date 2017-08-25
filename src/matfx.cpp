@@ -101,7 +101,7 @@ MatFX::setEffects(Material *mat, uint32 type)
 
 	matfx = MatFX::get(mat);
 	if(matfx == nil){
-		matfx = new MatFX;
+		matfx = rwNewT(MatFX, 1, MEMDUR_EVENT | ID_MATFX);
 		memset(matfx, 0, sizeof(MatFX));
 		*PLUGINOFFSET(MatFX*, mat, matFXGlobals.materialOffset) = matfx;
 	}
@@ -231,7 +231,7 @@ destroyMaterialMatFX(void *object, int32 offset, int32)
 	MatFX *matfx = *PLUGINOFFSET(MatFX*, object, offset);
 	if(matfx){
 		clearMatFX(matfx);
-		delete matfx;
+		rwFree(matfx);
 	}
 	return object;
 }
@@ -242,7 +242,7 @@ copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
 	MatFX *srcfx = *PLUGINOFFSET(MatFX*, src, offset);
 	if(srcfx == nil)
 		return dst;
-	MatFX *dstfx = new MatFX;
+	MatFX *dstfx = rwNewT(MatFX, 1, MEMDUR_EVENT | ID_MATFX);
 	*PLUGINOFFSET(MatFX*, dst, offset) = dstfx;
 	memcpy(dstfx, srcfx, sizeof(MatFX));
 	for(int i = 0; i < 2; i++)

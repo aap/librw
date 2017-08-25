@@ -95,7 +95,7 @@ uploadGeo(Geometry *geo)
 	             0, GL_STATIC_DRAW);
 	GLintptr offset = 0;
 	for(uint32 i = 0; i < meshHeader->numMeshes; i++){
-		Mesh *mesh = &meshHeader->mesh[i];
+		Mesh *mesh = &meshHeader->getMeshes()[i];
 		glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numIndices*2,
 		                mesh->indices);
 		offset += mesh->numIndices*2;
@@ -240,9 +240,9 @@ destroyNativeData(void *object, int32, int32)
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = nil;
 	// TODO: delete ibo and vbo
-	delete[] header->attribs;
-	delete[] header->data;
-	delete header;
+	rwFree(header->attribs);
+	rwFree(header->data);
+	rwFree(header);
 	return object;
 }
 
@@ -250,17 +250,17 @@ Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
 	Geometry *geometry = (Geometry*)object;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_WDGL;
 	header->vbo = 0;
 	header->ibo = 0;
 	header->numAttribs = stream->readU32();
-	header->attribs = new AttribDesc[header->numAttribs];
+	header->attribs = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
 	stream->read(header->attribs,
 	            header->numAttribs*sizeof(AttribDesc));
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
-	header->data = new uint8[header->dataSize];
+	header->data = rwNewT(uint8, header->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
 	stream->read(header->data, header->dataSize);
 	return stream;
 }
@@ -325,7 +325,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE (or not, wdgl can't render)
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geo->instData = header;
 	header->platform = PLATFORM_WDGL;
 	header->vbo = 0;
@@ -337,7 +337,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->flags & Geometry::NORMALS)
 		header->numAttribs++;
 	int32 offset = 0;
-	header->attribs = new AttribDesc[header->numAttribs];
+	header->attribs = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
 
 	AttribDesc *a = header->attribs;
 	// Vertices
@@ -388,7 +388,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		offset += pipe->instanceCB(geo, firstCustom, offset);
 	else{
 		header->dataSize = offset*geo->numVertices;
-		header->data = new uint8[header->dataSize];
+		header->data = rwNewT(uint8, header->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
 	}
 
 	a = header->attribs;
@@ -453,7 +453,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_WDGL);
-	geo->flags &= ~Geometry::NATIVE;
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
 	geo->allocateData();
 
 	uint8 *p;
@@ -513,6 +513,7 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	geo->generateTriangles();
 
+	geo->flags &= ~Geometry::NATIVE;
 	destroyNativeData(geo, 0, 0);
 }
 
@@ -549,7 +550,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	Skin *skin = new Skin;
+	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
 	int32 numBones = stream->readI32();
@@ -602,7 +603,7 @@ skinInstanceCB(Geometry *g, int32 i, uint32 offset)
 	offset += 4;
 
 	header->dataSize = offset*g->numVertices;
-	header->data = new uint8[header->dataSize];
+	header->data = rwNewT(uint8, header->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
 
 	Skin *skin = Skin::get(g);
 	if(skin == nil)
@@ -640,7 +641,7 @@ skinUninstanceCB(Geometry *geo)
 	float *invMats = skin->inverseMatrices;
 	skin->init(skin->numBones, skin->numBones, geo->numVertices);
 	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
-	delete[] data;
+	rwFree(data);
 
 	uint8 *p;
 	float *weights = skin->weights;

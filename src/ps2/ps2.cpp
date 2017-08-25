@@ -61,9 +61,10 @@ destroyNativeData(void *object, int32, int32)
 		return object;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++)
-		delete[] header->instanceMeshes[i].data;
-	delete[] header->instanceMeshes;
-	delete header;
+		rwFree(header->instanceMeshes[i].data);
+	rwFree(header->instanceMeshes);
+	rwFree(header);
+	geometry->instData = nil;
 	return object;
 }
 
@@ -81,19 +82,20 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_PS2;
 	assert(geometry->meshHeader != nil);
 	header->numMeshes = geometry->meshHeader->numMeshes;
-	header->instanceMeshes = new InstanceData[header->numMeshes];
+	header->instanceMeshes = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
+	Mesh *m = geometry->meshHeader->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
 		uint32 buf[2];
 		stream->read(buf, 8);
 		instance->dataSize = buf[0];
 // TODO: force alignment
-		instance->data = new uint8[instance->dataSize];
+		instance->data = rwNewT(uint8, instance->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
 #ifdef RW_PS2
 		uint32 a = (uint32)instance->data;
 		assert(a % 0x10 == 0);
@@ -103,8 +105,9 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		if(!buf[1])
 			fixDmaOffsets(instance);
 #endif
-		instance->material = geometry->meshHeader->mesh[i].material;
+		instance->material = m->material;
 //		sizedebug(instance);
+		m++;
 	}
 	return stream;
 }
@@ -591,7 +594,7 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 
 	inst->dataSize = (im.size+im.size2)<<4;
 	// TODO: force alignment
-	inst->data = new uint8[inst->dataSize];
+	inst->data = rwNewT(uint8, inst->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
 
 	/* make array of addresses of broken out sections */
 	uint8 *datap[nelem(this->attribs)];
@@ -700,8 +703,7 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	PipeAttribute *a;
 	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
-	uint8 *raw = im.vertexSize*m->numIndices ?
-		new uint8[im.vertexSize*m->numIndices] : nil;
+	uint8 *raw = rwNewT(uint8, im.vertexSize*m->numIndices, MEMDUR_EVENT | ID_GEOMETRY);
 	uint8 *dp = raw;
 	for(uint i = 0; i < nelem(this->attribs); i++)
 		if(a = this->attribs[i])
@@ -752,14 +754,14 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// TODO: allow for REINSTANCE
 	if(geo->instData)
 		return;
-	InstanceDataHeader *header = new InstanceDataHeader;
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geo->instData = header;
 	header->platform = PLATFORM_PS2;
 	assert(geo->meshHeader != nil);
 	header->numMeshes = geo->meshHeader->numMeshes;
-	header->instanceMeshes = new InstanceData[header->numMeshes];
+	header->instanceMeshes = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->mesh[i];
+		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 
 		MatPipeline *m;
@@ -816,14 +818,15 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	// highest possible number of vertices
 	geo->numVertices = geo->meshHeader->totalIndices;
-	geo->flags &= ~Geometry::NATIVE;
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
 	geo->allocateData();
-	geo->meshHeader->allocateIndices();
-	uint32 *flags = new uint32[geo->numVertices];
+	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+	uint32 *flags = rwNewT(uint32, geo->numVertices,
+		MEMDUR_FUNCTION | ID_GEOMETRY);
 	memset(flags, 0, 4*geo->numVertices);
-	memset(geo->meshHeader->mesh[0].indices, 0, 2*geo->meshHeader->totalIndices);
+	memset(geo->meshHeader->getMeshes()->indices, 0, 2*geo->meshHeader->totalIndices);
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->mesh[i];
+		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
@@ -833,7 +836,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	}
 	geo->numVertices = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->mesh[i];
+		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
@@ -845,10 +848,10 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		uint8 *raw = m->collectData(geo, instance, mesh, data);
 		assert(m->uninstanceCB);
 		m->uninstanceCB(m, geo, flags, mesh, data);
-		if(raw) delete[] raw;
+		rwFree(raw);
 	}
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->mesh[i];
+		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
@@ -859,9 +862,9 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	int8 *bits = getADCbits(geo);
 	geo->generateTriangles(bits);
-	delete[] flags;
+	rwFree(flags);
+	geo->flags &= ~Geometry::NATIVE;
 	destroyNativeData(geo, 0, 0);
-	geo->instData = nil;
 /*
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Mesh *mesh = &geo->meshHeader->mesh[i];
@@ -1085,9 +1088,9 @@ getADCbitsForMesh(Geometry *geo, Mesh *mesh)
 	int8 *bits = getADCbits(geo);
 	if(bits == nil)
 		return nil;
-	int32 n = mesh - geo->meshHeader->mesh;
+	int32 n = mesh - geo->meshHeader->getMeshes();
 	for(int32 i = 0; i < n; i++)
-		bits += geo->meshHeader->mesh[i].numIndices;
+		bits += geo->meshHeader->getMeshes()[i].numIndices;
 	return bits;
 }
 
@@ -1105,28 +1108,30 @@ unconvertADC(Geometry *g)
 	if(!adc->adcFormatted)
 		return;
 	int8 *b = adc->adcBits;
-	MeshHeader *h = new MeshHeader;
-	h->flags = g->meshHeader->flags;	// should be tristrip
-	h->numMeshes = g->meshHeader->numMeshes;
-	h->mesh = new Mesh[h->numMeshes];
-	Mesh *oldm = g->meshHeader->mesh;
-	Mesh *newm = h->mesh;
-	h->totalIndices = 0;
-	for(int32 i = 0; i < h->numMeshes; i++){
+
+	MeshHeader *oldmh = g->meshHeader;
+	g->meshHeader = nil;
+	// Don't allocate indices for now
+	MeshHeader *newmh = g->allocateMeshes(oldmh->numMeshes, 0, 1);
+	newmh->flags = oldmh->flags;	// should be tristrip
+	Mesh *oldm = oldmh->getMeshes();
+	Mesh *newm = newmh->getMeshes();
+	for(int32 i = 0; i < newmh->numMeshes; i++){
 		newm->material = oldm->material;
 		newm->numIndices = oldm->numIndices;
 		for(uint32 j = 0; j < oldm->numIndices; j++)
 			if(*b++)
 				newm->numIndices += 2;
-		h->totalIndices += newm->numIndices;
+		newmh->totalIndices += newm->numIndices;
 		newm++;
 		oldm++;
 	}
-	h->allocateIndices();
+	// Now re-allocate with indices
+	newmh = g->allocateMeshes(newmh->numMeshes, newmh->totalIndices, 0);
 	b = adc->adcBits;
-	oldm = g->meshHeader->mesh;
-	newm = h->mesh;
-	for(int32 i = 0; i < h->numMeshes; i++){
+	oldm = oldmh->getMeshes();
+	newm = newmh->getMeshes();
+	for(int32 i = 0; i < newmh->numMeshes; i++){
 		int32 n = 0;
 		for(uint32 j = 0; j < oldm->numIndices; j++){
 			if(*b++){
@@ -1138,10 +1143,9 @@ unconvertADC(Geometry *g)
 		newm++;
 		oldm++;
 	}
-	delete g->meshHeader;
-	g->meshHeader = h;
+	rwFree(oldmh);
 	adc->adcFormatted = 0;
-	delete[] adc->adcBits;
+	rwFree(adc->adcBits);
 	adc->adcBits = nil;
 	adc->numBits = 0;
 }
@@ -1153,7 +1157,7 @@ allocateADC(Geometry *geo)
 	adc->adcFormatted = 1;
 	adc->numBits = geo->meshHeader->totalIndices;
 	int32 size = adc->numBits+3 & ~3;
-	adc->adcBits = new int8[size];
+	adc->adcBits = rwNewT(int8, size, MEMDUR_EVENT | ID_ADC);
 	memset(adc->adcBits, 0, size);
 }
 
@@ -1175,7 +1179,7 @@ copyADC(void *dst, void *src, int32 offset, int32)
 		return dst;
 	dstadc->numBits = srcadc->numBits;
 	int32 size = dstadc->numBits+3 & ~3;
-	dstadc->adcBits = new int8[size];
+	dstadc->adcBits = rwNewT(int8, size, MEMDUR_EVENT | ID_ADC);
 	memcpy(dstadc->adcBits, srcadc->adcBits, size);
 	return dst;
 }
@@ -1185,7 +1189,7 @@ destroyADC(void *object, int32 offset, int32)
 {
 	ADCData *adc = PLUGINOFFSET(ADCData, object, offset);
 	if(adc->adcFormatted)
-		delete[] adc->adcBits;
+		rwFree(adc->adcBits);
 	return object;
 }
 
@@ -1205,7 +1209,7 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 		return stream;
 	}
 	int32 size = adc->numBits+3 & ~3;
-	adc->adcBits = new int8[size];
+	adc->adcBits = rwNewT(int8, size, MEMDUR_EVENT | ID_ADC);
 	stream->read(adc->adcBits, size);
 	return stream;
 }

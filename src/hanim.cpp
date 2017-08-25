@@ -45,12 +45,11 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 		hier->matrices = nil;
 		hier->matricesUnaligned = nil;
 	}else{
-		hier->matricesUnaligned =
-		  (void*) new uint8[hier->numNodes*64 + 15];
+		hier->matricesUnaligned = rwNew(hier->numNodes*64 + 0xF, MEMDUR_EVENT | ID_HANIM);
 		hier->matrices =
 		  (Matrix*)((uintptr)hier->matricesUnaligned & ~0xF);
 	}
-	hier->nodeInfo = new HAnimNodeInfo[hier->numNodes];
+	hier->nodeInfo = rwNewT(HAnimNodeInfo, hier->numNodes, MEMDUR_EVENT | ID_HANIM);
 	for(int32 i = 0; i < hier->numNodes; i++){
 		hier->nodeInfo[i].id = nodeIDs[i];
 		hier->nodeInfo[i].index = i;
@@ -63,8 +62,8 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 void
 HAnimHierarchy::destroy(void)
 {
-	delete[] (uint8*)this->matricesUnaligned;
-	delete[] this->nodeInfo;
+	rwFree(this->matricesUnaligned);
+	rwFree(this->nodeInfo);
 	rwFree(this);
 }
 
@@ -208,8 +207,10 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		int32 maxKeySize = stream->readI32();
 		// Sizes are fucked for 64 bit pointers but
 		// AnimInterpolator::create() will take care of that
-		int32 *nodeFlags = new int32[numNodes];
-		int32 *nodeIDs = new int32[numNodes];
+		int32 *nodeFlags = rwNewT(int32, numNodes,
+			MEMDUR_FUNCTION | ID_HANIM);
+		int32 *nodeIDs = rwNewT(int32, numNodes,
+			MEMDUR_FUNCTION | ID_HANIM);
 		for(int32 i = 0; i < numNodes; i++){
 			nodeIDs[i] = stream->readI32();
 			stream->readI32();	// index...unused
@@ -218,8 +219,8 @@ readHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		hanim->hierarchy = HAnimHierarchy::create(numNodes,
 			nodeFlags, nodeIDs, flags, maxKeySize);
 		hanim->hierarchy->parentFrame = (Frame*)object;
-		delete[] nodeFlags;
-		delete[] nodeIDs;
+		rwFree(nodeFlags);
+		rwFree(nodeIDs);
 	}
 	return stream;
 }
@@ -325,7 +326,7 @@ registerHAnimPlugin(void)
 	                            writeHAnim,
 	                            getSizeHAnim);
 
-	AnimInterpolatorInfo *info = new AnimInterpolatorInfo;
+	AnimInterpolatorInfo *info = rwNewT(AnimInterpolatorInfo, 1, MEMDUR_GLOBAL | ID_HANIM);
 	info->id = 1;
 	info->interpKeyFrameSize = sizeof(HAnimInterpFrame);
 	info->animKeyFrameSize = sizeof(HAnimKeyFrame);

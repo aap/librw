@@ -9,6 +9,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
 #define PLUGIN_ID 2
 
@@ -427,7 +428,7 @@ Geometry::buildTristrips(void)
 
 	printf("%ld\n", sizeof(StripNode));
 
-	smesh.nodes = new StripNode[this->numTriangles];
+	smesh.nodes = rwNewT(StripNode, this->numTriangles, MEMDUR_FUNCTION | ID_GEOMETRY);
 	for(int32 i = 0; i < this->matList.numMaterials; i++){
 		smesh.loneNodes.init();
 		smesh.endNodes.init();
@@ -444,7 +445,7 @@ printf("-------\n");
 //printf("-------\n");
 //printEnds(&smesh);
 	}
-	delete[] smesh.nodes;
+	rwFree(smesh.nodes);
 
 	exit(1);
 }

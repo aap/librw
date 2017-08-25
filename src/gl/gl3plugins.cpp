@@ -342,7 +342,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	header->numAttribs = a - attribs;
 	for(a = attribs; a != &attribs[header->numAttribs]; a++)
 		a->stride = stride;
-	header->attribDesc = new AttribDesc[header->numAttribs];
+	header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
 	memcpy(header->attribDesc, attribs,
 	       header->numAttribs*sizeof(AttribDesc));
 
@@ -350,7 +350,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	// Allocate and fill vertex buffer
 	//
 	Skin *skin = Skin::get(geo);
-	uint8 *verts = new uint8[header->totalNumVertex*stride];
+	uint8 *verts = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
 	header->vertexBuffer = verts;
 
 	// Positions

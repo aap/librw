@@ -154,7 +154,7 @@ Shader::fromStrings(const char *vsrc, const char *fsrc)
 	glDeleteProgram(vs);
 	glDeleteProgram(fs);
 
-	Shader *sh = new Shader;
+	Shader *sh = rwNewT(Shader, 1, MEMDUR_EVENT | ID_DRIVER);	 // or global?
 
 	// set uniform block binding
 	for(i = 0; i < uniformRegistry.numBlocks; i++){
@@ -166,7 +166,7 @@ Shader::fromStrings(const char *vsrc, const char *fsrc)
 
 	// query uniform locations
 	sh->program = program;
-	sh->uniformLocations = new GLint[uniformRegistry.numUniforms];
+	sh->uniformLocations = rwNewT(GLint, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
 	for(i = 0; i < uniformRegistry.numUniforms; i++)
 		sh->uniformLocations[i] = glGetUniformLocation(program,
 			uniformRegistry.uniformNames[i]);
