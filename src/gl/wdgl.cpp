@@ -22,21 +22,21 @@
 namespace rw {
 namespace wdgl {
 
-void*
+static void*
 driverOpen(void *o, int32, int32)
 {
 	engine->driver[PLATFORM_WDGL]->defaultPipeline = makeDefaultPipeline();
 	return o;
 }
 
-void*
+static void*
 driverClose(void *o, int32, int32)
 {
 	return o;
 }
 
 void
-initializePlatform(void)
+registerPlatformPlugins(void)
 {
 	Driver::registerPlugin(PLATFORM_WDGL, 0, PLATFORM_WDGL,
 	                       driverOpen, driverClose);

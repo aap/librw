@@ -8,7 +8,7 @@ struct EngineStartParams
 
 namespace ps2 {
 
-void initializePlatform(void);
+void registerPlatformPlugins(void);
 
 extern Device renderdevice;
 

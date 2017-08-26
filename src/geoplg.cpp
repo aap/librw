@@ -210,8 +210,8 @@ getSizeMesh(void *object, int32, int32)
 void
 registerMeshPlugin(void)
 {
-	Geometry::registerPlugin(0, 0x50E, nil, nil, nil);
-	Geometry::registerPluginStream(0x50E, readMesh, writeMesh, getSizeMesh);
+	Geometry::registerPlugin(0, ID_MESH, nil, nil, nil);
+	Geometry::registerPluginStream(ID_MESH, readMesh, writeMesh, getSizeMesh);
 }
 
 // Returns the maximum number of triangles. Just so

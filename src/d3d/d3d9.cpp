@@ -28,7 +28,7 @@ static VertexElement _d3ddec_end = {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0};
 
 #define NUMDECLELT 12
 
-void*
+static void*
 driverOpen(void *o, int32, int32)
 {
 	engine->driver[PLATFORM_D3D9]->defaultPipeline = makeDefaultPipeline();
@@ -43,14 +43,14 @@ driverOpen(void *o, int32, int32)
 	return o;
 }
 
-void*
+static void*
 driverClose(void *o, int32, int32)
 {
 	return o;
 }
 
 void
-initializePlatform(void)
+registerPlatformPlugins(void)
 {
 	Driver::registerPlugin(PLATFORM_D3D9, 0, PLATFORM_D3D9,
 	                       driverOpen, driverClose);

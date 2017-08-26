@@ -20,7 +20,7 @@ namespace rw {
 namespace d3d8 {
 using namespace d3d;
 
-void*
+static void*
 driverOpen(void *o, int32, int32)
 {
 	engine->driver[PLATFORM_D3D8]->defaultPipeline = makeDefaultPipeline();
@@ -35,14 +35,14 @@ driverOpen(void *o, int32, int32)
 	return o;
 }
 
-void*
+static void*
 driverClose(void *o, int32, int32)
 {
 	return o;
 }
 
 void
-initializePlatform(void)
+registerPlatformPlugins(void)
 {
 	Driver::registerPlugin(PLATFORM_D3D8, 0, PLATFORM_D3D8,
 	                       driverOpen, driverClose);

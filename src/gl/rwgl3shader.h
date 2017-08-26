@@ -11,17 +11,17 @@ enum {
 
 struct UniformRegistry
 {
-	int numUniforms;
+	int32 numUniforms;
 	char *uniformNames[MAX_UNIFORMS];
 
-	int numBlocks;
+	int32 numBlocks;
 	char *blockNames[MAX_BLOCKS];
 };
 
-int registerUniform(const char *name);
-int findUniform(const char *name);
-int registerBlock(const char *name);
-int findBlock(const char *name);
+int32 registerUniform(const char *name);
+int32 findUniform(const char *name);
+int32 registerBlock(const char *name);
+int32 findBlock(const char *name);
 
 extern UniformRegistry uniformRegistry;
 

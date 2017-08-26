@@ -36,6 +36,8 @@ getPDSPipe(uint32 data)
 void
 registerPDSPipe(Pipeline *pipe)
 {
+	if(pdsGlobals.pipes == nil)
+		pdsGlobals.pipes = rwNewT(Pipeline*, pdsGlobals.maxPipes, MEMDUR_GLOBAL | ID_PDS);
 	assert(pdsGlobals.numPipes < pdsGlobals.maxPipes);
 	pdsGlobals.pipes[pdsGlobals.numPipes++] = pipe;
 }
@@ -56,12 +58,22 @@ materialPDSRights(void *object, int32, int32, uint32 data)
 //	printf("mat pds: %x %x %x\n", data, m->pipeline->pluginID, m->pipeline->pluginData);
 }
 
+static void *pdsOpen(void *object, int32 offset, int32 size) { return object; }
+static void*
+pdsClose(void *object, int32 offset, int32 size)
+{
+	// TODO MEMORY: free registered pipelines
+	rwFree(pdsGlobals.pipes);
+	return object;
+}
+
 void
 registerPDSPlugin(int32 n)
 {
 	pdsGlobals.maxPipes = n;
 	pdsGlobals.numPipes = 0;
-	pdsGlobals.pipes = rwNewT(Pipeline*, n, MEMDUR_GLOBAL | ID_PDS);
+	pdsGlobals.pipes = nil;
+	Engine::registerPlugin(0, ID_PDS, pdsOpen, pdsClose);
 	Atomic::registerPlugin(0, ID_PDS, nil, nil, nil);
 	Atomic::setStreamRightsCallback(ID_PDS, atomicPDSRights);
 

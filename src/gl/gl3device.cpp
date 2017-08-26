@@ -60,12 +60,16 @@ struct UniformObject
 	UniformLight lights[MAX_LIGHTS];
 };
 
-GLuint vao;
-GLuint ubo_state, ubo_scene, ubo_object;
-GLuint whitetex;
-UniformState uniformState;
-UniformScene uniformScene;
-UniformObject uniformObject;
+static GLuint vao;
+static GLuint ubo_state, ubo_scene, ubo_object;
+static GLuint whitetex;
+static UniformState uniformState;
+static UniformScene uniformScene;
+static UniformObject uniformObject;
+
+int32 u_matColor;
+int32 u_surfaceProps;
+
 
 Shader *simpleShader;
 
@@ -501,8 +505,11 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
-#include "shaders/simple_gl3.inc"
-	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
+	registerBlock("Scene");
+	registerBlock("Object");
+	registerBlock("State");
+	u_matColor = registerUniform("u_matColor");
+	u_surfaceProps = registerUniform("u_surfaceProps");
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 
@@ -510,6 +517,25 @@ initOpenGL(void)
 
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
+
+	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+	glGenTextures(1, &whitetex);
+	glBindTexture(GL_TEXTURE_2D, whitetex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
+	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
+
+	im2DInit();
+
+	return 1;
+}
+
+static int
+finalizeOpenGL(void)
+{
+#include "shaders/simple_gl3.inc"
+	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
 
 	glGenBuffers(1, &ubo_state);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
@@ -532,15 +558,6 @@ initOpenGL(void)
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-	glGenTextures(1, &whitetex);
-	glBindTexture(GL_TEXTURE_2D, whitetex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
-	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
-
-	im2DInit();
 	return 1;
 }
 
@@ -552,6 +569,8 @@ deviceSystem(DeviceReq req, void *arg0)
 		return startGLFW((EngineStartParams*)arg0);
 	case DEVICEINIT:
 		return initOpenGL();
+	case DEVICEFINALIZE:
+		return finalizeOpenGL();
 	case DEVICESTOP:
 		return stopGLFW();
 	}

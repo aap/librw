@@ -202,6 +202,22 @@ InitRW(void)
 }
 
 void
+im2dtest(void)
+{
+	static rw::gl3::Im2DVertex verts[] = {
+	  { -0.5, -0.5, 0.0,  255, 0, 0, 255,  0.0, 0.0 },
+	  {  0.5, -0.5, 0.0,  0, 255, 0, 255,  0.0, 0.0 },
+	  { -0.5,  0.5, 0.0,  0, 0, 255, 255,  0.0, 0.0 },
+	  {  0.5,  0.5, 0.0,  0, 255, 255, 255,  0.0, 0.0 },
+	};
+	static short indices[] = {
+		0, 1, 2, 3
+	};
+	rw::engine->device.im2DRenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
+		&verts, 4, &indices, 4);
+}
+
+void
 Draw(float timeDelta)
 {
 	static rw::RGBA clearcol = { 0x80, 0x80, 0x80, 0xFF };
@@ -210,6 +226,7 @@ Draw(float timeDelta)
 	camera->m_rwcam->beginUpdate();
 
 	clump->render();
+	im2dtest();
 
 	camera->m_rwcam->endUpdate();
 	camera->m_rwcam->showRaster();

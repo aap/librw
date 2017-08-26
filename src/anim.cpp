@@ -24,6 +24,8 @@ namespace rw {
 
 static AnimInterpolatorInfo *interpInfoList[MAXINTERPINFO];
 
+// TODO MEMORY: also clean it up again
+
 void
 AnimInterpolatorInfo::registerInterp(AnimInterpolatorInfo *interpInfo)
 {

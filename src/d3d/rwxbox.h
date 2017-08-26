@@ -1,7 +1,7 @@
 namespace rw {
 namespace xbox {
 
-void initializePlatform(void);
+void registerPlatformPlugins(void);
 
 struct InstanceData
 {

@@ -16,7 +16,7 @@ struct EngineStartParams
 
 namespace gl3 {
 
-void initializePlatform(void);
+void registerPlatformPlugins(void);
 
 extern Device renderdevice;
 
@@ -45,6 +45,10 @@ enum AttribIndices
 	ATTRIB_TEXCOORDS6,
 	ATTRIB_TEXCOORDS7,
 };
+
+// default uniform indices
+extern int32 u_matColor;
+extern int32 u_surfaceProps;
 
 struct InstanceData
 {

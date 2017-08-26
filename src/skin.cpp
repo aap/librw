@@ -278,8 +278,8 @@ copySkinAtm(void *dst, void *src, int32 offset, int32)
 	return dst;
 }
 
-void
-registerSkinPlugin(void)
+static void*
+skinOpen(void *o, int32, int32)
 {
 	// init dummy pipelines
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
@@ -287,7 +287,20 @@ registerSkinPlugin(void)
 	defpipe->pluginData = 1;
 	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
 		skinGlobals.pipelines[i] = defpipe;
+	return o;
+}
 
+static void*
+skinClose(void *o, int32, int32)
+{
+	return o;
+}
+
+void
+registerSkinPlugin(void)
+{
+	Driver::registerPlugin(PLATFORM_NULL, 0, ID_SKIN,
+	                       skinOpen, skinClose);
 	ps2::initSkin();
 	xbox::initSkin();
 	d3d8::initSkin();

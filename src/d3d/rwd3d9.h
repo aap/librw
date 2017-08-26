@@ -1,7 +1,7 @@
 namespace rw {
 namespace d3d9 {
 
-void initializePlatform(void);
+void registerPlatformPlugins(void);
 
 struct VertexElement
 {

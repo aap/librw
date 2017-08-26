@@ -1,7 +1,7 @@
 namespace rw {
 namespace d3d8 {
 
-void initializePlatform(void);
+void registerPlatformPlugins(void);
 
 struct InstanceData
 {

@@ -337,11 +337,18 @@ getSizeUVAnim(void *object, int32 offset, int32)
 	return size ? size + 12 + 4 : 0;
 }
 
+static void*
+uvanimOpen(void *object, int32 offset, int32 size)
+{
+	registerUVAnimInterpolator();
+	return object;
+}
+static void *uvanimClose(void *object, int32 offset, int32 size) { return object; }
 
 void
 registerUVAnimPlugin(void)
 {
-	registerUVAnimInterpolator();
+	Engine::registerPlugin(0, ID_UVANIMATION, uvanimOpen, uvanimClose);
 	uvAnimOffset = Material::registerPlugin(sizeof(UVAnim), ID_UVANIMATION,
 		createUVAnim, destroyUVAnim, copyUVAnim);
 	Material::registerPluginStream(ID_UVANIMATION,

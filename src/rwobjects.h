@@ -136,8 +136,10 @@ struct Frame
 	Frame *cloneAndLink(Frame *clonedroot);
 	void purgeClone(void);
 
-
-	static LinkList dirtyList;
+#ifndef RWPUBLIC
+	static void *_open(void*, int32, int32);
+	static void *_close(void*, int32, int32);
+#endif
 	static void syncDirty(void);
 };
 

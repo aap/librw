@@ -49,6 +49,8 @@ enum DeviceReq
 	DEVICESTART,
 	// Device initialization before Engine/Driver plugins are opened
 	DEVICEINIT,
+	// Device initialization after plugins are opened
+	DEVICEFINALIZE,
 	// Device/Context shutdown
 	DEVICESTOP,
 };
@@ -120,7 +122,6 @@ struct MemoryFunctions
 
 // This is for platform independent things
 // TODO: move more stuff into this
-// TODO: make this have plugins and allocate in Engine::open
 struct Engine
 {
 	enum State {
@@ -132,6 +133,7 @@ struct Engine
 	void *currentCamera;
 	void *currentWorld;
 	Texture *imtexture;
+	LinkList frameDirtyList;
 
 	TexDictionary *currentTexDictionary;
 	// load textures from files
@@ -152,6 +154,12 @@ struct Engine
 	static void term(void);
 	static void close(void);
 	static void stop(void);
+
+	static PluginList s_plglist;
+	static int32 registerPlugin(int32 size, uint32 id,
+	                            Constructor ctor, Destructor dtor){
+		return s_plglist.registerPlugin(size, id, ctor, dtor, nil);
+	}
 };
 
 extern Engine *engine;

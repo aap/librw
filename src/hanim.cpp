@@ -315,17 +315,9 @@ assert(t >= in1->time && t <= in2->time);
 	out->q = slerp(in1->q, in2->q, a);
 }
 
-void
-registerHAnimPlugin(void)
+static void*
+hanimOpen(void *object, int32 offset, int32 size)
 {
-	hAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIM,
-	                                    createHAnim,
-	                                    destroyHAnim, copyHAnim);
-	Frame::registerPluginStream(ID_HANIM,
-	                            readHAnim,
-	                            writeHAnim,
-	                            getSizeHAnim);
-
 	AnimInterpolatorInfo *info = rwNewT(AnimInterpolatorInfo, 1, MEMDUR_GLOBAL | ID_HANIM);
 	info->id = 1;
 	info->interpKeyFrameSize = sizeof(HAnimInterpFrame);
@@ -340,6 +332,21 @@ registerHAnimPlugin(void)
 	info->streamWrite = hAnimFrameWrite;
 	info->streamGetSize = hAnimFrameGetSize;
 	AnimInterpolatorInfo::registerInterp(info);
+	return object;
 }
+static void *hanimClose(void *object, int32 offset, int32 size) { return object; }
+
+
+void
+registerHAnimPlugin(void)
+{
+	Engine::registerPlugin(0, ID_HANIM, hanimOpen, hanimClose);
+	hAnimOffset = Frame::registerPlugin(sizeof(HAnimData), ID_HANIM,
+	                                    createHAnim,
+	                                    destroyHAnim, copyHAnim);
+	Frame::registerPluginStream(ID_HANIM,
+	                            readHAnim,
+	                            writeHAnim,
+	                            getSizeHAnim);}
 
 }

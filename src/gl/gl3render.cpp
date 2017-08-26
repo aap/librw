@@ -64,7 +64,7 @@ lightingCB(void)
 	setAmbientLight(&ambLight);
 }
 
-#define U(s) currentShader->uniformLocations[findUniform(s)]
+#define U(i) currentShader->uniformLocations[i]
 
 void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
@@ -90,13 +90,13 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		m = inst->material;
 
 		convColor(&col, &m->color);
-		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+		glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
 
 		surfProps[0] = m->surfaceProps.ambient;
 		surfProps[1] = m->surfaceProps.specular;
 		surfProps[2] = m->surfaceProps.diffuse;
 		surfProps[3] = 0.0f;
-		glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+		glUniform4fv(U(u_surfaceProps), 1, surfProps);
 
 		setTexture(0, m->texture);
 

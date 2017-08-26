@@ -29,9 +29,10 @@
 namespace rw {
 
 Engine *engine;
-PluginList Driver::s_plglist[NUM_PLATFORMS];
+PluginList Engine::s_plglist;
 Engine::State Engine::state = Dead;
 MemoryFunctions Engine::memfuncs;
+PluginList Driver::s_plglist[NUM_PLATFORMS];
 
 void *malloc_h(size_t sz, uint32 hint) { if(sz == 0) return nil; return malloc(sz); }
 void *realloc_h(void *p, size_t sz, uint32 hint) { return realloc(p, sz); }
@@ -58,9 +59,6 @@ void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 }
 
 // This function mainly registers engine plugins
-// RW initializes memory related things here too and
-// uses more plugins
-// TODO: do this^ ?
 bool32
 Engine::init(void)
 {
@@ -69,6 +67,7 @@ Engine::init(void)
 		return 0;
 	}
 
+	// TODO: make this an argument
 	memfuncs.rwmalloc = malloc_h;
 	memfuncs.rwrealloc = realloc_h;
 	memfuncs.rwfree = free;
@@ -78,22 +77,28 @@ Engine::init(void)
 	PluginList init = { sizeof(Driver), sizeof(Driver), nil, nil };
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i] = init;
+	Engine::s_plglist.size = sizeof(Engine);
+	Engine::s_plglist.defaultSize = sizeof(Engine);
+	Engine::s_plglist.first = nil;
+	Engine::s_plglist.last = nil;
 
-	// Register plugins
-	// TODO: these are wrong
-	ps2::initializePlatform();
-	xbox::initializePlatform();
-	d3d8::initializePlatform();
-	d3d9::initializePlatform();
-	wdgl::initializePlatform();
-	gl3::initializePlatform();
+	// core plugin attach here
+	Engine::registerPlugin(0, ID_FRAMEMODULE, Frame::_open, Frame::_close);
+
+	// driver plugin attach
+	ps2::registerPlatformPlugins();
+	xbox::registerPlatformPlugins();
+	d3d8::registerPlatformPlugins();
+	d3d9::registerPlatformPlugins();
+	wdgl::registerPlatformPlugins();
+	gl3::registerPlatformPlugins();
 
 	Engine::state = Initialized;
 	return 1;
 }
 
 // This is where RW allocates the engine and e.g. opens d3d
-// TODO: this will take an argument with device specific data (HWND &c.)
+// TODO: this will probably take an argument with device specific data
 bool32
 Engine::open(void)
 {
@@ -103,7 +108,7 @@ Engine::open(void)
 	}
 
 	// Allocate engine
-	engine = rwNewT(Engine, 1, MEMDUR_GLOBAL);
+	engine = (Engine*)rwNew(Engine::s_plglist.size, MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
 	engine->currentTexDictionary = nil;
@@ -155,16 +160,14 @@ Engine::start(EngineStartParams *p)
 		return 0;
 	}
 
-	// Start device
 	engine->device.system(DEVICESTART, (void*)p);
 	engine->device.system(DEVICEINIT, nil);
 
-	// TODO: construct engine plugins
-	Frame::dirtyList.init();
+	Engine::s_plglist.construct(engine);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].construct(rw::engine->driver[i]);
 
-	// TODO: finalize device start
+	engine->device.system(DEVICEFINALIZE, nil);
 
 	Engine::state = Started;
 	return 1;
@@ -174,19 +177,27 @@ void
 Engine::term(void)
 {
 	// TODO
+	for(uint i = 0; i < NUM_PLATFORMS; i++)
+		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
+	Engine::s_plglist.destruct(engine);
+	Engine::state = Opened;
 }
 
 void
 Engine::close(void)
 {
 	// TODO
+	for(uint i = 0; i < NUM_PLATFORMS; i++)
+		rwFree(rw::engine->driver[i]);
 	rwFree(engine);
+	Engine::state = Initialized;
 }
 
 void
 Engine::stop(void)
 {
 	engine->device.system(DEVICESTOP, nil);
+	Engine::state = Dead;
 }
 
 namespace null {

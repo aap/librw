@@ -12,8 +12,11 @@
 
 namespace rw {
 
-LinkList Frame::dirtyList;
 PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
+void *Frame::_open(void *object, int32 offset, int32 size) { engine->frameDirtyList.init(); return object; }
+void *Frame::_close(void *object, int32 offset, int32 size) { return object; }
+
+
 
 Frame*
 Frame::create(void)
@@ -227,7 +230,7 @@ void
 Frame::syncDirty(void)
 {
 	Frame *frame;
-	FORLIST(lnk, Frame::dirtyList){
+	FORLIST(lnk, engine->frameDirtyList){
 		frame = LLLinkGetData(lnk, Frame, inDirtyList);
 		if(frame->object.privateFlags & Frame::HIERARCHYSYNCLTM){
 			// Sync root's LTM
@@ -247,7 +250,7 @@ Frame::syncDirty(void)
 		// all clean now
 		frame->object.privateFlags &= ~(Frame::SYNCLTM | Frame::SYNCOBJ);
 	}
-	Frame::dirtyList.init();
+	engine->frameDirtyList.init();
 }
 
 void
@@ -283,7 +286,7 @@ Frame::updateObjects(void)
 {
 	// Mark root as dirty and insert into dirty list if necessary
 	if((this->root->object.privateFlags & HIERARCHYSYNC) == 0)
-		Frame::dirtyList.add(&this->root->inDirtyList);
+		engine->frameDirtyList.add(&this->root->inDirtyList);
 	this->root->object.privateFlags |= HIERARCHYSYNC;
 	// Mark subtree as dirty as well
 	this->object.privateFlags |= SUBTREESYNC;

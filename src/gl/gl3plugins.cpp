@@ -25,13 +25,19 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
+#define U(i) currentShader->uniformLocations[i]
+
 // MatFX
 
-Shader *envShader;
+static Shader *envShader;
+static int32 u_texMatrix;
+static int32 u_coefficient;
 
 static void*
 matfxOpen(void *o, int32, int32)
 {
+	u_texMatrix = registerUniform("u_texMatrix");
+	u_coefficient = registerUniform("u_coefficient");
 #include "shaders/matfx_gl3.inc"
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
 	envShader = Shader::fromStrings(matfx_env_vert_src, matfx_env_frag_src);
@@ -49,11 +55,8 @@ initMatFX(void)
 {
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_MATFX,
 	                       matfxOpen, matfxClose);
-	registerUniform("u_texMatrix");
-	registerUniform("u_coefficient");
 }
 
-#define U(s) currentShader->uniformLocations[findUniform(s)]
 
 void
 matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
@@ -66,13 +69,13 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 	simpleShader->use();
 
 	convColor(&col, &m->color);
-	glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
 
 	surfProps[0] = m->surfaceProps.ambient;
 	surfProps[1] = m->surfaceProps.specular;
 	surfProps[2] = m->surfaceProps.diffuse;
 	surfProps[3] = 0.0f;
-	glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+	glUniform4fv(U(u_surfaceProps), 1, surfProps);
 
 	setTexture(0, m->texture);
 
@@ -160,18 +163,18 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst)
 	envShader->use();
 
 	convColor(&col, &m->color);
-	glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
 
 	surfProps[0] = m->surfaceProps.ambient;
 	surfProps[1] = m->surfaceProps.specular;
 	surfProps[2] = m->surfaceProps.diffuse;
 	surfProps[3] = 0.0f;
-	glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+	glUniform4fv(U(u_surfaceProps), 1, surfProps);
 
-	glUniform1fv(U("u_coefficient"), 1, &env->coefficient);
+	glUniform1fv(U(u_coefficient), 1, &env->coefficient);
 
 	calcEnvTexMatrix(env->frame, texMat);
-	glUniformMatrix4fv(U("u_texMatrix"), 1, GL_FALSE, texMat);
+	glUniformMatrix4fv(U(u_texMatrix), 1, GL_FALSE, texMat);
 
 	setTexture(0, env->tex);
 
@@ -232,11 +235,13 @@ makeMatFXPipeline(void)
 
 // Skin
 
-Shader *skinShader;
+static Shader *skinShader;
+static int32 u_boneMatrices;
 
 static void*
 skinOpen(void *o, int32, int32)
 {
+	u_boneMatrices = registerUniform("u_boneMatrices");
 #include "shaders/simple_gl3.inc"
 #include "shaders/skin_gl3.inc"
 	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
@@ -255,7 +260,6 @@ initSkin(void)
 {
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
 	                       skinOpen, skinClose);
-	registerUniform("u_boneMatrices");
 }
 
 enum
@@ -416,8 +420,6 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	assert(0 && "can't uninstance");
 }
 
-#define U(s) currentShader->uniformLocations[findUniform(s)]
-
 static float skinMatrices[64*16];
 
 void
@@ -464,20 +466,20 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	skinShader->use();
 
 	updateSkinMatrices(atomic);
-	glUniformMatrix4fv(U("u_boneMatrices"), 64, GL_FALSE,
+	glUniformMatrix4fv(U(u_boneMatrices), 64, GL_FALSE,
 	                   (GLfloat*)skinMatrices);
 
 	while(n--){
 		m = inst->material;
 
 		convColor(&col, &m->color);
-		glUniform4fv(U("u_matColor"), 1, (GLfloat*)&col);
+		glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
 
 		surfProps[0] = m->surfaceProps.ambient;
 		surfProps[1] = m->surfaceProps.specular;
 		surfProps[2] = m->surfaceProps.diffuse;
 		surfProps[3] = 0.0f;
-		glUniform4fv(U("u_surfaceProps"), 1, surfProps);
+		glUniform4fv(U(u_surfaceProps), 1, surfProps);
 
 		setTexture(0, m->texture);
 

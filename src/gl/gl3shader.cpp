@@ -18,17 +18,20 @@ namespace gl3 {
 
 UniformRegistry uniformRegistry;
 
-int
+int32
 registerUniform(const char *name)
 {
 	int i;
 	i = findUniform(name);
 	if(i >= 0) return i;
+	// TODO: print error
+	if(uniformRegistry.numUniforms+1 >= MAX_UNIFORMS)
+		return -1;
 	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = strdup(name);
 	return uniformRegistry.numUniforms++;
 }
 
-int
+int32
 findUniform(const char *name)
 {
 	int i;
@@ -38,17 +41,20 @@ findUniform(const char *name)
 	return -1;
 }
 
-int
+int32
 registerBlock(const char *name)
 {
 	int i;
 	i = findBlock(name);
 	if(i >= 0) return i;
+	// TODO: print error
+	if(uniformRegistry.numBlocks+1 >= MAX_BLOCKS)
+		return -1;
 	uniformRegistry.blockNames[uniformRegistry.numBlocks] = strdup(name);
 	return uniformRegistry.numBlocks++;
 }
 
-int
+int32
 findBlock(const char *name)
 {
 	int i;

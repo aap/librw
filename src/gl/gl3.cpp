@@ -22,7 +22,7 @@ namespace gl3 {
 
 // TODO: make some of these things platform-independent
 
-void*
+static void*
 driverOpen(void *o, int32, int32)
 {
 #ifdef RW_OPENGL
@@ -38,28 +38,18 @@ driverOpen(void *o, int32, int32)
 	return o;
 }
 
-void*
+static void*
 driverClose(void *o, int32, int32)
 {
 	return o;
 }
 
 void
-initializePlatform(void)
+registerPlatformPlugins(void)
 {
 	Driver::registerPlugin(PLATFORM_GL3, 0, PLATFORM_GL3,
 	                       driverOpen, driverClose);
-
 	registerNativeRaster();
-
-#ifdef RW_OPENGL
-	// uniforms need to be registered before any shaders are created
-	registerBlock("Scene");
-	registerBlock("Object");
-	registerBlock("State");
-	registerUniform("u_matColor");
-	registerUniform("u_surfaceProps");
-#endif
 }
 
 }

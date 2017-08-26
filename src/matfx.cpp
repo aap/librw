@@ -437,8 +437,8 @@ MatFX::enableEffects(Atomic *atomic)
 	atomic->pipeline = matFXGlobals.pipelines[rw::platform];
 }
 
-void
-registerMatFXPlugin(void)
+static void*
+matfxOpen(void *o, int32, int32)
 {
 	// init dummy pipelines
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
@@ -446,7 +446,20 @@ registerMatFXPlugin(void)
 	defpipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
 		matFXGlobals.pipelines[i] = defpipe;
+	return o;
+}
 
+static void*
+matfxClose(void *o, int32, int32)
+{
+	return o;
+}
+
+void
+registerMatFXPlugin(void)
+{
+	Driver::registerPlugin(PLATFORM_NULL, 0, ID_MATFX,
+	                       matfxOpen, matfxClose);
 	ps2::initMatFX();
 	xbox::initMatFX();
 	d3d8::initMatFX();

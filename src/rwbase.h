@@ -463,6 +463,12 @@ enum PluginID
 	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0),
 };
 
+enum CoreModuleID
+{
+	ID_NAMODULE      = MAKEPLUGINID(VEND_CRITERIONINT, 0x00),
+	ID_FRAMEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x03),
+};
+
 #define ECODE(c, s) c,
 
 enum Errors
