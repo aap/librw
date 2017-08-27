@@ -14,6 +14,8 @@ rw::Texture *tex;
 rw::EngineStartParams engineStartParams;
 
 void tlTest(rw::Clump *clump);
+void initFont(void);
+void printScreen(const char *s, float x, float y);
 
 void
 Init(void)
@@ -158,6 +160,8 @@ InitRW(void)
 	if(!sk::InitRW())
 		return false;
 
+	initFont();
+
 	tex = rw::Texture::read("maze", nil);
 
 	char *filename = "teapot.dff";
@@ -270,6 +274,7 @@ Draw(float timeDelta)
 	Scene.clump->render();
 	im2dtest();
 //	tlTest(Scene.clump);
+	printScreen("Hello, World!", 10, 10);
 
 	camera->m_rwcam->endUpdate();
 	camera->m_rwcam->showRaster();
