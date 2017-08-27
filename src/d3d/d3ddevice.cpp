@@ -10,6 +10,7 @@
 #include "../rwobjects.h"
 #include "../rwengine.h"
 #include "rwd3d.h"
+#include "rwd3dimpl.h"
 
 #define PLUGIN_ID 0
 
@@ -275,6 +276,7 @@ setRasterStage(uint32 stage, Raster *raster)
 void
 setTexture(uint32 stage, Texture *tex)
 {
+	// TODO: support mipmaps
 	static DWORD filternomip[] = {
 		0, D3DTEXF_POINT, D3DTEXF_LINEAR,
 		   D3DTEXF_POINT, D3DTEXF_LINEAR,
@@ -289,10 +291,10 @@ setTexture(uint32 stage, Texture *tex)
 		return;
 	}
 	if(tex->raster){
-		setSamplerState(stage, D3DSAMP_MAGFILTER, filternomip[tex->filterAddressing & 0xFF]);
-		setSamplerState(stage, D3DSAMP_MINFILTER, filternomip[tex->filterAddressing & 0xFF]);
-		setSamplerState(stage, D3DSAMP_ADDRESSU, wrap[(tex->filterAddressing >> 8) & 0xF]);
-		setSamplerState(stage, D3DSAMP_ADDRESSV, wrap[(tex->filterAddressing >> 12) & 0xF]);
+		setSamplerState(stage, D3DSAMP_MAGFILTER, filternomip[tex->getFilter()]);
+		setSamplerState(stage, D3DSAMP_MINFILTER, filternomip[tex->getFilter()]);
+		setSamplerState(stage, D3DSAMP_ADDRESSU, wrap[tex->getAddressU()]);
+		setSamplerState(stage, D3DSAMP_ADDRESSV, wrap[tex->getAddressV()]);
 	}
 	setRasterStage(stage, tex->raster);
 }
@@ -528,6 +530,14 @@ initD3D(void)
 //	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
 //	setTextureStageState(0, D3DTSS_COLOROP, D3DTA_CONSTANT);
 
+	openIm2D();
+
+	return 1;
+}
+
+static int
+finalizeD3D(void)
+{
 	return 1;
 }
 
@@ -539,6 +549,8 @@ deviceSystem(DeviceReq req, void *arg0)
 		return startD3D((EngineStartParams*)arg0);
 	case DEVICEINIT:
 		return initD3D();
+	case DEVICEFINALIZE:
+		return finalizeD3D();
 	case DEVICESTOP:
 		return stopD3D();
 	}
@@ -553,7 +565,7 @@ Device renderdevice = {
 	d3d::showRaster,
 	d3d::setRwRenderState,
 	d3d::getRwRenderState,
-	null::im2DRenderIndexedPrimitive,
+	d3d::im2DRenderIndexedPrimitive,
 	d3d::deviceSystem,
 };
 

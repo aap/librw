@@ -17,10 +17,8 @@ InitRW(void)
 		return false;
 	if(!rw::Engine::start(&engineStartParams))
 		return false;
-	rw::engine->loadTextures = 1;
 
-	rw::TexDictionary::setCurrent(rw::TexDictionary::create());
-	rw::Image::setSearchPath(".");
+	rw::Image::setSearchPath("./");
 	return true;
 }
 

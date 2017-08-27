@@ -284,6 +284,9 @@ Camera::create(void)
 	cam->fogPlane = 5.0f;
 	cam->projection = Camera::PERSPECTIVE;
 
+	cam->frameBuffer = nil;
+	cam->zBuffer = nil;
+
 	// clump extension
 	cam->clump = nil;
 	cam->inClump.init();
@@ -315,6 +318,10 @@ Camera::clone(void)
 	cam->farPlane = this->farPlane;
 	cam->fogPlane = this->fogPlane;
 	cam->projection = this->projection;
+
+	cam->frameBuffer = this->frameBuffer;
+	cam->zBuffer = this->zBuffer;
+
 	s_plglist.copy(cam, this);
 	return cam;
 }

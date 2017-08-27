@@ -137,8 +137,7 @@ struct Frame
 	void purgeClone(void);
 
 #ifndef RWPUBLIC
-	static void *_open(void*, int32, int32);
-	static void *_close(void*, int32, int32);
+	static void registerModule(void);
 #endif
 	static void syncDirty(void);
 };
@@ -282,30 +281,6 @@ struct TexDictionary;
 
 struct Texture
 {
-	PLUGINBASE
-	Raster *raster;
-	TexDictionary *dict;
-	LLLink inDict;
-	char name[32];
-	char mask[32];
-	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
-	int32 refCount;
-
-	static Texture *create(Raster *raster);
-	void destroy(void);
-	static Texture *fromDict(LLLink *lnk){
-		return LLLinkGetData(lnk, Texture, inDict); }
-	static Texture *streamRead(Stream *stream);
-	bool streamWrite(Stream *stream);
-	uint32 streamGetSize(void);
-	static Texture *read(const char *name, const char *mask);
-	static Texture *streamReadNative(Stream *stream);
-	void streamWriteNative(Stream *stream);
-	uint32 streamGetSizeNative(void);
-
-	static Texture *(*findCB)(const char *name);
-	static Texture *(*readCB)(const char *name, const char *mask);
-
 	enum FilterMode {
 		NEAREST = 1,
 		LINEAR,
@@ -320,6 +295,40 @@ struct Texture
 		CLAMP,
 		BORDER
 	};
+
+	PLUGINBASE
+	Raster *raster;
+	TexDictionary *dict;
+	LLLink inDict;
+	char name[32];
+	char mask[32];
+	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
+	int32 refCount;
+
+	static Texture *create(Raster *raster);
+	void destroy(void);
+	static Texture *fromDict(LLLink *lnk){
+		return LLLinkGetData(lnk, Texture, inDict); }
+	FilterMode getFilter(void) { return (FilterMode)(filterAddressing & 0xFF); }
+	void setFilter(FilterMode f) { filterAddressing = filterAddressing & ~0xFF | f; }
+	Addressing getAddressU(void) { return (Addressing)((filterAddressing >> 8) & 0xF); }
+	Addressing getAddressV(void) { return (Addressing)((filterAddressing >> 12) & 0xF); }
+	void setAddressU(Addressing u) { filterAddressing = filterAddressing & ~0xF00 | u<<8; }
+	void setAddressV(Addressing v) { filterAddressing = filterAddressing & ~0xF000 | v<<12; }
+	static Texture *streamRead(Stream *stream);
+	bool streamWrite(Stream *stream);
+	uint32 streamGetSize(void);
+	static Texture *read(const char *name, const char *mask);
+	static Texture *streamReadNative(Stream *stream);
+	void streamWriteNative(Stream *stream);
+	uint32 streamGetSizeNative(void);
+
+	static Texture *(*findCB)(const char *name);
+	static Texture *(*readCB)(const char *name, const char *mask);
+
+#ifndef RWPUBLIC
+	static void registerModule(void);
+#endif
 };
 
 
@@ -624,12 +633,15 @@ struct Camera
 	V3d frustumCorners[8];
 	BBox frustumBoundBox;
 
+	Raster *frameBuffer;
+	Raster *zBuffer;
+
 	// clump link handled by plugin in RW
 	Clump *clump;
 	LLLink inClump;
 
 	// world extension
-	/* 3 unknowns */
+	/* RW: frustum sectors, space, position */
 	World *world;
 	ObjectWithFrame::Sync originalSync;
 	void (*originalBeginUpdate)(Camera*);

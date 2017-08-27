@@ -78,11 +78,23 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	InstanceData *inst;
 };
 
+#ifdef RW_GL3
+
 struct Im2DVertex
 {
-	float32 x, y, z;
+	float32 x, y, z, w;
 	uint8   r, g, b, a;
 	float32 u, v;
+
+	void setScreenX(float32 x) { this->x = x; }
+	void setScreenY(float32 y) { this->y = y; }
+	void setScreenZ(float32 z) { this->z = z; }
+	void setCameraZ(float32 z) { this->w = z; }
+	void setRecipCameraZ(float32 recipz) { }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
+		this->r = r; this->g = g; this->b = b; this->a = a; }
+	void setU(float32 u) { this->u = u; }
+	void setV(float32 v) { this->v = v; }
 };
 
 void setAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
@@ -104,6 +116,8 @@ void setLight(int32 n, Light*);
 void setTexture(int32 n, Texture *tex);
 
 void flushCache(void);
+
+#endif
 
 class ObjPipeline : public rw::ObjPipeline
 {
@@ -136,6 +150,8 @@ struct Gl3Raster
 	uint32 texid;
 
 	bool32 hasAlpha;
+	// cached filtermode and addressing
+	uint32 filterAddressing;
 };
 
 void registerNativeRaster(void);

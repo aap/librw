@@ -21,6 +21,24 @@ extern IDirect3DDevice9 *d3ddevice;
 extern Device renderdevice;
 
 void lightingCB(void);
+
+struct Im2DVertex
+{
+	float32 x, y, z;
+	float32 w;
+	D3DCOLOR color;
+	float32 u, v;
+
+	void setScreenX(float32 x) { this->x = x; }
+	void setScreenY(float32 y) { this->y = y; }
+	void setScreenZ(float32 z) { this->z = z; }
+	void setCameraZ(float32 z) { }
+	void setRecipCameraZ(float32 recipz) { this->w = recipz; }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = D3DCOLOR_ARGB(a, r, g, b); }
+	void setU(float32 u) { this->u = u; }
+	void setV(float32 v) { this->v = v; }
+};
+
 #else
 enum {
 	D3DLOCK_NOSYSLOCK     =  0,  // ignored

@@ -5,7 +5,7 @@ namespace gl3 {
 
 extern Shader *simpleShader;
 extern uint32 im2DVbo, im2DIbo;
-void im2DInit(void);
+void openIm2D(void);
 void im2DRenderIndexedPrimitive(PrimitiveType primType,
    void *vertices, int32 numVertices, void *indices, int32 numIndices);
 

@@ -70,7 +70,6 @@ static UniformObject uniformObject;
 int32 u_matColor;
 int32 u_surfaceProps;
 
-
 Shader *simpleShader;
 
 static bool32 stateDirty = 1;
@@ -304,6 +303,17 @@ setActiveTexture(int32 n)
 void
 setTexture(int32 n, Texture *tex)
 {
+	// TODO: support mipmaps
+	static GLint filternomip[] = {
+		0, GL_NEAREST, GL_LINEAR,
+		   GL_NEAREST, GL_LINEAR,
+		   GL_NEAREST, GL_LINEAR
+	};
+
+	static GLint wrap[] = {
+		0, GL_REPEAT, GL_MIRRORED_REPEAT,
+		GL_CLAMP, GL_CLAMP_TO_BORDER
+	};
 	bool32 alpha;
 	setActiveTexture(GL_TEXTURE0+n);
 	if(tex == nil || tex->raster->platform != PLATFORM_GL3 ||
@@ -315,6 +325,13 @@ setTexture(int32 n, Texture *tex)
 		                                 nativeRasterOffset);
 		glBindTexture(GL_TEXTURE_2D, natras->texid);
 		alpha = natras->hasAlpha;
+		if(tex->filterAddressing != natras->filterAddressing){
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filternomip[tex->getFilter()]);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filternomip[tex->getFilter()]);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap[tex->getAddressU()]);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap[tex->getAddressV()]);
+			natras->filterAddressing = tex->filterAddressing;
+		}
 	}
 
 	if(n == 0){
@@ -518,25 +535,6 @@ initOpenGL(void)
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-	glGenTextures(1, &whitetex);
-	glBindTexture(GL_TEXTURE_2D, whitetex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
-	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
-
-	im2DInit();
-
-	return 1;
-}
-
-static int
-finalizeOpenGL(void)
-{
-#include "shaders/simple_gl3.inc"
-	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
-
 	glGenBuffers(1, &ubo_state);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("State"), ubo_state);
@@ -558,6 +556,25 @@ finalizeOpenGL(void)
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+	glGenTextures(1, &whitetex);
+	glBindTexture(GL_TEXTURE_2D, whitetex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
+	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
+
+#include "shaders/simple_gl3.inc"
+	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
+
+	openIm2D();
+
+	return 1;
+}
+
+static int
+finalizeOpenGL(void)
+{
 	return 1;
 }
 

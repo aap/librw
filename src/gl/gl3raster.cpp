@@ -23,8 +23,26 @@ int32 nativeRasterOffset;
 void
 rasterCreate(Raster *raster)
 {
+	switch(raster->type){
+	case Raster::CAMERA:
+		// TODO: set/check width, height, depth, format?
+		raster->flags |= Raster::DONTALLOCATE;
+		break;
+	case Raster::ZBUFFER:
+		// TODO: set/check width, height, depth, format?
+		raster->flags |= Raster::DONTALLOCATE;
+		break;
+	case Raster::TEXTURE:
+		// continue below
+		break;
+	default:
+		assert(0 && "unsupported format");	
+	}
+
 	if(raster->flags & Raster::DONTALLOCATE)
 		return;
+
+	assert(raster->type == Raster::TEXTURE);
 
 #ifdef RW_OPENGL
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
@@ -54,11 +72,10 @@ rasterCreate(Raster *raster)
 
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
 	             0, natras->format, natras->type, nil);
+	natras->filterAddressing = ~0;
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif

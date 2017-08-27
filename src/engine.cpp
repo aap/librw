@@ -41,7 +41,7 @@ void *mustmalloc_h(size_t sz, uint32 hint)
 {
 	void *ret;
 	ret = rwMalloc(sz, hint);
-	if(ret)
+	if(ret || sz == 0)
 		return ret;
 	fprintf(stderr, "Error: out of memory\n");
 	exit(1);
@@ -51,7 +51,7 @@ void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 {
 	void *ret;
 	ret = rwRealloc(p, sz, hint);
-	if(ret)
+	if(ret || sz == 0)
 		return ret;
 	fprintf(stderr, "Error: out of memory\n");
 	exit(1);
@@ -83,7 +83,8 @@ Engine::init(void)
 	Engine::s_plglist.last = nil;
 
 	// core plugin attach here
-	Engine::registerPlugin(0, ID_FRAMEMODULE, Frame::_open, Frame::_close);
+	Frame::registerModule();
+	Texture::registerModule();
 
 	// driver plugin attach
 	ps2::registerPlatformPlugins();
@@ -111,10 +112,7 @@ Engine::open(void)
 	engine = (Engine*)rwNew(Engine::s_plglist.size, MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
-	engine->currentTexDictionary = nil;
 	engine->imtexture = nil;
-	engine->loadTextures = 1;
-	engine->makeDummies = 1;
 
 	// Initialize device
 	// Device and possibly OS specific!
@@ -177,10 +175,7 @@ void
 Engine::term(void)
 {
 	// TODO
-	for(uint i = 0; i < NUM_PLATFORMS; i++)
-		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
-	Engine::s_plglist.destruct(engine);
-	Engine::state = Opened;
+	Engine::state = Dead;
 }
 
 void
@@ -197,7 +192,10 @@ void
 Engine::stop(void)
 {
 	engine->device.system(DEVICESTOP, nil);
-	Engine::state = Dead;
+	for(uint i = 0; i < NUM_PLATFORMS; i++)
+		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
+	Engine::s_plglist.destruct(engine);
+	Engine::state = Opened;
 }
 
 namespace null {

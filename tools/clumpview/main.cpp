@@ -5,9 +5,15 @@
 
 rw::V3d zero = { 0.0f, 0.0f, 0.0f };
 Camera *camera;
-rw::Clump *clump;
-rw::World *world;
+struct SceneGlobals {
+	rw::World *world;
+	rw::Camera *camera;
+	rw::Clump *clump;
+} Scene;
+rw::Texture *tex;
 rw::EngineStartParams engineStartParams;
+
+void tlTest(rw::Clump *clump);
 
 void
 Init(void)
@@ -152,6 +158,8 @@ InitRW(void)
 	if(!sk::InitRW())
 		return false;
 
+	tex = rw::Texture::read("maze", nil);
+
 	char *filename = "teapot.dff";
 	if(sk::args.argc > 1)
 		filename = sk::args.argv[1];
@@ -161,31 +169,43 @@ InitRW(void)
 		return false;
 	}
 	rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL);
-	clump = rw::Clump::streamRead(&in);
-	assert(clump);
+	Scene.clump = rw::Clump::streamRead(&in);
+	assert(Scene.clump);
 	in.close();
 
-	clump->getFrame()->translate(&zero, rw::COMBINEREPLACE);
+	// TEST - Set texture to the all materials of the clump
+	FORLIST(lnk, Scene.clump->atomics){
+		rw::Atomic *a = rw::Atomic::fromClump(lnk);
+		for(int i = 0; i < a->geometry->matList.numMaterials; i++)
+			a->geometry->matList.materials[i]->setTexture(tex);
+	}
 
-	dumpUserData(clump);
-	setupClump(clump);
+	Scene.clump->getFrame()->translate(&zero, rw::COMBINEREPLACE);
 
-	world = rw::World::create();
+	dumpUserData(Scene.clump);
+	setupClump(Scene.clump);
+
+	Scene.world = rw::World::create();
 
 	rw::Light *ambient = rw::Light::create(rw::Light::AMBIENT);
 	ambient->setColor(0.2f, 0.2f, 0.2f);
-	world->addLight(ambient);
+	Scene.world->addLight(ambient);
 
 	rw::V3d xaxis = { 1.0f, 0.0f, 0.0f };
 	rw::Light *direct = rw::Light::create(rw::Light::DIRECTIONAL);
 	direct->setColor(0.8f, 0.8f, 0.8f);
 	direct->setFrame(rw::Frame::create());
 	direct->getFrame()->rotate(&xaxis, 180.0f, rw::COMBINEREPLACE);
-	world->addLight(direct);
+	Scene.world->addLight(direct);
 
 	camera = new Camera;
-	camera->m_rwcam = rw::Camera::create();
-	camera->m_rwcam->setFrame(rw::Frame::create());
+	Scene.camera = rw::Camera::create();
+	camera->m_rwcam = Scene.camera;
+	Scene.camera->frameBuffer =
+		rw::Raster::create(sk::globals.width, sk::globals.height, 0, rw::Raster::CAMERA);
+	Scene.camera->zBuffer =
+		rw::Raster::create(sk::globals.width, sk::globals.height, 0, rw::Raster::ZBUFFER);
+	Scene.camera->setFrame(rw::Frame::create());
 	camera->m_aspectRatio = 640.0f/480.0f;
 	camera->m_near = 0.1f;
 	camera->m_far = 450.0f;
@@ -196,7 +216,7 @@ InitRW(void)
 //	camera->setPosition(Vec3(0.0f, -1.0f, 3.0f));
 	camera->update();
 
-	world->addCamera(camera->m_rwcam);
+	Scene.world->addCamera(camera->m_rwcam);
 
 	return true;
 }
@@ -204,15 +224,37 @@ InitRW(void)
 void
 im2dtest(void)
 {
-	static rw::gl3::Im2DVertex verts[] = {
-	  { -0.5, -0.5, 0.0,  255, 0, 0, 255,  0.0, 0.0 },
-	  {  0.5, -0.5, 0.0,  0, 255, 0, 255,  0.0, 0.0 },
-	  { -0.5,  0.5, 0.0,  0, 0, 255, 255,  0.0, 0.0 },
-	  {  0.5,  0.5, 0.0,  0, 255, 255, 255,  0.0, 0.0 },
+	using namespace rw::RWDEVICE;
+	int i;
+	static struct
+	{
+		float x, y;
+		rw::uint8 r, g, b, a;
+		float u, v;
+	} vs[4] = {
+		{   0.0f,   0.0f,   255, 0, 0, 128,    0.0f, 0.0f },
+		{ 640.0f,   0.0f,   0, 255, 0, 128,    1.0f, 0.0f },
+		{   0.0f, 480.0f,   0, 0, 255, 128,    0.0f, 1.0f },
+		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 1.0f },
 	};
+	static Im2DVertex verts[4];
 	static short indices[] = {
 		0, 1, 2, 3
 	};
+
+	for(i = 0; i < 4; i++){
+		verts[i].setScreenX(vs[i].x);
+		verts[i].setScreenY(vs[i].y);
+		verts[i].setScreenZ(rw::GetNearZ());
+		verts[i].setCameraZ(Scene.camera->nearPlane);
+		verts[i].setRecipCameraZ(1.0f/Scene.camera->nearPlane);
+		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
+		verts[i].setU(vs[i].u);
+		verts[i].setV(vs[i].v);
+	}
+
+	rw::engine->imtexture = tex;
+	rw::SetRenderState(rw::VERTEXALPHA, 1);
 	rw::engine->device.im2DRenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
 		&verts, 4, &indices, 4);
 }
@@ -225,8 +267,9 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-	clump->render();
+	Scene.clump->render();
 	im2dtest();
+//	tlTest(Scene.clump);
 
 	camera->m_rwcam->endUpdate();
 	camera->m_rwcam->showRaster();

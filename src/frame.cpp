@@ -13,10 +13,14 @@
 namespace rw {
 
 PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
-void *Frame::_open(void *object, int32 offset, int32 size) { engine->frameDirtyList.init(); return object; }
-void *Frame::_close(void *object, int32 offset, int32 size) { return object; }
+static void *frameOpen(void *object, int32 offset, int32 size) { engine->frameDirtyList.init(); return object; }
+static void *frameClose(void *object, int32 offset, int32 size) { return object; }
 
-
+void
+Frame::registerModule(void)
+{
+	Engine::registerPlugin(0, ID_FRAMEMODULE, frameOpen, frameClose);
+}
 
 Frame*
 Frame::create(void)

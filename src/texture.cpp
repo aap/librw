@@ -15,18 +15,53 @@
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
 
-#ifdef _WIN32
-/* srsly? */
-#define strdup _strdup
-#endif
-
 #define PLUGIN_ID 0
+
+// TODO: maintain a global list of all texdicts
 
 namespace rw {
 
 PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
 PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
 PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
+
+struct TextureGlobals
+{
+	TexDictionary *initialTexDict;
+	TexDictionary *currentTexDict;
+	// load textures from files
+	bool32 loadTextures;
+	// create dummy textures to store just names
+	bool32 makeDummies;
+};
+int32 textureModuleOffset;
+
+#define TEXTUREGLOBAL(v) (PLUGINOFFSET(TextureGlobals, engine, textureModuleOffset)->v)
+
+static void*
+textureOpen(void *object, int32 offset, int32 size)
+{
+	TexDictionary *texdict;
+	textureModuleOffset = offset;
+	texdict = TexDictionary::create();
+	TEXTUREGLOBAL(initialTexDict) = texdict;
+	TexDictionary::setCurrent(texdict);
+	TEXTUREGLOBAL(loadTextures) = 1;
+	TEXTUREGLOBAL(makeDummies) = 0;
+	return object;
+}
+static void*
+textureClose(void *object, int32 offset, int32 size)
+{
+	TEXTUREGLOBAL(initialTexDict)->destroy();
+	return object;
+}
+
+void
+Texture::registerModule(void)
+{
+	Engine::registerPlugin(sizeof(TextureGlobals), ID_TEXTUREMODULE, textureOpen, textureClose);
+}
 
 //
 // TexDictionary
@@ -49,8 +84,8 @@ TexDictionary::create(void)
 void
 TexDictionary::destroy(void)
 {
-	if(engine->currentTexDictionary == this)
-		engine->currentTexDictionary = nil;
+	if(TEXTUREGLOBAL(currentTexDict) == this)
+		TEXTUREGLOBAL(currentTexDict) = nil;
 	FORLIST(lnk, this->textures)
 		Texture::fromDict(lnk)->destroy();
 	s_plglist.destruct(this);
@@ -145,13 +180,13 @@ TexDictionary::streamGetSize(void)
 void
 TexDictionary::setCurrent(TexDictionary *txd)
 {
-	engine->currentTexDictionary = txd;
+	PLUGINOFFSET(TextureGlobals, engine, textureModuleOffset)->currentTexDict = txd;
 }
 
 TexDictionary*
 TexDictionary::getCurrent(void)
 {
-	return engine->currentTexDictionary;
+	return PLUGINOFFSET(TextureGlobals, engine, textureModuleOffset)->currentTexDict;
 }
 
 //
@@ -200,8 +235,8 @@ Texture::destroy(void)
 static Texture*
 defaultFindCB(const char *name)
 {
-	if(engine->currentTexDictionary)
-		return engine->currentTexDictionary->find(name);
+	if(TEXTUREGLOBAL(currentTexDict))
+		return TEXTUREGLOBAL(currentTexDict)->find(name);
 	// TODO: RW searches *all* TXDs otherwise
 	return nil;
 }
@@ -238,11 +273,11 @@ Texture::read(const char *name, const char *mask)
 		tex->refCount++;
 		return tex;
 	}
-	if(engine->loadTextures){
+	if(TEXTUREGLOBAL(loadTextures)){
 		tex = Texture::readCB(name, mask);
 		if(tex == nil)
 			goto dummytex;
-	}else dummytex: if(engine->makeDummies){
+	}else dummytex: if(TEXTUREGLOBAL(makeDummies)){
 		tex = Texture::create(nil);
 		if(tex == nil)
 			return nil;
@@ -252,10 +287,10 @@ Texture::read(const char *name, const char *mask)
 		raster = Raster::create(0, 0, 0, Raster::DONTALLOCATE);
 		tex->raster = raster;
 	}
-	if(tex && engine->currentTexDictionary){
+	if(tex && TEXTUREGLOBAL(currentTexDict)){
 		if(tex->dict)
 			tex->inDict.remove();
-		engine->currentTexDictionary->add(tex);
+		TEXTUREGLOBAL(currentTexDict)->add(tex);
 	}
 	return tex;
 }

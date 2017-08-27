@@ -13,8 +13,8 @@ void
 Camera::update(void)
 {
 	if(m_rwcam){
-		m_rwcam->nearPlane = m_near;
-		m_rwcam->farPlane = m_far;
+		m_rwcam->setNearPlane(m_near);
+		m_rwcam->setFarPlane(m_far);
 		m_rwcam->setFOV(m_fov, m_aspectRatio);
 
 		rw::Frame *f = m_rwcam->getFrame();

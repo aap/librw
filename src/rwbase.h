@@ -8,6 +8,19 @@
 
 #ifdef RW_GL3
 #define RW_OPENGL
+#define RWDEVICE gl3
+#endif
+
+#ifdef RW_D3D9
+#define RWDEVICE d3d
+#endif
+
+#ifdef RW_D3D8
+#define RWDEVICE d3d
+#endif
+
+#ifdef RW_PS2
+#define RWDEVICE ps2
 #endif
 
 #ifdef RW_WDGL
@@ -64,7 +77,21 @@ struct RGBAf
 	float32 blue;
 	float32 alpha;
 };
+inline RGBAf makeRGBAf(float32 r, float32 g, float32 b, float32 a) { RGBAf c = { r, g, b, a }; return c; }
 inline bool32 equal(const RGBAf &c1, const RGBAf &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
+inline RGBAf add(const RGBAf &a, const RGBAf &b) { return makeRGBAf(a.red+b.red, a.green+b.green, a.blue+b.blue, a.alpha+b.alpha); }
+inline RGBAf modulate(const RGBAf &a, const RGBAf &b) { return makeRGBAf(a.red*b.red, a.green*b.green, a.blue*b.blue, a.alpha*b.alpha); }
+inline RGBAf scale(const RGBAf &a, float32 f) { return makeRGBAf(a.red*f, a.green*f, a.blue*f, a.alpha*f); }
+inline void clamp(RGBAf *a) {
+	if(a->red > 1.0f) a->red = 1.0f;
+	if(a->red < 0.0f) a->red = 0.0f;
+	if(a->green > 1.0f) a->green = 1.0f;
+	if(a->green < 0.0f) a->green = 0.0f;
+	if(a->blue > 1.0f) a->blue = 1.0f;
+	if(a->blue < 0.0f) a->blue = 0.0f;
+	if(a->alpha > 1.0f) a->alpha = 1.0f;
+	if(a->alpha < 0.0f) a->alpha = 0.0f;
+}
 
 inline void convColor(RGBA *i, RGBAf *f){
 	int32 c;
@@ -467,6 +494,7 @@ enum CoreModuleID
 {
 	ID_NAMODULE      = MAKEPLUGINID(VEND_CRITERIONINT, 0x00),
 	ID_FRAMEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x03),
+	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08),
 };
 
 #define ECODE(c, s) c,

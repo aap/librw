@@ -135,11 +135,6 @@ struct Engine
 	Texture *imtexture;
 	LinkList frameDirtyList;
 
-	TexDictionary *currentTexDictionary;
-	// load textures from files
-	bool32 loadTextures;
-	// create dummy textures to store just names
-	bool32 makeDummies;
 	// Dynamically allocated because of plugins
 	Driver *driver[NUM_PLATFORMS];
 	Device device;
@@ -169,6 +164,9 @@ inline void SetRenderState(int32 state, uint32 value){
 
 inline uint32 GetRenderState(int32 state){
 	return engine->device.getRenderState(state); }
+
+inline float32 GetNearZ(void) { return engine->device.zNear; }
+inline float32 GetFarZ(void) { return engine->device.zNear; }
 
 // These must be macros because we might want to pass __FILE__ and __LINE__ later
 #define rwMalloc(s, h) rw::Engine::memfuncs.rwmalloc(s,h)

@@ -127,11 +127,20 @@ MakeWindow(HINSTANCE instance, int width, int height, const char *title)
 		return 0;
 	}
 
+	int offx = 100;
+	int offy = 100;
+	RECT rect;
+	rect.left = 0;
+	rect.top = 0;
+	rect.right = width;
+	rect.bottom = height;
+	DWORD style = WS_OVERLAPPEDWINDOW;
+	AdjustWindowRect(&rect, style, FALSE);
+	rect.right += -rect.left;
+	rect.bottom += -rect.top;
 	HWND win;
-	win = CreateWindow("librwD3D9", title,
-		WS_BORDER | WS_CAPTION | WS_SYSMENU |
-		            WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
-		0, 0, width, height, 0, 0, instance, 0);
+	win = CreateWindow("librwD3D9", title, style,
+		offx, offy, rect.right, rect.bottom, 0, 0, instance, 0);
 	if(!win){
 		MessageBox(0, "CreateWindow() - FAILED", 0, 0);
 		return 0;
