@@ -1,4 +1,3 @@
-#include <Windows.h>
 #include <rw.h>
 #include "skeleton.h"
 

@@ -32,6 +32,9 @@ Device renderdevice = {
 	null::setRenderState,
 	null::getRenderState,
 	null::im2DRenderIndexedPrimitive,
+	null::im3DTransform,
+	null::im3DRenderIndexed,
+	null::im3DEnd,
 	null::deviceSystem
 };
 

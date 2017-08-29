@@ -517,7 +517,7 @@ Geometry::buildMeshes(void)
 		// count indices per mesh
 		tri = this->triangles;
 		for(int32 i = 0; i < this->numTriangles; i++){
-			assert(tri->matId >= 0 && tri->matId < numMeshes);
+			assert(tri->matId < numMeshes);
 			numIndices[tri->matId] += 3;
 			tri++;
 		}

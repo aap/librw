@@ -269,6 +269,8 @@ struct Texture
 
 	static Texture *(*findCB)(const char *name);
 	static Texture *(*readCB)(const char *name, const char *mask);
+	static void setLoadTextures(bool32);
+	static void setCreateDummies(bool32);
 
 #ifndef RWPUBLIC
 	static void registerModule(void);

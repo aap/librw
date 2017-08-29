@@ -134,13 +134,13 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	int32 w[4];
 	int sum;
-	float *weights = skin->weights;
+	float32 *weights = skin->weights;
 	uint8 *p = vbuf;
 	int32 numVertices = header->numVertices;
 	while(numVertices--){
 		sum = 0;
 		for(int i = 1; i < skin->numWeights; i++){
-			w[i] = weights[i]*255.0f + 0.5f;
+			w[i] = (int32)(weights[i]*255.0f + 0.5f);
 			sum += w[i];
 		}
 		w[0] = 255 - sum;

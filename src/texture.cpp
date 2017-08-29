@@ -63,6 +63,18 @@ Texture::registerModule(void)
 	Engine::registerPlugin(sizeof(TextureGlobals), ID_TEXTUREMODULE, textureOpen, textureClose);
 }
 
+void
+Texture::setLoadTextures(bool32 b)
+{
+	TEXTUREGLOBAL(loadTextures) = b;
+}
+
+void
+Texture::setCreateDummies(bool32 b)
+{
+	TEXTUREGLOBAL(makeDummies) = b;
+}
+
 //
 // TexDictionary
 //

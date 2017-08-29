@@ -658,7 +658,7 @@ initrw(void)
 		return 0;
 	if(!rw::Engine::start(&engineStartParams))
 		return 0;
-	rw::engine->loadTextures = 0;
+	rw::Texture::setLoadTextures(0);
 
 	rw::TexDictionary::setCurrent(rw::TexDictionary::create());
 	rw::Image::setSearchPath(".");

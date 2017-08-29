@@ -1,4 +1,5 @@
-#include <Windows.h>
+#ifdef _WIN32
+#include <windows.h>
 #include <rw.h>
 #include "skeleton.h"
 
@@ -220,4 +221,5 @@ WinMain(HINSTANCE instance, HINSTANCE,
 
 	return main(__argc, __argv);
 }
+#endif
 #endif

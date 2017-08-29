@@ -130,6 +130,7 @@ project "clumpview"
 	skeltool("clumpview")
 	flags { "WinMain" }
 	removeplatforms { "*null" }
+	removeplatforms { "ps2" } -- for now
 
 project "ps2test"
 	kind "ConsoleApp"
@@ -148,11 +149,11 @@ project "ps2test"
 	-- "c -lc" is a hack because we need -lc twice for some reason
 	links { "c -lc", "kernel", "mf" }
 
-project "ps2rastertest"
-	kind "ConsoleApp"
-	targetdir (Bindir)
-	removeplatforms { "*gl3", "*d3d9" }
-	files { "tools/ps2rastertest/*.cpp" }
-	includedirs { "." }
-	libdirs { Libdir }
-	links { "librw" }
+--project "ps2rastertest"
+--	kind "ConsoleApp"
+--	targetdir (Bindir)
+--	removeplatforms { "*gl3", "*d3d9" }
+--	files { "tools/ps2rastertest/*.cpp" }
+--	includedirs { "." }
+--	libdirs { Libdir }
+--	links { "librw" }

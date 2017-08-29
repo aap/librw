@@ -284,33 +284,33 @@ remove(UserDataExtension *ext, int32 n)
 
 #define ACCESSOR(TYPE, NAME) \
 int32 \
-UserDataArray::##NAME##Add(TYPE *t, const char *name, int32 datatype, int32 numElements) \
+UserDataArray::NAME##Add(TYPE *t, const char *name, int32 datatype, int32 numElements) \
 { \
-	return add(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset), \
+	return add(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset), \
 		name, datatype, numElements); \
 } \
 void \
-UserDataArray::##NAME##Remove(TYPE *t, int32 n) \
+UserDataArray::NAME##Remove(TYPE *t, int32 n) \
 { \
-	remove(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset), n); \
+	remove(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset), n); \
 } \
 int32 \
-UserDataArray::##NAME##GetCount(TYPE *t) \
+UserDataArray::NAME##GetCount(TYPE *t) \
 { \
-	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset)->numArrays; \
+	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->numArrays; \
 } \
 UserDataArray* \
-UserDataArray::##NAME##Get(TYPE *t, int32 n) \
+UserDataArray::NAME##Get(TYPE *t, int32 n) \
 { \
-	if(n >= PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset)->numArrays) \
+	if(n >= PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->numArrays) \
 		return nil; \
-	return &PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset)->arrays[n]; \
+	return &PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->arrays[n]; \
 } \
 int32 \
-UserDataArray::##NAME##FindIndex(TYPE *t, const char *name) \
+UserDataArray::NAME##FindIndex(TYPE *t, const char *name) \
 { \
 	int32 i; \
-	UserDataExtension *ext = PLUGINOFFSET(UserDataExtension, t, userDataGlobals.##NAME##Offset); \
+	UserDataExtension *ext = PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset); \
 	for(i = 0; i < ext->numArrays; i++) \
 		if(strcmp(ext->arrays[i].name, name) == 0) \
 			return i; \
