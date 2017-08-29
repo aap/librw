@@ -80,6 +80,22 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 
 #ifdef RW_GL3
 
+struct Im3DVertex
+{
+	V3d     position;
+	uint8   r, g, b, a;
+	float32 u, v;
+
+	void setX(float32 x) { this->position.x = x; }
+	void setY(float32 y) { this->position.y = y; }
+	void setZ(float32 z) { this->position.z = z; }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
+		this->r = r; this->g = g; this->b = b; this->a = a; }
+	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
+	void setU(float32 u) { this->u = u; }
+	void setV(float32 v) { this->v = v; }
+};
+
 struct Im2DVertex
 {
 	float32 x, y, z, w;

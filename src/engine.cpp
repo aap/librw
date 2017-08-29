@@ -158,7 +158,8 @@ Engine::start(EngineStartParams *p)
 		return 0;
 	}
 
-	engine->device.system(DEVICESTART, (void*)p);
+	// TODO: put this into Open?
+	engine->device.system(DEVICEOPEN, (void*)p);
 	engine->device.system(DEVICEINIT, nil);
 
 	Engine::s_plglist.construct(engine);
@@ -191,7 +192,8 @@ Engine::close(void)
 void
 Engine::stop(void)
 {
-	engine->device.system(DEVICESTOP, nil);
+	engine->device.system(DEVICETERM, nil);
+	engine->device.system(DEVICECLOSE, nil);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
 	Engine::s_plglist.destruct(engine);
@@ -209,6 +211,10 @@ void   setRenderState(int32, uint32) { }
 uint32 getRenderState(int32) { return 0; }
 
 void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
+
+void im3DTransform(void *vertices, int32 numVertices, Matrix *world) { }
+void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices) { }
+void im3DEnd(void) { }
 
 void
 rasterCreate(Raster*)
@@ -264,6 +270,9 @@ Device renderdevice = {
 	null::setRenderState,
 	null::getRenderState,
 	null::im2DRenderIndexedPrimitive,
+	null::im3DTransform,
+	null::im3DRenderIndexed,
+	null::im3DEnd,
 	null::deviceSystem
 };
 

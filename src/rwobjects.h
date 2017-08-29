@@ -2,62 +2,6 @@
 
 namespace rw {
 
-struct LLLink
-{
-	LLLink *next;
-	LLLink *prev;
-	void init(void){
-		this->next = nil;
-		this->prev = nil;
-	}
-	void remove(void){
-		this->prev->next = this->next;
-		this->next->prev = this->prev;
-	}
-};
-
-#define LLLinkGetData(linkvar,type,entry) \
-    ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
-
-// Have to be careful since the link might be deleted.
-#define FORLIST(_link, _list) \
-	for(rw::LLLink *_next = nil, *_link = (_list).link.next; \
-	_next = (_link)->next, (_link) != (_list).end(); \
-	(_link) = _next)
-
-struct LinkList
-{
-	LLLink link;
-	void init(void){
-		this->link.next = &this->link;
-		this->link.prev = &this->link;
-	}
-	bool32 isEmpty(void){
-		return this->link.next == &this->link;
-	}
-	void add(LLLink *link){
-		link->next = this->link.next;
-		link->prev = &this->link;
-		this->link.next->prev = link;
-		this->link.next = link;
-	}
-	void append(LLLink *link){
-		link->next = &this->link;
-		link->prev = this->link.prev;
-		this->link.prev->next = link;
-		this->link.prev = link;
-	}
-	LLLink *end(void){
-		return &this->link;
-	}
-	int32 count(void){
-		int32 n = 0;
-		FORLIST(lnk, (*this))
-			n++;
-		return n;
-	}
-};
-
 struct Object
 {
 	uint8 type;

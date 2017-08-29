@@ -5,9 +5,10 @@
 #include "../rwbase.h"
 #include "../rwerror.h"
 #include "../rwplg.h"
+#include "../rwrender.h"
+#include "../rwengine.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
-#include "../rwengine.h"
 #ifdef RW_OPENGL
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -467,7 +468,7 @@ beginUpdate(Camera *cam)
 }
 
 static int
-startGLFW(EngineStartParams *startparams)
+openGLFW(EngineStartParams *startparams)
 {
 	GLenum status;
 	GLFWwindow *win;
@@ -512,7 +513,7 @@ startGLFW(EngineStartParams *startparams)
 }
 
 static int
-stopGLFW(void)
+closeGLFW(void)
 {
 	glfwDestroyWindow(glfwwindow);
 	glfwTerminate();
@@ -564,11 +565,21 @@ initOpenGL(void)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
 	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
 
-#include "shaders/simple_gl3.inc"
+#include "shaders/simple_vs_gl3.inc"
+#include "shaders/simple_fs_gl3.inc"
 	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
 
 	openIm2D();
+	openIm3D();
 
+	return 1;
+}
+
+static int
+termOpenGL(void)
+{
+	closeIm3D();
+	closeIm2D();
 	return 1;
 }
 
@@ -582,14 +593,18 @@ static int
 deviceSystem(DeviceReq req, void *arg0)
 {
 	switch(req){
-	case DEVICESTART:
-		return startGLFW((EngineStartParams*)arg0);
+	case DEVICEOPEN:
+		return openGLFW((EngineStartParams*)arg0);
+	case DEVICECLOSE:
+		return closeGLFW();
+
 	case DEVICEINIT:
 		return initOpenGL();
+	case DEVICETERM:
+		return termOpenGL();
+
 	case DEVICEFINALIZE:
 		return finalizeOpenGL();
-	case DEVICESTOP:
-		return stopGLFW();
 	}
 	return 1;
 }
@@ -603,6 +618,9 @@ Device renderdevice = {
 	gl3::setRenderState,
 	gl3::getRenderState,
 	gl3::im2DRenderIndexedPrimitive,
+	gl3::im3DTransform,
+	gl3::im3DRenderIndexed,
+	gl3::im3DEnd,
 	gl3::deviceSystem
 };
 

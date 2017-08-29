@@ -18,42 +18,6 @@ namespace rw {
 namespace d3d8 {
 using namespace d3d;
 
-// Skin
-
-static void*
-skinOpen(void *o, int32, int32)
-{
-	skinGlobals.pipelines[PLATFORM_D3D8] = makeSkinPipeline();
-	return o;
-}
-
-static void*
-skinClose(void *o, int32, int32)
-{
-	return o;
-}
-
-void
-initSkin(void)
-{
-	Driver::registerPlugin(PLATFORM_D3D8, 0, ID_SKIN,
-	                       skinOpen, skinClose);
-}
-
-ObjPipeline*
-makeSkinPipeline(void)
-{
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
-	pipe->pluginID = ID_SKIN;
-	pipe->pluginData = 1;
-	return pipe;
-}
-
-// MatFX
-
 static void*
 matfxOpen(void *o, int32, int32)
 {

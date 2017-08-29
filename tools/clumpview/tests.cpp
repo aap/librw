@@ -5,6 +5,7 @@ using namespace rw;
 
 //
 // This is a test to implement T&L in software and render with Im2D
+//
 
 #define MAX_LIGHTS 8
 
@@ -90,7 +91,7 @@ drawAtomic(Atomic *a)
 		im2dverts[i].setV(texcoords[i].v);
 	}
 	for(int32 i = 0; i < mh->numMeshes; i++){
-		for(int32 j = 0; j < m[i].numIndices; j++){
+		for(uint32 j = 0; j < m[i].numIndices; j++){
 			int32 idx = m[i].indices[j];
 			RGBA col;
 			RGBAf colf, color;
@@ -116,7 +117,7 @@ drawAtomic(Atomic *a)
 		}
 
 		engine->imtexture = m[i].material->texture;
-		rw::engine->device.im2DRenderIndexedPrimitive(rw::PRIMTYPETRILIST,
+		im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 			im2dverts, g->numVertices, m[i].indices, m[i].numIndices);
 	}
 
@@ -131,4 +132,61 @@ tlTest(Clump *clump)
 		Atomic *a = Atomic::fromClump(lnk);
 		drawAtomic(a);
 	}
+}
+
+static RWDEVICE::Im2DVertex *clipverts;
+static int32 numClipverts;
+
+void
+genIm3DTransform(void *vertices, int32 numVertices, Matrix *world)
+{
+	using namespace RWDEVICE;
+	Im3DVertex *objverts;
+	V3d pos;
+	Matrix xform;
+	Camera *cam;
+	int32 i;
+	objverts = (Im3DVertex*)vertices;
+
+	cam = (Camera*)engine->currentCamera;
+	int32 width = cam->frameBuffer->width;
+	int32 height = cam->frameBuffer->height;
+
+
+	xform = cam->viewMatrix;
+	if(world)
+		xform.transform(world, COMBINEPRECONCAT);
+
+	clipverts = rwNewT(Im2DVertex, numVertices, MEMDUR_EVENT);
+	numClipverts = numVertices;
+
+	for(i = 0; i < numVertices; i++){
+		V3d::transformPoints(&pos, &objverts[i].position, 1, &xform);
+
+		float32 recipZ = 1.0f/pos.z;
+		RGBA c = objverts[i].getColor();
+
+		clipverts[i].setScreenX(pos.x * recipZ * width);
+		clipverts[i].setScreenY((pos.y * recipZ * height));
+		clipverts[i].setScreenZ(recipZ * cam->zScale + cam->zShift);
+		clipverts[i].setCameraZ(pos.z);
+		clipverts[i].setRecipCameraZ(recipZ);
+		clipverts[i].setColor(c.red, c.green, c.blue, c.alpha);
+		clipverts[i].setU(objverts[i].u);
+		clipverts[i].setV(objverts[i].v);
+	}
+}
+
+void
+genIm3DRenderIndexed(PrimitiveType prim, void *indices, int32 numIndices)
+{
+	im2d::RenderIndexedPrimitive(prim, clipverts, numClipverts, indices, numIndices);
+}
+
+void
+genIm3DEnd(void)
+{
+	rwFree(clipverts);
+	clipverts = nil;
+	numClipverts = 0;
 }

@@ -6,9 +6,10 @@
 #include "../rwbase.h"
 #include "../rwplg.h"
 #include "../rwerror.h"
+#include "../rwrender.h"
+#include "../rwengine.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
-#include "../rwengine.h"
 #include "rwd3d.h"
 #include "rwd3dimpl.h"
 
@@ -427,7 +428,7 @@ showRaster(Raster *raster)
 
 // taken from Frank Luna's d3d9 book
 static int
-startD3D(EngineStartParams *params)
+openD3D(EngineStartParams *params)
 {
 	HWND win = params->window;
 	bool windowed = true;
@@ -491,7 +492,7 @@ startD3D(EngineStartParams *params)
 }
 
 static int
-stopD3D(void)
+closeD3D(void)
 {
 	d3d::d3ddevice->Release();
 	d3d::d3ddevice = nil;
@@ -531,7 +532,16 @@ initD3D(void)
 //	setTextureStageState(0, D3DTSS_COLOROP, D3DTA_CONSTANT);
 
 	openIm2D();
+	openIm3D();
 
+	return 1;
+}
+
+static int
+termD3D(void)
+{
+	closeIm3D();
+	closeIm2D();
 	return 1;
 }
 
@@ -545,14 +555,18 @@ static int
 deviceSystem(DeviceReq req, void *arg0)
 {
 	switch(req){
-	case DEVICESTART:
-		return startD3D((EngineStartParams*)arg0);
+	case DEVICEOPEN:
+		return openD3D((EngineStartParams*)arg0);
+	case DEVICECLOSE:
+		return closeD3D();
+
 	case DEVICEINIT:
 		return initD3D();
+	case DEVICETERM:
+		return termD3D();
+
 	case DEVICEFINALIZE:
 		return finalizeD3D();
-	case DEVICESTOP:
-		return stopD3D();
 	}
 	return 1;
 }
@@ -566,6 +580,9 @@ Device renderdevice = {
 	d3d::setRwRenderState,
 	d3d::getRwRenderState,
 	d3d::im2DRenderIndexedPrimitive,
+	d3d::im3DTransform,
+	d3d::im3DRenderIndexed,
+	d3d::im3DEnd,
 	d3d::deviceSystem,
 };
 

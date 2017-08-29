@@ -1,61 +1,29 @@
 namespace rw {
 
-enum RenderState
-{
-	VERTEXALPHA = 0,
-	SRCBLEND,
-	DESTBLEND,
-	ZTESTENABLE,
-	ZWRITEENABLE,
-	FOGENABLE,
-	FOGCOLOR,
-	// TODO:
-	// fog type, density ?
-	// ? cullmode
-	// ? shademode
-	// ???? stencil
-
-	// platform specific or opaque?
-	ALPHATESTFUNC,
-	ALPHATESTREF,
-};
-
-enum AlphaTestFunc
-{
-	ALPHAALWAYS = 0,
-	ALPHAGREATEREQUAL,
-	ALPHALESS
-};
-
-enum BlendFunction
-{
-	BLENDZERO = 0,
-	BLENDONE,
-	BLENDSRCCOLOR,
-	BLENDINVSRCCOLOR,
-	BLENDSRCALPHA,
-	BLENDINVSRCALPHA,
-	BLENDDESTALPHA,
-	BLENDINVDESTALPHA,
-	BLENDDESTCOLOR,
-	BLENDINVDESTCOLOR,
-	BLENDSRCALPHASAT,
-	// TODO: add more perhaps
-};
-
 enum DeviceReq
 {
 	// Device/Context creation
-	DEVICESTART,
+	DEVICEOPEN,
+	// Device/Context shutdown
+	DEVICECLOSE,
+
 	// Device initialization before Engine/Driver plugins are opened
 	DEVICEINIT,
-	// Device initialization after plugins are opened
+	// Device de-initialization after Engine/Driver plugins are closed
+	DEVICETERM,
+
+	// Device initialization after Engine/Driver plugins are opened
 	DEVICEFINALIZE,
-	// Device/Context shutdown
-	DEVICESTOP,
+	// TODO? counterpart to FINALIZE?
 };
 
 typedef int DeviceSystem(DeviceReq req, void *arg0);
+
+struct Camera;
+struct Image;
+struct Texture;
+struct Raster;
+class ObjPipeline;
 
 // This is for the render device, we only have one
 struct Device
@@ -67,8 +35,18 @@ struct Device
 	void   (*showRaster)(Raster *raster);
 	void   (*setRenderState)(int32 state, uint32 value);
 	uint32 (*getRenderState)(int32 state);
+
+	// TODO: render line
+	// TODO: render triangle
+	// TODO: render primitive
 	void   (*im2DRenderIndexedPrimitive)(PrimitiveType,
 	                                     void*, int32, void*, int32);
+
+	// Not sure if this will stay...
+	void (*im3DTransform)(void *vertices, int32 numVertices, Matrix *world);
+	void (*im3DRenderIndexed)(PrimitiveType primType, void *indices, int32 numIndices);
+	void (*im3DEnd)(void);
+
 	DeviceSystem *system;
 };
 
@@ -159,15 +137,6 @@ struct Engine
 
 extern Engine *engine;
 
-inline void SetRenderState(int32 state, uint32 value){
-	engine->device.setRenderState(state, value); }
-
-inline uint32 GetRenderState(int32 state){
-	return engine->device.getRenderState(state); }
-
-inline float32 GetNearZ(void) { return engine->device.zNear; }
-inline float32 GetFarZ(void) { return engine->device.zNear; }
-
 // These must be macros because we might want to pass __FILE__ and __LINE__ later
 #define rwMalloc(s, h) rw::Engine::memfuncs.rwmalloc(s,h)
 #define rwMallocT(t, s, h) (t*)rw::Engine::memfuncs.rwmalloc((s)*sizeof(t),h)
@@ -197,6 +166,10 @@ namespace null {
 
 	void   im2DRenderIndexedPrimitive(PrimitiveType,
 	                                  void*, int32, void*, int32);
+
+	void im3DTransform(void *vertices, int32 numVertices, Matrix *world);
+	void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices);
+	void im3DEnd(void);
 
 	int deviceSystem(DeviceReq req, void*);
 

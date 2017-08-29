@@ -11,9 +11,18 @@ layout(std140) uniform State
 	vec4  u_fogColor;
 };
 
-uniform vec4 u_xform;
+layout(std140) uniform Scene
+{
+	mat4 u_proj;
+	mat4 u_view;
+};
 
-layout(location = 0) in vec4 in_pos;
+layout(std140) uniform Object
+{
+	mat4  u_world;
+};
+
+layout(location = 0) in vec3 in_pos;
 layout(location = 2) in vec4 in_color;
 layout(location = 3) in vec2 in_tex0;
 
@@ -24,10 +33,10 @@ out float v_fog;
 void
 main(void)
 {
-	gl_Position = in_pos;
-	gl_Position.xy = gl_Position.xy * u_xform.xy + u_xform.zw;
-	gl_Position.xyz *= gl_Position.w;
+	vec4 V = u_world * vec4(in_pos, 1.0);
+	vec4 cV = u_view * V;   
+	gl_Position = u_proj * cV;
 	v_color = in_color;
 	v_tex0 = in_tex0;
-	v_fog = clamp((gl_Position.z - u_fogEnd)/(u_fogStart - u_fogEnd), 0.0, 1.0);
+	v_fog = clamp((cV.z - u_fogEnd)/(u_fogStart - u_fogEnd), 0.0, 1.0);
 }

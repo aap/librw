@@ -5,9 +5,10 @@
 #include "../rwbase.h"
 #include "../rwerror.h"
 #include "../rwplg.h"
+#include "../rwrender.h"
+#include "../rwengine.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
-#include "../rwengine.h"
 #ifdef RW_OPENGL
 #include <GL/glew.h>
 #include "rwgl3.h"
@@ -72,7 +73,6 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	Material *m;
 	RGBAf col;
 	GLfloat surfProps[4];
-	int id;
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
 	lightingCB();

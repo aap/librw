@@ -22,6 +22,22 @@ extern Device renderdevice;
 
 void lightingCB(void);
 
+struct Im3DVertex
+{
+	V3d position;
+	D3DCOLOR color;
+	float32 u, v;
+
+	void setX(float32 x) { this->position.x = x; }
+	void setY(float32 y) { this->position.y = y; }
+	void setZ(float32 z) { this->position.z = z; }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = D3DCOLOR_ARGB(a, r, g, b); }
+	RGBA getColor(void) { return makeRGBA(this->color>>16 & 0xFF, this->color>>8 & 0xFF,
+		this->color & 0xFF, this->color>>24 & 0xFF); }
+	void setU(float32 u) { this->u = u; }
+	void setV(float32 v) { this->v = v; }
+};
+
 struct Im2DVertex
 {
 	float32 x, y, z;

@@ -43,7 +43,7 @@ printScreen(const char *s, float32 x, float32 y)
 
 		vert->setScreenX(x);
 		vert->setScreenY(y);
-		vert->setScreenZ(rw::GetNearZ());
+		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
 		vert->setRecipCameraZ(1.0f/cam->nearPlane);
 		vert->setColor(255, 255, 255, 255);
@@ -53,7 +53,7 @@ printScreen(const char *s, float32 x, float32 y)
 
 		vert->setScreenX(x+curfont->glyphwidth);
 		vert->setScreenY(y);
-		vert->setScreenZ(rw::GetNearZ());
+		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
 		vert->setRecipCameraZ(1.0f/cam->nearPlane);
 		vert->setColor(255, 255, 255, 255);
@@ -63,7 +63,7 @@ printScreen(const char *s, float32 x, float32 y)
 		
 		vert->setScreenX(x);
 		vert->setScreenY(y+curfont->glyphheight);
-		vert->setScreenZ(rw::GetNearZ());
+		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
 		vert->setRecipCameraZ(1.0f/cam->nearPlane);
 		vert->setColor(255, 255, 255, 255);
@@ -73,7 +73,7 @@ printScreen(const char *s, float32 x, float32 y)
 
 		vert->setScreenX(x+curfont->glyphwidth);
 		vert->setScreenY(y+curfont->glyphheight);
-		vert->setScreenZ(rw::GetNearZ());
+		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
 		vert->setRecipCameraZ(1.0f/cam->nearPlane);
 		vert->setColor(255, 255, 255, 255);
@@ -95,7 +95,7 @@ printScreen(const char *s, float32 x, float32 y)
 		s++;
 	}
 	engine->imtexture = curfont->tex;
-	rw::engine->device.im2DRenderIndexedPrimitive(rw::PRIMTYPETRILIST,
+	im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 		vertices, curVert, indices, curIndex);
 
 }

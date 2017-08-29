@@ -14,6 +14,9 @@ rw::Texture *tex;
 rw::EngineStartParams engineStartParams;
 
 void tlTest(rw::Clump *clump);
+void genIm3DTransform(void *vertices, rw::int32 numVertices, rw::Matrix *xform);
+void genIm3DRenderIndexed(rw::PrimitiveType prim, void *indices, rw::int32 numIndices);
+void genIm3DEnd(void);
 void initFont(void);
 void printScreen(const char *s, float x, float y);
 
@@ -241,7 +244,7 @@ im2dtest(void)
 		{   0.0f, 480.0f,   0, 0, 255, 128,    0.0f, 1.0f },
 		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 1.0f },
 	};
-	static Im2DVertex verts[4];
+	Im2DVertex verts[4];
 	static short indices[] = {
 		0, 1, 2, 3
 	};
@@ -249,7 +252,7 @@ im2dtest(void)
 	for(i = 0; i < 4; i++){
 		verts[i].setScreenX(vs[i].x);
 		verts[i].setScreenY(vs[i].y);
-		verts[i].setScreenZ(rw::GetNearZ());
+		verts[i].setScreenZ(rw::im2d::GetNearZ());
 		verts[i].setCameraZ(Scene.camera->nearPlane);
 		verts[i].setRecipCameraZ(1.0f/Scene.camera->nearPlane);
 		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
@@ -259,8 +262,56 @@ im2dtest(void)
 
 	rw::engine->imtexture = tex;
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
-	rw::engine->device.im2DRenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
+	rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
 		&verts, 4, &indices, 4);
+}
+
+void
+im3dtest(void)
+{
+	using namespace rw::RWDEVICE;
+	int i;
+	static struct
+	{
+		float x, y, z;
+		rw::uint8 r, g, b, a;
+		float u, v;
+	} vs[8] = {
+		{ -1.0f, -1.0f, -1.0f,   255, 0, 0, 128,    0.0f, 0.0f },
+		{ -1.0f,  1.0f, -1.0f,   0, 255, 0, 128,    0.0f, 1.0f },
+		{  1.0f, -1.0f, -1.0f,   0, 0, 255, 128,    1.0f, 0.0f },
+		{  1.0f,  1.0f, -1.0f,   255, 0, 255, 128,  1.0f, 1.0f },
+
+		{ -1.0f, -1.0f,  1.0f,   255, 0, 0, 128,    0.0f, 0.0f },
+		{ -1.0f,  1.0f,  1.0f,   0, 255, 0, 128,    0.0f, 1.0f },
+		{  1.0f, -1.0f,  1.0f,   0, 0, 255, 128,    1.0f, 0.0f },
+		{  1.0f,  1.0f,  1.0f,   255, 0, 255, 128,  1.0f, 1.0f },
+	};
+	Im3DVertex verts[8];
+	static short indices[2*6] = {
+		0, 1, 2, 2, 1, 3,
+		4, 5, 6, 6, 5, 7
+	};
+
+	for(i = 0; i < 8; i++){
+		verts[i].setX(vs[i].x);
+		verts[i].setY(vs[i].y);
+		verts[i].setZ(vs[i].z);
+		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
+		verts[i].setU(vs[i].u);
+		verts[i].setV(vs[i].v);
+	}
+
+	rw::engine->imtexture = tex;
+
+/*
+	genIm3DTransform(verts, 8, nil);
+	genIm3DRenderIndexed(rw::PRIMTYPETRILIST, indices, 12);
+	genIm3DEnd();
+*/
+	rw::im3d::Transform(verts, 8, nil);
+	rw::im3d::RenderIndexed(rw::PRIMTYPETRILIST, indices, 12);
+	rw::im3d::End();
 }
 
 void
@@ -271,9 +322,10 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-	Scene.clump->render();
-	im2dtest();
+//	Scene.clump->render();
+//	im2dtest();
 //	tlTest(Scene.clump);
+	im3dtest();
 	printScreen("Hello, World!", 10, 10);
 
 	camera->m_rwcam->endUpdate();

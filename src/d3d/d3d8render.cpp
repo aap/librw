@@ -41,6 +41,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
+		else
+			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);
 
 		d3ddevice->SetFVF(inst->vertexShader);
 		d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)inst->vertexBuffer, 0, inst->stride);
