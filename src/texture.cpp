@@ -334,8 +334,10 @@ Texture::streamRead(Stream *stream)
 	stream->read(mask, length);
 
 	Texture *tex = Texture::read(name, mask);
-	if(tex == nil)
+	if(tex == nil){
+		s_plglist.streamSkip(stream);
 		return nil;
+	}
 	if(tex->refCount == 1)
 		tex->filterAddressing = filterAddressing;
 

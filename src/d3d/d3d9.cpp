@@ -619,34 +619,43 @@ readNativeTexture(Stream *stream)
 	int32 depth = stream->readU8();
 	int32 numLevels = stream->readU8();
 	int32 type = stream->readU8();
+/*
+#define HAS_ALPHA           (1<<0)
+#define IS_CUBE             (1<<1)
+#define USE_AUTOMIPMAPGEN   (1<<2)
+#define IS_COMPRESSED       (1<<3)
+*/
 	int32 flags = stream->readU8();
 
 	Raster *raster;
-	D3dRaster *ras;
+	D3dRaster *ext;
 
-	assert((flags & 2) == 0);
 	if(flags & 8){
-		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_D3D9);
-		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-		ras->format = d3dformat;
-		ras->hasAlpha = flags & 1;
-		ras->texture = createTexture(raster->width, raster->height,
+		// is compressed
+		assert((flags & 2) == 0 && "Can't have cube maps yet");
+		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_D3D9);
+		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ext->format = d3dformat;
+		ext->hasAlpha = flags & 1;
+		ext->texture = createTexture(raster->width, raster->height,
 		                             raster->format & Raster::MIPMAP ? numLevels : 1,
-		                             ras->format);
-		raster->flags &= ~0x80;
-		ras->customFormat = 1;
+		                             ext->format);
+		raster->flags &= ~Raster::DONTALLOCATE;
+		ext->customFormat = 1;
+	}else if(flags & 2){
+		assert(0 && "Can't have cube maps yet");
 	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D9);
-		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	}
 	tex->raster = raster;
 
 	// TODO: check if format supported and convert if necessary
 
 	if(raster->format & Raster::PAL4)
-		stream->read(ras->palette, 4*32);
+		stream->read(ext->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->read(ras->palette, 4*256);
+		stream->read(ext->palette, 4*256);
 
 	uint32 size;
 	uint8 *data;
@@ -676,28 +685,27 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Raster
 	Raster *raster = tex->raster;
-	D3dRaster *ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	D3dRaster *ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	int32 numLevels = raster->getNumLevels();
 	stream->writeI32(raster->format);
-	stream->writeU32(ras->format);
+	stream->writeU32(ext->format);
 	stream->writeU16(raster->width);
 	stream->writeU16(raster->height);
 	stream->writeU8(raster->depth);
 	stream->writeU8(numLevels);
 	stream->writeU8(raster->type);
 	uint8 flags = 0;
-	if(ras->hasAlpha)
+	if(ext->hasAlpha)
 		flags |= 1;
-	// 2 - cube map
-	// 4 - something about mipmaps...
-	if(ras->customFormat)
+	// no automipmapgen and cube supported yet
+	if(ext->customFormat)
 		flags |= 8;
 	stream->writeU8(flags);
 
 	if(raster->format & Raster::PAL4)
-		stream->write(ras->palette, 4*32);
+		stream->write(ext->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->write(ras->palette, 4*256);
+		stream->write(ext->palette, 4*256);
 
 	uint32 size;
 	uint8 *data;

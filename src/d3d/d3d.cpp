@@ -383,7 +383,7 @@ rasterCreate(Raster *raster)
 		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
 	}else
 		format = formatMap[(raster->format >> 8) & 0xF];
-	natras->format = 0;
+	natras->format = format;
 	natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
 	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
 	natras->texture = createTexture(raster->width, raster->height,
@@ -510,7 +510,7 @@ rasterToImage(Raster *raster)
 	int32 depth;
 	Image *image;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	if(natras->format){
+	if(natras->customFormat){
 		image = Image::create(raster->width, raster->height, 32);
 		image->allocate();
 		uint8 *pix = raster->lock(0);

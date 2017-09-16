@@ -40,6 +40,7 @@ struct PluginList
 	bool streamRead(Stream *stream, void *);
 	void streamWrite(Stream *stream, void *);
 	int streamGetSize(void *);
+	void streamSkip(Stream *stream);
 	void assertRights(void *, uint32 pluginID, uint32 data);
 
 	int32 registerPlugin(int32 size, uint32 id,

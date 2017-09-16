@@ -90,6 +90,21 @@ PluginList::streamGetSize(void *object)
 }
 
 void
+PluginList::streamSkip(Stream *stream)
+{
+	int32 length;
+	ChunkHeaderInfo header;
+	if(!findChunk(stream, ID_EXTENSION, (uint32*)&length, nil))
+		return;
+	while(length > 0){
+		if(!readChunkHeaderInfo(stream, &header))
+			return;
+		stream->seek(header.length);
+		length -= 12 + header.length;
+	}
+}
+
+void
 PluginList::assertRights(void *object, uint32 pluginID, uint32 data)
 {
 	for(Plugin *p = this->first; p; p = p->next)
