@@ -322,11 +322,11 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-//	Scene.clump->render();
+	Scene.clump->render();
 //	im2dtest();
 //	tlTest(Scene.clump);
-	im3dtest();
-	printScreen("Hello, World!", 10, 10);
+//	im3dtest();
+//	printScreen("Hello, World!", 10, 10);
 
 	camera->m_rwcam->endUpdate();
 	camera->m_rwcam->showRaster();

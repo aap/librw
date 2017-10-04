@@ -42,6 +42,7 @@ Geometry::allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices)
 	if(this->meshHeader){
 		oldNumMeshes = this->meshHeader->numMeshes;
 		mh = (MeshHeader*)rwResize(this->meshHeader, sz, MEMDUR_EVENT | ID_GEOMETRY);
+		this->meshHeader = mh;
 	}else{
 		oldNumMeshes = 0;
 		mh = (MeshHeader*)rwNew(sz, MEMDUR_EVENT | ID_GEOMETRY);

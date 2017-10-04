@@ -601,7 +601,7 @@ Geometry::correctTristripWinding(void)
 	rwFree(header);
 	// Now allocate indices and copy them
 	this->allocateMeshes(newhead->numMeshes, newhead->totalIndices, 0);
-	memcpy(this->meshHeader->getMeshes()->indices, indices, newhead->totalIndices*2);
+	memcpy(this->meshHeader->getMeshes()->indices, indices, this->meshHeader->totalIndices*2);
 	rwFree(indices);
 }
 
@@ -623,14 +623,13 @@ Geometry::removeUnusedMaterials(void)
 	int32 numMaterials = 0;
 	/* Build new material list and map */
 	for(uint32 i = 0; i < mh->numMeshes; i++){
-		if(m->numIndices <= 0)
+		if(m[i].numIndices <= 0)
 			continue;
-		materials[numMaterials] = m->material;
-		m->material->refCount++;
-		int32 oldid = this->matList.findIndex(m->material);
+		materials[numMaterials] = m[i].material;
+		m[i].material->refCount++;
+		int32 oldid = this->matList.findIndex(m[i].material);
 		map[oldid] = numMaterials;
 		numMaterials++;
-		m++;
 	}
 	for(int32 i = 0; i < this->matList.numMaterials; i++)
 		this->matList.materials[i]->destroy();
@@ -644,7 +643,6 @@ Geometry::removeUnusedMaterials(void)
 	MeshHeader *newmh = this->allocateMeshes(numMaterials, mh->totalIndices, 0);
 	newmh->flags = mh->flags;
 	Mesh *newm = newmh->getMeshes();
-	m = mh->getMeshes();
 	for(uint32 i = 0; i < mh->numMeshes; i++){
 		if(m[i].numIndices <= 0)
 			continue;
@@ -655,7 +653,6 @@ Geometry::removeUnusedMaterials(void)
 	newmh->setupIndices();
 	/* Copy indices */
 	newm = newmh->getMeshes();;
-	m = mh->getMeshes();
 	for(uint32 i = 0; i < mh->numMeshes; i++){
 		if(m[i].numIndices <= 0)
 			continue;
