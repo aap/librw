@@ -170,11 +170,14 @@ int WINAPI
 WinMain(HINSTANCE instance, HINSTANCE,
         PSTR cmdLine, int showCmd)
 {
+/*
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
-
+*/
+	args.argc = __argc;
+	args.argv = __argv;
 	EventHandler(INITIALIZE, nil);
 
 	HWND win = MakeWindow(instance,
@@ -192,7 +195,7 @@ WinMain(HINSTANCE instance, HINSTANCE,
 
 	float lastTime = (float)GetTickCount();
 	running = true;
-	while(pollEvents(), !globals.quit){
+	while((pollEvents(), running) && !globals.quit){
 		float currTime  = (float)GetTickCount();
 		float timeDelta = (currTime - lastTime)*0.001f;
 
@@ -214,10 +217,12 @@ int WINAPI
 WinMain(HINSTANCE instance, HINSTANCE,
         PSTR cmdLine, int showCmd)
 {
+/*
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
+*/
 
 	return main(__argc, __argv);
 }
