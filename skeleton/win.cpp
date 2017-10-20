@@ -63,6 +63,8 @@ static void KeyDown(int key) { EventHandler(KEYDOWN, &key); }
 LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	static int resizing = 0;
+
 	switch(msg){
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -96,6 +98,15 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			if((GetKeyState(VK_RSHIFT) & 0x8000) == 0) KeyUp(keymap[VK_RSHIFT]);
 		}else
 			KeyUp(keymap[wParam]);
+		break;
+
+	case WM_SIZE:
+		rw::Rect r;
+		r.x = 0;
+		r.y = 0;
+		r.w = LOWORD(lParam);
+		r.h = HIWORD(lParam);
+		EventHandler(RESIZE, &r);
 		break;
 
 	case WM_CLOSE:

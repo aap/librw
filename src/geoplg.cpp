@@ -121,6 +121,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	geo->meshHeader = nil;
 	mh = geo->allocateMeshes(mhs.numMeshes, mhs.totalIndices, 
 		geo->flags & Geometry::NATIVE && !hasData);
+	mh->flags = mhs.flags;
 
 	mesh = mh->getMeshes();
 	indices = mesh->indices;

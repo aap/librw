@@ -69,6 +69,7 @@ enum Event
 	PLUGINATTACH,
 	KEYDOWN,
 	KEYUP,
+	RESIZE,
 	IDLE,
 	QUIT
 };
@@ -91,6 +92,7 @@ extern Args args;
 
 bool InitRW(void);
 void TerminateRW(void);
+void CameraSize(Camera *cam, Rect *r);
 EventStatus EventHandler(Event e, void *param);
 
 }

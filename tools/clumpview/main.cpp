@@ -382,6 +382,7 @@ sk::EventStatus
 AppEventHandler(sk::Event e, void *param)
 {
 	using namespace sk;
+	Rect *r;
 	switch(e){
 	case INITIALIZE:
 		Init();
@@ -396,6 +397,13 @@ AppEventHandler(sk::Event e, void *param)
 	case KEYUP:
 		KeyUp(*(int*)param);
 		return EVENTPROCESSED;
+	case RESIZE:
+		r = (Rect*)param;
+		sk::globals.width = r->w;
+		sk::globals.height = r->h;
+		if(Scene.camera)
+			sk::CameraSize(Scene.camera, r);
+		break;
 	case IDLE:
 		Draw(*(float*)param);
 		return EVENTPROCESSED;

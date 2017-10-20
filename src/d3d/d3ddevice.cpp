@@ -20,6 +20,13 @@ namespace d3d {
 
 #ifdef RW_D3D9
 
+struct D3d9Globals
+{
+	HWND window;
+	bool windowed;
+	int presentWidth, presentHeight;
+} d3d9Globals;
+
 // cached RW render states
 static bool32 vertexAlpha;
 static bool32 textureAlpha;
@@ -126,6 +133,27 @@ setSamplerState(uint32 stage, uint32 type, uint32 value)
 		d3ddevice->SetSamplerState(stage, (D3DSAMPLERSTATETYPE)type, value);
 		d3dSamplerStates[type][stage] = value;
 	}
+}
+
+// Bring D3D device in accordance with saved render states (after a reset)
+static void
+resetD3d9Device(void)
+{
+	int32 i;
+	uint32 s, t;
+	for(i = 0; i < MAXNUMSTAGES; i++){
+		d3dRaster[i] = nil;
+		d3ddevice->SetTexture(i, nil);
+	}
+	for(s = 0; s < MAXNUMSTATES; s++)
+		d3ddevice->SetRenderState((D3DRENDERSTATETYPE)s, d3dStates[s]);
+	for(t = 0; t < MAXNUMSTATES; t++)
+		for(s = 0; s < MAXNUMSTAGES; s++)
+			d3ddevice->SetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, d3dTextureStageStates[t][s]);
+	for(t = 0; t < MAXNUMSAMPLERSTATES; t++)
+		for(s = 0; s < MAXNUMSTAGES; s++)
+			d3ddevice->SetSamplerState(s, (D3DSAMPLERSTATETYPE)t, d3dSamplerStates[t][s]);
+	d3ddevice->SetMaterial(&d3dmaterial);
 }
 
 // RW render state
@@ -416,6 +444,35 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	if(mode & Camera::CLEARZ)
 		mode |= D3DCLEAR_ZBUFFER;
 	D3DCOLOR c = D3DCOLOR_RGBA(col->red, col->green, col->blue, col->alpha);
+
+	RECT r;
+	GetClientRect(d3d9Globals.window, &r);
+	BOOL icon = IsIconic(d3d9Globals.window);
+	Raster *ras = cam->frameBuffer;
+	if(!icon &&
+	   (r.right != d3d9Globals.presentWidth || r.bottom != d3d9Globals.presentHeight)){
+		D3DPRESENT_PARAMETERS d3dpp;
+		d3dpp.BackBufferWidth            = r.right;
+		d3dpp.BackBufferHeight           = r.bottom;
+		d3dpp.BackBufferFormat           = D3DFMT_A8R8G8B8;
+		d3dpp.BackBufferCount            = 1;
+		d3dpp.MultiSampleType            = D3DMULTISAMPLE_NONE;
+		d3dpp.MultiSampleQuality         = 0;
+		d3dpp.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
+		d3dpp.hDeviceWindow              = d3d9Globals.window;
+		d3dpp.Windowed                   = d3d9Globals.windowed;
+		d3dpp.EnableAutoDepthStencil     = true;
+		d3dpp.AutoDepthStencilFormat     = D3DFMT_D24S8;
+		d3dpp.Flags                      = 0;
+		d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+		// TODO: check result
+		d3d::d3ddevice->Reset(&d3dpp);
+		d3d9Globals.presentWidth = r.right;
+		d3d9Globals.presentHeight = r.bottom;
+		resetD3d9Device();
+	}
+
 	d3ddevice->Clear(0, 0, mode, c, 1.0f, 0);
 }
 
@@ -432,6 +489,9 @@ openD3D(EngineStartParams *params)
 {
 	HWND win = params->window;
 	bool windowed = true;
+
+	d3d9Globals.window = win;
+	d3d9Globals.windowed = windowed;
 
 	HRESULT hr = 0;
 	IDirect3D9 *d3d9 = 0;
@@ -454,6 +514,8 @@ openD3D(EngineStartParams *params)
 	int width = rect.right - rect.left;
 	int height = rect.bottom - rect.top;
 
+	d3d9Globals.presentWidth = width;
+	d3d9Globals.presentHeight = height;
 	D3DPRESENT_PARAMETERS d3dpp;
 	d3dpp.BackBufferWidth            = width;
 	d3dpp.BackBufferHeight           = height;
@@ -502,6 +564,8 @@ closeD3D(void)
 static int
 initD3D(void)
 {
+	int32 s, t;
+
 	// TODO: do some real stuff here
 
 	d3ddevice->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
@@ -530,6 +594,16 @@ initD3D(void)
 //	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 //	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
 //	setTextureStageState(0, D3DTSS_COLOROP, D3DTA_CONSTANT);
+
+	// Save the current states
+	for(s = 0; s < MAXNUMSTATES; s++)
+		d3ddevice->GetRenderState((D3DRENDERSTATETYPE)s, (DWORD*)&d3dStates[s]);
+	for(t = 0; t < MAXNUMSTATES; t++)
+		for(s = 0; s < MAXNUMSTAGES; s++)
+			d3ddevice->GetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, (DWORD*)&d3dTextureStageStates[t][s]);
+	for(t = 0; t < MAXNUMSAMPLERSTATES; t++)
+		for(s = 0; s < MAXNUMSTAGES; s++)
+			d3ddevice->GetSamplerState(s, (D3DSAMPLERSTATETYPE)t, (DWORD*)&d3dSamplerStates[t][s]);
 
 	openIm2D();
 	openIm3D();

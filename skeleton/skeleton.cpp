@@ -31,6 +31,21 @@ TerminateRW(void)
 	rw::Engine::term();
 }
 
+void
+CameraSize(Camera *cam, Rect *r)
+{
+	if(cam->frameBuffer){
+		cam->frameBuffer->destroy();
+		cam->frameBuffer = nil;
+	}
+	if(cam->zBuffer){
+		cam->zBuffer->destroy();
+		cam->zBuffer = nil;
+	}
+	cam->frameBuffer = Raster::create(r->w, r->h, 0, Raster::CAMERA);
+	cam->zBuffer = Raster::create(r->w, r->h, 0, Raster::ZBUFFER);
+}
+
 EventStatus
 EventHandler(Event e, void *param)
 {
