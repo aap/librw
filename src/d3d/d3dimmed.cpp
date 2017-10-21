@@ -167,6 +167,7 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	memcpy(lockedindices, indices, numIndices*sizeof(uint16));
 	unlockIndices(im3dindbuf);
 
+	d3ddevice->SetIndices(im3dindbuf);
 	d3d::setTexture(0, engine->imtexture);
 	d3d::flushCache();
 

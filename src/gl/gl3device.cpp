@@ -21,6 +21,12 @@
 namespace rw {
 namespace gl3 {
 
+struct GlGlobals
+{
+	GLFWwindow *window;
+	int presentWidth, presentHeight;
+} glGlobals;
+
 struct UniformState
 {
 	int32   alphaFunc;
@@ -387,13 +393,11 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	glClear(mask);
 }
 
-static GLFWwindow *glfwwindow;
-
 static void
 showRaster(Raster *raster)
 {
 	// TODO: do this properly!
-	glfwSwapBuffers(glfwwindow);
+	glfwSwapBuffers(glGlobals.window);
 }
 
 static void
@@ -465,6 +469,14 @@ beginUpdate(Camera *cam)
 		uniformState.fogEnd = cam->farPlane;
 		stateDirty = 1;
 	}
+
+	int w, h;
+	glfwGetWindowSize(glGlobals.window, &w, &h);
+	if(w != glGlobals.presentWidth || h != glGlobals.presentHeight){
+		glViewport(0, 0, w, h);
+		glGlobals.presentWidth = w;
+		glGlobals.presentHeight = h;
+	}
 }
 
 static int
@@ -507,7 +519,7 @@ openGLFW(EngineStartParams *startparams)
 		glfwTerminate();
 		return 0;
 	}
-	glfwwindow = win;
+	glGlobals.window = win;
 	*startparams->window = win;
 	return 1;
 }
@@ -515,7 +527,7 @@ openGLFW(EngineStartParams *startparams)
 static int
 closeGLFW(void)
 {
-	glfwDestroyWindow(glfwwindow);
+	glfwDestroyWindow(glGlobals.window);
 	glfwTerminate();
 	return 1;
 }

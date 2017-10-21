@@ -206,13 +206,8 @@ InitRW(void)
 	Scene.world->addLight(direct);
 
 	camera = new Camera;
-	Scene.camera = rw::Camera::create();
+	Scene.camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
 	camera->m_rwcam = Scene.camera;
-	Scene.camera->frameBuffer =
-		rw::Raster::create(sk::globals.width, sk::globals.height, 0, rw::Raster::CAMERA);
-	Scene.camera->zBuffer =
-		rw::Raster::create(sk::globals.width, sk::globals.height, 0, rw::Raster::ZBUFFER);
-	Scene.camera->setFrame(rw::Frame::create());
 	camera->m_aspectRatio = 640.0f/480.0f;
 	camera->m_near = 0.1f;
 	camera->m_far = 450.0f;
@@ -401,6 +396,7 @@ AppEventHandler(sk::Event e, void *param)
 		r = (Rect*)param;
 		sk::globals.width = r->w;
 		sk::globals.height = r->h;
+		// TODO: set aspect ratio
 		if(Scene.camera)
 			sk::CameraSize(Scene.camera, r);
 		break;

@@ -344,8 +344,7 @@ Camera::clear(RGBA *col, uint32 mode)
 void
 Camera::showRaster(void)
 {
-	// TODO: camera raster
-	engine->device.showRaster(nil);
+	engine->device.showRaster(this->frameBuffer);
 }
 
 void
@@ -420,6 +419,7 @@ Camera::frustumTestSphere(Sphere *s)
 			return SPHEREOUTSIDE;
 		if(s->radius > -dist)
 			res = SPHEREBOUNDARY;
+		p++;
 	}
 	return res;
 }

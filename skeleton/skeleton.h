@@ -92,6 +92,7 @@ extern Args args;
 
 bool InitRW(void);
 void TerminateRW(void);
+Camera *CameraCreate(int32 width, int32 height, bool32 z);
 void CameraSize(Camera *cam, Rect *r);
 EventStatus EventHandler(Event e, void *param);
 

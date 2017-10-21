@@ -480,6 +480,9 @@ static void
 showRaster(Raster *raster)
 {
 	// TODO: do this properly!
+
+	// not used but we want cameras to have rasters
+	assert(raster);
 	d3ddevice->Present(nil, nil, 0, nil);
 }
 

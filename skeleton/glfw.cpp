@@ -149,13 +149,25 @@ keypress(GLFWwindow *window, int key, int scancode, int action, int mods)
 	}
 }
 
+static void
+resize(GLFWwindow *window, int w, int h)
+{
+	rw::Rect r;
+	r.x = 0;
+	r.y = 0;
+	r.w = w;
+	r.h = h;
+	EventHandler(RESIZE, &r);
+}
+
 int
 main(int argc, char *argv[])
 {
 	args.argc = argc;
 	args.argv = argv;
 
-	EventHandler(INITIALIZE, nil);
+	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
+		return 0;
 
 	engineStartParams.width = sk::globals.width;
 	engineStartParams.height = sk::globals.height;
@@ -167,6 +179,7 @@ main(int argc, char *argv[])
 
 	initkeymap();
 	glfwSetKeyCallback(window, keypress);
+	glfwSetWindowSizeCallback(window, resize);
 
 	float lastTime = glfwGetTime()*1000;
 	while(!sk::globals.quit && !glfwWindowShouldClose(window)){

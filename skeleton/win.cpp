@@ -189,7 +189,8 @@ WinMain(HINSTANCE instance, HINSTANCE,
 */
 	args.argc = __argc;
 	args.argv = __argv;
-	EventHandler(INITIALIZE, nil);
+	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
+		return 0;
 
 	HWND win = MakeWindow(instance,
 		sk::globals.width, sk::globals.height,

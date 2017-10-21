@@ -31,6 +31,17 @@ TerminateRW(void)
 	rw::Engine::term();
 }
 
+Camera*
+CameraCreate(int32 width, int32 height, bool32 z)
+{
+	Camera *cam;
+	cam = Camera::create();
+	cam->setFrame(Frame::create());
+	cam->frameBuffer = Raster::create(width, height, 0, Raster::CAMERA);
+	cam->zBuffer = Raster::create(width, height, 0, Raster::ZBUFFER);
+	return cam;
+}
+
 void
 CameraSize(Camera *cam, Rect *r)
 {
