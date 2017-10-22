@@ -343,6 +343,40 @@ Matrix::transform(Matrix *mat, CombineOp op)
 	return this;
 }
 
+Quat
+Matrix::getRotation(void)
+{
+	Quat q = { 0.0f, 0.0f, 0.0f, 1.0f };
+	float32 tr = right.x + up.y + at.z;
+	float s;
+	if(tr > 0.0f){
+		s = sqrt(1.0f + tr) * 2.0f;
+		q.w = s / 4.0f;
+		q.x = (up.z - at.y) / s;
+		q.y = (at.x - right.z) / s;
+		q.z = (right.y - up.x) / s;
+	}else if(right.x > up.y && right.x > at.z){
+		s = sqrt(1.0f + right.x - up.y - at.z) * 2.0f;
+		q.w = (up.z - at.y) / s;
+		q.x = s / 4.0f;
+		q.y = (up.x + right.y) / s;
+		q.z = (at.x + right.z) / s;
+	}else if(up.y > at.z){
+		s = sqrt(1.0f + up.y - right.x - at.z) * 2.0f;
+		q.w = (at.x - right.z) / s;
+		q.x = (up.x + right.y) / s;
+		q.y = s / 4.0f;
+		q.z = (at.y + up.z) / s;
+	}else{
+		s = sqrt(1.0f + at.z - right.x - up.y) * 2.0f;
+		q.w = (right.y - up.x) / s;
+		q.x = (at.x + right.z) / s;
+		q.y = (at.y + up.z) / s;
+		q.z = s / 4.0f;
+	}
+	return q;
+}
+
 void
 Matrix::lookAt(const V3d &dir, const V3d &up)
 {
