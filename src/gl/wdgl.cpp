@@ -563,7 +563,7 @@ Stream*
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
 	writeChunkHeader(stream, ID_STRUCT, len-12);
-	stream->writeU32(PLATFORM_WDGL);
+	stream->writeU32(PLATFORM_GL);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	stream->writeI32(skin->numBones);
 	stream->write(skin->inverseMatrices, skin->numBones*64);

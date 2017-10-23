@@ -180,11 +180,11 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 
 	if(geometry->instData){
 		if(geometry->instData->platform == PLATFORM_PS2)
-			ps2::writeNativeSkin(stream, len, object, offset);
+			return ps2::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_WDGL)
-			wdgl::writeNativeSkin(stream, len, object, offset);
+			return wdgl::writeNativeSkin(stream, len, object, offset);
 		else if(geometry->instData->platform == PLATFORM_XBOX)
-			xbox::writeNativeSkin(stream, len, object, offset);
+			return xbox::writeNativeSkin(stream, len, object, offset);
 		else{
 			assert(0 && "unsupported native skin platform");
 			return nil;
