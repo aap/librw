@@ -370,7 +370,8 @@ FrameList_::streamRead(Stream *stream)
 		f->matrix.at = buf.at;
 		f->matrix.pos = buf.pos;
 		f->matrix.optimize();
-		//f->matflag = buf.matflag;
+		// RW always removes identity flag
+		f->matrix.flags &= ~Matrix::IDENTITY;
 		if(buf.parent >= 0)
 			this->frames[buf.parent]->addChild(f, rw::streamAppendFrames);
 	}

@@ -55,6 +55,8 @@ struct Im2DVertex
 	void setV(float32 v) { this->v = v; }
 };
 
+void setD3dMaterial(D3DMATERIAL9 *mat9);
+
 #else
 enum {
 	D3DLOCK_NOSYSLOCK     =  0,  // ignored
@@ -103,6 +105,7 @@ enum {
 	D3DDECLUSAGE_DEPTH,         // 12
 	D3DDECLUSAGE_SAMPLE,        // 13
 };
+
 #endif
 
 extern int vertFormatMap[];
@@ -141,8 +144,8 @@ void registerNativeRaster(void);
 
 void setRenderState(uint32 state, uint32 value);
 void setTextureStageState(uint32 stage, uint32 type, uint32 value);
-void flushCache(void);
 void setSamplerState(uint32 stage, uint32 type, uint32 value);
+void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);
 void setMaterial(Material *mat);

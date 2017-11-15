@@ -290,6 +290,7 @@ Texture::read(const char *name, const char *mask)
 		if(tex == nil)
 			goto dummytex;
 	}else dummytex: if(TEXTUREGLOBAL(makeDummies)){
+//printf("missing texture %s %s\n", name ? name : "", mask ? mask : "");
 		tex = Texture::create(nil);
 		if(tex == nil)
 			return nil;
@@ -496,6 +497,14 @@ Raster::calculateNumLevels(int32 width, int32 height)
 	for(n = 0; size != 0; n++)
 		size /= 2;
 	return n;
+}
+
+bool
+Raster::formatHasAlpha(int32 format)
+{
+	return (format & 0xF00) == Raster::C8888 ||
+	       (format & 0xF00) == Raster::C1555 ||
+	       (format & 0xF00) == Raster::C4444;
 }
 
 Raster*

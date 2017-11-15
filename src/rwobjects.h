@@ -191,6 +191,7 @@ struct Raster
 	void unlock(int32 level);
 	int32 getNumLevels(void);
 	static int32 calculateNumLevels(int32 width, int32 height);
+	static bool formatHasAlpha(int32 format);
 
 	enum Format {
 		DEFAULT    = 0,
@@ -269,8 +270,8 @@ struct Texture
 
 	static Texture *(*findCB)(const char *name);
 	static Texture *(*readCB)(const char *name, const char *mask);
-	static void setLoadTextures(bool32);
-	static void setCreateDummies(bool32);
+	static void setLoadTextures(bool32);	// default: true
+	static void setCreateDummies(bool32);	// default: false
 
 #ifndef RWPUBLIC
 	static void registerModule(void);

@@ -263,8 +263,11 @@ makeDummyAnimation(const char *name)
 	strncpy(custom->name, name, 32);
 	memset(custom->nodeToUVChannel, 0, sizeof(custom->nodeToUVChannel));
 	custom->refCount = 1;
-	// TODO: init the frames
-//	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
+	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
+	frames[0].time = 0.0;
+	frames[0].prev = nil;
+	frames[1].time = 1.0;
+	frames[1].prev = &frames[0];
 	return anim;
 }
 

@@ -44,6 +44,8 @@ lightingCB(void)
 	// only unpositioned lights right now
 	FORLIST(lnk, world->directionalLights){
 		Light *l = Light::fromWorld(lnk);
+		if((l->getFlags() & Light::LIGHTATOMICS) == 0)
+			continue;
 		if(l->getType() == Light::DIRECTIONAL){
 			if(n >= MAX_LIGHTS)
 				continue;

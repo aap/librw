@@ -23,11 +23,15 @@ void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	RawMatrix world;
-
-	d3d::lightingCB();
-
 	Geometry *geo = atomic->geometry;
-	d3d::setRenderState(D3DRS_LIGHTING, !!(geo->flags & rw::Geometry::LIGHT));
+
+	int lighting = !!(geo->flags & rw::Geometry::LIGHT);
+	if(lighting)
+		d3d::lightingCB();
+	else
+		return;
+
+	d3d::setRenderState(D3DRS_LIGHTING, lighting);
 
 	Frame *f = atomic->getFrame();
 	convMatrix(&world, f->getLTM());
@@ -42,12 +46,14 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		d3d::setTexture(0, inst->material->texture);
 		d3d::setMaterial(inst->material);
+
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		else
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);
+
 		d3d::flushCache();
 		d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
 		                                0, inst->numVertices,

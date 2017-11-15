@@ -329,6 +329,31 @@ setTexture(uint32 stage, Texture *tex)
 }
 
 void
+setD3dMaterial(D3DMATERIAL9 *mat9)
+{
+	if(d3dmaterial.Diffuse.r != mat9->Diffuse.r ||
+	   d3dmaterial.Diffuse.g != mat9->Diffuse.g ||
+	   d3dmaterial.Diffuse.b != mat9->Diffuse.b ||
+	   d3dmaterial.Diffuse.a != mat9->Diffuse.a ||
+	   d3dmaterial.Ambient.r != mat9->Ambient.r ||
+	   d3dmaterial.Ambient.g != mat9->Ambient.g ||
+	   d3dmaterial.Ambient.b != mat9->Ambient.b ||
+	   d3dmaterial.Ambient.a != mat9->Ambient.a ||
+	   d3dmaterial.Specular.r != mat9->Specular.r ||
+	   d3dmaterial.Specular.g != mat9->Specular.g ||
+	   d3dmaterial.Specular.b != mat9->Specular.b ||
+	   d3dmaterial.Specular.a != mat9->Specular.a ||
+	   d3dmaterial.Emissive.r != mat9->Emissive.r ||
+	   d3dmaterial.Emissive.g != mat9->Emissive.g ||
+	   d3dmaterial.Emissive.b != mat9->Emissive.b ||
+	   d3dmaterial.Emissive.a != mat9->Emissive.a ||
+	   d3dmaterial.Power != mat9->Power){
+		d3ddevice->SetMaterial(mat9);
+		d3dmaterial = *mat9;
+	}
+}
+
+void
 setMaterial(Material *mat)
 {
 	D3DMATERIAL9 mat9;
@@ -346,17 +371,7 @@ setMaterial(Material *mat)
 	mat9.Power = 0.0f;
 	mat9.Emissive = black;
 	mat9.Specular = black;
-	if(d3dmaterial.Diffuse.r != mat9.Diffuse.r ||
-	   d3dmaterial.Diffuse.g != mat9.Diffuse.g ||
-	   d3dmaterial.Diffuse.b != mat9.Diffuse.b ||
-	   d3dmaterial.Diffuse.a != mat9.Diffuse.a ||
-	   d3dmaterial.Ambient.r != mat9.Ambient.r ||
-	   d3dmaterial.Ambient.g != mat9.Ambient.g ||
-	   d3dmaterial.Ambient.b != mat9.Ambient.b ||
-	   d3dmaterial.Ambient.a != mat9.Ambient.a){
-		d3ddevice->SetMaterial(&mat9);
-		d3dmaterial = mat9;
-	}
+	setD3dMaterial(&mat9);
 }
 
 static void
@@ -599,14 +614,20 @@ initD3D(void)
 //	setTextureStageState(0, D3DTSS_COLOROP, D3DTA_CONSTANT);
 
 	// Save the current states
-	for(s = 0; s < MAXNUMSTATES; s++)
+	for(s = 0; s < MAXNUMSTATES; s++){
 		d3ddevice->GetRenderState((D3DRENDERSTATETYPE)s, (DWORD*)&d3dStates[s]);
+		stateCache[s].value = d3dStates[s];
+	}
 	for(t = 0; t < MAXNUMSTATES; t++)
-		for(s = 0; s < MAXNUMSTAGES; s++)
+		for(s = 0; s < MAXNUMSTAGES; s++){
 			d3ddevice->GetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, (DWORD*)&d3dTextureStageStates[t][s]);
+			textureStageStateCache[t][s].value = d3dTextureStageStates[t][s];
+		}
 	for(t = 0; t < MAXNUMSAMPLERSTATES; t++)
-		for(s = 0; s < MAXNUMSTAGES; s++)
+		for(s = 0; s < MAXNUMSTAGES; s++){
 			d3ddevice->GetSamplerState(s, (D3DSAMPLERSTATETYPE)t, (DWORD*)&d3dSamplerStates[t][s]);
+			d3dSamplerStates[t][s] = d3dSamplerStates[t][s];
+		}
 
 	openIm2D();
 	openIm3D();

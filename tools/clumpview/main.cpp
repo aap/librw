@@ -10,7 +10,7 @@ struct SceneGlobals {
 	rw::Camera *camera;
 	rw::Clump *clump;
 } Scene;
-rw::Texture *tex;
+rw::Texture *tex, *tex2;
 rw::EngineStartParams engineStartParams;
 
 void tlTest(rw::Clump *clump);
@@ -166,6 +166,7 @@ InitRW(void)
 	initFont();
 
 	tex = rw::Texture::read("maze", nil);
+	tex2 = rw::Texture::read("checkers", nil);
 
 	const char *filename = "teapot.dff";
 	if(sk::args.argc > 1)
@@ -181,11 +182,11 @@ InitRW(void)
 	in.close();
 
 	// TEST - Set texture to the all materials of the clump
-	FORLIST(lnk, Scene.clump->atomics){
-		rw::Atomic *a = rw::Atomic::fromClump(lnk);
-		for(int i = 0; i < a->geometry->matList.numMaterials; i++)
-			a->geometry->matList.materials[i]->setTexture(tex);
-	}
+//	FORLIST(lnk, Scene.clump->atomics){
+//		rw::Atomic *a = rw::Atomic::fromClump(lnk);
+//		for(int i = 0; i < a->geometry->matList.numMaterials; i++)
+//			a->geometry->matList.materials[i]->setTexture(tex);
+//	}
 
 	Scene.clump->getFrame()->translate(&zero, rw::COMBINEREPLACE);
 
@@ -234,10 +235,16 @@ im2dtest(void)
 		rw::uint8 r, g, b, a;
 		float u, v;
 	} vs[4] = {
+/*
 		{   0.0f,   0.0f,   255, 0, 0, 128,    0.0f, 0.0f },
 		{ 640.0f,   0.0f,   0, 255, 0, 128,    1.0f, 0.0f },
 		{   0.0f, 480.0f,   0, 0, 255, 128,    0.0f, 1.0f },
 		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 1.0f },
+*/
+		{   0.0f,   0.0f,   255, 0, 0, 128,    0.0f, 1.0f },
+		{ 640.0f,   0.0f,   0, 255, 0, 128,    0.0f, 0.0f },
+		{   0.0f, 480.0f,   0, 0, 255, 128,    1.0f, 1.0f },
+		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 0.0f },
 	};
 	Im2DVertex verts[4];
 	static short indices[] = {
@@ -255,7 +262,7 @@ im2dtest(void)
 		verts[i].setV(vs[i].v);
 	}
 
-	rw::engine->imtexture = tex;
+	rw::engine->imtexture = tex2;
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
 	rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
 		&verts, 4, &indices, 4);

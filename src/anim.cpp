@@ -232,7 +232,9 @@ AnimInterpolator::setCurrentAnim(Animation *anim)
 		kf2 = this->getAnimFrame(i+numNodes);
 		intf->keyFrame1 = kf1;
 		intf->keyFrame2 = kf2;
-		this->interpCB(intf, kf1, kf2, 0.0f, anim->customData);
+		// TODO: perhaps just implement all interpolator infos?
+		if(this->interpCB)
+			this->interpCB(intf, kf1, kf2, 0.0f, anim->customData);
 	}
 	this->nextFrame = this->getAnimFrame(numNodes*2);
 	return 1;

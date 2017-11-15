@@ -421,6 +421,16 @@ rasterNumLevels(Raster *raster)
 void
 rasterFromImage(Raster *raster, Image *image)
 {
+	// Unpalettize image if necessary but don't change original
+	Image *truecolimg = nil;
+	if(image->depth <= 8 && !isP8supported){
+		truecolimg = Image::create(image->width, image->height, image->depth);
+		truecolimg->pixels = image->pixels;
+		truecolimg->palette = image->palette;
+		truecolimg->unindex();
+		image = truecolimg;
+	}
+
 	int32 format;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	switch(image->depth){
@@ -502,6 +512,9 @@ rasterFromImage(Raster *raster, Image *image)
 					break;
 				}
 	raster->unlock(0);
+
+	if(truecolimg)
+		truecolimg->destroy();
 }
 
 Image*

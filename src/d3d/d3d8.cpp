@@ -435,15 +435,22 @@ Raster*
 readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format, int32 numLevels)
 {
 	uint8 palette[256*4];
+	int32 pallen = 0;
 	uint8 *data = nil;
 
 	Image *img = Image::create(width, height, 32);
 	img->allocate();
 
-	if(format & Raster::PAL4)
+	if(format & Raster::PAL4){
+		pallen = 16;
 		stream->read(palette, 4*32);
-	else if(format & Raster::PAL8)
+	}else if(format & Raster::PAL8){
+		pallen = 256;
 		stream->read(palette, 4*256);
+	}
+	if(!Raster::formatHasAlpha(format))
+		for(int32 i = 0; i < pallen; i++)
+			palette[i*4+3] = 0xFF;
 
 	// Only read one mipmap	
 	for(int32 i = 0; i < numLevels; i++){

@@ -533,6 +533,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	uint8 *verts[2];
 	verts[0] = lockVertices(header->vertexStream[0].vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	verts[1] = lockVertices(header->vertexStream[1].vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+	getDeclaration(header->vertexDeclaration, dcl);
 
 	int i;
 	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)

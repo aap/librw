@@ -22,15 +22,15 @@ BBox::calculate(V3d *points, int32 n)
 		if(points->x < this->inf.x)
 			this->inf.x = points->x;
 		if(points->y < this->inf.y)
-			this->inf.x = points->y;
+			this->inf.y = points->y;
 		if(points->z < this->inf.z)
-			this->inf.x = points->z;
+			this->inf.z = points->z;
 		if(points->x > this->sup.x)
 			this->sup.x = points->x;
 		if(points->y > this->sup.y)
-			this->sup.x = points->y;
+			this->sup.y = points->y;
 		if(points->z > this->sup.z)
-			this->sup.x = points->z;
+			this->sup.z = points->z;
 	}
 }
 
