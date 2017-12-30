@@ -113,6 +113,15 @@ TexDictionary::add(Texture *t)
 	this->textures.append(&t->inDict);
 }
 
+void
+TexDictionary::addFront(Texture *t)
+{
+	if(t->dict)
+		t->inDict.remove();
+	t->dict = this;
+	this->textures.add(&t->inDict);
+}
+
 Texture*
 TexDictionary::find(const char *name)
 {

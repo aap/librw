@@ -479,11 +479,27 @@ Camera::streamGetSize(void)
 	       s_plglist.streamGetSize(this);
 }
 
+// Assumes horizontal FOV for 4:3, but we convert to vertical FOV
 void
-Camera::setFOV(float32 fov, float32 ratio)
+Camera::setFOV(float32 hfov, float32 ratio)
 {
 	V2d v;
-	float32 a = tan(fov*3.14159f/360.0f);
+	float w, h;
+
+	w = this->frameBuffer->width;
+	h = this->frameBuffer->height;
+	if(w < 1 || h < 1){
+		w = 1;
+		h = 1;
+	}
+	hfov = hfov*3.14159f/360.0f;	// deg to rad
+
+	float ar1 = 4.0/3.0;
+	float ar2 = w/h;
+	float vfov = atan(tan(hfov/2) / ar1) *2;
+	hfov = atan(tan(vfov/2) * ar2) *2;
+
+	float32 a = tan(hfov);
 	v.set(a, a/ratio);
 	this->setViewWindow(&v);
 	v.set(0.0f, 0.0f);

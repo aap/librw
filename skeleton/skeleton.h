@@ -69,6 +69,9 @@ enum Event
 	PLUGINATTACH,
 	KEYDOWN,
 	KEYUP,
+	CHARINPUT,
+	MOUSEMOVE,
+	MOUSEBTN,
 	RESIZE,
 	IDLE,
 	QUIT
@@ -83,6 +86,13 @@ struct Globals
 };
 extern Globals globals;
 
+// Argument to mouse events
+struct MouseState
+{
+	int posx, posy;
+	int buttons;	// bits 0-2 are left, middle, right button down
+};
+
 struct Args
 {
 	int argc;
@@ -94,8 +104,12 @@ bool InitRW(void);
 void TerminateRW(void);
 Camera *CameraCreate(int32 width, int32 height, bool32 z);
 void CameraSize(Camera *cam, Rect *r);
+void SetMousePosition(int x, int y);
 EventStatus EventHandler(Event e, void *param);
 
 }
 
 sk::EventStatus AppEventHandler(sk::Event e, void *param);
+
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_rw.h"

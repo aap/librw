@@ -96,6 +96,7 @@ end
 
 function skeleton()
 	files { "skeleton/*.cpp", "skeleton/*.h" }
+	files { "skeleton/imgui/*.cpp", "skeleton/imgui/*.h" }
 	includedirs { "skeleton" }
 end
 
@@ -131,6 +132,15 @@ project "clumpview"
 	flags { "WinMain" }
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" } -- for now
+
+project "imguitest"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("imguitest")
+	files { "tools/imguitest/imgui/*.cpp" }
+	flags { "WinMain" }
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
 
 project "ps2test"
 	kind "ConsoleApp"

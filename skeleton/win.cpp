@@ -64,7 +64,9 @@ LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static int resizing = 0;
+	static int buttons = 0;
 
+	MouseState ms;
 	switch(msg){
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -98,6 +100,35 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			if((GetKeyState(VK_RSHIFT) & 0x8000) == 0) KeyUp(keymap[VK_RSHIFT]);
 		}else
 			KeyUp(keymap[wParam]);
+		break;
+
+	case WM_CHAR:
+		if(wParam > 0 && wParam < 0x10000)
+			EventHandler(CHARINPUT, (void*)wParam);
+		break;
+
+	case WM_MOUSEMOVE:
+		POINTS p = MAKEPOINTS(lParam);
+		ms.posx = p.x;
+		ms.posy = p.y;
+		EventHandler(MOUSEMOVE, &ms);
+		break;
+
+	case WM_LBUTTONDOWN:
+		buttons |= 1; goto mbtn;
+	case WM_LBUTTONUP:
+		buttons &= ~1; goto mbtn;
+	case WM_MBUTTONDOWN:
+		buttons |= 2; goto mbtn;
+	case WM_MBUTTONUP:
+		buttons &= ~2; goto mbtn;
+	case WM_RBUTTONDOWN:
+		buttons |= 4; goto mbtn;
+	case WM_RBUTTONUP:
+		buttons &= ~4;
+	mbtn:
+		ms.buttons = buttons;
+		EventHandler(MOUSEBTN, &ms);
 		break;
 
 	case WM_SIZE:
@@ -181,12 +212,19 @@ int WINAPI
 WinMain(HINSTANCE instance, HINSTANCE,
         PSTR cmdLine, int showCmd)
 {
-/*
+
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
-*/
+
+	INT64 ticks;
+	INT64 ticksPerSecond;
+	if(!QueryPerformanceFrequency((LARGE_INTEGER*)&ticksPerSecond))
+		return 0;
+	if(!QueryPerformanceCounter((LARGE_INTEGER*)&ticks))
+		return 0;
+
 	args.argc = __argc;
 	args.argv = __argv;
 	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
@@ -205,21 +243,35 @@ WinMain(HINSTANCE instance, HINSTANCE,
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
 		return 0;
 
-	float lastTime = (float)GetTickCount();
+	INT64 lastTicks;
+	QueryPerformanceCounter((LARGE_INTEGER *)&lastTicks);
 	running = true;
 	while((pollEvents(), running) && !globals.quit){
-		float currTime  = (float)GetTickCount();
-		float timeDelta = (currTime - lastTime)*0.001f;
+		QueryPerformanceCounter((LARGE_INTEGER *)&ticks);
+		float timeDelta = (float)(ticks - lastTicks)/ticksPerSecond;
 
 		EventHandler(IDLE, &timeDelta);
 
-		lastTime = currTime;
+		lastTicks = ticks;
 	}
 
 	EventHandler(RWTERMINATE, nil);
 
 	return 0;
 }
+
+namespace sk {
+
+void
+SetMousePosition(int x, int y)
+{
+	POINT pos = { x, y };
+	ClientToScreen(engineStartParams.window, &pos);
+	SetCursorPos(pos.x, pos.y);
+}
+
+}
+
 #endif
 
 #ifdef RW_OPENGL

@@ -28,8 +28,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	int lighting = !!(geo->flags & rw::Geometry::LIGHT);
 	if(lighting)
 		d3d::lightingCB();
-	else
-		return;
+//	else
+//		return;
 
 	d3d::setRenderState(D3DRS_LIGHTING, lighting);
 
@@ -45,6 +45,13 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		d3d::setTexture(0, inst->material->texture);
+		d3d::setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		d3d::setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_CURRENT);
+		d3d::setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+		d3d::setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		d3d::setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+		d3d::setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+
 		d3d::setMaterial(inst->material);
 
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);

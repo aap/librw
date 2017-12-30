@@ -143,8 +143,11 @@ void registerNativeRaster(void);
 // Rendering
 
 void setRenderState(uint32 state, uint32 value);
+void getRenderState(uint32 state, uint32 *value);
 void setTextureStageState(uint32 stage, uint32 type, uint32 value);
+void getTextureStageState(uint32 stage, uint32 type, uint32 *value);
 void setSamplerState(uint32 stage, uint32 type, uint32 value);
+void getSamplerState(uint32 stage, uint32 type, uint32 *value);
 void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);

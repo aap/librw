@@ -85,6 +85,12 @@ setRenderState(uint32 state, uint32 value)
 }
 
 void
+getRenderState(uint32 state, uint32 *value)
+{
+	*value = stateCache[state].value;
+}
+
+void
 setTextureStageState(uint32 stage, uint32 type, uint32 value)
 {
 	if(textureStageStateCache[type][stage].value != value){
@@ -96,6 +102,12 @@ setTextureStageState(uint32 stage, uint32 type, uint32 value)
 			numDirtyTextureStageStates++;
 		}
 	}
+}
+
+void
+getTextureStageState(uint32 stage, uint32 type, uint32 *value)
+{
+	*value = textureStageStateCache[type][stage].value;
 }
 
 void
@@ -133,6 +145,12 @@ setSamplerState(uint32 stage, uint32 type, uint32 value)
 		d3ddevice->SetSamplerState(stage, (D3DSAMPLERSTATETYPE)type, value);
 		d3dSamplerStates[type][stage] = value;
 	}
+}
+
+void
+getSamplerState(uint32 stage, uint32 type, uint32 *value)
+{
+	*value = d3dSamplerStates[type][stage];
 }
 
 // Bring D3D device in accordance with saved render states (after a reset)
@@ -480,7 +498,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		d3dpp.AutoDepthStencilFormat     = D3DFMT_D24S8;
 		d3dpp.Flags                      = 0;
 		d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
+//		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
 		// TODO: check result
 		d3d::d3ddevice->Reset(&d3dpp);
 		d3d9Globals.presentWidth = r.right;
@@ -548,7 +567,8 @@ openD3D(EngineStartParams *params)
 	d3dpp.AutoDepthStencilFormat     = D3DFMT_D24S8;
 	d3dpp.Flags                      = 0;
 	d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-	d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+	d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
+//	d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
 
 	IDirect3DDevice9 *dev;
 	hr = d3d9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, win,

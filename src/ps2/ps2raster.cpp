@@ -1595,6 +1595,7 @@ readNativeTexture(Stream *stream)
 		goto fail;
 	}
 	stream->read(&streamExt, 0x40);
+/*
 printf("%X %X %X %X %X %016llX %X %X %016llX %016llX %X %X %X %X\n",
 streamExt.width,
 streamExt.height,
@@ -1610,7 +1611,7 @@ streamExt.pixelSize,
 streamExt.paletteSize,
 streamExt.totalSize,
 streamExt.mipmapVal);
-
+*/
 	noNewStyleRasters = streamExt.type < 2;
 	rw::version = version;
 	raster = Raster::create(streamExt.width, streamExt.height,

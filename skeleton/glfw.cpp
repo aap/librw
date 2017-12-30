@@ -150,6 +150,12 @@ keypress(GLFWwindow *window, int key, int scancode, int action, int mods)
 }
 
 static void
+charinput(GLFWwindow *window, unsigned int c)
+{
+	EventHandler(CHARINPUT, (void*)c);
+}
+
+static void
 resize(GLFWwindow *window, int w, int h)
 {
 	rw::Rect r;
@@ -158,6 +164,46 @@ resize(GLFWwindow *window, int w, int h)
 	r.w = w;
 	r.h = h;
 	EventHandler(RESIZE, &r);
+}
+
+static void
+mousemove(GLFWwindow *window, double x, double y)
+{
+	sk::MouseState ms;
+	ms.posx = x;
+	ms.posy = y;
+	EventHandler(MOUSEMOVE, &ms);
+}
+
+static void
+mousebtn(GLFWwindow *window, int button, int action, int mods)
+{
+	static int buttons = 0;
+	sk::MouseState ms;
+	
+	switch(button){
+	case GLFW_MOUSE_BUTTON_LEFT:
+		if(action == GLFW_PRESS)
+			buttons |= 1;
+		else
+			buttons &= ~1;
+		break;
+	case GLFW_MOUSE_BUTTON_MIDDLE:
+		if(action == GLFW_PRESS)
+			buttons |= 2;
+		else
+			buttons &= ~2;
+		break;
+	case GLFW_MOUSE_BUTTON_RIGHT:
+		if(action == GLFW_PRESS)
+			buttons |= 4;
+		else
+			buttons &= ~4;
+		break;
+	}
+
+	ms.buttons = buttons;
+	EventHandler(MOUSEBTN, &ms);
 }
 
 int
@@ -179,7 +225,10 @@ main(int argc, char *argv[])
 
 	initkeymap();
 	glfwSetKeyCallback(window, keypress);
+	glfwSetCharCallback(window, charinput);
 	glfwSetWindowSizeCallback(window, resize);
+	glfwSetCursorPosCallback(window, mousemove);
+	glfwSetMouseButtonCallback(window, mousebtn);
 
 	float lastTime = glfwGetTime()*1000;
 	while(!sk::globals.quit && !glfwWindowShouldClose(window)){
@@ -196,4 +245,15 @@ main(int argc, char *argv[])
 
 	return 0;
 }
+
+namespace sk {
+
+void
+SetMousePosition(int x, int y)
+{
+	glfwSetCursorPos(*engineStartParams.window, (double)x, (double)y);
+}
+
+}
+
 #endif

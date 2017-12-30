@@ -683,6 +683,7 @@ struct TexDictionary
 	void destroy(void);
 	int32 count(void) { return this->textures.count(); }
 	void add(Texture *t);
+	void addFront(Texture *t);
 	Texture *find(const char *name);
 	static TexDictionary *streamRead(Stream *stream);
 	void streamWrite(Stream *stream);
