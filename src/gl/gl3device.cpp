@@ -425,6 +425,7 @@ beginUpdate(Camera *cam)
 	view[13] =  inv.pos.y;
 	view[14] =  inv.pos.z;
 	view[15] =  1.0f;
+	memcpy(&cam->devView, &view, sizeof(RawMatrix));
 	setViewMatrix(view);
 
 	// Projection Matrix
@@ -459,6 +460,7 @@ beginUpdate(Camera *cam)
 		proj[14] = -2.0f*invz;
 		proj[15] = 1.0f;
 	}
+	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
 	setProjectionMatrix(proj);
 
 	if(uniformState.fogStart != cam->fogPlane){
@@ -490,7 +492,7 @@ openGLFW(EngineStartParams *startparams)
 		RWERROR((ERR_GENERAL, "glfwInit() failed"));
 		return 0;
 	}
-	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_SAMPLES, 0);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);

@@ -492,7 +492,7 @@ Camera::setFOV(float32 hfov, float32 ratio)
 		w = 1;
 		h = 1;
 	}
-	hfov = hfov*3.14159f/360.0f;	// deg to rad
+	hfov = hfov*3.14159f/360.0f;	// deg to rad and halved
 
 	float ar1 = 4.0/3.0;
 	float ar2 = w/h;

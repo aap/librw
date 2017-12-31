@@ -456,6 +456,9 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	// TODO: pass arguments through to the driver and create the raster there
 	Raster *raster = (Raster*)rwMalloc(s_plglist.size, MEMDUR_EVENT);	// TODO
 	assert(raster != nil);
+	raster->parent = raster;
+	raster->offsetX = 0;
+	raster->offsetY = 0;
 	raster->platform = platform ? platform : rw::platform;
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
@@ -469,6 +472,18 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 //	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
 	engine->driver[raster->platform]->rasterCreate(raster);
 	return raster;
+}
+
+void
+Raster::subRaster(Raster *parent, Rect *r)
+{
+	if((this->flags & DONTALLOCATE) == 0)
+		return;
+	this->width = r->w;
+	this->height = r->h;
+	this->offsetX += r->x;
+	this->offsetY += r->y;
+	this->parent = parent->parent;
 }
 
 void

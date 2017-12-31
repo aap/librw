@@ -502,7 +502,6 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 void
 rasterCreate(Raster *raster)
 {
-	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	static uint32 formatMap[] = {
 		D3DFMT_UNKNOWN,
 		D3DFMT_A1R5G5B5,
@@ -533,20 +532,38 @@ rasterCreate(Raster *raster)
 		0,
 		0, 0, 0, 0, 0
 	};
-	if(raster->flags & 0x80)
-		return;
+
+	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	uint32 format;
-	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
-		format = D3DFMT_P8;
-		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-	}else
-		format = formatMap[(raster->format >> 8) & 0xF];
-	natras->format = 0;
-	natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
-	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
-	natras->texture = createTexture(raster->width, raster->height,
-	                                raster->format & Raster::MIPMAP ? levels : 1,
-	                                format);
+	int32 levels;
+
+	// Dummy to use as subraster
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->stride = 0;
+		return;
+	}
+
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+		if(raster->flags & Raster::DONTALLOCATE)
+			return;
+		if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+			format = D3DFMT_P8;
+			natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
+		}else
+			format = formatMap[(raster->format >> 8) & 0xF];
+		natras->format = 0;
+		natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
+		levels = Raster::calculateNumLevels(raster->width, raster->height);
+		natras->texture = createTexture(raster->width, raster->height,
+		                                raster->format & Raster::MIPMAP ? levels : 1,
+		                                format);
+	default:
+		// unsupported
+		return;
+	}
 }
 
 uint8*
@@ -661,14 +678,14 @@ readNativeTexture(Stream *stream)
 	assert(unknownFlag == 0);
 	Raster *raster;
 	if(compression){
-		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_XBOX);
+		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_XBOX);
 		XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 		ras->format = compression;
 		ras->hasAlpha = hasAlpha;
 		ras->texture = createTexture(raster->width, raster->height,
 	                                     raster->format & Raster::MIPMAP ? numLevels : 1,
 	                                     ras->format);
-		raster->flags &= ~0x80;
+		raster->flags &= ~Raster::DONTALLOCATE;
 	}else
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_XBOX);
 	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);

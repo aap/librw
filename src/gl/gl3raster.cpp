@@ -23,10 +23,21 @@ int32 nativeRasterOffset;
 void
 rasterCreate(Raster *raster)
 {
+	// Dummy to use as subraster
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->stride = 0;
+		return;
+	}
+
 	switch(raster->type){
 	case Raster::CAMERA:
 		// TODO: set/check width, height, depth, format?
 		raster->flags |= Raster::DONTALLOCATE;
+		raster->originalWidth = raster->width;
+		raster->originalHeight = raster->height;
+		raster->stride = 0;
+		raster->pixels = nil;
 		break;
 	case Raster::ZBUFFER:
 		// TODO: set/check width, height, depth, format?

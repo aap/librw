@@ -3,7 +3,6 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-extern Shader *simpleShader;
 extern uint32 im2DVbo, im2DIbo;
 void openIm2D(void);
 void closeIm2D(void);

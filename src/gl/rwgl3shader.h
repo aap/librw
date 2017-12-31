@@ -25,9 +25,8 @@ int32 findBlock(const char *name);
 
 extern UniformRegistry uniformRegistry;
 
-class Shader
+struct Shader
 {
-public:
 	GLuint program;
 	// same number of elements as UniformRegistry::numUniforms
 	GLint *uniformLocations;

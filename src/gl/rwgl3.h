@@ -80,6 +80,10 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 
 #ifdef RW_GL3
 
+struct Shader;
+
+extern Shader *simpleShader;
+
 struct Im3DVertex
 {
 	V3d     position;

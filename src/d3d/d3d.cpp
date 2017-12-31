@@ -350,7 +350,6 @@ int32 nativeRasterOffset;
 void
 rasterCreate(Raster *raster)
 {
-	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	static uint32 formatMap[] = {
 		0,
 		D3DFMT_A1R5G5B5,
@@ -375,20 +374,53 @@ rasterCreate(Raster *raster)
 		0,
 		0, 0, 0, 0, 0
 	};
-	if(raster->flags & 0x80)
-		return;
+
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	uint32 format;
-	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
-		format = D3DFMT_P8;
-		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-	}else
-		format = formatMap[(raster->format >> 8) & 0xF];
-	natras->format = format;
-	natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
-	int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
-	natras->texture = createTexture(raster->width, raster->height,
-	                                raster->format & Raster::MIPMAP ? levels : 1,
-	                                format);
+	int32 levels;
+
+	// Dummy to use as subraster
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->stride = 0;
+		return;
+	}
+
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+		if(raster->flags & Raster::DONTALLOCATE)
+			return;
+		if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+			format = D3DFMT_P8;
+			natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
+		}else
+			format = formatMap[(raster->format >> 8) & 0xF];
+		natras->format = format;
+		natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
+		levels = Raster::calculateNumLevels(raster->width, raster->height);
+		natras->texture = createTexture(raster->width, raster->height,
+		                                raster->format & Raster::MIPMAP ? levels : 1,
+		                                format);
+		break;
+
+	case Raster::ZBUFFER:
+		raster->flags |= Raster::DONTALLOCATE;
+		// TODO
+		break;
+	case Raster::CAMERA:
+		// TODO: get stuff from video mode
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->originalWidth = raster->width;
+		raster->originalHeight = raster->height;
+		raster->stride = 0;
+		raster->pixels = nil;
+		break;
+	case Raster::CAMERATEXTURE:
+		raster->flags |= Raster::DONTALLOCATE;
+		// TODO
+		break;
+	}
 }
 
 uint8*
@@ -666,7 +698,7 @@ allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha)
 	ras->texture = createTexture(raster->width, raster->height,
 	                             raster->format & Raster::MIPMAP ? numLevels : 1,
 	                             ras->format);
-	raster->flags &= ~0x80;
+	raster->flags &= ~Raster::DONTALLOCATE;
 }
 
 void

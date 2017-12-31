@@ -144,6 +144,11 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		DestroyWindow(hwnd);
 		break;
 
+	case WM_SYSCOMMAND:
+		if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+			return 0;
+		break;
+
 	case WM_QUIT:
 		running = false;
 		break;

@@ -375,6 +375,7 @@ Atomic::clone()
 	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	if(this->geometry)
 		atomic->setGeometry(this->geometry, 0);
+	atomic->renderCB = this->renderCB;
 	atomic->pipeline = this->pipeline;
 	s_plglist.copy(atomic, this);
 	return atomic;

@@ -418,6 +418,7 @@ beginUpdate(Camera *cam)
 	view[13] =  inv.pos.y;
 	view[14] =  inv.pos.z;
 	view[15] =  1.0f;
+	memcpy(&cam->devView, view, sizeof(RawMatrix));
 	d3ddevice->SetTransform(D3DTS_VIEW, (D3DMATRIX*)view);
 
 	// Projection Matrix
@@ -451,11 +452,21 @@ beginUpdate(Camera *cam)
 		proj[15] = 1.0f;
 	}
 	proj[14] = -cam->nearPlane*proj[10];
+	memcpy(&cam->devProj, proj, sizeof(RawMatrix));
 	d3ddevice->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
 
 	// TODO: figure out where this is really done
 	setRenderState(D3DRS_FOGSTART, *(uint32*)&cam->fogPlane);
 	setRenderState(D3DRS_FOGEND, *(uint32*)&cam->farPlane);
+
+	D3DVIEWPORT9 vp;
+	vp.MinZ = 0.0f;
+	vp.MaxZ = 1.0f;
+	vp.X = cam->frameBuffer->offsetX;
+	vp.Y = cam->frameBuffer->offsetY;
+	vp.Width = cam->frameBuffer->width;
+	vp.Height = cam->frameBuffer->height;
+	d3ddevice->SetViewport(&vp);
 
 	// TODO: figure out when to call this
 	d3ddevice->BeginScene();

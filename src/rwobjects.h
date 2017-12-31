@@ -179,11 +179,13 @@ struct Raster
 	int32 originalWidth;
 	int32 originalHeight;
 	int32 originalStride;
-	// TODO:
-	// parent raster and offset
+	// subraster
+	Raster *parent;
+	int32 offsetX, offsetY;
 
 	static Raster *create(int32 width, int32 height, int32 depth,
 	                      int32 format, int32 platform = 0);
+	void subRaster(Raster *parent, Rect *r);
 	void destroy(void);
 	static Raster *createFromImage(Image *image, int32 platform = 0);
 	Image *toImage(void);
@@ -582,6 +584,11 @@ struct Camera
 
 	Raster *frameBuffer;
 	Raster *zBuffer;
+
+	// Device dependant view and projection matrices
+	// optional
+	RawMatrix devView;
+	RawMatrix devProj;
 
 	// clump link handled by plugin in RW
 	Clump *clump;

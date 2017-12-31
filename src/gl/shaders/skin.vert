@@ -60,7 +60,7 @@ main(void)
 	mat4 world = u_world * m;
 
 	vec4 V = world * vec4(in_pos, 1.0);
-	vec4 cV = u_view * V;   
+	vec4 cV = u_view * V;
 	gl_Position = u_proj * cV;
 	vec3 N = mat3(world) * in_normal;
 
@@ -74,5 +74,5 @@ main(void)
 
 	v_tex0 = in_tex0;
 
-        v_fog = clamp((cV.z - u_fogEnd)/(u_fogStart - u_fogEnd), 0.0, 1.0);
+	v_fog = clamp((cV.z - u_fogEnd)/(u_fogStart - u_fogEnd), 0.0, 1.0);
 }
