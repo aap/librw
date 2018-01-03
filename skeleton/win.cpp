@@ -217,11 +217,12 @@ int WINAPI
 WinMain(HINSTANCE instance, HINSTANCE,
         PSTR cmdLine, int showCmd)
 {
-
+/*
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
+*/
 
 	INT64 ticks;
 	INT64 ticksPerSecond;

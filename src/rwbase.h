@@ -280,6 +280,9 @@ struct RawMatrix
 	V3d pos;
 	float32 posw;;
 
+	static void mult(RawMatrix *dst, RawMatrix *src1, RawMatrix *src2);
+	static void transpose(RawMatrix *dst, RawMatrix *src);
+	static void setIdentity(RawMatrix *dst);
 };
 
 struct Matrix
@@ -483,6 +486,7 @@ enum Platform
 };
 
 #define MAKEPLUGINID(v, id) (((v & 0xFFFFFF) << 8) | (id & 0xFF))
+#define MAKEPIPEID(v, id) (((v & 0xFFFF) << 16) | (id & 0xFFFF))
 
 enum VendorID
 {

@@ -978,6 +978,7 @@ createTexRaster(Raster *raster)
 
 		// calculate buffer width in units of pixels/64
 		bufferBase[0] = 0;
+		trxpos_hi[0] = 0;
 		bufferWidth[0] = nPagW*pageWidth / 64;
 
 		// calculate whole buffer size in words

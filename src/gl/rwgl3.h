@@ -54,6 +54,7 @@ struct InstanceData
 {
 	uint32    numIndex;
 	uint32    minVert;	// not used for rendering
+	int32     numVertices;	//
 	Material *material;
 	bool32    vertexAlpha;
 	uint32    program;

@@ -11,9 +11,9 @@ enum RenderState
 	ZWRITEENABLE,
 	FOGENABLE,
 	FOGCOLOR,
+	CULLMODE,
 	// TODO:
 	// fog type, density ?
-	// ? cullmode
 	// ? shademode
 	// ???? stencil
 
@@ -27,6 +27,13 @@ enum AlphaTestFunc
 	ALPHAALWAYS = 0,
 	ALPHAGREATEREQUAL,
 	ALPHALESS
+};
+
+enum CullMode
+{
+	CULLNONE,
+	CULLBACK,
+	CULLFRONT
 };
 
 enum BlendFunction

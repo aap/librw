@@ -140,6 +140,64 @@ V3d::transformVectors(V3d *out, V3d *in, int32 n, Matrix *m)
 }
 
 //
+// RawMatrix
+//
+
+void
+RawMatrix::mult(RawMatrix *dst, RawMatrix *src1, RawMatrix *src2)
+{
+	dst->right.x = src1->right.x*src2->right.x + src1->right.y*src2->up.x + src1->right.z*src2->at.x + src1->rightw*src2->pos.x;
+	dst->right.y = src1->right.x*src2->right.y + src1->right.y*src2->up.y + src1->right.z*src2->at.y + src1->rightw*src2->pos.y;
+	dst->right.z = src1->right.x*src2->right.z + src1->right.y*src2->up.z + src1->right.z*src2->at.z + src1->rightw*src2->pos.z;
+	dst->rightw  = src1->right.x*src2->rightw  + src1->right.y*src2->upw  + src1->right.z*src2->atw  + src1->rightw*src2->posw;
+	dst->up.x    = src1->up.x*src2->right.x    + src1->up.y*src2->up.x    + src1->up.z*src2->at.x + src1->upw*src2->pos.x;
+	dst->up.y    = src1->up.x*src2->right.y    + src1->up.y*src2->up.y    + src1->up.z*src2->at.y + src1->upw*src2->pos.y;
+	dst->up.z    = src1->up.x*src2->right.z    + src1->up.y*src2->up.z    + src1->up.z*src2->at.z + src1->upw*src2->pos.z;
+	dst->upw     = src1->up.x*src2->rightw     + src1->up.y*src2->upw     + src1->up.z*src2->atw  + src1->upw*src2->posw;
+	dst->at.x    = src1->at.x*src2->right.x    + src1->at.y*src2->up.x    + src1->at.z*src2->at.x + src1->atw*src2->pos.x;
+	dst->at.y    = src1->at.x*src2->right.y    + src1->at.y*src2->up.y    + src1->at.z*src2->at.y + src1->atw*src2->pos.y;
+	dst->at.z    = src1->at.x*src2->right.z    + src1->at.y*src2->up.z    + src1->at.z*src2->at.z + src1->atw*src2->pos.z;
+	dst->atw     = src1->at.x*src2->rightw     + src1->at.y*src2->upw     + src1->at.z*src2->atw  + src1->atw*src2->posw;
+	dst->pos.x   = src1->pos.x*src2->right.x   + src1->pos.y*src2->up.x   + src1->pos.z*src2->at.x + src1->posw*src2->pos.x;
+	dst->pos.y   = src1->pos.x*src2->right.y   + src1->pos.y*src2->up.y   + src1->pos.z*src2->at.y + src1->posw*src2->pos.y;
+	dst->pos.z   = src1->pos.x*src2->right.z   + src1->pos.y*src2->up.z   + src1->pos.z*src2->at.z + src1->posw*src2->pos.z;
+	dst->posw    = src1->pos.x*src2->rightw    + src1->pos.y*src2->upw    + src1->pos.z*src2->atw  + src1->posw*src2->posw;
+}
+
+void
+RawMatrix::transpose(RawMatrix *dst, RawMatrix *src)
+{
+	dst->right.x = src->right.x;
+	dst->up.x = src->right.y;
+	dst->at.x = src->right.z;
+	dst->pos.x = src->rightw;
+	dst->right.y = src->up.x;
+	dst->up.y = src->up.y;
+	dst->at.y = src->up.z;
+	dst->pos.y = src->upw;
+	dst->right.z = src->at.x;
+	dst->up.z = src->at.y;
+	dst->at.z = src->at.z;
+	dst->pos.z = src->atw;
+	dst->rightw = src->pos.x;
+	dst->upw = src->pos.y;
+	dst->atw = src->pos.z;
+	dst->posw = src->posw;
+}
+
+void
+RawMatrix::setIdentity(RawMatrix *dst)
+{
+	static RawMatrix identity = {
+		{ 1.0f, 0.0f, 0.0f }, 0.0f,
+		{ 0.0f, 1.0f, 0.0f }, 0.0f,
+		{ 0.0f, 0.0f, 1.0f }, 0.0f,
+		{ 0.0f, 0.0f, 0.0f }, 1.0f
+	};
+	*dst = identity;
+}
+
+//
 // Matrix
 //
 

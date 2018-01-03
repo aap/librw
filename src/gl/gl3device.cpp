@@ -85,10 +85,13 @@ static bool32 objectDirty = 1;
 
 // cached render states
 static bool32 vertexAlpha;
+static uint32 alphaTestEnable;
+static uint32 alphaFunc;
 static bool32 textureAlpha;
 static uint32 srcblend, destblend;
 static uint32 zwrite;
 static uint32 ztest;
+static uint32 cullmode;
 
 static int32 activeTexture;
 
@@ -107,16 +110,42 @@ static uint32 blendMap[] = {
 };
 
 static void
+setAlphaTest(bool32 enable)
+{
+	uint32 shaderfunc;
+	if(alphaTestEnable != enable){
+		alphaTestEnable = enable;
+		shaderfunc = alphaTestEnable ? alphaFunc : ALPHAALWAYS;
+		if(uniformState.alphaFunc != shaderfunc){
+			uniformState.alphaFunc = shaderfunc;
+			stateDirty = 1;
+		}
+	}
+}
+
+static void
+setAlphaTestFunction(uint32 function)
+{
+	uint32 shaderfunc;
+	if(alphaFunc != function){
+		alphaFunc = function;
+		shaderfunc = alphaTestEnable ? alphaFunc : ALPHAALWAYS;
+		if(uniformState.alphaFunc != shaderfunc){
+			uniformState.alphaFunc = shaderfunc;
+			stateDirty = 1;
+		}
+	}
+}
+
+static void
 setVertexAlpha(bool32 enable)
 {
 	if(vertexAlpha != enable){
-		vertexAlpha = enable;
 		if(!textureAlpha){
-			if(enable)
-				glEnable(GL_BLEND);
-			else
-				glDisable(GL_BLEND);
+			(enable ? glEnable : glDisable)(GL_BLEND);
+			setAlphaTest(enable);
 		}
+		vertexAlpha = enable;
 	}
 }
 
@@ -165,12 +194,20 @@ setRenderState(int32 state, uint32 value)
 		convColor(&uniformState.fogColor, (RGBA*)&value);
 		stateDirty = 1;
 		break;
+	case CULLMODE:
+		if(cullmode != value){
+			cullmode = value;
+			if(cullmode == CULLNONE)
+				glDisable(GL_CULL_FACE);
+			else{
+				glEnable(GL_CULL_FACE);
+				glCullFace(cullmode == CULLBACK ? GL_BACK : GL_FRONT);
+			}
+		}
+		break;
 
 	case ALPHATESTFUNC:
-		if(uniformState.alphaFunc != value){
-			uniformState.alphaFunc = value;
-			stateDirty = 1;
-		}
+		setAlphaTestFunction(value);
 		break;
 	case ALPHATESTREF:
 		if(uniformState.alphaRef != value/255.0f){
@@ -201,9 +238,11 @@ getRenderState(int32 state)
 	case FOGCOLOR:
 		convColor(&rgba, &uniformState.fogColor);
 		return *(uint32*)&rgba;
+	case CULLMODE:
+		return cullmode;
 
 	case ALPHATESTFUNC:
-		return uniformState.alphaFunc;
+		return alphaFunc;
 	case ALPHATESTREF:
 		return (uint32)(uniformState.alphaRef*255.0f);
 	}
@@ -213,7 +252,8 @@ getRenderState(int32 state)
 static void
 resetRenderState(void)
 {
-	uniformState.alphaFunc = ALPHAGREATEREQUAL;
+	alphaFunc = ALPHAGREATEREQUAL;
+	uniformState.alphaFunc = 0;
 	uniformState.alphaRef = 10.0f/255.0f;
 	uniformState.fogEnable = 0;
 	uniformState.fogStart = 0.0f;
@@ -223,6 +263,7 @@ resetRenderState(void)
 	vertexAlpha = 0;
 	textureAlpha = 0;
 	glDisable(GL_BLEND);
+	alphaTestEnable = 0;
 
 	srcblend = BLENDSRCALPHA;
 	destblend = BLENDINVSRCALPHA;
@@ -234,6 +275,9 @@ resetRenderState(void)
 	ztest = 1;
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
+
+	cullmode = CULLNONE;
+	glDisable(GL_CULL_FACE);
 
 	for(int i = 0; i < 8; i++){
 		glActiveTexture(GL_TEXTURE0+i);
@@ -323,7 +367,8 @@ setTexture(int32 n, Texture *tex)
 	};
 	bool32 alpha;
 	setActiveTexture(GL_TEXTURE0+n);
-	if(tex == nil || tex->raster->platform != PLATFORM_GL3 ||
+	if(tex == nil || tex->raster == nil ||
+	   tex->raster->platform != PLATFORM_GL3 ||
 	   tex->raster->width == 0){
 		glBindTexture(GL_TEXTURE_2D, whitetex);
 		alpha = 0;
@@ -345,10 +390,8 @@ setTexture(int32 n, Texture *tex)
 		if(alpha != textureAlpha){
 			textureAlpha = alpha;
 			if(!vertexAlpha){
-				if(alpha)
-					glEnable(GL_BLEND);
-				else
-					glDisable(GL_BLEND);
+				(alpha ? glEnable : glDisable)(GL_BLEND);
+				setAlphaTest(alpha);
 			}
 		}
 	}

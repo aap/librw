@@ -48,7 +48,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	uint32 offset = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
-		                          &inst->minVert, nil);
+		                          &inst->minVert, &inst->numVertices);
 		inst->numIndex = mesh->numIndices;
 		inst->material = mesh->material;
 		inst->vertexAlpha = 0;
@@ -197,9 +197,15 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	if(isPrelit){
 		for(a = attribs; a->index != ATTRIB_COLOR; a++)
 			;
-		instColor(VERT_RGBA, verts + a->offset,
-			  geo->colors,
-			  header->totalNumVertex, a->stride);
+		int n = header->numMeshes;
+		InstanceData *inst = header->inst;
+		while(n--){
+			inst->vertexAlpha = instColor(VERT_RGBA,
+				verts + a->offset + a->stride*inst->minVert,
+				geo->colors + inst->minVert,
+				inst->numVertices, a->stride);
+			inst++;
+		}
 	}
 
 	// Texture coordinates

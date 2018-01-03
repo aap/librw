@@ -19,6 +19,8 @@ using namespace d3d;
 void defaultRenderCB(Atomic*, InstanceDataHeader*) {}
 #else
 
+// This is a bit abandoned, use d3d9 instead
+
 void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
@@ -36,7 +38,9 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		d3d::setTexture(0, inst->material->texture);
-		d3d::setMaterial(inst->material);
+		d3d::setMaterial(inst->material->surfaceProps, inst->material->color);
+
+
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)

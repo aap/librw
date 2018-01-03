@@ -152,9 +152,9 @@ ImGui_ImplRW_NewFrame(float timeDelta)
 	io.DisplaySize = ImVec2(sk::globals.width, sk::globals.height);
 	io.DeltaTime = timeDelta;
 
-	io.KeyCtrl = false; //io.KeysDown[sk::KEY_LCTRL] || io.KeysDown[sk::KEY_RCTRL];
-	io.KeyShift = false; //io.KeysDown[sk::KEY_LSHIFT] || io.KeysDown[sk::KEY_RSHIFT];
-	io.KeyAlt = false; //io.KeysDown[sk::KEY_LALT] || io.KeysDown[sk::KEY_RALT];
+	io.KeyCtrl = io.KeysDown[sk::KEY_LCTRL] || io.KeysDown[sk::KEY_RCTRL];
+	io.KeyShift = io.KeysDown[sk::KEY_LSHIFT] || io.KeysDown[sk::KEY_RSHIFT];
+	io.KeyAlt = io.KeysDown[sk::KEY_LALT] || io.KeysDown[sk::KEY_RALT];
 	io.KeySuper = false;
 
 	if(io.WantMoveMouse)

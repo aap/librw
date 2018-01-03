@@ -562,7 +562,7 @@ rasterToImage(Raster *raster)
 		switch(natras->format){
 		case D3DFMT_DXT1:
 			image->setPixelsDXT(1, pix);
-			if((raster->format & 0xF00) == Raster::C555)
+			if((raster->format & 0xF00) == Raster::C565)
 				image->removeMask();
 			break;
 		case D3DFMT_DXT3:

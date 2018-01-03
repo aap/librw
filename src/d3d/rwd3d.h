@@ -151,7 +151,7 @@ void getSamplerState(uint32 stage, uint32 type, uint32 *value);
 void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);
-void setMaterial(Material *mat);
+void setMaterial(SurfaceProperties surfProps, rw::RGBA color);
 
 }
 }

@@ -35,6 +35,7 @@ static uint32 zwrite;
 static uint32 ztest;
 static uint32 fogenable;
 static RGBA fogcolor;
+static uint32 cullmode;
 static uint32 alphafunc;
 static uint32 alpharef;
 
@@ -208,6 +209,12 @@ uint32 alphafuncMap[] = {
 	D3DCMP_LESS
 };
 
+uint32 cullmodeMap[] = {
+	D3DCULL_NONE,
+	D3DCULL_CW,
+	D3DCULL_CCW
+};
+
 static void
 setRwRenderState(int32 state, uint32 value)
 {
@@ -252,6 +259,12 @@ setRwRenderState(int32 state, uint32 value)
 			fogcolor = c;
 			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
 		}} break;
+	case CULLMODE:
+		if(cullmode != value){
+			cullmode = value;
+			setRenderState(D3DRS_CULLMODE, cullmodeMap[value]);
+		}
+		break;
 	case ALPHATESTFUNC:
 		if(alphafunc != value){
 			alphafunc = value;
@@ -285,6 +298,8 @@ getRwRenderState(int32 state)
 		return fogenable;
 	case FOGCOLOR:
 		return *(uint32*)&fogcolor;
+	case CULLMODE:
+		return cullmode;
 	case ALPHATESTFUNC:
 		return alphafunc;
 	case ALPHATESTREF:
@@ -372,20 +387,20 @@ setD3dMaterial(D3DMATERIAL9 *mat9)
 }
 
 void
-setMaterial(Material *mat)
+setMaterial(SurfaceProperties surfProps, rw::RGBA color)
 {
 	D3DMATERIAL9 mat9;
 	D3DCOLORVALUE black = { 0, 0, 0, 0 };
-	float ambmult = mat->surfaceProps.ambient/255.0f;
-	float diffmult = mat->surfaceProps.diffuse/255.0f;
-	mat9.Ambient.r = mat->color.red*ambmult;
-	mat9.Ambient.g = mat->color.green*ambmult;
-	mat9.Ambient.b = mat->color.blue*ambmult;
-	mat9.Ambient.a = mat->color.alpha*ambmult;
-	mat9.Diffuse.r = mat->color.red*diffmult;
-	mat9.Diffuse.g = mat->color.green*diffmult;
-	mat9.Diffuse.b = mat->color.blue*diffmult;
-	mat9.Diffuse.a = mat->color.alpha*diffmult;
+	float ambmult = surfProps.ambient/255.0f;
+	float diffmult = surfProps.diffuse/255.0f;
+	mat9.Ambient.r = color.red*ambmult;
+	mat9.Ambient.g = color.green*ambmult;
+	mat9.Ambient.b = color.blue*ambmult;
+	mat9.Ambient.a = color.alpha*ambmult;
+	mat9.Diffuse.r = color.red*diffmult;
+	mat9.Diffuse.g = color.green*diffmult;
+	mat9.Diffuse.b = color.blue*diffmult;
+	mat9.Diffuse.a = color.alpha*diffmult;
 	mat9.Power = 0.0f;
 	mat9.Emissive = black;
 	mat9.Specular = black;
@@ -628,6 +643,7 @@ initD3D(void)
 	// TODO: more fog stuff
 
 	d3ddevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+	cullmode = CULLNONE;
 
 	d3ddevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
 	d3ddevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);

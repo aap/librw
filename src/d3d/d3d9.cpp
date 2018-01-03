@@ -498,11 +498,17 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	if(isPrelit){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
 			;
-		// TODO: vertex alpha (instance per mesh)
-		instColor(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			  geo->colors,
-			  header->totalNumVertex,
-			  header->vertexStream[dcl[i].stream].stride);
+		InstanceData *inst = header->inst;
+		uint32 n = header->numMeshes;
+		while(n--){
+			uint32 stride = header->vertexStream[dcl[i].stream].stride;
+			inst->vertexAlpha = instColor(vertFormatMap[dcl[i].type],
+				verts + dcl[i].offset + stride*inst->minVert,
+				geo->colors + inst->minVert,
+				inst->numVertices,
+				stride);
+			inst++;
+		}
 	}
 
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){

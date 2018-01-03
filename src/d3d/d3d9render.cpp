@@ -8,6 +8,7 @@
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
+#include "../rwrender.h"
 #include "rwd3d.h"
 #include "rwd3d9.h"
 
@@ -44,6 +45,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
+		// Texture
 		d3d::setTexture(0, inst->material->texture);
 		d3d::setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 		d3d::setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_CURRENT);
@@ -52,14 +54,27 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		d3d::setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
 		d3d::setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
 
-		d3d::setMaterial(inst->material);
+		SetRenderState(VERTEXALPHA, inst->vertexAlpha || inst->material->color.alpha != 255);
+
+		// Material colour
+		const rw::RGBA *col = &inst->material->color;
+		d3d::setTextureStageState(1, D3DTSS_CONSTANT, D3DCOLOR_ARGB(col->alpha,col->red,col->green,col->blue));
+		d3d::setTextureStageState(1, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		d3d::setTextureStageState(1, D3DTSS_COLORARG1, D3DTA_CURRENT);
+		d3d::setTextureStageState(1, D3DTSS_COLORARG2, D3DTA_CONSTANT);
+		d3d::setTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		d3d::setTextureStageState(1, D3DTSS_ALPHAARG1, D3DTA_CURRENT);
+		d3d::setTextureStageState(1, D3DTSS_ALPHAARG2, D3DTA_CONSTANT);
+
+		const static rw::RGBA white = { 255, 255, 255, 255 };
+		d3d::setMaterial(inst->material->surfaceProps, white);
 
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
-		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		else
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);
+		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, inst->vertexAlpha ? D3DMCS_COLOR1 : D3DMCS_MATERIAL);
 
 		d3d::flushCache();
 		d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
@@ -67,6 +82,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		                                inst->startIndex, inst->numPrimitives);
 		inst++;
 	}
+	d3d::setTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+	d3d::setTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 }
 
 #endif

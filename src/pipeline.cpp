@@ -140,15 +140,14 @@ uninstTexCoords(int type, TexCoords *dst, uint8 *src, uint32 numVertices, uint32
 bool32
 instColor(int type, uint8 *dst, RGBA *src, uint32 numVertices, uint32 stride)
 {
-	bool32 hasAlpha = 0;
+	uint8 alpha = 0xFF;
 	if(type == VERT_ARGB){
 		for(uint32 i = 0; i < numVertices; i++){
 			dst[0] = src->blue;
 			dst[1] = src->green;
 			dst[2] = src->red;
 			dst[3] = src->alpha;
-			if(dst[3] != 0xFF)
-				hasAlpha = 1;
+			alpha &= src->alpha;
 			dst += stride;
 			src++;
 		}
@@ -158,14 +157,13 @@ instColor(int type, uint8 *dst, RGBA *src, uint32 numVertices, uint32 stride)
 			dst[1] = src->green;
 			dst[2] = src->blue;
 			dst[3] = src->alpha;
-			if(dst[3] != 0xFF)
-				hasAlpha = 1;
+			alpha &= src->alpha;
 			dst += stride;
 			src++;
 		}
 	}else
 		assert(0 && "unsupported color type");
-	return hasAlpha;
+	return alpha != 0xFF;
 }
 
 void
