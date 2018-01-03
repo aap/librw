@@ -1430,7 +1430,7 @@ unswizzle(uint8 *dst, uint8 *src, int32 w, int32 h, int32 d)
 		return;
 	}
 
-	// this is more complicated...and not correct....
+	// this is more complicated...
 	uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
 	unswizzle8(tmp, src, tw, th);
 	for(y = 0; y < h; y++)
@@ -1508,8 +1508,17 @@ rasterToImage(Raster *raster)
 	out = image->pixels;
 	in = raster->lock(0);
 	if(depth == 4){
-		uint8 *in8 = rwNewT(uint8, w*h, MEMDUR_FUNCTION | ID_RASTERPS2);
-		for(uint32 i = 0; i < w*h/2; i++){
+		// Actually PSMT4 is transferred as PSMCT16 but
+		// apparently we can "uncompress" the indices into PSMT8
+		// and unswizzle as if transferred as PSMCT32
+		// Would be nice to understand this correctly some day
+		int minw, minh;
+		int th, tw;
+		transferMinSize(PSMT4, 4, &minw, &minh);
+		tw = max(w, minw);
+		th = max(h, minh);
+		uint8 *in8 = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
+		for(uint32 i = 0; i < tw*th/2; i++){
 			in8[i*2+0] = in[i] & 0xF;
 			in8[i*2+1] = in[i] >> 4;
 		}
