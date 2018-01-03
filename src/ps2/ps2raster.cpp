@@ -1348,10 +1348,7 @@ rasterCreate(Raster *raster)
 uint8*
 rasterLock(Raster *raster, int32 level)
 {
-	// TODO
-	(void)raster;
-	(void)level;
-	return nil;
+	return raster->pixels;
 }
 
 void
@@ -1360,6 +1357,211 @@ rasterUnlock(Raster *raster, int32 level)
 	// TODO
 	(void)raster;
 	(void)level;
+}
+
+uint8*
+paletteLock(Raster *raster)
+{
+	if((raster->format & (Raster::PAL4 | Raster::PAL8)) == 0)
+		return nil;
+	return raster->palette;
+}
+
+void
+paletteUnlock(Raster *raster)
+{
+	// TODO
+	(void)raster;
+}
+
+static void
+convertCSM1_16(uint16 *dst, uint16 *src)
+{
+	// palette index bits 0x08 and 0x10 are flipped
+	int i, j;
+	for(i = 0; i < 256; i++){
+		j = i&~0x18 | (i&0x10)>>1 | (i&0x8)<<1;
+		dst[i] = src[j];
+	}
+}
+
+static void
+convertCSM1_32(uint32 *dst, uint32 *src)
+{
+	// palette index bits 0x08 and 0x10 are flipped
+	int i, j;
+	for(i = 0; i < 256; i++){
+		j = i&~0x18 | (i&0x10)>>1 | (i&0x8)<<1;
+		dst[i] = src[j];
+	}
+}
+
+// TMP
+static void
+unswizzle8(uint8 *dst, uint8 *src, uint32 w, uint32 h)
+{
+	for (uint32 y = 0; y < h; y++)
+		for (uint32 x = 0; x < w; x++) {
+			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
+			uint32 swap_sel = (((y+2)>>2)&0x1)*4;
+			int32 ypos = (((y&(~3))>>1) + (y&1))&0x7;
+			int32 column_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
+			int32 byte_sum = ((y>>1)&1) + ((x>>2)&2);
+			uint32 swizzled = block_loc + column_loc + byte_sum;
+			dst[y*w+x] = src[swizzled];
+		}
+}
+
+static void
+unswizzle(uint8 *dst, uint8 *src, int32 w, int32 h, int32 d)
+{
+	int32 minw, minh;
+	int32 tw, th;
+	int32 x, y;
+
+	if(d == 4)
+		transferMinSize(PSMT4, 4, &minw, &minh);
+	else
+		transferMinSize(PSMT8, 2, &minw, &minh);
+	tw = max(w, minw);
+	th = max(h, minh);
+	if(tw == w && th == h){
+		unswizzle8(dst, src, w, h);
+		return;
+	}
+
+	// this is more complicated...and not correct....
+	uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
+	unswizzle8(tmp, src, tw, th);
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++)
+			dst[y*w + x] = tmp[y*tw + x];
+	rwFree(tmp);
+}
+
+Image*
+rasterToImage(Raster *raster)
+{
+	Image *image;
+	int depth;
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+
+	int32 rasterFormat = raster->format & 0xF00;
+	switch(rasterFormat){
+	case Raster::C1555:
+		depth = 16;
+		break;
+	case Raster::C8888:
+		depth = 32;
+		break;
+	case Raster::C888:
+		depth = 24;
+		break;
+	case Raster::C555:
+		depth = 16;
+		break;
+
+	default:
+	case Raster::C565:
+	case Raster::C4444:
+	case Raster::LUM8:
+		assert(0 && "unsupported ps2 raster format");
+	}
+	int32 pallength = 0;
+	if((raster->format & Raster::PAL4) == Raster::PAL4){
+		depth = 4;
+		pallength = 16;
+	}else if((raster->format & Raster::PAL8) == Raster::PAL8){
+		depth = 8;
+		pallength = 256;
+	}
+
+	uint8 *in, *out;
+	image = Image::create(raster->width, raster->height, depth);
+	image->allocate();
+
+	if(pallength){
+		out = image->palette;
+		in = paletteLock(raster);
+		if(rasterFormat == Raster::C1555){
+			if(depth == 8)
+				convertCSM1_16((uint16*)out, (uint16*)in);
+			else
+				memcpy(out, in, pallength*2);
+		}else if(rasterFormat == Raster::C8888){
+			if(depth == 8)
+				convertCSM1_32((uint32*)out, (uint32*)in);
+			else
+				memcpy(out, in, pallength*4);
+			for(int32 i = 0; i < pallength; i++){
+				out[3] = out[3]*255/128;
+				out += 4;
+			}
+		}
+		paletteUnlock(raster);
+	}
+
+	int32 w, h;
+	w = raster->width;
+	h = raster->height;
+
+	out = image->pixels;
+	in = raster->lock(0);
+	if(depth == 4){
+		uint8 *in8 = rwNewT(uint8, w*h, MEMDUR_FUNCTION | ID_RASTERPS2);
+		for(uint32 i = 0; i < w*h/2; i++){
+			in8[i*2+0] = in[i] & 0xF;
+			in8[i*2+1] = in[i] >> 4;
+		}
+		if(natras->flags & Ps2Raster::SWIZZLED4)
+			unswizzle(out, in8, w, h, 4);
+		else
+			memcpy(out, in8, w*h);
+		rwFree(in8);
+	}else if(depth == 8){
+		if(natras->flags & Ps2Raster::SWIZZLED8)
+			unswizzle(out, in, w, h, 8);
+		else
+			memcpy(out, in, w*h);
+	}else
+		// TODO: stride
+		for(int32 y = 0; y < image->height; y++)
+			for(int32 x = 0; x < image->width; x++)
+				switch(raster->format & 0xF00){
+				case Raster::C8888:
+					out[0] = in[0];
+					out[1] = in[1];
+					out[2] = in[2];
+					out[3] = in[3]*255/128;
+					in += 4;
+					out += 4;
+					break;
+				case Raster::C888:
+					out[0] = in[0];
+					out[1] = in[1];
+					out[2] = in[2];
+					in += 4;
+					out += 3;
+					break;
+				case Raster::C1555:
+					out[0] = in[0];
+					out[1] = in[1];
+					in += 2;
+					out += 2;
+					break;
+				case Raster::C555:
+					out[0] = in[0];
+					out[1] = in[1] | 0x80;
+					in += 2;
+					out += 2;
+					break;
+				default:
+					assert(0 && "unknown ps2 raster format");
+					break;
+				}
+	raster->unlock(0);
+
+	return image;
 }
 
 int32
