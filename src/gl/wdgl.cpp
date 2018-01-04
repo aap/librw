@@ -654,6 +654,13 @@ skinUninstanceCB(Geometry *geo)
 		case 4:		// weights
 			for(int32 i = 0; i < geo->numVertices; i++){
 				unpackattrib(weights, p, a);
+float sum = weights[0] + weights[1] + weights[2] + weights[3];
+if(sum){
+	weights[0] /= sum;
+	weights[1] /= sum;
+	weights[2] /= sum;
+	weights[3] /= sum;
+}
 				weights += 4;
 				p += a->stride;
 			}

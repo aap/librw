@@ -1396,47 +1396,82 @@ convertCSM1_32(uint32 *dst, uint32 *src)
 	}
 }
 
-// TMP
+// Unswizzle PSMT8 from PSMCT32 format
+// Original code from http://ps2linux.no-ip.info/playstation2-linux.com/docs/howto/display_docef7c.html?docid=75
 static void
-unswizzle8(uint8 *dst, uint8 *src, uint32 w, uint32 h)
+unswizzle32to8(uint8 *dst, uint8 *src, int32 w, int32 h)
 {
-	for (uint32 y = 0; y < h; y++)
-		for (uint32 x = 0; x < w; x++) {
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++) {
+			// byte address of beginning of PSMCT32 block
+			// yblock = y/16 * w/16 * 256
 			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
-			uint32 swap_sel = (((y+2)>>2)&0x1)*4;
-			int32 ypos = (((y&(~3))>>1) + (y&1))&0x7;
-			int32 column_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
-			int32 byte_sum = ((y>>1)&1) + ((x>>2)&2);
-			uint32 swizzled = block_loc + column_loc + byte_sum;
+			// y coordinate in PSMCT32 block
+			int32 ypos = (((y&~3)>>1)	// column number
+				 + (y&1))&0x7;	// row inside column
+			// indices are swapped in groups of 4 every 4
+			// pixel rows in a block, first at y = 2
+			int32 swap_sel = (y+2)&4;
+			// byte address of word in PSMCT32 block
+			int32 word_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
+			// byte offset in 32 bit word
+			int32 byte_loc = ((y>>1)&1) + ((x>>2)&2);
+			int32 swizzled = block_loc + word_loc + byte_loc;
 			dst[y*w+x] = src[swizzled];
 		}
 }
 
+// Unswizzle PSMT4 from PSMCT16 format
 static void
-unswizzle(uint8 *dst, uint8 *src, int32 w, int32 h, int32 d)
+unswizzle16to4(uint8 *dst, uint8 *src, int32 w, int32 h)
 {
-	int32 minw, minh;
-	int32 tw, th;
 	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++){
+			// byte address of beginning of PSMCT16 block
+			// yblock = y/16 * w/32 * 256
+			int32 block_loc = (y&(~0xF))*w/2 + (x&(~0x1F));
+			// y coordinate in PSMCT16 block
+			int32 ypos = (((y&~3)>>1)	// column number
+				 + (y&1))&0x7;	// row inside column
+			// indices are swapped in groups of 4 every 4
+			// pixel rows in a block, first at y = 2
+			int32 swap_sel = (y+2)&4;
+			// byte address of halfword in PSMCT16 block
+			int32 hword_loc = ypos*w
+				+ (((x+swap_sel) & 0x7) + ((x & 0x10)>>1))*2;
+			// byte offset in 16 bit word
+			int32 byte_loc = (x>>3)&1;
+			uint32 swizzled = block_loc + hword_loc + byte_loc;
+			// y&2 selects nibbles
+			int8 c = y & 2 ? src[swizzled] >> 4 : src[swizzled] & 0xF;
+			int32 addr = y*w + x;
+			if(addr & 1)
+				dst[addr>>1] = dst[addr>>1]&0xF | c<<4;
+			else
+				dst[addr>>1] = dst[addr>>1]&0xF0 | c;
+		}
+}
 
-	if(d == 4)
-		transferMinSize(PSMT4, 4, &minw, &minh);
-	else
-		transferMinSize(PSMT8, 2, &minw, &minh);
-	tw = max(w, minw);
-	th = max(h, minh);
-	if(tw == w && th == h){
-		unswizzle8(dst, src, w, h);
-		return;
-	}
+static void
+expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++){
+			dst[y*w + x*2 + 0] = src[y*srcw/2 + x] & 0xF;
+			dst[y*w + x*2 + 1] = src[y*srcw/2 + x] >> 4;
+		}
+}
 
-	// this is more complicated...
-	uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
-	unswizzle8(tmp, src, tw, th);
+static void
+copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+{
+	int32 x, y;
 	for(y = 0; y < h; y++)
 		for(x = 0; x < w; x++)
-			dst[y*w + x] = tmp[y*tw + x];
-	rwFree(tmp);
+			dst[y*w + x] = src[y*srcw + x];
 }
 
 Image*
@@ -1505,33 +1540,29 @@ rasterToImage(Raster *raster)
 	w = raster->width;
 	h = raster->height;
 
+	int minw, minh;
+	int th, tw;
+	transferMinSize(depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
+	tw = max(w, minw);
+	th = max(h, minh);
 	out = image->pixels;
 	in = raster->lock(0);
 	if(depth == 4){
-		// Actually PSMT4 is transferred as PSMCT16 but
-		// apparently we can "uncompress" the indices into PSMT8
-		// and unswizzle as if transferred as PSMCT32
-		// Would be nice to understand this correctly some day
-		int minw, minh;
-		int th, tw;
-		transferMinSize(PSMT4, 4, &minw, &minh);
-		tw = max(w, minw);
-		th = max(h, minh);
-		uint8 *in8 = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
-		for(uint32 i = 0; i < tw*th/2; i++){
-			in8[i*2+0] = in[i] & 0xF;
-			in8[i*2+1] = in[i] >> 4;
-		}
-		if(natras->flags & Ps2Raster::SWIZZLED4)
-			unswizzle(out, in8, w, h, 4);
-		else
-			memcpy(out, in8, w*h);
-		rwFree(in8);
+		if(natras->flags & Ps2Raster::SWIZZLED4){
+			uint8 *tmp = rwNewT(uint8, tw*th/2, MEMDUR_FUNCTION | ID_RASTERPS2);
+			unswizzle16to4(tmp, in, tw, th);
+			expandPSMT4(out, tmp, w, h, tw);
+			rwFree(tmp);
+		}else
+			expandPSMT4(out, in, w, h, tw);
 	}else if(depth == 8){
-		if(natras->flags & Ps2Raster::SWIZZLED8)
-			unswizzle(out, in, w, h, 8);
-		else
-			memcpy(out, in, w*h);
+		if(natras->flags & Ps2Raster::SWIZZLED8){
+			uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
+			unswizzle32to8(tmp, in, tw, th);
+			copyPSMT8(out, tmp, w, h, tw);
+			rwFree(tmp);
+		}else
+			copyPSMT8(out, in, w, h, tw);
 	}else
 		// TODO: stride
 		for(int32 y = 0; y < image->height; y++)
