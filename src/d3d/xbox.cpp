@@ -28,7 +28,7 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_XBOX]->rasterLock = rasterLock;
 	engine->driver[PLATFORM_XBOX]->rasterUnlock = rasterUnlock;
 	engine->driver[PLATFORM_XBOX]->rasterNumLevels = rasterNumLevels;
-	// TODO: from image
+	engine->driver[PLATFORM_XBOX]->rasterToImage = rasterToImage;
 
 	return o;
 }
@@ -187,14 +187,14 @@ registerNativeDataPlugin(void)
 	                               getSizeNativeData);
 }
 
+enum {
+	D3DPT_TRIANGLELIST    =  5,
+	D3DPT_TRIANGLESTRIP   =  6,
+};
+
 static void
 instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
-	enum {
-		D3DPT_TRIANGLELIST    =  5,
-		D3DPT_TRIANGLESTRIP   =  6,
-	};
-
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
 	// TODO: allow for REINSTANCE (or not, xbox can't render)
@@ -214,7 +214,8 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	header->data = rwNewT(uint8, header->size + 0x18, MEMDUR_EVENT | ID_GEOMETRY);
 	header->serialNumber = 0;
 	header->numMeshes = meshh->numMeshes;
-	header->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
+	header->primType = meshh->flags == MeshHeader::TRISTRIP ?
+		D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
 	header->numVertices = geo->numVertices;
 	header->vertexAlpha = 0;
 	// set by the instanceCB
@@ -251,13 +252,25 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_XBOX);
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
-	geo->allocateData();
-	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	InstanceData *inst = header->begin;
 	Mesh *mesh = geo->meshHeader->getMeshes();
+	// For some reason numIndices in mesh and instance data are not always equal
+	// And primitive isn't always correct either. Maybe some internal conversion...
+	geo->meshHeader->totalIndices = 0;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		mesh[i].numIndices = inst[i].numIndices;
+		geo->meshHeader->totalIndices += mesh[i].numIndices;
+	}
+	geo->meshHeader->flags = header->primType == D3DPT_TRIANGLESTRIP ?
+		MeshHeader::TRISTRIP : 0;
+
+	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->allocateData();
+	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+
+	mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = (uint16*)inst->indexBuffer;
 		memcpy(mesh->indices, indices, inst->numIndices*2);
@@ -587,6 +600,149 @@ rasterNumLevels(Raster *raster)
 	return levels->numlevels;
 }
 
+static void
+unswizzle(uint8 *dst, uint8 *src, int32 w, int32 h, int32 bpp)
+{
+	uint32 maskU = 0;
+	uint32 maskV = 0;
+	int32 i = 1;
+	int32 j = 1;
+	int32 c;
+	do{
+		c = 0;
+		if(i < w){
+			maskU |= j;
+			j <<= 1;
+			c = j;
+		}
+		if(i < h){
+			maskV |= j;
+			j <<= 1;
+			c = j;
+		}
+		i <<= 1;
+	}while(c);
+	int32 x, y, u, v;
+	v = 0;
+	for(y = 0; y < h; y++){
+		u = 0;
+		for(x = 0; x < w; x++){
+			memcpy(&dst[(y*w + x)*bpp], &src[(u|v)*bpp], bpp);
+			u = (u - maskU) & maskU;
+		}
+		v = (v - maskV) & maskV;
+	}
+}
+
+Image*
+rasterToImage(Raster *raster)
+{
+	int32 depth;
+	Image *image;
+	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+
+	if(natras->format){
+		image = Image::create(raster->width, raster->height, 32);
+		image->allocate();
+		uint8 *pix = raster->lock(0);
+		switch(natras->format){
+		case D3DFMT_DXT1:
+			image->setPixelsDXT(1, pix);
+			// TODO: is this correct?
+			if(!natras->hasAlpha)
+				image->removeMask();
+			break;
+		case D3DFMT_DXT3:
+			image->setPixelsDXT(3, pix);
+			break;
+		case D3DFMT_DXT5:
+			image->setPixelsDXT(5, pix);
+			break;
+		default:
+			assert(0 && "unknown format");
+			raster->unlock(0);
+			image->destroy();
+			return nil;
+		}
+		raster->unlock(0);
+		return image;
+	}
+
+	switch(raster->format & 0xF00){
+	case Raster::C1555:
+		depth = 16;
+		break;
+	case Raster::C8888:
+		depth = 32;
+		break;
+	case Raster::C888:
+		depth = 24;
+		break;
+	case Raster::C555:
+		depth = 16;
+		break;
+
+	default:
+	case Raster::C565:
+	case Raster::C4444:
+	case Raster::LUM8:
+		assert(0 && "unsupported raster format");
+	}
+	int32 pallength = 0;
+	if((raster->format & Raster::PAL4) == Raster::PAL4){
+		depth = 4;
+		pallength = 16;
+	}else if((raster->format & Raster::PAL8) == Raster::PAL8){
+		depth = 8;
+		pallength = 256;
+	}
+
+	uint8 *in, *out;
+	image = Image::create(raster->width, raster->height, depth);
+	image->allocate();
+
+	if(pallength){
+		out = image->palette;
+		in = (uint8*)natras->palette;
+		for(int32 i = 0; i < pallength; i++){
+			out[0] = in[2];
+			out[1] = in[1];
+			out[2] = in[0];
+			out[3] = in[3];
+			in += 4;
+			out += 4;
+		}
+	}
+
+	out = image->pixels;
+	in = raster->lock(0);
+
+	unswizzle(out, in, image->width, image->height, depth < 8 ? 1 : depth/8);
+	// Fix RGB order
+	// TODO: stride
+	uint8 tmp;
+	if(depth > 8)
+		for(int32 y = 0; y < image->height; y++)
+			for(int32 x = 0; x < image->width; x++)
+				switch(raster->format & 0xF00){
+				case Raster::C8888:
+					tmp = out[0];
+					out[0] = out[2];
+					out[2] = tmp;
+					out += 4;
+					break;
+				case Raster::C888:
+					tmp = out[0];
+					out[0] = out[2];
+					out[2] = tmp;
+					out += 3;
+					break;
+				}
+	raster->unlock(0);
+
+	return image;
+}
+
 int32
 getLevelSize(Raster *raster, int32 level)
 {
@@ -675,6 +831,7 @@ readNativeTexture(Stream *stream)
 	int32 compression = stream->readU8();
 	int32 totalSize = stream->readI32();
 
+	// isn't this the cube map flag?
 	assert(unknownFlag == 0);
 	Raster *raster;
 	if(compression){

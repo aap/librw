@@ -3,6 +3,9 @@ namespace xbox {
 
 void registerPlatformPlugins(void);
 
+extern int v3dFormatMap[6];
+extern int v2dFormatMap[6];
+
 struct InstanceData
 {
 	uint32 minVert;
