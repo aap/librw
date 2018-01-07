@@ -579,6 +579,7 @@ extern int32 platform;
 extern bool32 streamAppendFrames;
 extern char *debugFile;
 
+int strcmp_ci(const char *s1, const char *s2);
 int strncmp_ci(const char *s1, const char *s2, int n);
 
 // 0x04000000	3.1

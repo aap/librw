@@ -169,17 +169,102 @@ uvAnimStreamGetSize(Animation *anim)
 }
 
 static void
+uvAnimLinearApplyCB(void *result, void *frame)
+{
+	Matrix *m = (Matrix*)result;
+	UVAnimInterpFrame *f = (UVAnimInterpFrame*)frame;
+	m->right.x = f->uv[0];
+	m->right.y = f->uv[1];
+	m->right.z = 0.0f;
+	m->up.x = f->uv[2];
+	m->up.y = f->uv[3];
+	m->up.z = 0.0f;
+	m->at.x = 0.0f;
+	m->at.y = 0.0f;
+	m->at.z = 0.0f;
+	m->pos.x = f->uv[4];
+	m->pos.y = f->uv[5];
+	m->pos.z = 0.0f;
+	m->update();
+}
+
+static void
+uvAnimLinearInterpCB(void *out, void *in1, void *in2, float32 t, void *custom)
+{
+	UVAnimInterpFrame *intf = (UVAnimInterpFrame*)out;
+	UVAnimKeyFrame *kf1 = (UVAnimKeyFrame*)in1;
+	UVAnimKeyFrame *kf2 = (UVAnimKeyFrame*)in2;
+	float32 f = (t - kf1->time) / (kf2->time - kf1->time);
+	intf->uv[0] = (kf2->uv[0] - kf1->uv[0])*f + kf1->uv[0];
+	intf->uv[1] = (kf2->uv[1] - kf1->uv[1])*f + kf1->uv[1];
+	intf->uv[2] = (kf2->uv[2] - kf1->uv[2])*f + kf1->uv[2];
+	intf->uv[3] = (kf2->uv[3] - kf1->uv[3])*f + kf1->uv[3];
+	intf->uv[4] = (kf2->uv[4] - kf1->uv[4])*f + kf1->uv[4];
+	intf->uv[5] = (kf2->uv[5] - kf1->uv[5])*f + kf1->uv[5];
+}
+
+static void
+uvAnimParamApplyCB(void *result, void *frame)
+{
+	Matrix *m = (Matrix*)result;
+	UVAnimInterpFrame *f = (UVAnimInterpFrame*)frame;
+	UVAnimParamData *p = (UVAnimParamData*)f->uv;
+
+	m->right.x = p->s0;
+	m->right.y = p->skew;
+	m->right.z = 0.0f;
+	m->up.x = 0.0f;
+	m->up.y = p->s1;
+	m->up.z = 0.0f;
+	m->at.x = 0.0f;
+	m->at.y = 0.0f;
+	m->at.z = 0.0f;
+	m->pos.x = p->x;
+	m->pos.y = p->y;
+	m->pos.z = 0.0f;
+	m->update();
+	static V3d xlat1 = { -0.5f, -0.5f, 0.0f };
+	static V3d xlat2 = {  0.5f,  0.5f, 0.0f };
+	static V3d axis = { 0.0f, 0.0f, 1.0f };
+	m->translate(&xlat1, COMBINEPOSTCONCAT);
+	m->rotate(&axis, p->theta*180.0f/M_PI, COMBINEPOSTCONCAT);
+	m->translate(&xlat2, COMBINEPOSTCONCAT);
+}
+
+static void
+uvAnimParamInterpCB(void *out, void *in1, void *in2, float32 t, void *custom)
+{
+	UVAnimInterpFrame *intf = (UVAnimInterpFrame*)out;
+	UVAnimKeyFrame *kf1 = (UVAnimKeyFrame*)in1;
+	UVAnimKeyFrame *kf2 = (UVAnimKeyFrame*)in2;
+	float32 f = (t - kf1->time) / (kf2->time - kf1->time);
+
+	float32 a = kf2->uv[0] - kf1->uv[0];
+	while(a < M_PI) a += 2*M_PI;
+	while(a > M_PI) a -= 2*M_PI;
+	intf->uv[0] = a*f + kf1->uv[0];
+	intf->uv[1] = (kf2->uv[1] - kf1->uv[1])*f + kf1->uv[1];
+	intf->uv[2] = (kf2->uv[2] - kf1->uv[2])*f + kf1->uv[2];
+	intf->uv[3] = (kf2->uv[3] - kf1->uv[3])*f + kf1->uv[3];
+	intf->uv[4] = (kf2->uv[4] - kf1->uv[4])*f + kf1->uv[4];
+	intf->uv[5] = (kf2->uv[5] - kf1->uv[5])*f + kf1->uv[5];
+}
+
+
+static void
 registerUVAnimInterpolator(void)
 {
+	// TODO: implement this fully
+
 	// Linear
 	AnimInterpolatorInfo *info = rwNewT(AnimInterpolatorInfo, 1, MEMDUR_GLOBAL | ID_UVANIMATION);
 	info->id = 0x1C0;
 	info->interpKeyFrameSize = sizeof(UVAnimInterpFrame);
 	info->animKeyFrameSize = sizeof(UVAnimKeyFrame);
 	info->customDataSize = sizeof(UVAnimCustomData);
-	info->applyCB = nil;
+	info->applyCB = uvAnimLinearApplyCB;
 	info->blendCB = nil;
-	info->interpCB = nil;
+	info->interpCB = uvAnimLinearInterpCB;
 	info->addCB = nil;
 	info->mulRecipCB = nil;
 	info->streamRead = uvAnimStreamRead;
@@ -193,9 +278,9 @@ registerUVAnimInterpolator(void)
 	info->interpKeyFrameSize = sizeof(UVAnimInterpFrame);
 	info->animKeyFrameSize = sizeof(UVAnimKeyFrame);
 	info->customDataSize = sizeof(UVAnimCustomData);
-	info->applyCB = nil;
+	info->applyCB = uvAnimParamApplyCB;
 	info->blendCB = nil;
-	info->interpCB = nil;
+	info->interpCB = uvAnimParamInterpCB;
 	info->addCB = nil;
 	info->mulRecipCB = nil;
 	info->streamRead = uvAnimStreamRead;
@@ -303,6 +388,11 @@ readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 		}
 		bit <<= 1;
 	}
+	// TEMP
+	if(uvanim->uv[0] == nil)
+		uvanim->uv[0] = Matrix::create();
+	if(uvanim->uv[1] == nil)
+		uvanim->uv[1] = Matrix::create();
 	return stream;
 }
 
@@ -356,6 +446,57 @@ registerUVAnimPlugin(void)
 		createUVAnim, destroyUVAnim, copyUVAnim);
 	Material::registerPluginStream(ID_UVANIMATION,
 		readUVAnim, writeUVAnim, getSizeUVAnim);
+}
+
+bool32 
+UVAnim::exists(Material *mat)
+{
+	int32 i;
+	UVAnim *uvanim = PLUGINOFFSET(UVAnim, mat, uvAnimOffset);
+	for(i = 0; i < 8; i++)
+		if(uvanim->interp[i])
+			return 1;
+	return 0;
+}
+
+void
+UVAnim::addTime(Material *mat, float32 t)
+{
+	int32 i;
+	UVAnim *uvanim = PLUGINOFFSET(UVAnim, mat, uvAnimOffset);
+	for(i = 0; i < 8; i++)
+		if(uvanim->interp[i])
+			uvanim->interp[i]->addTime(t);
+}
+
+void
+UVAnim::applyUpdate(Material *mat)
+{
+	int32 i, j;
+	int32 uv;
+	Matrix m;
+	UVAnim *uvanim = PLUGINOFFSET(UVAnim, mat, uvAnimOffset);
+	for(i = 0; i < 2; i++)
+		if(uvanim->uv[i])
+			uvanim->uv[i]->setIdentity();
+	m.setIdentity();
+
+	for(i = 0; i < 8; i++){
+		AnimInterpolator *ip = uvanim->interp[i];
+		if(ip == nil)
+			continue;
+		UVAnimCustomData *custom = UVAnimCustomData::get(ip->currentAnim);
+		for(j = 0; j < ip->numNodes; j++){
+			InterpFrameHeader *f = ip->getInterpFrame(j);
+			uv = custom->nodeToUVChannel[j];
+			if(uv < 2 && uvanim->uv[uv]){
+				ip->applyCB(&m, f);
+				uvanim->uv[uv]->transform(&m, COMBINEPRECONCAT);
+			}
+		}
+	}
+	MatFX *mfx = MatFX::get(mat);
+	if(mfx) mfx->setUVTransformMatrices(uvanim->uv[0], uvanim->uv[1]);
 }
 
 }

@@ -112,11 +112,10 @@ struct MatFX
 		int32    dstBlend;
 	};
 	struct UVtransform {
-		float *baseTransform;
-		float *dualTransform;
+		Matrix *baseTransform;
+		Matrix *dualTransform;
 	};
 	struct {
-//		uint32 foo[32];
 		uint32 type;
 		union {
 			Bump bump;
@@ -131,16 +130,32 @@ struct MatFX
 	static uint32 getEffects(Material *m);
 	static MatFX *get(Material *m);
 	int32 getEffectIndex(uint32 type);
+	// Bump
 	void setBumpTexture(Texture *t);
 	void setBumpCoefficient(float32 coef);
+	Texture *getBumpTexture(void);
+	float32 getBumpCoefficient(void);
+	// Env
 	void setEnvTexture(Texture *t);
 	void setEnvFrame(Frame *f);
 	void setEnvCoefficient(float32 coef);
+	Texture *getEnvTexture(void);
+	Frame *getEnvFrame(void);
+	float32 getEnvCoefficient(void);
+	// Dual
 	void setDualTexture(Texture *t);
 	void setDualSrcBlend(int32 blend);
 	void setDualDestBlend(int32 blend);
+	Texture *getDualTexture(void);
+	int32 getDualSrcBlend(void);
+	int32 getDualDestBlend(void);
+	// UV transform
+	void setUVTransformMatrices(Matrix *base, Matrix *dual);
+	void getUVTransformMatrices(Matrix **base, Matrix **dual);
 
 	static void enableEffects(Atomic *atomic);
+	static void disableEffects(Atomic *atomic);
+	static bool32 getEffects(Atomic *atomic);
 };
 
 struct MatFXGlobals

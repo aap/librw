@@ -36,8 +36,9 @@ createAtomicMatFX(void *object, int32 offset, int32)
 static void*
 copyAtomicMatFX(void *dst, void *src, int32 offset, int32)
 {
+	// don't call seteffects, it will override the pipeline
 	if(*PLUGINOFFSET(int32, src, offset))
-		MatFX::enableEffects((Atomic*)dst);
+		*PLUGINOFFSET(int32, dst, offset) = 1;
 	return dst;
 }
 
@@ -170,6 +171,24 @@ MatFX::setBumpCoefficient(float32 coef)
 		this->fx[i].bump.coefficient = coef;
 }
 
+Texture*
+MatFX::getBumpTexture(void)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		return this->fx[i].bump.tex;
+	return nil;
+}
+
+float32
+MatFX::getBumpCoefficient(void)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		return this->fx[i].bump.coefficient;
+	return 0.0f;
+}
+
 void
 MatFX::setEnvTexture(Texture *t)
 {
@@ -194,6 +213,34 @@ MatFX::setEnvCoefficient(float32 coef)
 		this->fx[i].env.coefficient = coef;
 }
 
+Texture*
+MatFX::getEnvTexture(void)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		return this->fx[i].env.tex;
+	return nil;
+}
+
+Frame*
+MatFX::getEnvFrame(void)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		return this->fx[i].env.frame;
+	return nil;
+}
+
+float32
+MatFX::getEnvCoefficient(void)
+{
+	int32 i = this->getEffectIndex(ENVMAP);
+	if(i >= 0)
+		return this->fx[i].env.coefficient;
+	return 0.0f;
+}
+
+
 void
 MatFX::setDualTexture(Texture *t)
 {
@@ -216,6 +263,56 @@ MatFX::setDualDestBlend(int32 blend)
 	int32 i = this->getEffectIndex(DUAL);
 	if(i >= 0)
 		this->fx[i].dual.dstBlend = blend;
+}
+
+Texture*
+MatFX::getDualTexture(void)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		return this->fx[i].dual.tex;
+	return nil;
+}
+
+int32
+MatFX::getDualSrcBlend(void)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		return this->fx[i].dual.srcBlend;
+	return 0;
+}
+
+int32
+MatFX::getDualDestBlend(void)
+{
+	int32 i = this->getEffectIndex(DUAL);
+	if(i >= 0)
+		return this->fx[i].dual.dstBlend;
+	return 0;
+}
+
+void
+MatFX::setUVTransformMatrices(Matrix *base, Matrix *dual)
+{
+	int32 i = this->getEffectIndex(UVTRANSFORM);
+	if(i >= 0){
+		this->fx[i].uvtransform.baseTransform = base;
+		this->fx[i].uvtransform.dualTransform = dual;
+	}
+}
+
+void
+MatFX::getUVTransformMatrices(Matrix **base, Matrix **dual)
+{
+	int32 i = this->getEffectIndex(UVTRANSFORM);
+	if(i >= 0){
+		if(base) *base = this->fx[i].uvtransform.baseTransform;
+		if(dual) *dual = this->fx[i].uvtransform.dualTransform;
+		return;
+	}
+	if(base) *base = nil;
+	if(dual) *dual = nil;
 }
 
 static void*
@@ -435,6 +532,19 @@ MatFX::enableEffects(Atomic *atomic)
 {
 	*PLUGINOFFSET(int32, atomic, matFXGlobals.atomicOffset) = 1;
 	atomic->pipeline = matFXGlobals.pipelines[rw::platform];
+}
+
+// This prevents setting the pipeline on clone
+void
+MatFX::disableEffects(Atomic *atomic)
+{
+	*PLUGINOFFSET(int32, atomic, matFXGlobals.atomicOffset) = 0;
+}
+
+bool32
+MatFX::getEffects(Atomic *atomic)
+{
+	return *PLUGINOFFSET(int32, atomic, matFXGlobals.atomicOffset);
 }
 
 static void*

@@ -105,6 +105,16 @@ struct AnimInterpolator
 // UV anim
 //
 
+struct UVAnimParamData
+{
+	float32 theta;	// rotation
+	float32 s0;	// scale x
+	float32 s1;	// scale y
+	float32 skew;	// skew
+	float32 x;	// x pos
+	float32 y;	// y pos
+};
+
 struct UVAnimKeyFrame
 {
 	UVAnimKeyFrame *prev;
@@ -162,9 +172,15 @@ struct UVAnimDictionary
 
 extern UVAnimDictionary *currentUVAnimDictionary;
 
+// Material plugin
 struct UVAnim
 {
+	Matrix *uv[2];
 	AnimInterpolator *interp[8];
+
+	static bool32 exists(Material *mat);
+	static void addTime(Material *mat, float32 t);
+	static void applyUpdate(Material *mat);
 };
 
 extern int32 uvAnimOffset;
