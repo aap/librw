@@ -41,7 +41,7 @@ disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs)
 }
 
 void
-lightingCB(void)
+lightingCB(bool32 normals)
 {
 	World *world;
 	RGBAf ambLight = { 0.0, 0.0, 0.0, 1.0 };
@@ -51,7 +51,9 @@ lightingCB(void)
 	// only unpositioned lights right now
 	FORLIST(lnk, world->directionalLights){
 		Light *l = Light::fromWorld(lnk);
-		if(l->getType() == Light::DIRECTIONAL){
+		if(normals &&
+		   l->getType() == Light::DIRECTIONAL &&
+		   l->getFlags() & Light::LIGHTATOMICS){
 			if(n >= MAX_LIGHTS)
 				continue;
 			setLight(n++, l);
@@ -75,7 +77,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	GLfloat surfProps[4];
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB();
+	lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);

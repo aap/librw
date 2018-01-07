@@ -153,7 +153,7 @@ public:
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
-void lightingCB(void);
+void lightingCB(bool32 normals);
 
 ObjPipeline *makeDefaultPipeline(void);
 

@@ -243,7 +243,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	GLfloat surfProps[4];
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB();
+	lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
