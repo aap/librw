@@ -27,6 +27,17 @@ struct D3d9Globals
 	int presentWidth, presentHeight;
 } d3d9Globals;
 
+// Keep track of rasters exclusively in video memory
+// as they need special treatment sometimes
+struct VidmemRaster
+{
+	Raster *raster;
+	VidmemRaster *next;
+};
+static VidmemRaster *vidmemRasters;
+void addVidmemRaster(Raster *raster);
+void removeVidmemRaster(Raster *raster);
+
 // cached RW render states
 static bool32 vertexAlpha;
 static bool32 textureAlpha;
@@ -494,6 +505,66 @@ endUpdate(Camera *cam)
 	d3ddevice->EndScene();
 }
 
+void
+addVidmemRaster(Raster *raster)
+{
+	VidmemRaster *vmr = rwNewT(VidmemRaster, 1, ID_DRIVER | MEMDUR_EVENT);
+	vmr->raster = raster;
+	vmr->next = vidmemRasters;
+	vidmemRasters = vmr;
+}
+
+void
+removeVidmemRaster(Raster *raster)
+{
+	VidmemRaster **p, *vmr;
+	for(p = &vidmemRasters; *p; p = &(*p)->next)
+		if((*p)->raster == raster)
+			goto found;
+	return;
+found:
+	vmr = *p;
+	*p = vmr->next;
+	rwFree(vmr);
+}
+
+static void
+releaseVidmemRasters(void)
+{
+	VidmemRaster *vmr;
+	Raster *raster;
+	D3dRaster *natras;
+	for(vmr = vidmemRasters; vmr; vmr = vmr->next){
+		raster = vmr->raster;
+		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		if(raster->type == Raster::CAMERATEXTURE){
+			deleteObject(natras->texture);
+			natras->texture = nil;
+		}
+	}
+}
+
+static void
+recreateVidmemRasters(void)
+{
+	VidmemRaster *vmr;
+	Raster *raster;
+	D3dRaster *natras;
+	for(vmr = vidmemRasters; vmr; vmr = vmr->next){
+		raster = vmr->raster;
+		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		if(raster->type == Raster::CAMERATEXTURE){
+			int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
+			IDirect3DTexture9 *tex;
+			d3ddevice->CreateTexture(raster->width, raster->height,
+						raster->format & Raster::MIPMAP ? levels : 1,
+						D3DUSAGE_RENDERTARGET,
+						(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
+			natras->texture = tex;
+		}
+	}
+}
+
 static void
 clearCamera(Camera *cam, RGBA *col, uint32 mode)
 {
@@ -510,6 +581,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	Raster *ras = cam->frameBuffer;
 	if(!icon &&
 	   (r.right != d3d9Globals.presentWidth || r.bottom != d3d9Globals.presentHeight)){
+		releaseVidmemRasters();
+
 		D3DPRESENT_PARAMETERS d3dpp;
 		d3dpp.BackBufferWidth            = r.right;
 		d3dpp.BackBufferHeight           = r.bottom;

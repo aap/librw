@@ -114,6 +114,9 @@ enum {
 };
 #endif
 
+void addVidmemRaster(Raster *raster);
+void removeVidmemRaster(Raster *raster);
+
 // stolen from d3d8to9
 static uint32
 calculateTextureSize(uint32 width, uint32 height, uint32 depth, uint32 format)
@@ -347,37 +350,76 @@ deleteObject(void *object)
 
 int32 nativeRasterOffset;
 
+struct RasterFormatInfo
+{
+	uint32 d3dformat;
+	int32 depth;
+	bool32 hasAlpha;
+};
+static RasterFormatInfo formatInfo[16] = {
+	{ 0, 0, 0},
+	{ D3DFMT_A1R5G5B5, 16, 1 },	// C1555
+	{ D3DFMT_R5G6B5,   16, 0 },	// C565
+	{ D3DFMT_A4R4G4B4, 16, 1 },	// C4444
+	{ D3DFMT_L8,        8, 0 },	// LUM8
+	{ D3DFMT_A8R8G8B8, 32, 1 },	// C8888
+	{ D3DFMT_X8R8G8B8, 32, 0 },	// C888
+	{ D3DFMT_D16,      16, 0 },	// D16
+	{ D3DFMT_D24X8,    32, 0 },	// D24
+	{ D3DFMT_D32,      32, 0 },	// D32
+	{ D3DFMT_X1R5G5B5, 16, 0 },	// C555
+};
+
+static void
+rasterCreateTexture(Raster *raster)
+{
+	uint32 format;
+	int32 levels;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		format = D3DFMT_P8;
+		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
+	}else
+		format = formatInfo[(raster->format >> 8) & 0xF].d3dformat;
+	natras->format = format;
+	natras->hasAlpha = formatInfo[(raster->format >> 8) & 0xF].hasAlpha;
+	levels = Raster::calculateNumLevels(raster->width, raster->height);
+	natras->texture = createTexture(raster->width, raster->height,
+	                                raster->format & Raster::MIPMAP ? levels : 1,
+	                                format);
+}
+
+static void
+rasterCreateCameraTexture(Raster *raster)
+{
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		// TODO: give some error
+		return;
+
+	int32 levels;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	natras->format = formatInfo[(raster->format >> 8) & 0xF].d3dformat;
+	natras->hasAlpha = formatInfo[(raster->format >> 8) & 0xF].hasAlpha;
+	levels = Raster::calculateNumLevels(raster->width, raster->height);
+
+#ifdef RW_D3D9
+	IDirect3DTexture9 *tex;
+	d3ddevice->CreateTexture(raster->width, raster->height,
+				raster->format & Raster::MIPMAP ? levels : 1,
+				D3DUSAGE_RENDERTARGET,
+				(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
+	natras->texture = tex;
+	addVidmemRaster(raster);
+#else
+	natras->texture = nil;
+#endif
+}
+
 void
 rasterCreate(Raster *raster)
 {
-	static uint32 formatMap[] = {
-		0,
-		D3DFMT_A1R5G5B5,
-		D3DFMT_R5G6B5,
-		D3DFMT_A4R4G4B4,
-		D3DFMT_L8,
-		D3DFMT_A8R8G8B8,
-		D3DFMT_X8R8G8B8,
-		0, 0, 0,
-		D3DFMT_X1R5G5B5,
-		0, 0, 0, 0, 0
-	};
-	static bool32 alphaMap[] = {
-		0,
-		1,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0, 0, 0,
-		0,
-		0, 0, 0, 0, 0
-	};
-
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	uint32 format;
-	int32 levels;
 
 	// Dummy to use as subraster
 	if(raster->width == 0 || raster->height == 0){
@@ -391,17 +433,7 @@ rasterCreate(Raster *raster)
 	case Raster::TEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
 			return;
-		if(raster->format & (Raster::PAL4 | Raster::PAL8)){
-			format = D3DFMT_P8;
-			natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-		}else
-			format = formatMap[(raster->format >> 8) & 0xF];
-		natras->format = format;
-		natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
-		levels = Raster::calculateNumLevels(raster->width, raster->height);
-		natras->texture = createTexture(raster->width, raster->height,
-		                                raster->format & Raster::MIPMAP ? levels : 1,
-		                                format);
+		rasterCreateTexture(raster);
 		break;
 
 	case Raster::ZBUFFER:
@@ -417,8 +449,9 @@ rasterCreate(Raster *raster)
 		raster->pixels = nil;
 		break;
 	case Raster::CAMERATEXTURE:
-		raster->flags |= Raster::DONTALLOCATE;
-		// TODO
+		if(raster->flags & Raster::DONTALLOCATE)
+			return;
+		rasterCreateCameraTexture(raster);
 		break;
 	}
 }
@@ -731,8 +764,15 @@ createNativeRaster(void *object, int32 offset, int32)
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
-	// TODO:
-	(void)offset;
+	Raster *raster = (Raster*)object;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
+#ifdef RW_D3D9
+	if(raster->type == Raster::CAMERATEXTURE)
+		removeVidmemRaster(raster);
+#endif
+	if(natras->texture)
+		deleteObject(natras->texture);
+	rwFree(natras->palette);
 	return object;
 }
 
