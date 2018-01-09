@@ -153,5 +153,10 @@ void flushCache(void);
 void setTexture(uint32 stage, Texture *tex);
 void setMaterial(SurfaceProperties surfProps, rw::RGBA color);
 
+void setVertexShader(void *vs);
+void setPixelShader(void *ps);
+void *createVertexShader(void *csosrc);
+void *createPixelShader(void *csosrc);
+
 }
 }

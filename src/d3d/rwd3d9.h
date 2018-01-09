@@ -54,6 +54,10 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 void *createVertexDeclaration(VertexElement *elements);
 uint32 getDeclaration(void *declaration, VertexElement *elements);
 
+void drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);
+// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
+void drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst);
+
 void *destroyNativeData(void *object, int32, int32);
 Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
 Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);

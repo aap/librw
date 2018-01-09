@@ -21,6 +21,43 @@ void defaultRenderCB(Atomic*, InstanceDataHeader*) {}
 #else
 
 void
+drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst)
+{
+	d3d::flushCache();
+	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
+	                                0, inst->numVertices,
+	                                inst->startIndex, inst->numPrimitives);
+}
+
+// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
+void
+drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst)
+{
+	uint32 hasAlpha;
+	int alphafunc;
+	int zwrite;
+	d3d::getRenderState(D3DRS_ALPHABLENDENABLE, &hasAlpha);
+	if(hasAlpha){
+		zwrite = rw::GetRenderState(rw::ZWRITEENABLE);
+		alphafunc = rw::GetRenderState(rw::ALPHATESTFUNC);
+		if(zwrite){
+			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAGREATEREQUAL);
+			drawInst(header, inst);
+			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHALESS);
+			SetRenderState(rw::ZWRITEENABLE, 0);
+			drawInst(header, inst);
+			SetRenderState(rw::ZWRITEENABLE, 1);
+			SetRenderState(rw::ALPHATESTFUNC, alphafunc);
+		}else{
+			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAALWAYS);
+			drawInst(header, inst);
+			SetRenderState(rw::ALPHATESTFUNC, alphafunc);
+		}
+	}else
+		drawInst(header, inst);
+}
+
+void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	RawMatrix world;
@@ -29,8 +66,6 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	int lighting = !!(geo->flags & rw::Geometry::LIGHT);
 	if(lighting)
 		d3d::lightingCB();
-//	else
-//		return;
 
 	d3d::setRenderState(D3DRS_LIGHTING, lighting);
 
@@ -76,10 +111,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, inst->vertexAlpha ? D3DMCS_COLOR1 : D3DMCS_MATERIAL);
 
-		d3d::flushCache();
-		d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
-		                                0, inst->numVertices,
-		                                inst->startIndex, inst->numPrimitives);
+		drawInst(header, inst);
 		inst++;
 	}
 	d3d::setTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);

@@ -418,6 +418,40 @@ setMaterial(SurfaceProperties surfProps, rw::RGBA color)
 	setD3dMaterial(&mat9);
 }
 
+// Shaders
+
+void
+setVertexShader(void *vs)
+{
+	d3ddevice->SetVertexShader((IDirect3DVertexShader9*)vs);
+}
+
+void
+setPixelShader(void *ps)
+{
+	d3ddevice->SetPixelShader((IDirect3DPixelShader9*)ps);
+}
+
+void*
+createVertexShader(void *csosrc)
+{
+	void *shdr;
+	if(d3ddevice->CreateVertexShader((DWORD*)csosrc, (IDirect3DVertexShader9**)&shdr) == D3D_OK)
+		return shdr;
+	return nil;
+}
+
+void*
+createPixelShader(void *csosrc)
+{
+	void *shdr;
+	if(d3ddevice->CreatePixelShader((DWORD*)csosrc, (IDirect3DPixelShader9**)&shdr) == D3D_OK)
+		return shdr;
+	return nil;
+}
+
+// Camera
+
 static void
 beginUpdate(Camera *cam)
 {
