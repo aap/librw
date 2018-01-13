@@ -19,7 +19,7 @@ IDirect3DDevice9 *d3ddevice = nil;
 #define MAX_LIGHTS 8
 
 void
-lightingCB(void)
+lightingCB(bool32 normals)
 {
 	World *world;
 	RGBAf ambLight = { 0.0, 0.0, 0.0, 1.0 };
@@ -46,7 +46,9 @@ lightingCB(void)
 		Light *l = Light::fromWorld(lnk);
 		if((l->getFlags() & Light::LIGHTATOMICS) == 0)
 			continue;
-		if(l->getType() == Light::DIRECTIONAL){
+		if(normals &&
+		   l->getType() == Light::DIRECTIONAL &&
+		   l->getFlags() & Light::LIGHTATOMICS){
 			if(n >= MAX_LIGHTS)
 				continue;
 			light.Diffuse =  *(D3DCOLORVALUE*)&l->color;

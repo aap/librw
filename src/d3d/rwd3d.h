@@ -20,7 +20,7 @@ extern bool32 isP8supported;
 extern IDirect3DDevice9 *d3ddevice;
 extern Device renderdevice;
 
-void lightingCB(void);
+void lightingCB(bool32 normals);
 
 struct Im3DVertex
 {
