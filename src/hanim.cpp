@@ -78,11 +78,23 @@ findById(Frame *f, int32 id)
 	return findById(f->child, id);
 }
 
+static Frame*
+findUnattachedById(HAnimHierarchy *hier, Frame *f, int32 id)
+{
+	if(f == nil) return nil;
+	HAnimData *hanim = HAnimData::get(f);
+	if(hanim->id >= 0 && hanim->id == id && hier->getIndex(f) == -1) return f;
+	Frame *ff = findUnattachedById(hier, f->next, id);
+	if(ff) return ff;
+	return findUnattachedById(hier, f->child, id);
+}
+
 void
 HAnimHierarchy::attachByIndex(int32 idx)
 {
 	int32 id = this->nodeInfo[idx].id;
-	Frame *f = findById(this->parentFrame, id);
+//	Frame *f = findById(this->parentFrame, id);
+	Frame *f = findUnattachedById(this, this->parentFrame, id);
 	this->nodeInfo[idx].frame = f;
 }
 
@@ -98,6 +110,15 @@ HAnimHierarchy::getIndex(int32 id)
 {
 	for(int32 i = 0; i < this->numNodes; i++)
 		if(this->nodeInfo[i].id == id)
+			return i;
+	return -1;
+}
+
+int32
+HAnimHierarchy::getIndex(Frame *f)
+{
+	for(int32 i = 0; i < this->numNodes; i++)
+		if(this->nodeInfo[i].frame == f)
 			return i;
 	return -1;
 }
