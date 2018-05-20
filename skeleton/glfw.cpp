@@ -152,7 +152,7 @@ keypress(GLFWwindow *window, int key, int scancode, int action, int mods)
 static void
 charinput(GLFWwindow *window, unsigned int c)
 {
-	EventHandler(CHARINPUT, (void*)c);
+	EventHandler(CHARINPUT, (void*)(uintptr)c);
 }
 
 static void

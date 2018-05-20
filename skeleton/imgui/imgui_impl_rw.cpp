@@ -192,7 +192,7 @@ ImGuiEventHandler(sk::Event e, void *param)
 			io.KeysDown[c] = 0;
 		return EVENTPROCESSED;
 	case CHARINPUT:
-		c = (uint)param;
+		c = (uint)(uintptr)param;
 		io.AddInputCharacter((unsigned short)c);
 		return EVENTPROCESSED;
 	case MOUSEMOVE:
