@@ -29,14 +29,21 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 		g_vertbuf = rwNewT(Im2DVertex, g_vertbufSize, 0);
 	}
 
+	float xoff = 0.0f;
+	float yoff = 0.0f;
+#ifdef RWHALFPIXEL
+	xoff = -0.5;
+	yoff = 0.5;
+#endif
+
 	rw::Camera *cam = (rw::Camera*)rw::engine->currentCamera;
 	Im2DVertex *vtx_dst = g_vertbuf;
 	for(int n = 0; n < draw_data->CmdListsCount; n++){
 		const ImDrawList *cmd_list = draw_data->CmdLists[n];
 		const ImDrawVert *vtx_src = cmd_list->VtxBuffer.Data;
 		for(int i = 0; i < cmd_list->VtxBuffer.Size; i++){
-			vtx_dst[i].setScreenX(vtx_src[i].pos.x);
-			vtx_dst[i].setScreenY(vtx_src[i].pos.y);
+			vtx_dst[i].setScreenX(vtx_src[i].pos.x + xoff);
+			vtx_dst[i].setScreenY(vtx_src[i].pos.y + yoff);
 			vtx_dst[i].setScreenZ(rw::im2d::GetNearZ());
 			vtx_dst[i].setCameraZ(cam->nearPlane);
 			vtx_dst[i].setRecipCameraZ(1.0f/cam->nearPlane);
@@ -123,6 +130,7 @@ ImGui_ImplRW_CreateFontsTexture()
 	for(int y = 0; y < height; y++)
 		memcpy(image->pixels + image->stride*y, pixels + width*4* y, width*4);
 	g_FontTexture = rw::Texture::create(rw::Raster::createFromImage(image));
+	g_FontTexture->setFilter(rw::Texture::LINEAR);
 	image->destroy();
 	
 	// Store our identifier

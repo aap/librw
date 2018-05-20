@@ -13,6 +13,7 @@
 
 #ifdef RW_D3D9
 #define RWDEVICE d3d
+#define RWHALFPIXEL
 #endif
 
 #ifdef RW_D3D8
@@ -20,6 +21,7 @@
 #endif
 
 #ifdef RW_PS2
+#define RWHALFPIXEL
 #define RWDEVICE ps2
 #endif
 
