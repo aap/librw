@@ -130,7 +130,7 @@ cross(const V3d &a, const V3d &b)
 }
 
 void
-V3d::transformPoints(V3d *out, V3d *in, int32 n, Matrix *m)
+V3d::transformPoints(V3d *out, const V3d *in, int32 n, const Matrix *m)
 {
 	int32 i;
 	V3d tmp;
@@ -143,7 +143,7 @@ V3d::transformPoints(V3d *out, V3d *in, int32 n, Matrix *m)
 }
 
 void
-V3d::transformVectors(V3d *out, V3d *in, int32 n, Matrix *m)
+V3d::transformVectors(V3d *out, const V3d *in, int32 n, const Matrix *m)
 {
 	int32 i;
 	V3d tmp;
@@ -263,7 +263,7 @@ Matrix::optimize(Tolerance *tolerance)
 }
 
 Matrix*
-Matrix::mult(Matrix *dst, Matrix *src1, Matrix *src2)
+Matrix::mult(Matrix *dst, const Matrix *src1, const Matrix *src2)
 {
 	if(src1->flags & IDENTITY)
 		*dst = *src2;
@@ -277,7 +277,7 @@ Matrix::mult(Matrix *dst, Matrix *src1, Matrix *src2)
 }
 
 Matrix*
-Matrix::invert(Matrix *dst, Matrix *src)
+Matrix::invert(Matrix *dst, const Matrix *src)
 {
 	if(src->flags & IDENTITY)
 		*dst = *src;
@@ -290,7 +290,7 @@ Matrix::invert(Matrix *dst, Matrix *src)
 
 // transpose the 3x3 submatrix, pos is set to 0
 Matrix*
-Matrix::transpose(Matrix *dst, Matrix *src)
+Matrix::transpose(Matrix *dst, const Matrix *src)
 {
 	if(src->flags & IDENTITY)
 		*dst = *src;
@@ -462,7 +462,7 @@ Matrix::lookAt(const V3d &dir, const V3d &up)
 }
 
 void
-Matrix::mult_(Matrix *dst, Matrix *src1, Matrix *src2)
+Matrix::mult_(Matrix *dst, const Matrix *src1, const Matrix *src2)
 {
 	dst->right.x = src1->right.x*src2->right.x + src1->right.y*src2->up.x + src1->right.z*src2->at.x;
 	dst->right.y = src1->right.x*src2->right.y + src1->right.y*src2->up.y + src1->right.z*src2->at.y;
@@ -479,7 +479,7 @@ Matrix::mult_(Matrix *dst, Matrix *src1, Matrix *src2)
 }
 
 void
-Matrix::invertOrthonormal(Matrix *dst, Matrix *src)
+Matrix::invertOrthonormal(Matrix *dst, const Matrix *src)
 {
 	dst->right.x = src->right.x;
 	dst->right.y = src->up.x;
@@ -503,7 +503,7 @@ Matrix::invertOrthonormal(Matrix *dst, Matrix *src)
 }
 
 Matrix*
-Matrix::invertGeneral(Matrix *dst, Matrix *src)
+Matrix::invertGeneral(Matrix *dst, const Matrix *src)
 {
 	float32 det, invdet;
 	// calculate a few cofactors

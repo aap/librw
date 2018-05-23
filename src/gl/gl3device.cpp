@@ -191,7 +191,12 @@ setRenderState(int32 state, uint32 value)
 		break;
 	case FOGCOLOR:
 		// no cache check here...too lazy
-		convColor(&uniformState.fogColor, (RGBA*)&value);
+		RGBA c;
+		c.red = value;
+		c.green = value>>8;
+		c.blue = value>>16;
+		c.alpha = value>>24;
+		convColor(&uniformState.fogColor, &c);
 		stateDirty = 1;
 		break;
 	case CULLMODE:
@@ -237,7 +242,7 @@ getRenderState(int32 state)
 		return uniformState.fogEnable;
 	case FOGCOLOR:
 		convColor(&rgba, &uniformState.fogColor);
-		return *(uint32*)&rgba;
+		return RWRGBAINT(rgba.red, rgba.green, rgba.blue, rgba.alpha);
 	case CULLMODE:
 		return cullmode;
 

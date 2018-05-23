@@ -132,6 +132,7 @@ struct RGBA
 };
 inline RGBA makeRGBA(uint8 r, uint8 g, uint8 b, uint8 a) { RGBA c = { r, g, b, a }; return c; }
 inline bool32 equal(const RGBA &c1, const RGBA &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
+#define RWRGBAINT(r, g, b, a) ((uint32)((((a)&0xff)<<24)|(((b)&0xff)<<16)|(((g)&0xff)<<8)|((r)&0xff)))
 
 struct RGBAf
 {
@@ -207,8 +208,8 @@ struct V3d
 	float32 x, y, z;
 	void set(float32 x, float32 y, float32 z){
 		this->x = x; this->y = y; this->z = z; }
-	static void transformPoints(V3d *out, V3d *in, int32 n, Matrix *m);
-	static void transformVectors(V3d *out, V3d *in, int32 n, Matrix *m);
+	static void transformPoints(V3d *out, const V3d *in, int32 n, const Matrix *m);
+	static void transformVectors(V3d *out, const V3d *in, int32 n, const Matrix *m);
 };
 
 inline V3d makeV3d(float32 x, float32 y, float32 z) { V3d v = { x, y, z }; return v; }
@@ -318,9 +319,9 @@ struct Matrix
 	void setIdentity(void);
 	void optimize(Tolerance *tolerance = nil);
 	void update(void) { flags &= ~(IDENTITY|TYPEMASK); }
-	static Matrix *mult(Matrix *dst, Matrix *src1, Matrix *src2);
-	static Matrix *invert(Matrix *m1, Matrix *m2);
-	static Matrix *transpose(Matrix *m1, Matrix *m2);
+	static Matrix *mult(Matrix *dst, const Matrix *src1, const Matrix *src2);
+	static Matrix *invert(Matrix *dst, const Matrix *src);
+	static Matrix *transpose(Matrix *dst, const Matrix *src);
 	Matrix *rotate(V3d *axis, float32 angle, CombineOp op);
 	Matrix *rotate(const Quat &q, CombineOp op);
 	Matrix *translate(V3d *translation, CombineOp op);
@@ -330,9 +331,9 @@ struct Matrix
 	void lookAt(const V3d &dir, const V3d &up);
 
 	// helper functions. consider private
-	static void mult_(Matrix *dst, Matrix *src1, Matrix *src2);
-	static void invertOrthonormal(Matrix *dst, Matrix *src);
-	static Matrix *invertGeneral(Matrix *dst, Matrix *src);
+	static void mult_(Matrix *dst, const Matrix *src1, const Matrix *src2);
+	static void invertOrthonormal(Matrix *dst, const Matrix *src);
+	static Matrix *invertGeneral(Matrix *dst, const Matrix *src);
 	static void makeRotation(Matrix *dst, V3d *axis, float32 angle);
 	static void makeRotation(Matrix *dst, const Quat &q);
 private:

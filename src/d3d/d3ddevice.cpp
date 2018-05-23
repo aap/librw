@@ -265,7 +265,11 @@ setRwRenderState(int32 state, uint32 value)
 		};
 		break;
 	case FOGCOLOR:{
-		RGBA c = *(RGBA*)&value;
+		RGBA c;
+		c.red = value;
+		c.green = value>>8;
+		c.blue = value>>16;
+		c.alpha = value>>24;
 		if(!equal(fogcolor, c)){
 			fogcolor = c;
 			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
@@ -308,7 +312,7 @@ getRwRenderState(int32 state)
 	case FOGENABLE:
 		return fogenable;
 	case FOGCOLOR:
-		return *(uint32*)&fogcolor;
+		return RWRGBAINT(fogcolor.red, fogcolor.green, fogcolor.blue, fogcolor.alpha);
 	case CULLMODE:
 		return cullmode;
 	case ALPHATESTFUNC:
