@@ -487,6 +487,8 @@ struct Atomic
 		if(this->renderCB == nil)
 			this->renderCB = defaultRenderCB;
 	};
+	void setFlags(uint32 flags) { this->object.object.flags = flags; }
+	uint32 getFlags(void) { return this->object.object.flags; }
 	static Atomic *streamReadClump(Stream *stream,
 		FrameList_ *frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream, FrameList_ *frmlst);
