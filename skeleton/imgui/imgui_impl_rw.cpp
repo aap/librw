@@ -38,6 +38,7 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 
 	rw::Camera *cam = (rw::Camera*)rw::engine->currentCamera;
 	Im2DVertex *vtx_dst = g_vertbuf;
+	float recipZ = 1.0f/cam->nearPlane;
 	for(int n = 0; n < draw_data->CmdListsCount; n++){
 		const ImDrawList *cmd_list = draw_data->CmdLists[n];
 		const ImDrawVert *vtx_src = cmd_list->VtxBuffer.Data;
@@ -46,10 +47,10 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 			vtx_dst[i].setScreenY(vtx_src[i].pos.y + yoff);
 			vtx_dst[i].setScreenZ(rw::im2d::GetNearZ());
 			vtx_dst[i].setCameraZ(cam->nearPlane);
-			vtx_dst[i].setRecipCameraZ(1.0f/cam->nearPlane);
+			vtx_dst[i].setRecipCameraZ(recipZ);
 			vtx_dst[i].setColor(vtx_src[i].col&0xFF, vtx_src[i].col>>8 & 0xFF, vtx_src[i].col>>16 & 0xFF, vtx_src[i].col>>24 & 0xFF);
-			vtx_dst[i].setU(vtx_src[i].uv.x);
-			vtx_dst[i].setV(vtx_src[i].uv.y);
+			vtx_dst[i].setU(vtx_src[i].uv.x, recipZ);
+			vtx_dst[i].setV(vtx_src[i].uv.y, recipZ);
 		}
 		vtx_dst += cmd_list->VtxBuffer.Size;
 	}

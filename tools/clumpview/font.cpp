@@ -29,12 +29,14 @@ printScreen(const char *s, float32 x, float32 y)
 	curVert = 0;
 	curIndex = 0;
 	float32 u, v, du, dv;
+	float recipZ;
 
 	cam = (Camera*)engine->currentCamera;
 	vert = &vertices[curVert];
 	ix = &indices[curIndex];
 	du = curfont->glyphwidth/(float32)curfont->tex->raster->width;
 	dv = curfont->glyphheight/(float32)curfont->tex->raster->height;
+	recipZ = 1.0f/cam->nearPlane;
 	while(c = *s){
 		if(c >= curfont->numglyphs)
 			c = 0;
@@ -45,40 +47,40 @@ printScreen(const char *s, float32 x, float32 y)
 		vert->setScreenY(y);
 		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
-		vert->setRecipCameraZ(1.0f/cam->nearPlane);
+		vert->setRecipCameraZ(recipZ);
 		vert->setColor(255, 255, 255, 255);
-		vert->setU(u);
-		vert->setV(v);
+		vert->setU(u, recipZ);
+		vert->setV(v, recipZ);
 		vert++;
 
 		vert->setScreenX(x+curfont->glyphwidth);
 		vert->setScreenY(y);
 		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
-		vert->setRecipCameraZ(1.0f/cam->nearPlane);
+		vert->setRecipCameraZ(recipZ);
 		vert->setColor(255, 255, 255, 255);
-		vert->setU(u+du);
-		vert->setV(v);
+		vert->setU(u+du, recipZ);
+		vert->setV(v, recipZ);
 		vert++;
 		
 		vert->setScreenX(x);
 		vert->setScreenY(y+curfont->glyphheight);
 		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
-		vert->setRecipCameraZ(1.0f/cam->nearPlane);
+		vert->setRecipCameraZ(recipZ);
 		vert->setColor(255, 255, 255, 255);
-		vert->setU(u);
-		vert->setV(v+dv);
+		vert->setU(u, recipZ);
+		vert->setV(v+dv, recipZ);
 		vert++;
 
 		vert->setScreenX(x+curfont->glyphwidth);
 		vert->setScreenY(y+curfont->glyphheight);
 		vert->setScreenZ(rw::im2d::GetNearZ());
 		vert->setCameraZ(cam->nearPlane);
-		vert->setRecipCameraZ(1.0f/cam->nearPlane);
+		vert->setRecipCameraZ(recipZ);
 		vert->setColor(255, 255, 255, 255);
-		vert->setU(u+du);
-		vert->setV(v+dv);
+		vert->setU(u+du, recipZ);
+		vert->setV(v+dv, recipZ);
 		vert++;
 
 		*ix++ = curVert;

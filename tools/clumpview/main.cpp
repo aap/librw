@@ -251,15 +251,16 @@ im2dtest(void)
 		0, 1, 2, 3
 	};
 
+	float recipZ = 1.0f/Scene.camera->nearPlane;
 	for(i = 0; i < 4; i++){
 		verts[i].setScreenX(vs[i].x);
 		verts[i].setScreenY(vs[i].y);
 		verts[i].setScreenZ(rw::im2d::GetNearZ());
 		verts[i].setCameraZ(Scene.camera->nearPlane);
-		verts[i].setRecipCameraZ(1.0f/Scene.camera->nearPlane);
+		verts[i].setRecipCameraZ(recipZ);
 		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
-		verts[i].setU(vs[i].u);
-		verts[i].setV(vs[i].v);
+		verts[i].setU(vs[i].u, recipZ);
+		verts[i].setV(vs[i].v, recipZ);
 	}
 
 	rw::engine->imtexture = tex2;
@@ -324,9 +325,9 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-	Scene.clump->render();
+//	Scene.clump->render();
 //	im2dtest();
-//	tlTest(Scene.clump);
+	tlTest(Scene.clump);
 //	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
 
@@ -380,11 +381,23 @@ KeyDown(int key)
 	}
 }
 
+void
+MouseMove(int x, int y)
+{
+}
+
+void
+MouseButton(int buttons)
+{
+}
+
 sk::EventStatus
 AppEventHandler(sk::Event e, void *param)
 {
 	using namespace sk;
 	Rect *r;
+	MouseState *ms;
+
 	switch(e){
 	case INITIALIZE:
 		Init();
@@ -399,8 +412,20 @@ AppEventHandler(sk::Event e, void *param)
 	case KEYUP:
 		KeyUp(*(int*)param);
 		return EVENTPROCESSED;
+	case MOUSEBTN:
+		ms = (MouseState*)param;
+		MouseButton(ms->buttons);
+		return EVENTPROCESSED;
+	case MOUSEMOVE:
+		ms = (MouseState*)param;
+		MouseMove(ms->posx, ms->posy);
+		return EVENTPROCESSED;
 	case RESIZE:
 		r = (Rect*)param;
+		// TODO: register when we're minimized
+		if(r->w == 0) r->w = 1;
+		if(r->h == 0) r->h = 1;
+
 		sk::globals.width = r->w;
 		sk::globals.height = r->h;
 		// TODO: set aspect ratio

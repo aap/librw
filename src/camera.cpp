@@ -207,6 +207,12 @@ cameraSync(ObjectWithFrame *obj)
 	Camera *cam = (Camera*)obj;
 	Matrix inv, proj;
 	Matrix::invertOrthonormal(&inv, cam->getFrame()->getLTM());
+
+	inv.right.x = -inv.right.x;
+	inv.up.x = -inv.up.x;
+	inv.at.x = -inv.at.x;
+	inv.pos.x = -inv.pos.x;
+
 	float32 xscl = 1.0f/(2.0f*cam->viewWindow.x);
 	float32 yscl = 1.0f/(2.0f*cam->viewWindow.y);
 

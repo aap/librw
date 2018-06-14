@@ -51,8 +51,8 @@ struct Im2DVertex
 	void setCameraZ(float32 z) { }
 	void setRecipCameraZ(float32 recipz) { this->w = recipz; }
 	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = D3DCOLOR_ARGB(a, r, g, b); }
-	void setU(float32 u) { this->u = u; }
-	void setV(float32 v) { this->v = v; }
+	void setU(float32 u, float recipZ) { this->u = u; }
+	void setV(float32 v, float recipZ) { this->v = v; }
 };
 
 void setD3dMaterial(D3DMATERIAL9 *mat9);

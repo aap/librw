@@ -87,8 +87,8 @@ drawAtomic(Atomic *a)
 		im2dverts[i].setCameraZ(xvert[i].z);
 		im2dverts[i].setRecipCameraZ(recipZ);
 		im2dverts[i].setColor(255, 0, 0, 255);
-		im2dverts[i].setU(texcoords[i].u);
-		im2dverts[i].setV(texcoords[i].v);
+		im2dverts[i].setU(texcoords[i].u, recipZ);
+		im2dverts[i].setV(texcoords[i].v, recipZ);
 	}
 	for(int32 i = 0; i < mh->numMeshes; i++){
 		for(uint32 j = 0; j < m[i].numIndices; j++){
@@ -172,8 +172,8 @@ genIm3DTransform(void *vertices, int32 numVertices, Matrix *world)
 		clipverts[i].setCameraZ(pos.z);
 		clipverts[i].setRecipCameraZ(recipZ);
 		clipverts[i].setColor(c.red, c.green, c.blue, c.alpha);
-		clipverts[i].setU(objverts[i].u);
-		clipverts[i].setV(objverts[i].v);
+		clipverts[i].setU(objverts[i].u, recipZ);
+		clipverts[i].setV(objverts[i].v, recipZ);
 	}
 }
 
