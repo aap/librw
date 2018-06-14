@@ -51,10 +51,10 @@ static uint32 alphafunc;
 static uint32 alpharef;
 
 
-#define MAXNUMSTATES D3DRS_BLENDOPALPHA
+#define MAXNUMSTATES (D3DRS_BLENDOPALPHA+1)
 #define MAXNUMSTAGES 8
-#define MAXNUMTEXSTATES D3DTSS_CONSTANT
-#define MAXNUMSAMPLERSTATES D3DSAMP_DMAPOFFSET
+#define MAXNUMTEXSTATES (D3DTSS_CONSTANT+1)
+#define MAXNUMSAMPLERSTATES (D3DSAMP_DMAPOFFSET+1)
 
 static int32 numDirtyStates;
 static uint32 dirtyStates[MAXNUMSTATES];
@@ -72,13 +72,17 @@ static struct {
 static struct {
 	uint32 value;
 	bool32 dirty;
-} textureStageStateCache[MAXNUMSTATES][MAXNUMSTAGES];
-static uint32 d3dTextureStageStates[MAXNUMSTATES][MAXNUMSTAGES];
+} textureStageStateCache[MAXNUMTEXSTATES][MAXNUMSTAGES];
+static uint32 d3dTextureStageStates[MAXNUMTEXSTATES][MAXNUMSTAGES];
 
 static uint32 d3dSamplerStates[MAXNUMSAMPLERSTATES][MAXNUMSTAGES];
 
 // TODO: not only rasters, make a struct
 static Raster *d3dRaster[MAXNUMSTAGES];
+
+
+static bool validStates[MAXNUMSTATES];
+static bool validTexStates[MAXNUMTEXSTATES];
 
 static D3DMATERIAL9 d3dmaterial;
 
@@ -176,11 +180,13 @@ resetD3d9Device(void)
 		d3ddevice->SetTexture(i, nil);
 	}
 	for(s = 0; s < MAXNUMSTATES; s++)
-		d3ddevice->SetRenderState((D3DRENDERSTATETYPE)s, d3dStates[s]);
-	for(t = 0; t < MAXNUMSTATES; t++)
-		for(s = 0; s < MAXNUMSTAGES; s++)
-			d3ddevice->SetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, d3dTextureStageStates[t][s]);
-	for(t = 0; t < MAXNUMSAMPLERSTATES; t++)
+		if(validStates[s])
+			d3ddevice->SetRenderState((D3DRENDERSTATETYPE)s, d3dStates[s]);
+	for(t = 0; t < MAXNUMTEXSTATES; t++)
+		if(validTexStates[t])
+			for(s = 0; s < MAXNUMSTAGES; s++)
+				d3ddevice->SetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, d3dTextureStageStates[t][s]);
+	for(t = 1; t < MAXNUMSAMPLERSTATES; t++)
 		for(s = 0; s < MAXNUMSTAGES; s++)
 			d3ddevice->SetSamplerState(s, (D3DSAMPLERSTATETYPE)t, d3dSamplerStates[t][s]);
 	d3ddevice->SetMaterial(&d3dmaterial);
@@ -771,17 +777,143 @@ initD3D(void)
 //	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
 //	setTextureStageState(0, D3DTSS_COLOROP, D3DTA_CONSTANT);
 
+	// These states exist, not all do
+	validStates[D3DRS_ZENABLE] = 1;
+	validStates[D3DRS_FILLMODE] = 1;
+	validStates[D3DRS_SHADEMODE] = 1;
+	validStates[D3DRS_ZWRITEENABLE] = 1;
+	validStates[D3DRS_ALPHATESTENABLE] = 1;
+	validStates[D3DRS_LASTPIXEL] = 1;
+	validStates[D3DRS_SRCBLEND] = 1;
+	validStates[D3DRS_DESTBLEND] = 1;
+	validStates[D3DRS_CULLMODE] = 1;
+	validStates[D3DRS_ZFUNC] = 1;
+	validStates[D3DRS_ALPHAREF] = 1;
+	validStates[D3DRS_ALPHAFUNC] = 1;
+	validStates[D3DRS_DITHERENABLE] = 1;
+	validStates[D3DRS_ALPHABLENDENABLE] = 1;
+	validStates[D3DRS_FOGENABLE] = 1;
+	validStates[D3DRS_SPECULARENABLE] = 1;
+	validStates[D3DRS_FOGCOLOR] = 1;
+	validStates[D3DRS_FOGTABLEMODE] = 1;
+	validStates[D3DRS_FOGSTART] = 1;
+	validStates[D3DRS_FOGEND] = 1;
+	validStates[D3DRS_FOGDENSITY] = 1;
+	validStates[D3DRS_RANGEFOGENABLE] = 1;
+	validStates[D3DRS_STENCILENABLE] = 1;
+	validStates[D3DRS_STENCILFAIL] = 1;
+	validStates[D3DRS_STENCILZFAIL] = 1;
+	validStates[D3DRS_STENCILPASS] = 1;
+	validStates[D3DRS_STENCILFUNC] = 1;
+	validStates[D3DRS_STENCILREF] = 1;
+	validStates[D3DRS_STENCILMASK] = 1;
+	validStates[D3DRS_STENCILWRITEMASK] = 1;
+	validStates[D3DRS_TEXTUREFACTOR] = 1;
+	validStates[D3DRS_WRAP0] = 1;
+	validStates[D3DRS_WRAP1] = 1;
+	validStates[D3DRS_WRAP2] = 1;
+	validStates[D3DRS_WRAP3] = 1;
+	validStates[D3DRS_WRAP4] = 1;
+	validStates[D3DRS_WRAP5] = 1;
+	validStates[D3DRS_WRAP6] = 1;
+	validStates[D3DRS_WRAP7] = 1;
+	validStates[D3DRS_CLIPPING] = 1;
+	validStates[D3DRS_LIGHTING] = 1;
+	validStates[D3DRS_AMBIENT] = 1;
+	validStates[D3DRS_FOGVERTEXMODE] = 1;
+	validStates[D3DRS_COLORVERTEX] = 1;
+	validStates[D3DRS_LOCALVIEWER] = 1;
+	validStates[D3DRS_NORMALIZENORMALS] = 1;
+	validStates[D3DRS_DIFFUSEMATERIALSOURCE] = 1;
+	validStates[D3DRS_SPECULARMATERIALSOURCE] = 1;
+	validStates[D3DRS_AMBIENTMATERIALSOURCE] = 1;
+	validStates[D3DRS_EMISSIVEMATERIALSOURCE] = 1;
+	validStates[D3DRS_VERTEXBLEND] = 1;
+	validStates[D3DRS_CLIPPLANEENABLE] = 1;
+	validStates[D3DRS_POINTSIZE] = 1;
+	validStates[D3DRS_POINTSIZE_MIN] = 1;
+	validStates[D3DRS_POINTSPRITEENABLE] = 1;
+	validStates[D3DRS_POINTSCALEENABLE] = 1;
+	validStates[D3DRS_POINTSCALE_A] = 1;
+	validStates[D3DRS_POINTSCALE_B] = 1;
+	validStates[D3DRS_POINTSCALE_C] = 1;
+	validStates[D3DRS_MULTISAMPLEANTIALIAS] = 1;
+	validStates[D3DRS_MULTISAMPLEMASK] = 1;
+	validStates[D3DRS_PATCHEDGESTYLE] = 1;
+	validStates[D3DRS_DEBUGMONITORTOKEN] = 1;
+	validStates[D3DRS_POINTSIZE_MAX] = 1;
+	validStates[D3DRS_INDEXEDVERTEXBLENDENABLE] = 1;
+	validStates[D3DRS_COLORWRITEENABLE] = 1;
+	validStates[D3DRS_TWEENFACTOR] = 1;
+	validStates[D3DRS_BLENDOP] = 1;
+	validStates[D3DRS_POSITIONDEGREE] = 1;
+	validStates[D3DRS_NORMALDEGREE] = 1;
+	validStates[D3DRS_SCISSORTESTENABLE] = 1;
+	validStates[D3DRS_SLOPESCALEDEPTHBIAS] = 1;
+	validStates[D3DRS_ANTIALIASEDLINEENABLE] = 1;
+	validStates[D3DRS_MINTESSELLATIONLEVEL] = 1;
+	validStates[D3DRS_MAXTESSELLATIONLEVEL] = 1;
+	validStates[D3DRS_ADAPTIVETESS_X] = 1;
+	validStates[D3DRS_ADAPTIVETESS_Y] = 1;
+	validStates[D3DRS_ADAPTIVETESS_Z] = 1;
+	validStates[D3DRS_ADAPTIVETESS_W] = 1;
+	validStates[D3DRS_ENABLEADAPTIVETESSELLATION] = 1;
+	validStates[D3DRS_TWOSIDEDSTENCILMODE] = 1;
+	validStates[D3DRS_CCW_STENCILFAIL] = 1;
+	validStates[D3DRS_CCW_STENCILZFAIL] = 1;
+	validStates[D3DRS_CCW_STENCILPASS] = 1;
+	validStates[D3DRS_CCW_STENCILFUNC] = 1;
+	validStates[D3DRS_COLORWRITEENABLE1] = 1;
+	validStates[D3DRS_COLORWRITEENABLE2] = 1;
+	validStates[D3DRS_COLORWRITEENABLE3] = 1;
+	validStates[D3DRS_BLENDFACTOR] = 1;
+	validStates[D3DRS_SRGBWRITEENABLE] = 1;
+	validStates[D3DRS_DEPTHBIAS] = 1;
+	validStates[D3DRS_WRAP8] = 1;
+	validStates[D3DRS_WRAP9] = 1;
+	validStates[D3DRS_WRAP10] = 1;
+	validStates[D3DRS_WRAP11] = 1;
+	validStates[D3DRS_WRAP12] = 1;
+	validStates[D3DRS_WRAP13] = 1;
+	validStates[D3DRS_WRAP14] = 1;
+	validStates[D3DRS_WRAP15] = 1;
+	validStates[D3DRS_SEPARATEALPHABLENDENABLE] = 1;
+	validStates[D3DRS_SRCBLENDALPHA] = 1;
+	validStates[D3DRS_DESTBLENDALPHA] = 1;
+	validStates[D3DRS_BLENDOPALPHA] = 1;
+
+	validTexStates[D3DTSS_COLOROP] = 1;
+	validTexStates[D3DTSS_COLORARG1] = 1;
+	validTexStates[D3DTSS_COLORARG2] = 1;
+	validTexStates[D3DTSS_ALPHAOP] = 1;
+	validTexStates[D3DTSS_ALPHAARG1] = 1;
+	validTexStates[D3DTSS_ALPHAARG2] = 1;
+	validTexStates[D3DTSS_BUMPENVMAT00] = 1;
+	validTexStates[D3DTSS_BUMPENVMAT01] = 1;
+	validTexStates[D3DTSS_BUMPENVMAT10] = 1;
+	validTexStates[D3DTSS_BUMPENVMAT11] = 1;
+	validTexStates[D3DTSS_TEXCOORDINDEX] = 1;
+	validTexStates[D3DTSS_BUMPENVLSCALE] = 1;
+	validTexStates[D3DTSS_BUMPENVLOFFSET] = 1;
+	validTexStates[D3DTSS_TEXTURETRANSFORMFLAGS] = 1;
+	validTexStates[D3DTSS_COLORARG0] = 1;
+	validTexStates[D3DTSS_ALPHAARG0] = 1;
+	validTexStates[D3DTSS_RESULTARG] = 1;
+	validTexStates[D3DTSS_CONSTANT] = 1;
+
 	// Save the current states
-	for(s = 0; s < MAXNUMSTATES; s++){
-		d3ddevice->GetRenderState((D3DRENDERSTATETYPE)s, (DWORD*)&d3dStates[s]);
-		stateCache[s].value = d3dStates[s];
-	}
-	for(t = 0; t < MAXNUMSTATES; t++)
-		for(s = 0; s < MAXNUMSTAGES; s++){
-			d3ddevice->GetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, (DWORD*)&d3dTextureStageStates[t][s]);
-			textureStageStateCache[t][s].value = d3dTextureStageStates[t][s];
+	for(s = 0; s < MAXNUMSTATES; s++)
+		if(validStates[s]){
+			d3ddevice->GetRenderState((D3DRENDERSTATETYPE)s, (DWORD*)&d3dStates[s]);
+			stateCache[s].value = d3dStates[s];
 		}
-	for(t = 0; t < MAXNUMSAMPLERSTATES; t++)
+	for(t = 0; t < MAXNUMTEXSTATES; t++)
+		if(validTexStates[t])
+			for(s = 0; s < MAXNUMSTAGES; s++){
+				d3ddevice->GetTextureStageState(s, (D3DTEXTURESTAGESTATETYPE)t, (DWORD*)&d3dTextureStageStates[t][s]);
+				textureStageStateCache[t][s].value = d3dTextureStageStates[t][s];
+			}
+	for(t = 1; t < MAXNUMSAMPLERSTATES; t++)
 		for(s = 0; s < MAXNUMSTAGES; s++){
 			d3ddevice->GetSamplerState(s, (D3DSAMPLERSTATETYPE)t, (DWORD*)&d3dSamplerStates[t][s]);
 			d3dSamplerStates[t][s] = d3dSamplerStates[t][s];
