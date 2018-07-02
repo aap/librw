@@ -4,7 +4,12 @@ namespace rw {
 
 enum RenderState
 {
-	VERTEXALPHA = 0,
+	TEXTURERASTER,
+	TEXTUREADDRESS,
+	TEXTUREADDRESSU,
+	TEXTUREADDRESSV,
+	TEXTUREFILTER,
+	VERTEXALPHA,
 	SRCBLEND,
 	DESTBLEND,
 	ZTESTENABLE,
@@ -53,7 +58,9 @@ enum BlendFunction
 };
 
 void SetRenderState(int32 state, uint32 value);
+void SetRenderStatePtr(int32 state, void *value);
 uint32 GetRenderState(int32 state);
+void *GetRenderStatePtr(int32 state);
 
 // Im2D
 

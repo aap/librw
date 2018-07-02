@@ -96,7 +96,11 @@ printScreen(const char *s, float32 x, float32 y)
 		
 		s++;
 	}
-	engine->imtexture = curfont->tex;
+
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, curfont->tex->raster);
+	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
+	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
+
 	im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 		vertices, curVert, indices, curIndex);
 

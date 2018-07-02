@@ -12,6 +12,31 @@
 
 namespace rw {
 
+
+void
+BBox::initialize(V3d *point)
+{
+	this->inf = *point;
+	this->sup = *point;
+}
+
+void
+BBox::addPoint(V3d *point)
+{
+	if(point->x < this->inf.x)
+		this->inf.x = point->x;
+	if(point->y < this->inf.y)
+		this->inf.y = point->y;
+	if(point->z < this->inf.z)
+		this->inf.z = point->z;
+	if(point->x > this->sup.x)
+		this->sup.x = point->x;
+	if(point->y > this->sup.y)
+		this->sup.y = point->y;
+	if(point->z > this->sup.z)
+		this->sup.z = point->z;
+}
+
 void
 BBox::calculate(V3d *points, int32 n)
 {
@@ -32,6 +57,14 @@ BBox::calculate(V3d *points, int32 n)
 		if(points->z > this->sup.z)
 			this->sup.z = points->z;
 	}
+}
+
+bool
+BBox::containsPoint(V3d *point)
+{
+	return point->x >= this->inf.x && point->x <= this->sup.x &&
+		point->y >= this->inf.y && point->y <= this->sup.y &&
+		point->z >= this->inf.z && point->z <= this->sup.z;
 }
 
 }

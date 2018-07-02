@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include "../rwbase.h"
 #include "../rwerror.h"
@@ -83,15 +84,28 @@ static bool32 stateDirty = 1;
 static bool32 sceneDirty = 1;
 static bool32 objectDirty = 1;
 
-// cached render states
-static bool32 vertexAlpha;
-static uint32 alphaTestEnable;
-static uint32 alphaFunc;
-static bool32 textureAlpha;
-static uint32 srcblend, destblend;
-static uint32 zwrite;
-static uint32 ztest;
-static uint32 cullmode;
+struct RwRasterStateCache {
+	Raster *raster;
+	Texture::Addressing addressingU;
+	Texture::Addressing addressingV;
+	Texture::FilterMode filter;
+};
+
+#define MAXNUMSTAGES 8
+
+// cached RW render states
+struct RwStateCache {
+	bool32 vertexAlpha;
+	uint32 alphaTestEnable;
+	uint32 alphaFunc;
+	bool32 textureAlpha;
+	uint32 srcblend, destblend;
+	uint32 zwrite;
+	uint32 ztest;
+	uint32 cullmode;
+	RwRasterStateCache texstage[MAXNUMSTAGES];
+};
+static RwStateCache rwStateCache;
 
 static int32 activeTexture;
 
@@ -113,9 +127,9 @@ static void
 setAlphaTest(bool32 enable)
 {
 	uint32 shaderfunc;
-	if(alphaTestEnable != enable){
-		alphaTestEnable = enable;
-		shaderfunc = alphaTestEnable ? alphaFunc : ALPHAALWAYS;
+	if(rwStateCache.alphaTestEnable != enable){
+		rwStateCache.alphaTestEnable = enable;
+		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
 		if(uniformState.alphaFunc != shaderfunc){
 			uniformState.alphaFunc = shaderfunc;
 			stateDirty = 1;
@@ -127,9 +141,9 @@ static void
 setAlphaTestFunction(uint32 function)
 {
 	uint32 shaderfunc;
-	if(alphaFunc != function){
-		alphaFunc = function;
-		shaderfunc = alphaTestEnable ? alphaFunc : ALPHAALWAYS;
+	if(rwStateCache.alphaFunc != function){
+		rwStateCache.alphaFunc = function;
+		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
 		if(uniformState.alphaFunc != shaderfunc){
 			uniformState.alphaFunc = shaderfunc;
 			stateDirty = 1;
@@ -140,47 +154,201 @@ setAlphaTestFunction(uint32 function)
 static void
 setVertexAlpha(bool32 enable)
 {
-	if(vertexAlpha != enable){
-		if(!textureAlpha){
+	if(rwStateCache.vertexAlpha != enable){
+		if(!rwStateCache.textureAlpha){
 			(enable ? glEnable : glDisable)(GL_BLEND);
 			setAlphaTest(enable);
 		}
-		vertexAlpha = enable;
+		rwStateCache.vertexAlpha = enable;
 	}
 }
 
 static void
-setRenderState(int32 state, uint32 value)
+setActiveTexture(int32 n)
 {
+	if(activeTexture != n){
+		activeTexture = n;
+		glActiveTexture(n);
+	}
+}
+
+// TODO: support mipmaps
+static GLint filterConvMap_NoMIP[] = {
+	0, GL_NEAREST, GL_LINEAR,
+	   GL_NEAREST, GL_LINEAR,
+	   GL_NEAREST, GL_LINEAR
+};
+
+static GLint addressConvMap[] = {
+	0, GL_REPEAT, GL_MIRRORED_REPEAT,
+	GL_CLAMP, GL_CLAMP_TO_BORDER
+};
+
+static void
+setFilterMode(uint32 stage, int32 filter)
+{
+	if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter){
+		rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
+		Raster *raster = rwStateCache.texstage[stage].raster;
+		if(raster){
+			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, rwStateCache.texstage[stage].raster, nativeRasterOffset);
+			if(natras->filterMode != filter){
+				setActiveTexture(stage);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				natras->filterMode = filter;
+			}
+		}
+	}
+}
+
+static void
+setAddressU(uint32 stage, int32 addressing)
+{
+	if(rwStateCache.texstage[stage].addressingU != (Texture::Addressing)addressing){
+		rwStateCache.texstage[stage].addressingU = (Texture::Addressing)addressing;
+		Raster *raster = rwStateCache.texstage[stage].raster;
+		if(raster){
+			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+			if(natras->addressU == addressing){
+				setActiveTexture(stage);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, addressConvMap[addressing]);
+				natras->addressU = addressing;
+			}
+		}
+	}
+}
+
+static void
+setAddressV(uint32 stage, int32 addressing)
+{
+	if(rwStateCache.texstage[stage].addressingV != (Texture::Addressing)addressing){
+		rwStateCache.texstage[stage].addressingV = (Texture::Addressing)addressing;
+		Raster *raster = rwStateCache.texstage[stage].raster;
+		if(raster){
+			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, rwStateCache.texstage[stage].raster, nativeRasterOffset);
+			if(natras->addressV == addressing){
+				setActiveTexture(stage);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, addressConvMap[addressing]);
+				natras->addressV = addressing;
+			}
+		}
+	}
+}
+
+static void
+setRasterStage(uint32 stage, Raster *raster)
+{
+	bool32 alpha;
+	if(raster != rwStateCache.texstage[stage].raster){
+		rwStateCache.texstage[stage].raster = raster;
+		setActiveTexture(GL_TEXTURE0+stage);
+		if(raster){
+			assert(raster->platform == PLATFORM_GL3);
+			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+			glBindTexture(GL_TEXTURE_2D, natras->texid);
+			uint32 filter = rwStateCache.texstage[stage].filter;
+			uint32 addrU = rwStateCache.texstage[stage].addressingU;
+			uint32 addrV = rwStateCache.texstage[stage].addressingV;
+			if(natras->filterMode != filter){
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				natras->filterMode = filter;
+			}
+			if(natras->addressU != addrU){
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, addressConvMap[addrU]);
+				natras->addressU = addrU;
+			}
+			if(natras->addressU != addrV){
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, addressConvMap[addrV]);
+				natras->addressV = addrV;
+			}
+			alpha = natras->hasAlpha;
+		}else{
+			glBindTexture(GL_TEXTURE_2D, whitetex);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			alpha = 0;
+		}
+
+		if(stage == 0){
+			if(alpha != rwStateCache.textureAlpha){
+				rwStateCache.textureAlpha = alpha;
+				if(!rwStateCache.vertexAlpha){
+					(alpha ? glEnable : glDisable)(GL_BLEND);
+					setAlphaTest(alpha);
+				}
+			}
+		}
+	}
+}
+
+void
+setTexture(int32 stage, Texture *tex)
+{
+	if(tex == nil){
+		setRasterStage(stage, nil);
+		return;
+	}
+	if(tex->raster){
+		setFilterMode(stage, tex->getFilter());
+		setAddressU(stage, tex->getAddressU());
+		setAddressV(stage, tex->getAddressV());
+	}
+	setRasterStage(stage, tex->raster);
+}
+
+static void
+setRenderState(int32 state, void *pvalue)
+{
+	uint32 value = (uint32)(uintptr)pvalue;
 	switch(state){
+	case TEXTURERASTER:
+		setRasterStage(0, (Raster*)pvalue);
+		break;
+	case TEXTUREADDRESS:
+		setAddressU(0, value);
+		setAddressV(0, value);
+		break;
+	case TEXTUREADDRESSU:
+		setAddressU(0, value);
+		break;
+	case TEXTUREADDRESSV:
+		setAddressV(0, value);
+		break;
+	case TEXTUREFILTER:
+		setFilterMode(0, value);
+		break;
 	case VERTEXALPHA:
 		setVertexAlpha(value);
 		break;
 	case SRCBLEND:
-		if(srcblend != value){
-			srcblend = value;
-			glBlendFunc(blendMap[srcblend], blendMap[destblend]);
+		if(rwStateCache.srcblend != value){
+			rwStateCache.srcblend = value;
+			glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
 		}
 		break;
 	case DESTBLEND:
-		if(destblend != value){
-			destblend = value;
-			glBlendFunc(blendMap[srcblend], blendMap[destblend]);
+		if(rwStateCache.destblend != value){
+			rwStateCache.destblend = value;
+			glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
 		}
 		break;
 	case ZTESTENABLE:
-		if(ztest != value){
-			ztest = value;
-			if(ztest)
+		if(rwStateCache.ztest != value){
+			rwStateCache.ztest = value;
+			if(rwStateCache.ztest)
 				glEnable(GL_DEPTH_TEST);
 			else
 				glDisable(GL_DEPTH_TEST);
 		}
 		break;
 	case ZWRITEENABLE:
-		if(zwrite != (value ? GL_TRUE : GL_FALSE)){
-			zwrite = value ? GL_TRUE : GL_FALSE;
-			glDepthMask(zwrite);
+		if(rwStateCache.zwrite != (value ? GL_TRUE : GL_FALSE)){
+			rwStateCache.zwrite = value ? GL_TRUE : GL_FALSE;
+			glDepthMask(rwStateCache.zwrite);
 		}
 		break;
 	case FOGENABLE:
@@ -200,13 +368,13 @@ setRenderState(int32 state, uint32 value)
 		stateDirty = 1;
 		break;
 	case CULLMODE:
-		if(cullmode != value){
-			cullmode = value;
-			if(cullmode == CULLNONE)
+		if(rwStateCache.cullmode != value){
+			rwStateCache.cullmode = value;
+			if(rwStateCache.cullmode == CULLNONE)
 				glDisable(GL_CULL_FACE);
 			else{
 				glEnable(GL_CULL_FACE);
-				glCullFace(cullmode == CULLBACK ? GL_BACK : GL_FRONT);
+				glCullFace(rwStateCache.cullmode == CULLBACK ? GL_BACK : GL_FRONT);
 			}
 		}
 		break;
@@ -223,41 +391,72 @@ setRenderState(int32 state, uint32 value)
 	}
 }
 
-static uint32
+static void*
 getRenderState(int32 state)
 {
+	uint32 val;
 	RGBA rgba;
 	switch(state){
+	case TEXTURERASTER:
+		return rwStateCache.texstage[0].raster;
+	case TEXTUREADDRESS:
+		if(rwStateCache.texstage[0].addressingU == rwStateCache.texstage[0].addressingV)
+			val = rwStateCache.texstage[0].addressingU;
+		else
+			val = 0;	// invalid
+		break;
+	case TEXTUREADDRESSU:
+		val = rwStateCache.texstage[0].addressingU;
+		break;
+	case TEXTUREADDRESSV:
+		val = rwStateCache.texstage[0].addressingV;
+		break;
+	case TEXTUREFILTER:
+		val = rwStateCache.texstage[0].filter;
+		break;
+
 	case VERTEXALPHA:
-		return vertexAlpha;
+		val = rwStateCache.vertexAlpha;
+		break;
 	case SRCBLEND:
-		return srcblend;
+		val = rwStateCache.srcblend;
+		break;
 	case DESTBLEND:
-		return destblend;
+		val = rwStateCache.destblend;
+		break;
 	case ZTESTENABLE:
-		return ztest;
+		val = rwStateCache.ztest;
+		break;
 	case ZWRITEENABLE:
-		return zwrite;
+		val = rwStateCache.zwrite;
+		break;
 	case FOGENABLE:
-		return uniformState.fogEnable;
+		val = uniformState.fogEnable;
+		break;
 	case FOGCOLOR:
 		convColor(&rgba, &uniformState.fogColor);
-		return RWRGBAINT(rgba.red, rgba.green, rgba.blue, rgba.alpha);
+		val = RWRGBAINT(rgba.red, rgba.green, rgba.blue, rgba.alpha);
+		break;
 	case CULLMODE:
-		return cullmode;
+		val = rwStateCache.cullmode;
+		break;
 
 	case ALPHATESTFUNC:
-		return alphaFunc;
+		val = rwStateCache.alphaFunc;
+		break;
 	case ALPHATESTREF:
-		return (uint32)(uniformState.alphaRef*255.0f);
+		val = (uint32)(uniformState.alphaRef*255.0f);
+		break;
+	default:
+		val = 0;
 	}
-	return 0;
+	return (void*)(uintptr)val;
 }
 
 static void
 resetRenderState(void)
-{
-	alphaFunc = ALPHAGREATEREQUAL;
+{	
+	rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
 	uniformState.alphaFunc = 0;
 	uniformState.alphaRef = 10.0f/255.0f;
 	uniformState.fogEnable = 0;
@@ -265,28 +464,28 @@ resetRenderState(void)
 	uniformState.fogColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	stateDirty = 1;
 
-	vertexAlpha = 0;
-	textureAlpha = 0;
+	rwStateCache.vertexAlpha = 0;
+	rwStateCache.textureAlpha = 0;
 	glDisable(GL_BLEND);
-	alphaTestEnable = 0;
+	rwStateCache.alphaTestEnable = 0;
 
-	srcblend = BLENDSRCALPHA;
-	destblend = BLENDINVSRCALPHA;
-	glBlendFunc(blendMap[srcblend], blendMap[destblend]);
+	rwStateCache.srcblend = BLENDSRCALPHA;
+	rwStateCache.destblend = BLENDINVSRCALPHA;
+	glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
 
-	zwrite = GL_TRUE;
-	glDepthMask(zwrite);
+	rwStateCache.zwrite = GL_TRUE;
+	glDepthMask(rwStateCache.zwrite);
 
-	ztest = 1;
+	rwStateCache.ztest = 1;
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
-	cullmode = CULLNONE;
+	rwStateCache.cullmode = CULLNONE;
 	glDisable(GL_CULL_FACE);
 
-	for(int i = 0; i < 8; i++){
+	for(int i = 0; i < MAXNUMSTAGES; i++){
 		glActiveTexture(GL_TEXTURE0+i);
-		glBindTexture(GL_TEXTURE_2D, 0);
+		glBindTexture(GL_TEXTURE_2D, whitetex);
 	}
 }
 
@@ -345,61 +544,6 @@ setViewMatrix(float32 *mat)
 {
 	memcpy(&uniformScene.view, mat, 64);
 	sceneDirty = 1;
-}
-
-static void
-setActiveTexture(int32 n)
-{
-	if(activeTexture != n){
-		activeTexture = n;
-		glActiveTexture(n);
-	}
-}
-
-void
-setTexture(int32 n, Texture *tex)
-{
-	// TODO: support mipmaps
-	static GLint filternomip[] = {
-		0, GL_NEAREST, GL_LINEAR,
-		   GL_NEAREST, GL_LINEAR,
-		   GL_NEAREST, GL_LINEAR
-	};
-
-	static GLint wrap[] = {
-		0, GL_REPEAT, GL_MIRRORED_REPEAT,
-		GL_CLAMP, GL_CLAMP_TO_BORDER
-	};
-	bool32 alpha;
-	setActiveTexture(GL_TEXTURE0+n);
-	if(tex == nil || tex->raster == nil ||
-	   tex->raster->platform != PLATFORM_GL3 ||
-	   tex->raster->width == 0){
-		glBindTexture(GL_TEXTURE_2D, whitetex);
-		alpha = 0;
-	}else{
-		Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, tex->raster,
-		                                 nativeRasterOffset);
-		glBindTexture(GL_TEXTURE_2D, natras->texid);
-		alpha = natras->hasAlpha;
-		if(tex->filterAddressing != natras->filterAddressing){
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filternomip[tex->getFilter()]);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filternomip[tex->getFilter()]);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap[tex->getAddressU()]);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap[tex->getAddressV()]);
-			natras->filterAddressing = tex->filterAddressing;
-		}
-	}
-
-	if(n == 0){
-		if(alpha != textureAlpha){
-			textureAlpha = alpha;
-			if(!vertexAlpha){
-				(alpha ? glEnable : glDisable)(GL_BLEND);
-				setAlphaTest(alpha);
-			}
-		}
-	}
 }
 
 void
@@ -593,6 +737,14 @@ initOpenGL(void)
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 
+	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+	glGenTextures(1, &whitetex);
+	glBindTexture(GL_TEXTURE_2D, whitetex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
+	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
+
 	resetRenderState();
 
 	glGenVertexArrays(1, &vao);
@@ -618,14 +770,6 @@ initOpenGL(void)
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), &uniformObject,
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-	glGenTextures(1, &whitetex);
-	glBindTexture(GL_TEXTURE_2D, whitetex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
-	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
 
 #include "shaders/simple_vs_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"

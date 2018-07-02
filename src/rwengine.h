@@ -29,12 +29,12 @@ class ObjPipeline;
 struct Device
 {
 	float32 zNear, zFar;
-	void   (*beginUpdate)(Camera*);
-	void   (*endUpdate)(Camera*);
-	void   (*clearCamera)(Camera*, RGBA *col, uint32 mode);
-	void   (*showRaster)(Raster *raster);
-	void   (*setRenderState)(int32 state, uint32 value);
-	uint32 (*getRenderState)(int32 state);
+	void  (*beginUpdate)(Camera*);
+	void  (*endUpdate)(Camera*);
+	void  (*clearCamera)(Camera*, RGBA *col, uint32 mode);
+	void  (*showRaster)(Raster *raster);
+	void  (*setRenderState)(int32 state, void *value);
+	void *(*getRenderState)(int32 state);
 
 	// TODO: render line
 	// TODO: render triangle
@@ -110,7 +110,6 @@ struct Engine
 	};
 	void *currentCamera;
 	void *currentWorld;
-	Texture *imtexture;
 	LinkList frameDirtyList;
 
 	// Dynamically allocated because of plugins
@@ -154,8 +153,8 @@ namespace null {
 	void clearCamera(Camera*, RGBA *col, uint32 mode);
 	void showRaster(Raster*);
 
-	void   setRenderState(int32 state, uint32 value);
-	uint32 getRenderState(int32 state);
+	void   setRenderState(int32 state, void *value);
+	void  *getRenderState(int32 state);
 
 	void   rasterCreate(Raster*);
 	uint8 *rasterLock(Raster*, int32 level);

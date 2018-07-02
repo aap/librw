@@ -543,7 +543,7 @@ rasterFromImage(Raster *raster, Image *image)
 		}
 	}
 
-	int32 inc = image->depth/8;
+	int32 inc = image->bpp;
 	in = image->pixels;
 	out = raster->lock(0);
 	if(pallength)

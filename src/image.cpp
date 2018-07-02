@@ -33,6 +33,7 @@ Image::create(int32 width, int32 height, int32 depth)
 	img->width = width;
 	img->height = height;
 	img->depth = depth;
+	img->bpp = depth < 8 ? 1 : depth/8;
 	img->stride = 0;
 	img->pixels = nil;
 	img->palette = nil;
@@ -50,7 +51,7 @@ void
 Image::allocate(void)
 {
 	if(this->pixels == nil){
-		this->stride = this->width*(this->depth==4 ? 1 : this->depth/8);
+		this->stride = this->width*this->bpp;
 		this->pixels = rwNewT(uint8, this->stride*this->height, MEMDUR_EVENT | ID_IMAGE);
 		this->flags |= 1;
 	}

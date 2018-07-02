@@ -262,6 +262,8 @@ defaultFindCB(const char *name)
 	return nil;
 }
 
+
+// TODO: actually read the mask!
 static Texture*
 defaultReadCB(const char *name, const char *mask)
 {

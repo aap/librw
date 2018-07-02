@@ -172,7 +172,9 @@ struct Gl3Raster
 
 	bool32 hasAlpha;
 	// cached filtermode and addressing
-	uint32 filterAddressing;
+	uint8 filterMode;
+	uint8 addressU;
+	uint8 addressV;
 };
 
 void registerNativeRaster(void);

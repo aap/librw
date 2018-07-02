@@ -112,7 +112,6 @@ Engine::open(void)
 	engine = (Engine*)rwNew(Engine::s_plglist.size, MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
-	engine->imtexture = nil;
 
 	// Initialize device
 	// Device and possibly OS specific!
@@ -207,8 +206,8 @@ void endUpdate(Camera*) { }
 void clearCamera(Camera*,RGBA*,uint32) { }
 void showRaster(Raster*) { }
 
-void   setRenderState(int32, uint32) { }
-uint32 getRenderState(int32) { return 0; }
+void   setRenderState(int32, void*) { }
+void  *getRenderState(int32) { return 0; }
 
 void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
 

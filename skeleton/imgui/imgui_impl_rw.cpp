@@ -69,7 +69,14 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 			if(pcmd->UserCallback)
 				pcmd->UserCallback(cmd_list, pcmd);
 			else{
-				rw::engine->imtexture = (rw::Texture*)pcmd->TextureId;
+				rw::Texture *tex = (rw::Texture*)pcmd->TextureId;
+				if(tex && tex->raster){
+					rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+					rw::SetRenderState(rw::TEXTUREADDRESSU, tex->getAddressU());
+					rw::SetRenderState(rw::TEXTUREADDRESSV, tex->getAddressV());
+					rw::SetRenderState(rw::TEXTUREFILTER, tex->getFilter());
+				}else
+					rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 				rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 					g_vertbuf+vtx_offset, cmd_list->VtxBuffer.Size,
 					cmd_list->IdxBuffer.Data+idx_offset, pcmd->ElemCount);

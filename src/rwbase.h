@@ -384,7 +384,10 @@ struct BBox
 	V3d sup;
 	V3d inf;
 
+	void initialize(V3d *point);
+	void addPoint(V3d *point);
 	void calculate(V3d *points, int32 n);
+	bool containsPoint(V3d *point);
 };
 
 enum PrimitiveType

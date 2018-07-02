@@ -116,7 +116,15 @@ drawAtomic(Atomic *a)
 			im2dverts[idx].setColor(col.red, col.green, col.blue, col.alpha);
 		}
 
-		engine->imtexture = m[i].material->texture;
+		rw::Texture *tex = m[i].material->texture;
+		if(tex && tex->raster){
+			rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+			rw::SetRenderState(rw::TEXTUREADDRESSU, tex->getAddressU());
+			rw::SetRenderState(rw::TEXTUREADDRESSV, tex->getAddressV());
+			rw::SetRenderState(rw::TEXTUREFILTER, tex->getFilter());
+		}else
+			rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
+
 		im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 			im2dverts, g->numVertices, m[i].indices, m[i].numIndices);
 	}

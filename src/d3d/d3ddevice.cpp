@@ -38,21 +38,32 @@ static VidmemRaster *vidmemRasters;
 void addVidmemRaster(Raster *raster);
 void removeVidmemRaster(Raster *raster);
 
-// cached RW render states
-static bool32 vertexAlpha;
-static bool32 textureAlpha;
-static uint32 srcblend, destblend;
-static uint32 zwrite;
-static uint32 ztest;
-static uint32 fogenable;
-static RGBA fogcolor;
-static uint32 cullmode;
-static uint32 alphafunc;
-static uint32 alpharef;
+struct RwRasterStateCache {
+	Raster *raster;
+	Texture::Addressing addressingU;
+	Texture::Addressing addressingV;
+	Texture::FilterMode filter;
+};
 
+#define MAXNUMSTAGES 8
+
+// cached RW render states
+struct RwStateCache {
+	bool32 vertexAlpha;
+	bool32 textureAlpha;
+	uint32 srcblend, destblend;
+	uint32 zwrite;
+	uint32 ztest;
+	uint32 fogenable;
+	RGBA fogcolor;
+	uint32 cullmode;
+	uint32 alphafunc;
+	uint32 alpharef;
+	RwRasterStateCache texstage[MAXNUMSTAGES];
+};
+static RwStateCache rwStateCache;
 
 #define MAXNUMSTATES (D3DRS_BLENDOPALPHA+1)
-#define MAXNUMSTAGES 8
 #define MAXNUMTEXSTATES (D3DTSS_CONSTANT+1)
 #define MAXNUMSAMPLERSTATES (D3DSAMP_DMAPOFFSET+1)
 
@@ -77,14 +88,49 @@ static uint32 d3dTextureStageStates[MAXNUMTEXSTATES][MAXNUMSTAGES];
 
 static uint32 d3dSamplerStates[MAXNUMSAMPLERSTATES][MAXNUMSTAGES];
 
-// TODO: not only rasters, make a struct
-static Raster *d3dRaster[MAXNUMSTAGES];
-
 
 static bool validStates[MAXNUMSTATES];
 static bool validTexStates[MAXNUMTEXSTATES];
 
 static D3DMATERIAL9 d3dmaterial;
+
+
+static uint32 blendMap[] = {
+	D3DBLEND_ZERO,
+	D3DBLEND_ONE,
+	D3DBLEND_SRCCOLOR,
+	D3DBLEND_INVSRCCOLOR,
+	D3DBLEND_SRCALPHA,
+	D3DBLEND_INVSRCALPHA,
+	D3DBLEND_DESTALPHA,
+	D3DBLEND_INVDESTALPHA,
+	D3DBLEND_DESTCOLOR,
+	D3DBLEND_INVDESTCOLOR,
+	D3DBLEND_SRCALPHASAT
+};
+
+static uint32 alphafuncMap[] = {
+	D3DCMP_ALWAYS,
+	D3DCMP_GREATEREQUAL,
+	D3DCMP_LESS
+};
+
+static uint32 cullmodeMap[] = {
+	D3DCULL_NONE,
+	D3DCULL_CW,
+	D3DCULL_CCW
+};
+
+// TODO: support mipmaps
+static uint32 filterConvMap_NoMIP[] = {
+	0, D3DTEXF_POINT, D3DTEXF_LINEAR,
+	   D3DTEXF_POINT, D3DTEXF_LINEAR,
+	   D3DTEXF_POINT, D3DTEXF_LINEAR
+};
+static uint32 addressConvMap[] = {
+	0, D3DTADDRESS_WRAP, D3DTADDRESS_MIRROR,
+	D3DTADDRESS_CLAMP, D3DTADDRESS_BORDER
+};
 
 // D3D render state
 
@@ -176,8 +222,16 @@ resetD3d9Device(void)
 	int32 i;
 	uint32 s, t;
 	for(i = 0; i < MAXNUMSTAGES; i++){
-		d3dRaster[i] = nil;
-		d3ddevice->SetTexture(i, nil);
+		Raster *raster = rwStateCache.texstage[i].raster;
+		if(raster){
+			D3dRaster *d3draster = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+			d3ddevice->SetTexture(i, (IDirect3DTexture9*)d3draster->texture);
+		}else
+			d3ddevice->SetTexture(i, nil);
+		setSamplerState(i, D3DSAMP_ADDRESSU, addressConvMap[rwStateCache.texstage[i].addressingU]);
+		setSamplerState(i, D3DSAMP_ADDRESSV, addressConvMap[rwStateCache.texstage[i].addressingV]);
+		setSamplerState(i, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[rwStateCache.texstage[i].filter]);
+		setSamplerState(i, D3DSAMP_MINFILTER, filterConvMap_NoMIP[rwStateCache.texstage[i].filter]);
 	}
 	for(s = 0; s < MAXNUMSTATES; s++)
 		if(validStates[s])
@@ -197,136 +251,13 @@ resetD3d9Device(void)
 static void
 setVertexAlpha(bool32 enable)
 {
-	if(vertexAlpha != enable){
-		if(!textureAlpha){
+	if(rwStateCache.vertexAlpha != enable){
+		if(!rwStateCache.textureAlpha){
 			setRenderState(D3DRS_ALPHABLENDENABLE, enable);
 			setRenderState(D3DRS_ALPHATESTENABLE, enable);
 		}
-		vertexAlpha = enable;
+		rwStateCache.vertexAlpha = enable;
 	}
-}
-
-static uint32 blendMap[] = {
-	D3DBLEND_ZERO,
-	D3DBLEND_ONE,
-	D3DBLEND_SRCCOLOR,
-	D3DBLEND_INVSRCCOLOR,
-	D3DBLEND_SRCALPHA,
-	D3DBLEND_INVSRCALPHA,
-	D3DBLEND_DESTALPHA,
-	D3DBLEND_INVDESTALPHA,
-	D3DBLEND_DESTCOLOR,
-	D3DBLEND_INVDESTCOLOR,
-	D3DBLEND_SRCALPHASAT
-};
-
-uint32 alphafuncMap[] = {
-	D3DCMP_ALWAYS,
-	D3DCMP_GREATEREQUAL,
-	D3DCMP_LESS
-};
-
-uint32 cullmodeMap[] = {
-	D3DCULL_NONE,
-	D3DCULL_CW,
-	D3DCULL_CCW
-};
-
-static void
-setRwRenderState(int32 state, uint32 value)
-{
-	uint32 bval = value ? TRUE : FALSE;
-	switch(state){
-	case VERTEXALPHA:
-		setVertexAlpha(bval);
-		break;
-	case SRCBLEND:
-		if(srcblend != value){
-			srcblend = value;
-			setRenderState(D3DRS_SRCBLEND, blendMap[value]);
-		}
-		break;
-	case DESTBLEND:
-		if(destblend != value){
-			destblend = value;
-			setRenderState(D3DRS_DESTBLEND, blendMap[value]);
-		}
-		break;
-	case ZTESTENABLE:
-		if(ztest != bval){
-			ztest = bval;
-			setRenderState(D3DRS_ZENABLE, ztest);
-		}
-		break;
-	case ZWRITEENABLE:
-		if(zwrite != bval){
-			zwrite = bval;
-			setRenderState(D3DRS_ZWRITEENABLE, zwrite);
-		}
-		break;
-	case FOGENABLE:
-		if(fogenable != bval){
-			fogenable = bval;
-			setRenderState(D3DRS_FOGENABLE, fogenable);
-		};
-		break;
-	case FOGCOLOR:{
-		RGBA c;
-		c.red = value;
-		c.green = value>>8;
-		c.blue = value>>16;
-		c.alpha = value>>24;
-		if(!equal(fogcolor, c)){
-			fogcolor = c;
-			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
-		}} break;
-	case CULLMODE:
-		if(cullmode != value){
-			cullmode = value;
-			setRenderState(D3DRS_CULLMODE, cullmodeMap[value]);
-		}
-		break;
-	case ALPHATESTFUNC:
-		if(alphafunc != value){
-			alphafunc = value;
-			setRenderState(D3DRS_ALPHAFUNC, alphafuncMap[alphafunc]);
-		}
-		break;
-	case ALPHATESTREF:
-		if(alpharef != value){
-			alpharef = value;
-			setRenderState(D3DRS_ALPHAREF, alpharef);
-		}
-		break;
-	}
-}
-
-static uint32
-getRwRenderState(int32 state)
-{
-	switch(state){
-	case VERTEXALPHA:
-		return vertexAlpha;
-	case SRCBLEND:
-		return srcblend;
-	case DESTBLEND:
-		return destblend;
-	case ZTESTENABLE:
-		return ztest;
-	case ZWRITEENABLE:
-		return zwrite;
-	case FOGENABLE:
-		return fogenable;
-	case FOGCOLOR:
-		return RWRGBAINT(fogcolor.red, fogcolor.green, fogcolor.blue, fogcolor.alpha);
-	case CULLMODE:
-		return cullmode;
-	case ALPHATESTFUNC:
-		return alphafunc;
-	case ALPHATESTREF:
-		return alpharef;
-	}
-	return 0;
 }
 
 void
@@ -334,9 +265,11 @@ setRasterStage(uint32 stage, Raster *raster)
 {
 	bool32 alpha;
 	D3dRaster *d3draster = nil;
-	if(raster != d3dRaster[stage]){
-		d3dRaster[stage] = raster;
+	if(raster != rwStateCache.texstage[stage].raster){
+		rwStateCache.texstage[stage].raster = raster;
 		if(raster){
+			assert(raster->platform == PLATFORM_D3D8 ||
+				raster->platform == PLATFORM_D3D9);
 			d3draster = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 			d3ddevice->SetTexture(stage, (IDirect3DTexture9*)d3draster->texture);
 			alpha = d3draster->hasAlpha;
@@ -345,9 +278,9 @@ setRasterStage(uint32 stage, Raster *raster)
 			alpha = 0;
 		}
 		if(stage == 0){
-			if(textureAlpha != alpha){
-				textureAlpha = alpha;
-				if(!vertexAlpha){
+			if(rwStateCache.textureAlpha != alpha){
+				rwStateCache.textureAlpha = alpha;
+				if(!rwStateCache.vertexAlpha){
 					setRenderState(D3DRS_ALPHABLENDENABLE, alpha);
 					setRenderState(D3DRS_ALPHATESTENABLE, alpha);
 				}
@@ -356,28 +289,46 @@ setRasterStage(uint32 stage, Raster *raster)
 	}
 }
 
+static void
+setFilterMode(uint32 stage, int32 filter)
+{
+	// TODO: mip mapping
+	if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter){
+		rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
+		setSamplerState(0, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[filter]);
+		setSamplerState(0, D3DSAMP_MINFILTER, filterConvMap_NoMIP[filter]);
+	}
+}
+
+static void
+setAddressU(uint32 stage, int32 addressing)
+{
+	if(rwStateCache.texstage[stage].addressingU != (Texture::Addressing)addressing){
+		rwStateCache.texstage[stage].addressingU = (Texture::Addressing)addressing;
+		setSamplerState(0, D3DSAMP_ADDRESSU, addressConvMap[addressing]);
+	}
+}
+
+static void
+setAddressV(uint32 stage, int32 addressing)
+{
+	if(rwStateCache.texstage[stage].addressingV != (Texture::Addressing)addressing){
+		rwStateCache.texstage[stage].addressingV = (Texture::Addressing)addressing;
+		setSamplerState(0, D3DSAMP_ADDRESSV, addressConvMap[addressing]);
+	}
+}
+
 void
 setTexture(uint32 stage, Texture *tex)
 {
-	// TODO: support mipmaps
-	static DWORD filternomip[] = {
-		0, D3DTEXF_POINT, D3DTEXF_LINEAR,
-		   D3DTEXF_POINT, D3DTEXF_LINEAR,
-		   D3DTEXF_POINT, D3DTEXF_LINEAR
-	};
-	static DWORD wrap[] = {
-		0, D3DTADDRESS_WRAP, D3DTADDRESS_MIRROR,
-		D3DTADDRESS_CLAMP, D3DTADDRESS_BORDER
-	};
 	if(tex == nil){
 		setRasterStage(stage, nil);
 		return;
 	}
 	if(tex->raster){
-		setSamplerState(stage, D3DSAMP_MAGFILTER, filternomip[tex->getFilter()]);
-		setSamplerState(stage, D3DSAMP_MINFILTER, filternomip[tex->getFilter()]);
-		setSamplerState(stage, D3DSAMP_ADDRESSU, wrap[tex->getAddressU()]);
-		setSamplerState(stage, D3DSAMP_ADDRESSV, wrap[tex->getAddressV()]);
+		setFilterMode(stage, tex->getFilter());
+		setAddressU(stage, tex->getAddressU());
+		setAddressV(stage, tex->getAddressV());
 	}
 	setRasterStage(stage, tex->raster);
 }
@@ -426,6 +377,152 @@ setMaterial(SurfaceProperties surfProps, rw::RGBA color)
 	mat9.Emissive = black;
 	mat9.Specular = black;
 	setD3dMaterial(&mat9);
+}
+
+static void
+setRwRenderState(int32 state, void *pvalue)
+{
+	uint32 value = (uint32)(uintptr)pvalue;
+	uint32 bval = value ? TRUE : FALSE;
+	switch(state){
+	case TEXTURERASTER:
+		setRasterStage(0, (Raster*)pvalue);
+		break;
+	case TEXTUREADDRESS:
+		setAddressU(0, value);
+		setAddressV(0, value);
+		break;
+	case TEXTUREADDRESSU:
+		setAddressU(0, value);
+		break;
+	case TEXTUREADDRESSV:
+		setAddressV(0, value);
+		break;
+	case TEXTUREFILTER:
+		setFilterMode(0, value);
+		break;
+	case VERTEXALPHA:
+		setVertexAlpha(bval);
+		break;
+	case SRCBLEND:
+		if(rwStateCache.srcblend != value){
+			rwStateCache.srcblend = value;
+			setRenderState(D3DRS_SRCBLEND, blendMap[value]);
+		}
+		break;
+	case DESTBLEND:
+		if(rwStateCache.destblend != value){
+			rwStateCache.destblend = value;
+			setRenderState(D3DRS_DESTBLEND, blendMap[value]);
+		}
+		break;
+	case ZTESTENABLE:
+		if(rwStateCache.ztest != bval){
+			rwStateCache.ztest = bval;
+			setRenderState(D3DRS_ZENABLE, rwStateCache.ztest);
+		}
+		break;
+	case ZWRITEENABLE:
+		if(rwStateCache.zwrite != bval){
+			rwStateCache.zwrite = bval;
+			setRenderState(D3DRS_ZWRITEENABLE, rwStateCache.zwrite);
+		}
+		break;
+	case FOGENABLE:
+		if(rwStateCache.fogenable != bval){
+			rwStateCache.fogenable = bval;
+			setRenderState(D3DRS_FOGENABLE, rwStateCache.fogenable);
+		};
+		break;
+	case FOGCOLOR:{
+		RGBA c;
+		c.red = value;
+		c.green = value>>8;
+		c.blue = value>>16;
+		c.alpha = value>>24;
+		if(!equal(rwStateCache.fogcolor, c)){
+			rwStateCache.fogcolor = c;
+			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
+		}} break;
+	case CULLMODE:
+		if(rwStateCache.cullmode != value){
+			rwStateCache.cullmode = value;
+			setRenderState(D3DRS_CULLMODE, cullmodeMap[value]);
+		}
+		break;
+	case ALPHATESTFUNC:
+		if(rwStateCache.alphafunc != value){
+			rwStateCache.alphafunc = value;
+			setRenderState(D3DRS_ALPHAFUNC, alphafuncMap[rwStateCache.alphafunc]);
+		}
+		break;
+	case ALPHATESTREF:
+		if(rwStateCache.alpharef != value){
+			rwStateCache.alpharef = value;
+			setRenderState(D3DRS_ALPHAREF, rwStateCache.alpharef);
+		}
+		break;
+	}
+}
+
+static void*
+getRwRenderState(int32 state)
+{
+	uint32 val;
+	switch(state){
+	case TEXTURERASTER:
+		return rwStateCache.texstage[0].raster;
+	case TEXTUREADDRESS:
+		if(rwStateCache.texstage[0].addressingU == rwStateCache.texstage[0].addressingV)
+			val = rwStateCache.texstage[0].addressingU;
+		else
+			val = 0;	// invalid
+		break;
+	case TEXTUREADDRESSU:
+		val = rwStateCache.texstage[0].addressingU;
+		break;
+	case TEXTUREADDRESSV:
+		val = rwStateCache.texstage[0].addressingV;
+		break;
+	case TEXTUREFILTER:
+		val = rwStateCache.texstage[0].filter;
+		break;
+
+	case VERTEXALPHA:
+		val = rwStateCache.vertexAlpha;
+		break;
+	case SRCBLEND:
+		val = rwStateCache.srcblend;
+		break;
+	case DESTBLEND:
+		val = rwStateCache.destblend;
+		break;
+	case ZTESTENABLE:
+		val = rwStateCache.ztest;
+		break;
+	case ZWRITEENABLE:
+		val = rwStateCache.zwrite;
+		break;
+	case FOGENABLE:
+		val = rwStateCache.fogenable;
+		break;
+	case FOGCOLOR:
+		val = RWRGBAINT(rwStateCache.fogcolor.red, rwStateCache.fogcolor.green,
+			rwStateCache.fogcolor.blue, rwStateCache.fogcolor.alpha);
+		break;
+	case CULLMODE:
+		val = rwStateCache.cullmode;
+		break;
+	case ALPHATESTFUNC:
+		val = rwStateCache.alphafunc;
+		break;
+	case ALPHATESTREF:
+		val = rwStateCache.alpharef;
+		break;
+	default:
+		val = 0;
+	}
+	return (void*)(uintptr)val;
 }
 
 // Shaders
@@ -750,26 +847,26 @@ initD3D(void)
 	// TODO: do some real stuff here
 
 	d3ddevice->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
-	alphafunc = ALPHAGREATEREQUAL;
+	rwStateCache.alphafunc = ALPHAGREATEREQUAL;
 	d3ddevice->SetRenderState(D3DRS_ALPHAREF, 10);
-	alpharef = 10;
+	rwStateCache.alpharef = 10;
 
 	d3ddevice->SetRenderState(D3DRS_FOGENABLE, FALSE);
-	fogenable = 0;
+	rwStateCache.fogenable = 0;
 	d3ddevice->SetRenderState(D3DRS_FOGTABLEMODE, D3DFOG_LINEAR);
 	// TODO: more fog stuff
 
 	d3ddevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-	cullmode = CULLNONE;
+	rwStateCache.cullmode = CULLNONE;
 
 	d3ddevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
 	d3ddevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-	srcblend = BLENDSRCALPHA;
+	rwStateCache.srcblend = BLENDSRCALPHA;
 	d3ddevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-	destblend = BLENDINVSRCALPHA;
+	rwStateCache.destblend = BLENDINVSRCALPHA;
 	d3ddevice->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
-	vertexAlpha = 0;
-	textureAlpha = 0;
+	rwStateCache.vertexAlpha = 0;
+	rwStateCache.textureAlpha = 0;
 
 	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 //	setTextureStageState(0, D3DTSS_CONSTANT, 0xFFFFFFFF);

@@ -100,7 +100,6 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	setAttribPointers(im2dattribDesc, 3);
 
 	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
-	setTexture(0, engine->imtexture);
 
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,
@@ -178,8 +177,6 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices*2,
 			indices, GL_DYNAMIC_DRAW);
-
-	setTexture(0, engine->imtexture);
 
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,

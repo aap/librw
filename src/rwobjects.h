@@ -125,6 +125,7 @@ struct Image
 	int32 flags;
 	int32 width, height;
 	int32 depth;
+	int32 bpp;	// bytes per pixel
 	int32 stride;
 	uint8 *pixels;
 	uint8 *palette;

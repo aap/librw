@@ -86,7 +86,9 @@ rasterCreate(Raster *raster)
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
 	             0, natras->format, natras->type, nil);
-	natras->filterAddressing = ~0;
+	natras->filterMode = 0;
+	natras->addressU = 0;
+	natras->addressV = 0;
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif

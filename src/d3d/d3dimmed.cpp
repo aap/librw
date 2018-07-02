@@ -76,7 +76,6 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
 	d3ddevice->SetIndices(im2dindbuf);
 	d3ddevice->SetVertexDeclaration(im2ddecl);
-	d3d::setTexture(0, engine->imtexture);
 	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
@@ -175,7 +174,6 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	unlockIndices(im3dindbuf);
 
 	d3ddevice->SetIndices(im3dindbuf);
-	d3d::setTexture(0, engine->imtexture);
 	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);

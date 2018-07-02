@@ -263,7 +263,9 @@ im2dtest(void)
 		verts[i].setV(vs[i].v, recipZ);
 	}
 
-	rw::engine->imtexture = tex2;
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex2->raster);
+	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
+	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
 	rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
 		&verts, 4, &indices, 4);
@@ -305,7 +307,9 @@ im3dtest(void)
 		verts[i].setV(vs[i].v);
 	}
 
-	rw::engine->imtexture = tex;
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
+	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 
 /*
 	genIm3DTransform(verts, 8, nil);
@@ -325,9 +329,9 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-//	Scene.clump->render();
+	Scene.clump->render();
 //	im2dtest();
-	tlTest(Scene.clump);
+//	tlTest(Scene.clump);
 //	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
 
