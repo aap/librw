@@ -237,6 +237,44 @@ setAddressV(uint32 stage, int32 addressing)
 }
 
 static void
+setRasterStageOnly(uint32 stage, Raster *raster)
+{
+	bool32 alpha;
+	if(raster != rwStateCache.texstage[stage].raster){
+		rwStateCache.texstage[stage].raster = raster;
+		setActiveTexture(GL_TEXTURE0+stage);
+		if(raster){
+			assert(raster->platform == PLATFORM_GL3);
+			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+			glBindTexture(GL_TEXTURE_2D, natras->texid);
+
+			rwStateCache.texstage[stage].filter = (rw::Texture::FilterMode)natras->filterMode;
+			rwStateCache.texstage[stage].addressingU = (rw::Texture::Addressing)natras->addressU;
+			rwStateCache.texstage[stage].addressingV = (rw::Texture::Addressing)natras->addressV;
+
+			alpha = natras->hasAlpha;
+		}else{
+			glBindTexture(GL_TEXTURE_2D, whitetex);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			alpha = 0;
+		}
+
+		if(stage == 0){
+			if(alpha != rwStateCache.textureAlpha){
+				rwStateCache.textureAlpha = alpha;
+				if(!rwStateCache.vertexAlpha){
+					(alpha ? glEnable : glDisable)(GL_BLEND);
+					setAlphaTest(alpha);
+				}
+			}
+		}
+	}
+}
+
+static void
 setRasterStage(uint32 stage, Raster *raster)
 {
 	bool32 alpha;
@@ -288,16 +326,14 @@ setRasterStage(uint32 stage, Raster *raster)
 void
 setTexture(int32 stage, Texture *tex)
 {
-	if(tex == nil){
+	if(tex == nil || tex->raster == nil){
 		setRasterStage(stage, nil);
 		return;
 	}
-	if(tex->raster){
-		setFilterMode(stage, tex->getFilter());
-		setAddressU(stage, tex->getAddressU());
-		setAddressV(stage, tex->getAddressV());
-	}
-	setRasterStage(stage, tex->raster);
+	setRasterStageOnly(stage, tex->raster);
+	setFilterMode(stage, tex->getFilter());
+	setAddressU(stage, tex->getAddressU());
+	setAddressV(stage, tex->getAddressV());
 }
 
 static void

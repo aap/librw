@@ -295,8 +295,8 @@ setFilterMode(uint32 stage, int32 filter)
 	// TODO: mip mapping
 	if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter){
 		rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
-		setSamplerState(0, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[filter]);
-		setSamplerState(0, D3DSAMP_MINFILTER, filterConvMap_NoMIP[filter]);
+		setSamplerState(stage, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[filter]);
+		setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap_NoMIP[filter]);
 	}
 }
 
@@ -305,7 +305,7 @@ setAddressU(uint32 stage, int32 addressing)
 {
 	if(rwStateCache.texstage[stage].addressingU != (Texture::Addressing)addressing){
 		rwStateCache.texstage[stage].addressingU = (Texture::Addressing)addressing;
-		setSamplerState(0, D3DSAMP_ADDRESSU, addressConvMap[addressing]);
+		setSamplerState(stage, D3DSAMP_ADDRESSU, addressConvMap[addressing]);
 	}
 }
 
@@ -314,7 +314,7 @@ setAddressV(uint32 stage, int32 addressing)
 {
 	if(rwStateCache.texstage[stage].addressingV != (Texture::Addressing)addressing){
 		rwStateCache.texstage[stage].addressingV = (Texture::Addressing)addressing;
-		setSamplerState(0, D3DSAMP_ADDRESSV, addressConvMap[addressing]);
+		setSamplerState(stage, D3DSAMP_ADDRESSV, addressConvMap[addressing]);
 	}
 }
 

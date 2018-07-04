@@ -44,10 +44,16 @@ findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, i
 			max = *indices;
 		indices++;
 	}
+	uint32 num = max - min + 1;
+	// if mesh is empty, this can happen
+	if(min > max){
+		min = 0;
+		num = 0;
+	}
 	if(minVert)
 		*minVert = min;
 	if(numVertices)
-		*numVertices = max - min + 1;
+		*numVertices = num;
 }
 
 void

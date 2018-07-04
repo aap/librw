@@ -572,7 +572,7 @@ rasterFromImage(Raster *raster, Image *image)
 				case Raster::C1555:
 					out[0] = in[0];
 					out[1] = in[1];
-					in += 2;
+					in += inc;
 					out += 2;
 					break;
 				}

@@ -378,6 +378,7 @@ Image::unindex(void)
 	}
 	this->free();
 	this->depth = ndepth;
+	this->bpp = ndepth < 8 ? 1 : ndepth/8;
 	this->stride = nstride;
 	this->setPixels(npixels);
 }

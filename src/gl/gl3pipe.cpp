@@ -49,6 +49,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
 		                          &inst->minVert, &inst->numVertices);
+		assert(inst->minVert != 0xFFFFFFFF);
 		inst->numIndex = mesh->numIndices;
 		inst->material = mesh->material;
 		inst->vertexAlpha = 0;
@@ -200,6 +201,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		int n = header->numMeshes;
 		InstanceData *inst = header->inst;
 		while(n--){
+			assert(inst->minVert != 0xFFFFFFFF);
 			inst->vertexAlpha = instColor(VERT_RGBA,
 				verts + a->offset + a->stride*inst->minVert,
 				geo->colors + inst->minVert,
