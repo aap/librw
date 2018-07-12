@@ -37,7 +37,7 @@ enum Psm {
 	PSMZ32   = 0x30,
 	PSMZ24   = 0x31,
 	PSMZ16   = 0x32,
-	PSMZ16S  = 0x3A,
+	PSMZ16S  = 0x3A
 };
 
 // i don't really understand this, stolen from RW

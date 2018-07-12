@@ -5,7 +5,7 @@ enum UserDataType
 	USERDATANA = 0,
 	USERDATAINT = 1,
 	USERDATAFLOAT = 2,
-	USERDATASTRING = 3,
+	USERDATASTRING = 3
 };
 
 struct UserDataArray

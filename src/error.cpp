@@ -23,7 +23,7 @@ getError(Error *e)
 	return e;
 }
 
-#define ECODE(c, s) s,
+#define ECODE(c, s) s
 
 const char *errstrs[] = {
 	"No error",

@@ -41,7 +41,7 @@ struct Frame
 		SUBTREESYNCOBJ   = 0x08,
 		SUBTREESYNC      = SUBTREESYNCLTM | SUBTREESYNCOBJ,
 		SYNCLTM          = HIERARCHYSYNCLTM | SUBTREESYNCLTM,
-		SYNCOBJ          = HIERARCHYSYNCOBJ | SUBTREESYNCOBJ,
+		SYNCOBJ          = HIERARCHYSYNCOBJ | SUBTREESYNCOBJ
 		// STATIC = 0x10
 	};
 
@@ -219,7 +219,7 @@ struct Raster
 		CAMERA        = 0x02,
 		TEXTURE       = 0x04,
 		CAMERATEXTURE = 0x05,
-		DONTALLOCATE  = 0x80,
+		DONTALLOCATE  = 0x80
 	};
 };
 
@@ -451,7 +451,7 @@ struct Atomic
 	// private flags
 		WORLDBOUNDDIRTY = 0x01,
 	// for setGeometry
-		SAMEBOUNDINGSPHERE = 0x01,
+		SAMEBOUNDINGSPHERE = 0x01
 	};
 
 	ObjectWithFrame object;
@@ -541,7 +541,7 @@ struct Light
 		AMBIENT,
 		POINT = 0x80,	// positioned
 		SPOT,
-		SOFTSPOT,
+		SOFTSPOT
 	};
 	enum Flags {
 		LIGHTATOMICS = 1,

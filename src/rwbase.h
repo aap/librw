@@ -269,7 +269,7 @@ enum CombineOp
 {
 	COMBINEREPLACE,
 	COMBINEPRECONCAT,
-	COMBINEPOSTCONCAT,
+	COMBINEPOSTCONCAT
 };
 
 struct RawMatrix
@@ -398,7 +398,7 @@ enum PrimitiveType
 	PRIMTYPETRILIST,
 	PRIMTYPETRISTRIP,
 	PRIMTYPETRIFAN,
-	PRIMTYPEPOINTLIST,
+	PRIMTYPEPOINTLIST
 };
 
 /*
@@ -503,7 +503,7 @@ enum VendorID
 	// Used for rasters (platform-specific)
 	VEND_RASTER         = 10,
 	// Used for driver/device allocation tags
-	VEND_DRIVER         = 11,
+	VEND_DRIVER         = 11
 };
 
 // TODO: modules (VEND_CRITERIONINT)
@@ -559,17 +559,17 @@ enum PluginID
 	ID_RASTERGL3     = MAKEPLUGINID(VEND_RASTER, PLATFORM_GL3),
 
 	// anything driver/device related (only as allocation tag)
-	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0),
+	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0)
 };
 
 enum CoreModuleID
 {
 	ID_NAMODULE      = MAKEPLUGINID(VEND_CRITERIONINT, 0x00),
 	ID_FRAMEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x03),
-	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08),
+	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08)
 };
 
-#define ECODE(c, s) c,
+#define ECODE(c, s) c
 
 enum Errors
 {

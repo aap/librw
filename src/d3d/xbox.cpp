@@ -189,7 +189,7 @@ registerNativeDataPlugin(void)
 
 enum {
 	D3DPT_TRIANGLELIST    =  5,
-	D3DPT_TRIANGLESTRIP   =  6,
+	D3DPT_TRIANGLESTRIP   =  6
 };
 
 static void
