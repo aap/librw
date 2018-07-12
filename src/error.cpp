@@ -33,7 +33,7 @@ const char *errstrs[] = {
 #undef ECODE
 
 char*
-dbgsprint(int32 code, ...)
+dbgsprint(uint32 code, ...)
 {
 	va_list ap;
 	static char strbuf[512];
