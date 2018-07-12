@@ -502,8 +502,8 @@ Camera::setFOV(float32 hfov, float32 ratio)
 
 	float ar1 = 4.0/3.0;
 	float ar2 = w/h;
-	float vfov = atan(tan(hfov/2) / ar1) *2;
-	hfov = atan(tan(vfov/2) * ar2) *2;
+	float vfov = atanf(tanf(hfov/2) / ar1) *2;
+	hfov = atanf(tanf(vfov/2) * ar2) *2;
 
 	float32 a = tan(hfov);
 	v.set(a, a/ratio);
