@@ -80,7 +80,7 @@ struct LLLink
 };
 
 #define LLLinkGetData(linkvar,type,entry) \
-    ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
+    ((type*)(((rw::uint8*)(linkvar))-offsetof(type,entry)))
 
 // Have to be careful since the link might be deleted.
 #define FORLIST(_link, _list) \
