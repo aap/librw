@@ -258,11 +258,11 @@ struct Texture
 	static Texture *fromDict(LLLink *lnk){
 		return LLLinkGetData(lnk, Texture, inDict); }
 	FilterMode getFilter(void) { return (FilterMode)(filterAddressing & 0xFF); }
-	void setFilter(FilterMode f) { filterAddressing = filterAddressing & ~0xFF | f; }
+	void setFilter(FilterMode f) { filterAddressing = (filterAddressing & ~0xFF) | f; }
 	Addressing getAddressU(void) { return (Addressing)((filterAddressing >> 8) & 0xF); }
 	Addressing getAddressV(void) { return (Addressing)((filterAddressing >> 12) & 0xF); }
-	void setAddressU(Addressing u) { filterAddressing = filterAddressing & ~0xF00 | u<<8; }
-	void setAddressV(Addressing v) { filterAddressing = filterAddressing & ~0xF000 | v<<12; }
+	void setAddressU(Addressing u) { filterAddressing = (filterAddressing & ~0xF00) | u<<8; }
+	void setAddressV(Addressing v) { filterAddressing = (filterAddressing & ~0xF000) | v<<12; }
 	static Texture *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);

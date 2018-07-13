@@ -601,7 +601,7 @@ libraryIDPack(int version, int build)
 {
 	if(version <= 0x31000)
 		return version>>8;
-	return (version-0x30000 & 0x3FF00) << 14 | (version&0x3F) << 16 |
+	return ((version-0x30000) & 0x3FF00) << 14 | (version&0x3F) << 16 |
 	       (build & 0xFFFF);
 }
 
@@ -609,7 +609,7 @@ inline int
 libraryIDUnpackVersion(uint32 libid)
 {
 	if(libid & 0xFFFF0000)
-		return (libid>>14 & 0x3FF00) + 0x30000 |
+		return ((libid>>14 & 0x3FF00) + 0x30000) |
 		       (libid>>16 & 0x3F);
 	else
 		return libid<<8;
