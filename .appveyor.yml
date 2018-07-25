@@ -1,0 +1,28 @@
+image: Visual Studio 2017
+configuration: Release
+platform:
+  - win-amd64-null
+  - win-amd64-gl3
+  - win-amd64-d3d9
+environment:
+  APPVEYOR_SAVE_CACHE_ON_ERROR: true
+  GLFW_BASE: glfw-3.2.1.bin.WIN64
+  GLFW_URL: https://github.com/glfw/glfw/releases/download/3.2.1/%GLFW_BASE%.zip
+  GLEW_BASE: glew-2.1.0
+  GLEW_URL: https://github.com/nigels-com/glew/releases/download/glew-2.1.0/%GLEW_BASE%-win32.zip
+  PREMAKE5_URL: https://github.com/premake/premake-core/releases/download/v5.0.0-alpha12/premake-5.0.0-alpha12-windows.zip
+install:
+  - appveyor DownloadFile %GLFW_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE%.zip"
+  - 7z x "%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE%.zip"
+  - appveyor DownloadFile %GLEW_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE%.zip"
+  - 7z x "%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE%.zip"
+  - appveyor DownloadFile %PREMAKE5_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/premake5.zip"
+  - mkdir "%APPVEYOR_BUILD_FOLDER%/bin" && cd "%APPVEYOR_BUILD_FOLDER%/bin" && 7z x "%APPVEYOR_BUILD_FOLDER%/premake5.zip"
+  - set PATH=%APPVEYOR_BUILD_FOLDER%/bin;%PATH%
+before_build:
+  - mkdir "%APPVEYOR_BUILD_FOLDER%/build"
+  - cd "%APPVEYOR_BUILD_FOLDER%"
+  - premake5 vs2017 --glfwdir=%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE% --glewdir=%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE%
+build:
+  project: c:\projects\librw\build\librw.sln
+  verbosity: minimal

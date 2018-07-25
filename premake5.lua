@@ -1,5 +1,16 @@
-GLEWdir = "C:/Users/aap/src/glew-2.1.0"
-GLFW64dir = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64"
+newoption {
+	trigger     = "glewdir",
+	value       = "path",
+	description = "Directory of GLEW",
+	default     = "C:/Users/aap/src/glew-2.1.0",
+}
+
+newoption {
+	trigger     = "glfwdir",
+	value       = "path",
+	description = "Directory of glfw",
+	default     = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64",
+}
 
 workspace "librw"
 	location "build"
@@ -37,6 +48,7 @@ workspace "librw"
 		gccprefix 'ee-'
 		buildoptions { "-nostdlib", "-fno-common" }
 		includedirs { "$(PS2SDK)/ee/include", "$(PS2SDK)/common/include" }
+		optimize "Off"
 
 	filter { "platforms:*amd64*" }
 		architecture "x86_64"
@@ -50,8 +62,8 @@ workspace "librw"
 
 	filter { "platforms:win*gl3" }
 		defines { "GLEW_STATIC" }
-		includedirs { path.join(GLEWdir, "include") }
-		includedirs { path.join(GLFW64dir, "include") }
+		includedirs { path.join(_OPTIONS["glewdir"], "include") }
+		includedirs { path.join(_OPTIONS["glfwdir"], "include") }
 
 	filter "action:vs*"
 		buildoptions { "/wd4996", "/wd4244" }
@@ -83,10 +95,10 @@ function findlibs()
 	filter { "platforms:win*gl3" }
 		defines { "GLEW_STATIC" }
 	filter { "platforms:win-amd64-gl3" }
-		libdirs { path.join(GLEWdir, "lib/Release/x64") }
-		libdirs { path.join(GLFW64dir, "lib-vc2015") }
+		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/x64") }
+		libdirs { path.join(_OPTIONS["glfwdir"], "lib-vc2015") }
 	filter { "platforms:win-x86-gl3" }
-		libdirs { path.join(GLEWdir, "lib/Release/Win32") }
+		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
 	filter { "platforms:win*gl3" }
 		links { "glew32s", "glfw3", "opengl32" }
 	filter { "platforms:*d3d9" }
@@ -157,7 +169,7 @@ project "ps2test"
 	libdirs { "$(PS2SDK)/ee/lib" }
 	links { "librw" }
 	-- "c -lc" is a hack because we need -lc twice for some reason
-	links { "c -lc", "kernel", "mf" }
+	links { "c", "kernel", "mf" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"
