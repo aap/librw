@@ -12,7 +12,11 @@
 #include "../rwobjects.h"
 #ifdef RW_OPENGL
 #include <GL/glew.h>
+#ifdef LIBRW_SDL2
+#include <SDL.h>
+#else
 #include <GLFW/glfw3.h>
+#endif
 #include "rwgl3.h"
 #include "rwgl3shader.h"
 #include "rwgl3impl.h"
@@ -24,7 +28,12 @@ namespace gl3 {
 
 struct GlGlobals
 {
+#ifdef LIBRW_SDL2
+	SDL_Window *window;
+	SDL_GLContext glcontext;
+#else
 	GLFWwindow *window;
+#endif
 	int presentWidth, presentHeight;
 } glGlobals;
 
@@ -625,7 +634,11 @@ static void
 showRaster(Raster *raster)
 {
 	// TODO: do this properly!
+#ifdef LIBRW_SDL2
+	SDL_GL_SwapWindow(glGlobals.window);
+#else
 	glfwSwapBuffers(glGlobals.window);
+#endif
 }
 
 static void
@@ -701,7 +714,11 @@ beginUpdate(Camera *cam)
 	}
 
 	int w, h;
+#ifdef LIBRW_SDL2
+	SDL_GetWindowSize(glGlobals.window, &w, &h);
+#else
 	glfwGetWindowSize(glGlobals.window, &w, &h);
+#endif
 	if(w != glGlobals.presentWidth || h != glGlobals.presentHeight){
 		glViewport(0, 0, w, h);
 		glGlobals.presentWidth = w;
@@ -709,6 +726,74 @@ beginUpdate(Camera *cam)
 	}
 }
 
+#ifdef LIBRW_SDL2
+static int
+openSDL2(EngineStartParams *startparams)
+{
+	if (!startparams){
+		RWERROR((ERR_GENERAL, "startparams invalid"));
+		return 0;
+	}
+
+	GLenum status;
+	SDL_Window *win;
+	SDL_GLContext ctx;
+
+	/* Init SDL */
+	if(SDL_InitSubSystem(SDL_INIT_VIDEO)){
+		RWERROR((ERR_ENGINEOPEN, SDL_GetError()));
+		return 0;
+	}
+	SDL_ClearHints();
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+	int flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL;
+	if (startparams->fullscreen)
+		flags |= SDL_WINDOW_FULLSCREEN;
+	win = SDL_CreateWindow(startparams->windowtitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, startparams->width, startparams->height, flags);
+	if(win == nil){
+		RWERROR((ERR_ENGINEOPEN, SDL_GetError()));
+		SDL_QuitSubSystem(SDL_INIT_VIDEO);
+		return 0;
+	}
+	ctx = SDL_GL_CreateContext(win);
+
+	/* Init GLEW */
+	glewExperimental = GL_TRUE;
+	status = glewInit();
+	if(status != GLEW_OK){
+        	RWERROR((ERR_ENGINEOPEN, glewGetErrorString(status)));
+        	SDL_GL_DeleteContext(ctx);
+        	SDL_DestroyWindow(win);
+        	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        	return 0;
+	}
+	if(!GLEW_VERSION_3_3){
+		RWERROR((ERR_VERSION, "OpenGL 3.3 needed"));
+		SDL_GL_DeleteContext(ctx);
+		SDL_DestroyWindow(win);
+		SDL_QuitSubSystem(SDL_INIT_VIDEO);
+		return 0;
+	}
+	glGlobals.window = win;
+	glGlobals.glcontext = ctx;
+	*startparams->window = win;
+	return 1;
+}
+
+static int
+closeSDL2(void)
+{
+	SDL_GL_DeleteContext(glGlobals.glcontext);
+	SDL_DestroyWindow(glGlobals.window);
+	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	return 1;
+}
+#else
 static int
 openGLFW(EngineStartParams *startparams)
 {
@@ -732,6 +817,14 @@ openGLFW(EngineStartParams *startparams)
 		glfwTerminate();
 		return 0;
 	}
+	if(startparams->fullscreen){
+		int nbmonitors;
+		auto monitors = glfwGetMonitors(&nbmonitors);
+        	if (nbmonitors){
+			const GLFWvidmode* mode = glfwGetVideoMode(monitors[0]);
+            		glfwSetWindowMonitor(win, monitors[0], 0, 0, mode->width, mode->height, mode->refreshRate);
+        	}
+    	}
 	glfwMakeContextCurrent(win);
 
 	/* Init GLEW */
@@ -761,6 +854,7 @@ closeGLFW(void)
 	glfwTerminate();
 	return 1;
 }
+#endif
 
 static int
 initOpenGL(void)
@@ -836,9 +930,17 @@ deviceSystem(DeviceReq req, void *arg0)
 {
 	switch(req){
 	case DEVICEOPEN:
+#ifdef LIBRW_SDL2
+		return openSDL2((EngineStartParams*)arg0);
+#else
 		return openGLFW((EngineStartParams*)arg0);
+#endif
 	case DEVICECLOSE:
+#ifdef LIBRW_SDL2
+		return closeSDL2();
+#else
 		return closeGLFW();
+#endif
 
 	case DEVICEINIT:
 		return initOpenGL();
