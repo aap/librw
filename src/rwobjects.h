@@ -41,7 +41,7 @@ struct Frame
 		SUBTREESYNCOBJ   = 0x08,
 		SUBTREESYNC      = SUBTREESYNCLTM | SUBTREESYNCOBJ,
 		SYNCLTM          = HIERARCHYSYNCLTM | SUBTREESYNCLTM,
-		SYNCOBJ          = HIERARCHYSYNCOBJ | SUBTREESYNCOBJ,
+		SYNCOBJ          = HIERARCHYSYNCOBJ | SUBTREESYNCOBJ
 		// STATIC = 0x10
 	};
 
@@ -219,7 +219,7 @@ struct Raster
 		CAMERA        = 0x02,
 		TEXTURE       = 0x04,
 		CAMERATEXTURE = 0x05,
-		DONTALLOCATE  = 0x80,
+		DONTALLOCATE  = 0x80
 	};
 };
 
@@ -258,11 +258,11 @@ struct Texture
 	static Texture *fromDict(LLLink *lnk){
 		return LLLinkGetData(lnk, Texture, inDict); }
 	FilterMode getFilter(void) { return (FilterMode)(filterAddressing & 0xFF); }
-	void setFilter(FilterMode f) { filterAddressing = filterAddressing & ~0xFF | f; }
+	void setFilter(FilterMode f) { filterAddressing = (filterAddressing & ~0xFF) | f; }
 	Addressing getAddressU(void) { return (Addressing)((filterAddressing >> 8) & 0xF); }
 	Addressing getAddressV(void) { return (Addressing)((filterAddressing >> 12) & 0xF); }
-	void setAddressU(Addressing u) { filterAddressing = filterAddressing & ~0xF00 | u<<8; }
-	void setAddressV(Addressing v) { filterAddressing = filterAddressing & ~0xF000 | v<<12; }
+	void setAddressU(Addressing u) { filterAddressing = (filterAddressing & ~0xF00) | u<<8; }
+	void setAddressV(Addressing v) { filterAddressing = (filterAddressing & ~0xF000) | v<<12; }
 	static Texture *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -451,7 +451,7 @@ struct Atomic
 	// private flags
 		WORLDBOUNDDIRTY = 0x01,
 	// for setGeometry
-		SAMEBOUNDINGSPHERE = 0x01,
+		SAMEBOUNDINGSPHERE = 0x01
 	};
 
 	ObjectWithFrame object;
@@ -541,7 +541,7 @@ struct Light
 		AMBIENT,
 		POINT = 0x80,	// positioned
 		SPOT,
-		SOFTSPOT,
+		SOFTSPOT
 	};
 	enum Flags {
 		LIGHTATOMICS = 1,

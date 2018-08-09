@@ -103,7 +103,7 @@ enum {
 	D3DDECLUSAGE_COLOR,         // 10
 	D3DDECLUSAGE_FOG,           // 11
 	D3DDECLUSAGE_DEPTH,         // 12
-	D3DDECLUSAGE_SAMPLE,        // 13
+	D3DDECLUSAGE_SAMPLE         // 13
 };
 
 #endif

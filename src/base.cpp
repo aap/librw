@@ -110,9 +110,9 @@ slerp(const Quat &q, const Quat &p, float32 a)
 	}
 	float32 phi = acos(c);
 	if(phi > 0.00001f){
-		float32 s = sin(phi);
-		return add(scale(q1, sin((1.0f-a)*phi)/s),
-		           scale(p,  sin(a*phi)/s));
+		float32 s = sinf(phi);
+		return add(scale(q1, sinf((1.0f-a)*phi)/s),
+		           scale(p,  sinf(a*phi)/s));
 	}
 	return q1;
 }
@@ -424,25 +424,25 @@ Matrix::getRotation(void)
 	float32 tr = right.x + up.y + at.z;
 	float s;
 	if(tr > 0.0f){
-		s = sqrt(1.0f + tr) * 2.0f;
+		s = sqrtf(1.0f + tr) * 2.0f;
 		q.w = s / 4.0f;
 		q.x = (up.z - at.y) / s;
 		q.y = (at.x - right.z) / s;
 		q.z = (right.y - up.x) / s;
 	}else if(right.x > up.y && right.x > at.z){
-		s = sqrt(1.0f + right.x - up.y - at.z) * 2.0f;
+		s = sqrtf(1.0f + right.x - up.y - at.z) * 2.0f;
 		q.w = (up.z - at.y) / s;
 		q.x = s / 4.0f;
 		q.y = (up.x + right.y) / s;
 		q.z = (at.x + right.z) / s;
 	}else if(up.y > at.z){
-		s = sqrt(1.0f + up.y - right.x - at.z) * 2.0f;
+		s = sqrtf(1.0f + up.y - right.x - at.z) * 2.0f;
 		q.w = (at.x - right.z) / s;
 		q.x = (up.x + right.y) / s;
 		q.y = s / 4.0f;
 		q.z = (at.y + up.z) / s;
 	}else{
-		s = sqrt(1.0f + at.z - right.x - up.y) * 2.0f;
+		s = sqrtf(1.0f + at.z - right.x - up.y) * 2.0f;
 		q.w = (right.y - up.x) / s;
 		q.x = (at.x + right.z) / s;
 		q.y = (at.y + up.z) / s;
@@ -513,8 +513,8 @@ Matrix::invertGeneral(Matrix *dst, const Matrix *src)
 	// get the determinant from that
 	det = src->up.x * dst->right.y + src->at.x * dst->right.z + dst->right.x * src->right.x;
 	invdet = 1.0;
-	if(det != 0.0)
-		invdet = 1.0/det;
+	if(det != 0.0f)
+		invdet = 1.0f/det;
 	dst->right.x *= invdet;
 	dst->right.y *= invdet;
 	dst->right.z *= invdet;
@@ -535,10 +535,10 @@ void
 Matrix::makeRotation(Matrix *dst, V3d *axis, float32 angle)
 {
 	V3d v = normalize(*axis);
-	angle = angle*M_PI/180.0f;
+	angle = angle*(float)M_PI/180.0f;
 	float32 s = sin(angle);
 	float32 c = cos(angle);
-	float32 t = 1.0f - cos(angle);
+	float32 t = 1.0f - c;
 
 	dst->right.x = c + v.x*v.x*t;
 	dst->right.y = v.x*v.y*t + v.z*s;
@@ -588,9 +588,9 @@ float32
 Matrix::normalError(void)
 {
 	float32 x, y, z;
-	x = dot(right, right) - 1.0;
-	y = dot(up, up) - 1.0;
-	z = dot(at, at) - 1.0;
+	x = dot(right, right) - 1.0f;
+	y = dot(up, up) - 1.0f;
+	z = dot(at, at) - 1.0f;
 	return x*x + y*y + z*z;
 }
 

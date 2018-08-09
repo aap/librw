@@ -184,7 +184,7 @@ enum {
 	D3DFMT_LIN_F16              = 0x00000031,
 
 	D3DFMT_VERTEXDATA           = 100,
-	D3DFMT_INDEX16              = 101,
+	D3DFMT_INDEX16              = 101
 };
 
 }

@@ -521,7 +521,7 @@ enum {
 	VIF_MARK     = 0x07000000,
 	VIF_FLUSH    = 0x11000000,
 	VIF_MSCALF   = 0x15000000,
-	VIF_MSCNT    = 0x17000000,
+	VIF_MSCNT    = 0x17000000
 };
 
 struct InstMeshInfo

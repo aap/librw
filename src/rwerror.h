@@ -10,7 +10,7 @@ void setError(Error *e);
 Error *getError(Error *e);
 
 #define _ERRORCODE(code, ...) code
-char *dbgsprint(int32 code, ...);
+char *dbgsprint(uint32 code, ...);
 
 /* ecode is supposed to be in format "(errorcode, printf-arguments..)" */
 #define RWERROR(ecode) do{          \
