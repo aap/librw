@@ -1,6 +1,10 @@
 #ifdef RW_GL3
 #include <GL/glew.h>
+#ifdef LIBRW_SDL2
+#include <SDL.h>
+#else
 #include <GLFW/glfw3.h>
+#endif
 #endif
 
 namespace rw {
@@ -8,8 +12,13 @@ namespace rw {
 #ifdef RW_GL3
 struct EngineStartParams
 {
+#ifdef LIBRW_SDL2
+	SDL_Window **window;
+#else
 	GLFWwindow **window;
+#endif
 	int width, height;
+	bool32 fullscreen;
 	const char *windowtitle;
 };
 #endif
