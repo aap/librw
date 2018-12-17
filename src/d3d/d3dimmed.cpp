@@ -10,6 +10,7 @@
 #include "../rwengine.h"
 #include "rwd3d.h"
 #include "rwd3d9.h"
+#include "rwd3dimpl.h"
 
 namespace rw {
 namespace d3d {
@@ -54,6 +55,73 @@ closeIm2D(void)
 	deleteObject(im2ddecl);
 	deleteObject(im2dvertbuf);
 	deleteObject(im2dindbuf);
+}
+
+static Im2DVertex tmpprimbuf[3];
+
+void
+im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	tmpprimbuf[0] = verts[vert1];
+	tmpprimbuf[1] = verts[vert2];
+	im2DRenderPrimitive(PRIMTYPELINELIST, tmpprimbuf, 2);
+}
+
+void
+im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	tmpprimbuf[0] = verts[vert1];
+	tmpprimbuf[1] = verts[vert2];
+	tmpprimbuf[2] = verts[vert3];
+	im2DRenderPrimitive(PRIMTYPETRILIST, tmpprimbuf, 3);
+}
+
+void
+im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
+{
+	if(numVertices > NUMVERTICES){
+		// TODO: error
+		return;
+	}
+	uint8 *lockedvertices = lockVertices(im2dvertbuf, 0, numVertices*sizeof(Im2DVertex), D3DLOCK_NOSYSLOCK);
+	memcpy(lockedvertices, vertices, numVertices*sizeof(Im2DVertex));
+	unlockVertices(im2dvertbuf);
+
+	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
+	d3ddevice->SetVertexDeclaration(im2ddecl);
+	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
+	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+
+	d3d::flushCache();
+
+	uint32 primCount = 0;
+	switch(primType){
+	case PRIMTYPELINELIST:
+		primCount = numVertices/2;
+		break;
+	case PRIMTYPEPOLYLINE:
+		primCount = numVertices-1;
+		break;
+	case PRIMTYPETRILIST:
+		primCount = numVertices/3;
+		break;
+	case PRIMTYPETRISTRIP:
+		primCount = numVertices-2;
+		break;
+	case PRIMTYPETRIFAN:
+		primCount = numVertices-2;
+		break;
+	case PRIMTYPEPOINTLIST:
+		primCount = numVertices;
+		break;
+	}
+	d3ddevice->DrawPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0, primCount);
 }
 
 void

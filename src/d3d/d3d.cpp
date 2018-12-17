@@ -383,6 +383,7 @@ rasterCreateTexture(Raster *raster)
 	}else
 		format = formatInfo[(raster->format >> 8) & 0xF].d3dformat;
 	natras->format = format;
+	raster->depth = formatInfo[(raster->format >> 8) & 0xF].depth;
 	natras->hasAlpha = formatInfo[(raster->format >> 8) & 0xF].hasAlpha;
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
 	natras->texture = createTexture(raster->width, raster->height,

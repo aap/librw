@@ -36,9 +36,10 @@ struct Device
 	void  (*setRenderState)(int32 state, void *value);
 	void *(*getRenderState)(int32 state);
 
-	// TODO: render line
-	// TODO: render triangle
-	// TODO: render primitive
+	void   (*im2DRenderLine)(void*, int32, int32, int32);
+	void   (*im2DRenderTriangle)(void*, int32, int32, int32, int32);
+	void   (*im2DRenderPrimitive)(PrimitiveType,
+	                                     void*, int32);
 	void   (*im2DRenderIndexedPrimitive)(PrimitiveType,
 	                                     void*, int32, void*, int32);
 
@@ -163,6 +164,9 @@ namespace null {
 	void   rasterFromImage(Raster*, Image*);
 	Image *rasterToImage(Raster*);
 
+	void   im2DRenderLine(void*, int32, int32, int32);
+	void   im2DRenderTriangle(void*, int32, int32, int32, int32);
+	void   im2DRenderPrimitive(PrimitiveType, void*, int32);
 	void   im2DRenderIndexedPrimitive(PrimitiveType,
 	                                  void*, int32, void*, int32);
 

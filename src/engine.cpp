@@ -209,6 +209,9 @@ void showRaster(Raster*) { }
 void   setRenderState(int32, void*) { }
 void  *getRenderState(int32) { return 0; }
 
+void im2DRenderLine(void*, int32, int32, int32) { }
+void im2DRenderTriangle(void*, int32, int32, int32, int32) { }
+void im2DRenderPrimitive(PrimitiveType, void*, int32) { }
 void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
 
 void im3DTransform(void *vertices, int32 numVertices, Matrix *world) { }
@@ -268,6 +271,9 @@ Device renderdevice = {
 	null::showRaster,
 	null::setRenderState,
 	null::getRenderState,
+	null::im2DRenderLine,
+	null::im2DRenderTriangle,
+	null::im2DRenderPrimitive,
 	null::im2DRenderIndexedPrimitive,
 	null::im3DTransform,
 	null::im3DRenderIndexed,

@@ -68,7 +68,10 @@ namespace im2d {
 
 float32 GetNearZ(void);
 float32 GetFarZ(void);
+void RenderLine(void *verts, int32 numVerts, int32 vert1, int32 vert2);
+void RenderTriangle(void *verts, int32 numVerts, int32 vert1, int32 vert2, int32 vert3);
 void RenderIndexedPrimitive(PrimitiveType, void *verts, int32 numVerts, void *indices, int32 numIndices);
+void RenderPrimitive(PrimitiveType type, void *verts, int32 numVerts);
 
 }
 

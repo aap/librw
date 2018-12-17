@@ -11,9 +11,14 @@ struct SceneGlobals {
 	rw::Clump *clump;
 } Scene;
 rw::Texture *tex, *tex2;
+rw::Raster *testras;
 rw::EngineStartParams engineStartParams;
 
+bool dosoftras = 1;
+
+namespace gen {
 void tlTest(rw::Clump *clump);
+}
 void genIm3DTransform(void *vertices, rw::int32 numVertices, rw::Matrix *xform);
 void genIm3DRenderIndexed(rw::PrimitiveType prim, void *indices, rw::int32 numIndices);
 void genIm3DEnd(void);
@@ -25,7 +30,7 @@ Init(void)
 {
 	sk::globals.windowtitle = "Clump viewer";
 	sk::globals.width = 640;
-	sk::globals.height = 480;
+	sk::globals.height = 448;
 	sk::globals.quit = 0;
 }
 
@@ -168,7 +173,7 @@ InitRW(void)
 	tex = rw::Texture::read("maze", nil);
 	tex2 = rw::Texture::read("checkers", nil);
 
-	const char *filename = "teapot.dff";
+	const char *filename = "teapot2.dff";
 	if(sk::args.argc > 1)
 		filename = sk::args.argv[1];
 	rw::StreamFile in;
@@ -196,7 +201,7 @@ InitRW(void)
 	Scene.world = rw::World::create();
 
 	rw::Light *ambient = rw::Light::create(rw::Light::AMBIENT);
-	ambient->setColor(0.2f, 0.2f, 0.2f);
+	ambient->setColor(0.3f, 0.3f, 0.3f);
 	Scene.world->addLight(ambient);
 
 	rw::V3d xaxis = { 1.0f, 0.0f, 0.0f };
@@ -209,9 +214,10 @@ InitRW(void)
 	camera = new Camera;
 	Scene.camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
 	camera->m_rwcam = Scene.camera;
-	camera->m_aspectRatio = 640.0f/480.0f;
-	camera->m_near = 0.1f;
-	camera->m_far = 450.0f;
+	camera->m_aspectRatio = 640.0f/448.0f;
+	camera->m_near = 5.0f;
+//	camera->m_far = 450.0f;
+	camera->m_far = 15.0f;
 	camera->m_target.set(0.0f, 0.0f, 0.0f);
 	camera->m_position.set(0.0f, -10.0f, 0.0f);
 //	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
@@ -235,16 +241,16 @@ im2dtest(void)
 		rw::uint8 r, g, b, a;
 		float u, v;
 	} vs[4] = {
-/*
 		{   0.0f,   0.0f,   255, 0, 0, 128,    0.0f, 0.0f },
 		{ 640.0f,   0.0f,   0, 255, 0, 128,    1.0f, 0.0f },
-		{   0.0f, 480.0f,   0, 0, 255, 128,    0.0f, 1.0f },
-		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 1.0f },
-*/
+		{   0.0f, 448.0f,   0, 0, 255, 128,    0.0f, 1.0f },
+		{ 640.0f, 448.0f,   0, 255, 255, 128,  1.0f, 1.0f },
+/*
 		{   0.0f,   0.0f,   255, 0, 0, 128,    0.0f, 1.0f },
 		{ 640.0f,   0.0f,   0, 255, 0, 128,    0.0f, 0.0f },
-		{   0.0f, 480.0f,   0, 0, 255, 128,    1.0f, 1.0f },
-		{ 640.0f, 480.0f,   0, 255, 255, 128,  1.0f, 0.0f },
+		{   0.0f, 448.0f,   0, 0, 255, 128,    1.0f, 1.0f },
+		{ 640.0f, 448.0f,   0, 255, 255, 128,  1.0f, 0.0f },
+*/
 	};
 	Im2DVertex verts[4];
 	static short indices[] = {
@@ -258,12 +264,14 @@ im2dtest(void)
 		verts[i].setScreenZ(rw::im2d::GetNearZ());
 		verts[i].setCameraZ(Scene.camera->nearPlane);
 		verts[i].setRecipCameraZ(recipZ);
-		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
-		verts[i].setU(vs[i].u, recipZ);
-		verts[i].setV(vs[i].v, recipZ);
+//		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
+		verts[i].setColor(255, 255, 255, 255);
+		verts[i].setU(vs[i].u + 0.5f/640.0f, recipZ);
+		verts[i].setV(vs[i].v + 0.5f/448.0f, recipZ);
 	}
 
-	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex2->raster);
+//	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex2->raster);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, testras);
 	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
@@ -329,11 +337,23 @@ Draw(float timeDelta)
 	camera->update();
 	camera->m_rwcam->beginUpdate();
 
-	Scene.clump->render();
-//	im2dtest();
-//	tlTest(Scene.clump);
+extern void beginSoftras(void);
+	beginSoftras();
+
+	gen::tlTest(Scene.clump);
+void drawtest(void);
+//	drawtest();
+
+extern void endSoftras(void);
+	if(dosoftras){
+		endSoftras();
+		im2dtest();
+	}
+
+//	Scene.clump->render();
 //	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
+
 
 	camera->m_rwcam->endUpdate();
 	camera->m_rwcam->showRaster();
@@ -378,6 +398,9 @@ KeyDown(int key)
 		break;
 	case 'F':
 		camera->zoom(-0.1f);
+		break;
+	case 'V':
+		dosoftras = !dosoftras;
 		break;
 	case sk::KEY_ESC:
 		sk::globals.quit = 1;
@@ -432,7 +455,8 @@ AppEventHandler(sk::Event e, void *param)
 
 		sk::globals.width = r->w;
 		sk::globals.height = r->h;
-		// TODO: set aspect ratio
+		if(camera)
+			camera->m_aspectRatio = (float)r->w/r->h;
 		if(Scene.camera)
 			sk::CameraSize(Scene.camera, r);
 		break;

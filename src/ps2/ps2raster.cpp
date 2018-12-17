@@ -1454,7 +1454,7 @@ unswizzle16to4(uint8 *dst, uint8 *src, int32 w, int32 h)
 		}
 }
 
-static void
+void
 expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 {
 	int32 x, y;
@@ -1465,7 +1465,7 @@ expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 		}
 }
 
-static void
+void
 copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 {
 	int32 x, y;
@@ -1620,7 +1620,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
 	raster->tex0 = 0;
 	raster->paletteBase = 0;
-	raster->kl = 0xFC0;
+	raster->kl = defaultMipMapKL;
 	raster->tex1low = 0;
 	raster->unk2 = 0;
 	raster->miptbp1 = 0;
@@ -1668,8 +1668,10 @@ static Stream*
 writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	Texture *tex = (Texture*)object;
-	if(tex->raster)
-		return nil;
+	if(tex->raster){
+		stream->writeI32(defaultMipMapKL);
+		return stream;
+	}
 	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
 	stream->writeI32(raster->kl);
 	return stream;
@@ -1872,6 +1874,10 @@ streamExt.mipmapVal);
 	uint64 tex1;
 	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
 //	printTEX1(tex1);
+
+	// TODO: GTA SA LD_OTB.txd loses here
+	assert(natras->pixelSize >= streamExt.pixelSize);
+	assert(natras->paletteSize >= streamExt.paletteSize);
 
 	natras->tex0 = streamExt.tex0;
 	natras->paletteBase = streamExt.paletteOffset;

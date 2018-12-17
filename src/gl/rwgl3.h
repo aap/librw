@@ -96,9 +96,15 @@ struct Im3DVertex
 	void setZ(float32 z) { this->position.z = z; }
 	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
 		this->r = r; this->g = g; this->b = b; this->a = a; }
-	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
 	void setU(float32 u) { this->u = u; }
 	void setV(float32 v) { this->v = v; }
+
+	float getX(void) { return this->position.x; }
+	float getY(void) { return this->position.y; }
+	float getZ(void) { return this->position.z; }
+	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
+	float getU(void) { return this->u; }
+	float getV(void) { return this->v; }
 };
 
 struct Im2DVertex
@@ -116,6 +122,14 @@ struct Im2DVertex
 		this->r = r; this->g = g; this->b = b; this->a = a; }
 	void setU(float32 u, float recipz) { this->u = u; }
 	void setV(float32 v, float recipz) { this->v = v; }
+
+	float getScreenX(void) { return this->x; }
+	float getScreenY(void) { return this->y; }
+	float getScreenZ(void) { return this->z; }
+	float getCameraZ(void) { return this->w; }
+	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
+	float getU(void) { return this->u; }
+	float getV(void) { return this->v; }
 };
 
 void setAttribPointers(AttribDesc *attribDescs, int32 numAttribs);

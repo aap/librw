@@ -11,6 +11,7 @@
 #ifdef RW_OPENGL
 #include <GL/glew.h>
 #include "rwgl3.h"
+#include "rwgl3impl.h"
 #include "rwgl3shader.h"
 
 namespace rw {
@@ -71,6 +72,53 @@ closeIm2D(void)
 	glDeleteBuffers(1, &im2DVbo);
 	im2dShader->destroy();
 	im2dShader = nil;
+}
+
+static Im2DVertex tmpprimbuf[3];
+
+void
+im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	tmpprimbuf[0] = verts[vert1];
+	tmpprimbuf[1] = verts[vert2];
+	im2DRenderPrimitive(PRIMTYPELINELIST, tmpprimbuf, 2);
+}
+
+void
+im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	tmpprimbuf[0] = verts[vert1];
+	tmpprimbuf[1] = verts[vert2];
+	tmpprimbuf[2] = verts[vert3];
+	im2DRenderPrimitive(PRIMTYPETRILIST, tmpprimbuf, 3);
+}
+
+void
+im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
+{
+	GLfloat xform[4];
+	Camera *cam;
+	cam = (Camera*)engine->currentCamera;
+
+	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
+	glBufferData(GL_ARRAY_BUFFER, numVertices*sizeof(Im2DVertex),
+			vertices, GL_DYNAMIC_DRAW);
+
+	xform[0] = 2.0f/cam->frameBuffer->width;
+	xform[1] = -2.0f/cam->frameBuffer->height;
+	xform[2] = -1.0f;
+	xform[3] = 1.0f;
+
+	im2dShader->use();
+	setAttribPointers(im2dattribDesc, 3);
+
+	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
+
+	flushCache();
+	glDrawArrays(primTypeMap[primType], 0, numVertices);
+	disableAttribPointers(im2dattribDesc, 3);
 }
 
 void
