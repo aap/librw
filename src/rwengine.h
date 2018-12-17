@@ -13,7 +13,7 @@ enum DeviceReq
 	DEVICETERM,
 
 	// Device initialization after Engine/Driver plugins are opened
-	DEVICEFINALIZE,
+	DEVICEFINALIZE
 	// TODO? counterpart to FINALIZE?
 };
 

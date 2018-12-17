@@ -1,5 +1,34 @@
-GLEWdir = "C:/Users/aap/src/glew-2.1.0"
-GLFW64dir = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64"
+newoption {
+	trigger     = "glewdir",
+	value       = "PATH",
+	description = "Directory of GLEW",
+	default     = "C:/Users/aap/src/glew-2.1.0",
+}
+
+newoption {
+	trigger		= "gfxlib",
+	value       = "LIBRARY",
+	description = "Choose a particular development library",
+	default		= "glfw",
+	allowed		= {
+		{ "glfw",	"GLFW" },
+		{ "sdl2",	"SDL2" },
+	},
+}
+
+newoption {
+	trigger     = "glfwdir",
+	value       = "PATH",
+	description = "Directory of glfw",
+	default     = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64",
+}
+
+newoption {
+	trigger     = "sdl2dir",
+	value       = "PATH",
+	description = "Directory of sdl2",
+	default     = "C:/Users/aap/src/SDL2-2.0.8",
+}
 
 workspace "librw"
 	location "build"
@@ -14,6 +43,9 @@ workspace "librw"
 		platforms { "linux-x86-null", "linux-x86-gl3",
 		"linux-amd64-null", "linux-amd64-gl3",
 		"ps2" }
+		if _OPTIONS["gfxlib"] == "sdl2" then
+			includedirs { "/usr/include/SDL2" }
+		end
 	filter {}
 
 	filter "configurations:Debug"
@@ -29,6 +61,9 @@ workspace "librw"
 		defines { "RW_NULL" }
 	filter { "platforms:*gl3" }
 		defines { "RW_GL3" }
+		if _OPTIONS["gfxlib"] == "sdl2" then
+			defines { "LIBRW_SDL2" }
+		end
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
 	filter { "platforms:ps2" }
@@ -37,6 +72,7 @@ workspace "librw"
 		gccprefix 'ee-'
 		buildoptions { "-nostdlib", "-fno-common" }
 		includedirs { "$(PS2SDK)/ee/include", "$(PS2SDK)/common/include" }
+		optimize "Off"
 
 	filter { "platforms:*amd64*" }
 		architecture "x86_64"
@@ -50,8 +86,9 @@ workspace "librw"
 
 	filter { "platforms:win*gl3" }
 		defines { "GLEW_STATIC" }
-		includedirs { path.join(GLEWdir, "include") }
-		includedirs { path.join(GLFW64dir, "include") }
+		includedirs { path.join(_OPTIONS["glewdir"], "include") }
+		includedirs { path.join(_OPTIONS["glfwdir"], "include") }
+		includedirs { path.join(_OPTIONS["sdl2dir"], "include") }
 
 	filter "action:vs*"
 		buildoptions { "/wd4996", "/wd4244" }
@@ -79,16 +116,28 @@ project "dumprwtree"
 
 function findlibs()
 	filter { "platforms:linux*gl3" }
-		links { "GL", "GLEW", "glfw" }
+		links { "GL", "GLEW" }
+		if _OPTIONS["gfxlib"] == "glfw" then
+			links { "glfw" }
+		else
+			links { "SDL2" }
+		end
 	filter { "platforms:win*gl3" }
 		defines { "GLEW_STATIC" }
 	filter { "platforms:win-amd64-gl3" }
-		libdirs { path.join(GLEWdir, "lib/Release/x64") }
-		libdirs { path.join(GLFW64dir, "lib-vc2015") }
+		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/x64") }
+		libdirs { path.join(_OPTIONS["glfwdir"], "lib-vc2015") }
+		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
-		libdirs { path.join(GLEWdir, "lib/Release/Win32") }
+		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
+		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
-		links { "glew32s", "glfw3", "opengl32" }
+		links { "glew32s", "opengl32" }
+		if _OPTIONS["gfxlib"] == "glfw" then
+			links { "glfw3" }
+		else
+			links { "SDL2" }
+		end
 	filter { "platforms:*d3d9" }
 		links { "d3d9", "Xinput9_1_0" }
 	filter {}
@@ -157,7 +206,7 @@ project "ps2test"
 	libdirs { "$(PS2SDK)/ee/lib" }
 	links { "librw" }
 	-- "c -lc" is a hack because we need -lc twice for some reason
-	links { "c -lc", "kernel", "mf" }
+	links { "c", "kernel", "mf" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"

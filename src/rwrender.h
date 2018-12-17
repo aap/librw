@@ -24,7 +24,7 @@ enum RenderState
 
 	// platform specific or opaque?
 	ALPHATESTFUNC,
-	ALPHATESTREF,
+	ALPHATESTREF
 };
 
 enum AlphaTestFunc
@@ -53,7 +53,7 @@ enum BlendFunction
 	BLENDINVDESTALPHA,
 	BLENDDESTCOLOR,
 	BLENDINVDESTCOLOR,
-	BLENDSRCALPHASAT,
+	BLENDSRCALPHASAT
 	// TODO: add more perhaps
 };
 

@@ -80,7 +80,7 @@ struct LLLink
 };
 
 #define LLLinkGetData(linkvar,type,entry) \
-    ((type*)(((uint8*)(linkvar))-offsetof(type,entry)))
+    ((type*)(((rw::uint8*)(linkvar))-offsetof(type,entry)))
 
 // Have to be careful since the link might be deleted.
 #define FORLIST(_link, _list) \
@@ -269,7 +269,7 @@ enum CombineOp
 {
 	COMBINEREPLACE,
 	COMBINEPRECONCAT,
-	COMBINEPOSTCONCAT,
+	COMBINEPOSTCONCAT
 };
 
 struct RawMatrix
@@ -398,7 +398,7 @@ enum PrimitiveType
 	PRIMTYPETRILIST,
 	PRIMTYPETRISTRIP,
 	PRIMTYPETRIFAN,
-	PRIMTYPEPOINTLIST,
+	PRIMTYPEPOINTLIST
 };
 
 /*
@@ -503,7 +503,7 @@ enum VendorID
 	// Used for rasters (platform-specific)
 	VEND_RASTER         = 10,
 	// Used for driver/device allocation tags
-	VEND_DRIVER         = 11,
+	VEND_DRIVER         = 11
 };
 
 // TODO: modules (VEND_CRITERIONINT)
@@ -559,17 +559,17 @@ enum PluginID
 	ID_RASTERGL3     = MAKEPLUGINID(VEND_RASTER, PLATFORM_GL3),
 
 	// anything driver/device related (only as allocation tag)
-	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0),
+	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0)
 };
 
 enum CoreModuleID
 {
 	ID_NAMODULE      = MAKEPLUGINID(VEND_CRITERIONINT, 0x00),
 	ID_FRAMEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x03),
-	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08),
+	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08)
 };
 
-#define ECODE(c, s) c,
+#define ECODE(c, s) c
 
 enum Errors
 {
@@ -601,7 +601,7 @@ libraryIDPack(int version, int build)
 {
 	if(version <= 0x31000)
 		return version>>8;
-	return (version-0x30000 & 0x3FF00) << 14 | (version&0x3F) << 16 |
+	return ((version-0x30000) & 0x3FF00) << 14 | (version&0x3F) << 16 |
 	       (build & 0xFFFF);
 }
 
@@ -609,7 +609,7 @@ inline int
 libraryIDUnpackVersion(uint32 libid)
 {
 	if(libid & 0xFFFF0000)
-		return (libid>>14 & 0x3FF00) + 0x30000 |
+		return ((libid>>14 & 0x3FF00) + 0x30000) |
 		       (libid>>16 & 0x3F);
 	else
 		return libid<<8;

@@ -1,20 +1,20 @@
 ECODE(ERR_GENERAL,
-      "Error: %s")
+      "Error: %s"),
 ECODE(ERR_ALLOC,
-      "Couldn't allocate 0x%X bytes")
+      "Couldn't allocate 0x%X bytes"),
 ECODE(ERR_FILE,
-      "Couldn't open file %s")
+      "Couldn't open file %s"),
 ECODE(ERR_CHUNK,
-      "Couldn't find chunk %s")
+      "Couldn't find chunk %s"),
 ECODE(ERR_VERSION,
-      "Unsupported version %X")
+      "Unsupported version %X"),
 ECODE(ERR_PLATFORM,
-      "Unsupported platform %d")
+      "Unsupported platform %d"),
 ECODE(ERR_ENGINEINIT,
-      "Engine could not be initialized")
+      "Engine could not be initialized"),
 ECODE(ERR_ENGINEOPEN,
-      "Engine could not be opened")
+      "Engine could not be opened"),
 ECODE(ERR_ENGINESTART,
-      "Engine could not be started")
+      "Engine could not be started"),
 ECODE(ERR_INVRASTER,
       "Invalid raster format")

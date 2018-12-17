@@ -185,7 +185,7 @@ struct Ps2Raster
 	enum Flags {
 		NEWSTYLE  = 0x1,	// has GIF tags and transfer DMA chain
 		SWIZZLED8 = 0x2,
-		SWIZZLED4 = 0x4,
+		SWIZZLED4 = 0x4
 	};
 	struct PixelPtr {
 		// RW has pixels as second element but we don't want this struct

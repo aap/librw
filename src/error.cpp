@@ -23,7 +23,7 @@ getError(Error *e)
 	return e;
 }
 
-#define ECODE(c, s) s,
+#define ECODE(c, s) s
 
 const char *errstrs[] = {
 	"No error",
@@ -33,7 +33,7 @@ const char *errstrs[] = {
 #undef ECODE
 
 char*
-dbgsprint(int32 code, ...)
+dbgsprint(uint32 code, ...)
 {
 	va_list ap;
 	static char strbuf[512];

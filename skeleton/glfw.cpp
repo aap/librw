@@ -1,3 +1,5 @@
+#ifndef LIBRW_SDL2
+
 #include <rw.h>
 #include "skeleton.h"
 
@@ -256,4 +258,5 @@ SetMousePosition(int x, int y)
 
 }
 
+#endif
 #endif
