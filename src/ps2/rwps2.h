@@ -15,6 +15,7 @@ extern Device renderdevice;
 struct InstanceData
 {
 	uint32 dataSize;
+	uint8 *dataRaw;
 	uint8 *data;
 	Material *material;
 };
@@ -59,6 +60,7 @@ int32 getSizeNativeData(void *object, int32, int32);
 void registerNativeDataPlugin(void);
 
 void printDMA(InstanceData *inst);
+void printDMAVIF(InstanceData *inst);
 void sizedebug(InstanceData *inst);
 
 void fixDmaOffsets(InstanceData *inst);	// only RW_PS2
@@ -83,6 +85,7 @@ class MatPipeline : public rw::Pipeline
 public:
 	uint32 vifOffset;
 	uint32 inputStride;
+	// number of vertices for tri strips and lists
 	uint32 triStripCount, triListCount;
 	PipeAttribute *attribs[10];
 	void (*instanceCB)(MatPipeline*, Geometry*, Mesh*, uint8**);
@@ -104,7 +107,7 @@ public:
 
 	MatPipeline(uint32 platform);
 	void dump(void);
-	void setTriBufferSizes(uint32 inputStride, uint32 stripCount);
+	void setTriBufferSizes(uint32 inputStride, uint32 bufferSize);
 	void instance(Geometry *g, InstanceData *inst, Mesh *m);
 	uint8 *collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]);
 };

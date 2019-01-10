@@ -21,6 +21,8 @@
 namespace rw {
 namespace ps2 {
 
+#define ALIGNPTR(p,a) ((uint8*)(((uintptr)(p)+a-1) & ~(uintptr)(a-1)))
+
 static void*
 driverOpen(void *o, int32, int32)
 {
@@ -63,7 +65,7 @@ destroyNativeData(void *object, int32, int32)
 		return object;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	for(uint32 i = 0; i < header->numMeshes; i++)
-		rwFree(header->instanceMeshes[i].data);
+		rwFree(header->instanceMeshes[i].dataRaw);
 	rwFree(header->instanceMeshes);
 	rwFree(header);
 	geometry->instData = nil;
@@ -96,8 +98,8 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		uint32 buf[2];
 		stream->read(buf, 8);
 		instance->dataSize = buf[0];
-// TODO: force alignment
-		instance->data = rwNewT(uint8, instance->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
+		instance->dataRaw = rwNewT(uint8, instance->dataSize+0x7F, MEMDUR_EVENT | ID_GEOMETRY);
+		instance->data = ALIGNPTR(instance->dataRaw, 0x80);
 #ifdef RW_PS2
 		uint32 a = (uint32)instance->data;
 		assert(a % 0x10 == 0);
@@ -458,20 +460,24 @@ MatPipeline::dump(void)
 }
 
 void
-MatPipeline::setTriBufferSizes(uint32 inputStride, uint32 stripCount)
+MatPipeline::setTriBufferSizes(uint32 inputStride, uint32 bufferSize)
 {
-	this->inputStride = inputStride;
-	this->triListCount = stripCount/12*12;
 	PipeAttribute *a;
+
+	this->inputStride = inputStride;
+	uint32 numTLtris = bufferSize/3;
+	this->triListCount = (numTLtris & ~3) * 3;
+	this->triStripCount = bufferSize & ~3;
 	for(uint i = 0; i < nelem(this->attribs); i++){
 		a = this->attribs[i];
-		if(a && a->attrib & AT_RW)
-			goto brokenout;
+		if(a && a->attrib & AT_RW){
+			// broken out attribs have different requirement
+			// because we have to be able to restart a strip
+			// at an aligned offset
+			this->triStripCount = ((bufferSize-2) & ~3)+2;
+			return;
+		}
 	}
-	this->triStripCount = stripCount/4*4;
-	return;
-brokenout:
-	this->triStripCount = (stripCount-2)/4*4+2;
 }
 
 // Instance format:
@@ -514,14 +520,27 @@ enum {
 	DMAret       = 0x60000000,
 
 	VIF_NOP      = 0,
-	VIF_STCYCL   = 0x01000100,	// WL = 1
+	VIF_STCYCL   = 0x01000000,
+	VIF_STCYCL1  = 0x01000100,	// WL = 1
+	VIF_OFFSET   = 0x02000000,
+	VIF_BASE     = 0x03000000,
 	VIF_ITOP     = 0x04000000,
 	VIF_STMOD    = 0x05000000,
 	VIF_MSKPATH3 = 0x06000000,
 	VIF_MARK     = 0x07000000,
+	VIF_FLUSHE   = 0x10000000,
 	VIF_FLUSH    = 0x11000000,
+	VIF_FLUSHA   = 0x13000000,
+	VIF_MSCAL    = 0x14000000,
 	VIF_MSCALF   = 0x15000000,
-	VIF_MSCNT    = 0x17000000
+	VIF_MSCNT    = 0x17000000,
+	VIF_STMASK   = 0x20000000,
+	VIF_STROW    = 0x30000000,
+	VIF_STCOL    = 0x31000000,
+	VIF_MPG      = 0x4A000000,
+	VIF_DIRECT   = 0x50000000,
+	VIF_DIRECTHL = 0x51000000,
+	VIF_UNPACK   = 0x60000000	// no mode encoded
 };
 
 struct InstMeshInfo
@@ -595,8 +614,10 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 	InstMeshInfo im = getInstMeshInfo(this, g, m);
 
 	inst->dataSize = (im.size+im.size2)<<4;
-	// TODO: force alignment
-	inst->data = rwNewT(uint8, inst->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
+	// TODO: do this properly, just a test right now
+	inst->dataSize += 0x7F;
+	inst->dataRaw = rwNewT(uint8, inst->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
+	inst->data = ALIGNPTR(inst->dataRaw, 0x80);
 
 	/* make array of addresses of broken out sections */
 	uint8 *datap[nelem(this->attribs)];
@@ -630,12 +651,17 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				uint32 atsz = attribSize(a->attrib);
 				*p++ = DMAref | QWC(nverts*atsz);
 				*p++ = im.attribPos[i];
-				*p++ = VIF_STCYCL | this->inputStride;
+				*p++ = VIF_STCYCL1 | this->inputStride;
 				// Round up nverts so UNPACK will fit exactly into the DMA packet
 				//  (can't pad with zeroes in broken out sections).
-				// TODO: check for clash with vifOffset somewhere
+				int num = (QWC(nverts*atsz)<<4)/atsz;
 				*p++ = (a->attrib&0xFF004000)
-					| 0x8000 | (QWC(nverts*atsz)<<4)/atsz << 16 | i; // UNPACK
+					| 0x8000 | num << 16 | i; // UNPACK
+				// This probably shouldn't happen.
+				if(num*this->inputStride > this->vifOffset)
+					fprintf(stderr, "WARNING: PS2 instance data over vifOffset %08X, %X-> %X %X\n",
+						p[-1], num,
+						num*this->inputStride, this->vifOffset);
 
 				*p++ = DMAcnt;
 				*p++ = 0x0;
@@ -660,7 +686,7 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				else
 					*p++ = VIF_MARK | markcnt++;
 				*p++ = VIF_STMOD;
-				*p++ = VIF_STCYCL | this->inputStride;
+				*p++ = VIF_STCYCL1 | this->inputStride;
 				*p++ = (a->attrib&0xFF004000)
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
@@ -846,6 +872,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		    (MatPipeline*)mesh->material->pipeline;
 		if(m == nil) m = defaultMatPipe;
 
+		//printDMAVIF(instance);
 		uint8 *data[nelem(m->attribs)] = { nil };
 		uint8 *raw = m->collectData(geo, instance, mesh, data);
 		assert(m->uninstanceCB);
@@ -1256,31 +1283,220 @@ registerADCPlugin(void)
 }
 
 // misc stuff
-/*
+
+static uint32
+unpackSize(uint32 unpack)
+{
+	static uint32 size[] = { 32, 16, 8, 4 };
+	return ((unpack>>26 & 3)+1)*size[unpack>>24 & 3]/8;
+}
+
+/* A little dumb VIF interpreter */
+static void
+sendVIF(uint32 w)
+{
+	enum VIFstate {
+		VST_cmd,
+		VST_stmask,
+		VST_strow,
+		VST_stcol,
+		VST_mpg,
+		VST_direct,
+		VST_unpack
+	};
+//	static uint32 buf[256 * 16];	// maximum unpack size
+	static VIFstate state = VST_cmd;
+	static uint32 n;
+	static uint32 code;
+	uint32 imm, num;
+
+	imm = w & 0xFFFF;
+	num = (w>>16) & 0xFF;
+	switch(state){
+	case VST_cmd:
+		code = w;
+		if((code & 0x60000000) == VIF_UNPACK){
+			printf("\t%08X VIF_UNPACK\n", code);
+			printf("\t...skipping...\n");
+			state = VST_unpack;
+			n = (unpackSize(code)*num + 3) >> 2;
+		}else switch(code & 0x7F000000){
+		case VIF_NOP:
+			printf("\t%08X VIF_NOP\n", code);
+			break;
+		case VIF_STCYCL:
+			printf("\t%08X VIF_STCYCL\n", code);
+			break;
+		case VIF_OFFSET:
+			printf("\t%08X VIF_OFFSET\n", code);
+			break;
+		case VIF_BASE:
+			printf("\t%08X VIF_BASE\n", code);
+			break;
+		case VIF_ITOP:
+			printf("\t%08X VIF_ITOP\n", code);
+			break;
+		case VIF_STMOD:
+			printf("\t%08X VIF_STMOD\n", code);
+			break;
+		case VIF_MSKPATH3:
+			printf("\t%08X VIF_MSKPATH3\n", code);
+			break;
+		case VIF_MARK:
+			printf("\t%08X VIF_MARK\n", code);
+			break;
+		case VIF_FLUSHE:
+			printf("\t%08X VIF_FLUSHE\n", code);
+			break;
+		case VIF_FLUSH:
+			printf("\t%08X VIF_FLUSH\n", code);
+			break;
+		case VIF_FLUSHA:
+			printf("\t%08X VIF_FLUSHA\n", code);
+			break;
+		case VIF_MSCAL:
+			printf("\t%08X VIF_MSCAL\n", code);
+			break;
+		case VIF_MSCALF:
+			printf("\t%08X VIF_MSCALF\n", code);
+			break;
+		case VIF_MSCNT:
+			printf("\t%08X VIF_MSCNT\n", code);
+			break;
+		case VIF_STMASK:
+			printf("\t%08X VIF_STMASK\n", code);
+			printf("\t...skipping...\n");
+			state = VST_stmask;
+			n = 1;
+			break;
+		case VIF_STROW:
+			printf("\t%08X VIF_STROW\n", code);
+			printf("\t...skipping...\n");
+			state = VST_strow;
+			n = 4;
+			break;
+		case VIF_STCOL:
+			printf("\t%08X VIF_STCOL\n", code);
+			printf("\t...skipping...\n");
+			state = VST_stcol;
+			n = 4;
+			break;
+		case VIF_MPG:
+			printf("\t%08X VIF_MPG\n", code);
+			state = VST_mpg;
+			n = num*2;
+			break;
+		case VIF_DIRECT:
+			printf("\t%08X VIF_DIRECT\n", code);
+			printf("\t...skipping...\n");
+			state = VST_direct;
+			n = imm*4;
+			break;
+		case VIF_DIRECTHL:
+			printf("\t%08X VIF_DIRECTHL\n", code);
+			printf("\t...skipping...\n");
+			state = VST_direct;
+			n = imm*4;
+			break;
+		default:
+			printf("\tUnknown VIFcode %08X\n", code);
+		}
+		break;
+	/* TODO: actually do something here */
+	case VST_stmask:
+		n--;
+		break;
+	case VST_strow:
+		n--;
+		break;
+	case VST_stcol:
+		n--;
+		break;
+	case VST_mpg:
+		n--;
+		break;
+	case VST_direct:
+		n--;
+		break;
+	case VST_unpack:
+		n--;
+		break;
+	}
+	if(n == 0)
+		state = VST_cmd;
+}
+
+static void
+dmaVIF(int32 qwc, uint32 *data)
+{
+	qwc *= 4;
+	while(qwc--)
+		sendVIF(*data++);
+}
 
 void
-printDMA(InstanceData *inst)
+printDMAVIF(InstanceData *inst)
 {
 	uint32 *tag = (uint32*)inst->data;
+	uint32 *base = (uint32*)inst->data;
+	uint32 qwc;
+
 	for(;;){
+		qwc = tag[0]&0xFFFF;
 		switch(tag[0]&0x70000000){
 		case DMAcnt:
-			printf("%08x %08x\n", tag[0], tag[1]);
-			tag += (1+(tag[0]&0xFFFF))*4;
+			printf("DMAcnt %04x %08x\n", qwc, tag[1]);
+			sendVIF(tag[2]);
+			sendVIF(tag[3]);
+			dmaVIF(qwc, tag+4);
+			tag += (1+qwc)*4;
 			break;
 
 		case DMAref:
-			printf("%08x %08x\n", tag[0], tag[1]);
+			printf("DMAref %04x %08x\n", qwc, tag[1]);
+			sendVIF(tag[2]);
+			sendVIF(tag[3]);
+			dmaVIF(qwc, base + tag[1]*4);
 			tag += 4;
 			break;
 
 		case DMAret:
-			printf("%08x %08x\n", tag[0], tag[1]);
+			printf("DMAret %04x %08x\n", qwc, tag[1]);
+			sendVIF(tag[2]);
+			sendVIF(tag[3]);
+			dmaVIF(qwc, tag+4);
+			printf("\n");
 			return;
 		}
 	}
 }
 
+void
+printDMA(InstanceData *inst)
+{
+	uint32 *tag = (uint32*)inst->data;
+	uint32 qwc;
+	for(;;){
+		qwc = tag[0]&0xFFFF;
+		switch(tag[0]&0x70000000){
+		case DMAcnt:
+			printf("CNT %04x %08x\n", qwc, tag[1]);
+			tag += (1+qwc)*4;
+			break;
+
+		case DMAref:
+			printf("REF %04x %08x\n", qwc, tag[1]);
+			tag += 4;
+			break;
+
+		case DMAret:
+			printf("RET %04x %08x\n\n", qwc, tag[1]);
+			return;
+		}
+	}
+}
+
+/*
 void
 sizedebug(InstanceData *inst)
 {

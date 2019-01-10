@@ -402,7 +402,7 @@ struct Geometry
 	MeshHeader *allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices);
 	void generateTriangles(int8 *adc = nil);
 	void buildMeshes(void);
-	void buildTristrips(void);
+	void buildTristrips(void);	// private, used by buildMeshes
 	void correctTristripWinding(void);
 	void removeUnusedMaterials(void);
 	static Geometry *streamRead(Stream *stream);

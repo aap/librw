@@ -32,7 +32,6 @@ struct StripNode
 	uint8 isEnd : 1;	/* is in end list */
 	GraphEdge e[3];
 	int32 stripId;	/* index of start node */
-//		int asdf;
 	LLLink inlist;
 };
 
@@ -44,10 +43,13 @@ struct StripMesh
 	LinkList endNodes;	/* strip start/end nodes */
 };
 
+//#define trace(...) printf(__VA_ARGS__)
+#define trace(...)
+
 static void
 printNode(StripMesh *sm, StripNode *n)
 {
-	printf("%3ld: %3d  %3d.%d  %3d.%d %3d.%d || %3d %3d %3d\n",
+	trace("%3ld: %3d  %3d.%d  %3d.%d %3d.%d || %3d %3d %3d\n",
 		n - sm->nodes,
 		n->stripId,
 		n->e[0].node,
@@ -95,6 +97,9 @@ collectFaces(Geometry *geo, StripMesh *sm, uint16 m)
 			n->v[0] = t->v[0];
 			n->v[1] = t->v[1];
 			n->v[2] = t->v[2];
+			assert(t->v[0] < geo->numVertices);
+			assert(t->v[1] < geo->numVertices);
+			assert(t->v[2] < geo->numVertices);
 			n->e[0].node = 0;
 			n->e[1].node = 0;
 			n->e[2].node = 0;
@@ -114,7 +119,7 @@ collectFaces(Geometry *geo, StripMesh *sm, uint16 m)
 	}
 }
 
-/* Find Triangle that has edge e. */
+/* Find Triangle that has edge e that is not connected yet. */
 static GraphEdge
 findEdge(StripMesh *sm, int32 e[2])
 {
@@ -128,6 +133,7 @@ findEdge(StripMesh *sm, int32 e[2])
 			if(e[0] == n->v[j] &&
 			   e[1] == n->v[(j+1) % 3]){
 				ge.node = i;
+				// signal success
 				ge.isConnected = 1;
 				ge.otherEdge = j;
 				return ge;
@@ -139,7 +145,7 @@ findEdge(StripMesh *sm, int32 e[2])
 
 /* Connect nodes sharing an edge, preserving winding */
 static void
-connectNodes(StripMesh *sm)
+connectNodesPreserve(StripMesh *sm)
 {
 	StripNode *n, *nn;
 	int32 e[2];
@@ -154,8 +160,8 @@ connectNodes(StripMesh *sm)
 			e[1] = n->v[j];
 			e[0] = n->v[(j+1) % 3];
 			ge = findEdge(sm, e);
-			/* found node, now connect */
 			if(ge.isConnected){
+				/* found node, now connect */
 				n->e[j].node = ge.node;
 				n->e[j].isConnected = 1;
 				n->e[j].otherEdge = ge.otherEdge;
@@ -188,6 +194,7 @@ numStripEdges(StripNode *n)
 
 #define IsEnd(n) (numConnections(n) > 0 && numStripEdges(n) < 2)
 
+/* Complement the strip-ness of an edge */
 static void
 complementEdge(StripMesh *sm, GraphEdge *e)
 {
@@ -197,8 +204,9 @@ complementEdge(StripMesh *sm, GraphEdge *e)
 }
 
 /* While possible extend a strip from a starting node until
- * we find a node already in a strip. N.B. this function does
- * make no attempts to connect to an already existing strip. */
+ * we find a node already in a strip. N.B. this function
+ * makes no attempts to connect to an already existing strip.
+ * It also doesn't try to alternate between left and right. */
 static void
 extendStrip(StripMesh *sm, StripNode *start)
 {
@@ -210,7 +218,7 @@ extendStrip(StripMesh *sm, StripNode *start)
 	}
 	sm->endNodes.append(&n->inlist);
 	n->isEnd = 1;
-tail:
+loop:
 	/* Find the next node to connect to on any of the three edges */
 	for(int32 i = 0; i < 3; i++){
 		if(!n->e[i].isConnected)
@@ -221,9 +229,11 @@ tail:
 
 		/* found one */
 		nn->stripId = n->stripId;
+		/* We know it's not a strip edge yet,
+		 * so complementing it will make it one. */
 		complementEdge(sm, &n->e[i]);
 		n = nn;
-		goto tail;
+		goto loop;
 	}
 	if(n != start){
 		sm->endNodes.append(&n->inlist);
@@ -317,7 +327,7 @@ walkStrip(StripMesh *sm, StripNode *start)
 	StripNode *n, *nn;
 	int32 last;
 
-//printf("stripend: ");
+//trace("stripend: ");
 //printNode(sm, start);
 
 	n = start;
@@ -342,7 +352,7 @@ walkStrip(StripMesh *sm, StripNode *start)
 			nn->stripId = n->stripId;
 			break;
 		}
-//printf("    next: ");
+//trace("    next: ");
 //printNode(sm, nn);
 		if(nn == nil)
 			return nil;
@@ -356,15 +366,15 @@ applyTunnel(StripMesh *sm, StripNode *end, StripNode *start)
 	StripNode *n, *nn;
 
 	for(n = end; n != start; n = &sm->nodes[n->e[n->parent].node]){
-//printf("	");
+//trace("	");
 //printNode(sm, n);
 		complementEdge(sm, &n->e[n->parent]);
 	}
-//printf("	");
+//trace("	");
 //printNode(sm, start);
 
 //printSmesh(sm);
-//printf("-------\n");
+//trace("-------\n");
 	tmplist.init();
 	while(!sm->endNodes.isEmpty()){
 		n = LLLinkGetData(sm->endNodes.link.next, StripNode, inlist);
@@ -399,9 +409,9 @@ tunnel(StripMesh *sm)
 again:
 	FORLIST(lnk, sm->endNodes){
 		n = LLLinkGetData(lnk, StripNode, inlist);
-//		printf("searching %p %d\n", n, numStripEdges(n));
+//		trace("searching %p %d\n", n, numStripEdges(n));
 		nn = findTunnel(sm, n);
-//		printf("          %p %p\n", n, nn);
+//		trace("          %p %p\n", n, nn);
 
 		if(nn){
 			applyTunnel(sm, nn, n);
@@ -412,8 +422,136 @@ again:
 		}
 		resetGraph(sm);
 	}
-	printf("tunneling done!\n");
+	trace("tunneling done!\n");
 }
+
+/* Get next edge in strip.
+ * Last is the edge index whence we came lest we go back. */
+static int
+getNextEdge(StripNode *n, int32 last)
+{
+	int32 i;
+	for(i = 0; i < 3; i++)
+		if(n->e[i].isStrip && i != last)
+			return i;
+	return -1;
+}
+
+#define NEXT(x) (((x)+1) % 3)
+#define PREV(x) (((x)+2) % 3)
+#define RIGHT(x) NEXT(x)
+#define LEFT(x) PREV(x)
+
+/* Generate mesh indices for all strips in a StripMesh */
+static void
+makeMesh(StripMesh *sm, Mesh *m)
+{
+	int32 i, j;
+	int32 rightturn, lastrightturn;
+	int32 seam;
+	int32 even;
+	StripNode *n;
+
+	/* three indices + two for stitch per triangle must be enough */
+	m->indices = rwNewT(uint16, sm->numNodes*5, MEMDUR_FUNCTION | ID_GEOMETRY);
+	memset(m->indices, 0xFF, sm->numNodes*5*sizeof(uint16));
+
+	even = 1;
+	FORLIST(lnk, sm->endNodes){
+		n = LLLinkGetData(lnk, StripNode, inlist);
+		/* only interested in start nodes, not the ends */
+		if(n->stripId != (n - sm->nodes))
+			continue;
+
+		/* i is the edge we enter this triangle from.
+		 * j is the edge we exit. */
+		j = getNextEdge(n, -1);
+		/* starting triangle must have connection */
+		if(j < 0)
+			continue;
+		/* Space to stitch together strips */
+		seam = m->numIndices;
+		if(seam)
+			m->numIndices += 2;
+		/* Start ccw for even tris */
+		if(even){
+			/* Start with a right turn */
+			i = LEFT(j);
+			m->indices[m->numIndices++] = n->v[i];
+			m->indices[m->numIndices++] = n->v[NEXT(i)];
+		}else{
+			/* Start with a left turn */
+			i = RIGHT(j);
+			m->indices[m->numIndices++] = n->v[NEXT(i)];
+			m->indices[m->numIndices++] = n->v[i];
+		}
+trace("\nstart %d %d\n", numStripEdges(n), m->numIndices-2);
+		lastrightturn = -1;
+
+		while(j >= 0){
+			rightturn = RIGHT(i) == j;
+			if(rightturn == lastrightturn){
+				// insert a swap if we're not alternating
+				m->indices[m->numIndices] = m->indices[m->numIndices-2];
+trace("SWAP\n");
+				m->numIndices++;
+				even = !even;
+			}
+trace("%d:%d%c %d %d %d\n", n-sm->nodes, m->numIndices, even ? ' ' : '.', n->v[0], n->v[1], n->v[2]);
+			lastrightturn = rightturn;
+			if(rightturn)
+				m->indices[m->numIndices++] = n->v[NEXT(j)];
+			else
+				m->indices[m->numIndices++] = n->v[j];
+			even = !even;
+
+			/* go to next triangle */
+			i = n->e[j].otherEdge;
+			n = &sm->nodes[n->e[j].node];
+			j = getNextEdge(n, i);
+		}
+
+		/* finish strip */
+trace("%d:%d%c %d %d %d\nend\n", n-sm->nodes, m->numIndices, even ? ' ' : '.', n->v[0], n->v[1], n->v[2]);
+		m->indices[m->numIndices++] = n->v[LEFT(i)];
+		even = !even;
+		if(seam){
+			m->indices[seam] = m->indices[seam-1];
+			m->indices[seam+1] = m->indices[seam+2];
+trace("STITCH %d: %d %d\n", seam, m->indices[seam], m->indices[seam+1]);
+		}
+	}
+
+	/* Add all unconnected and lonely triangles */
+	FORLIST(lnk, sm->endNodes){
+		n = LLLinkGetData(lnk, StripNode, inlist);
+		if(numStripEdges(n) != 0)
+			continue;
+		if(m->numIndices != 0){
+			m->indices[m->numIndices] = m->indices[m->numIndices-1];
+			m->numIndices++;
+			m->indices[m->numIndices++] = n->v[!even];
+		}
+		m->indices[m->numIndices++] = n->v[!even];
+		m->indices[m->numIndices++] = n->v[even];
+		m->indices[m->numIndices++] = n->v[2];
+		even = !even;
+	}
+	FORLIST(lnk, sm->loneNodes){
+		n = LLLinkGetData(lnk, StripNode, inlist);
+		if(m->numIndices != 0){
+			m->indices[m->numIndices] = m->indices[m->numIndices-1];
+			m->numIndices++;
+			m->indices[m->numIndices++] = n->v[!even];
+		}
+		m->indices[m->numIndices++] = n->v[!even];
+		m->indices[m->numIndices++] = n->v[even];
+		m->indices[m->numIndices++] = n->v[2];
+		even = !even;
+	}
+}
+
+static void verifyMesh(Geometry *geo);
 
 /*
  * For each material:
@@ -424,30 +562,121 @@ again:
 void
 Geometry::buildTristrips(void)
 {
+	int32 i;
+	uint16 *indices;
+	MeshHeader *header;
+	Mesh *ms, *md;
 	StripMesh smesh;
 
-	printf("%ld\n", sizeof(StripNode));
+//	trace("%ld\n", sizeof(StripNode));
+
+	this->allocateMeshes(matList.numMaterials, 0, 1);
 
 	smesh.nodes = rwNewT(StripNode, this->numTriangles, MEMDUR_FUNCTION | ID_GEOMETRY);
+	ms = this->meshHeader->getMeshes();
 	for(int32 i = 0; i < this->matList.numMaterials; i++){
 		smesh.loneNodes.init();
 		smesh.endNodes.init();
 		collectFaces(this, &smesh, i);
-		connectNodes(&smesh);
+		connectNodesPreserve(&smesh);
 		buildStrips(&smesh);
 printSmesh(&smesh);
-printf("-------\n");
+//trace("-------\n");
 //printLone(&smesh);
-//printf("-------\n");
+//trace("-------\n");
 //printEnds(&smesh);
-//printf("-------\n");
-		tunnel(&smesh);
-//printf("-------\n");
+//trace("-------\n");
+		// TODO: make this work
+//		tunnel(&smesh);
+//trace("-------\n");
 //printEnds(&smesh);
+
+		ms[i].material = this->matList.materials[i];
+		makeMesh(&smesh, &ms[i]);
+		this->meshHeader->totalIndices += ms[i].numIndices;
 	}
 	rwFree(smesh.nodes);
 
-	exit(1);
+	/* Now re-allocate and copy data */
+	header = this->meshHeader;
+	this->meshHeader = nil;
+	this->allocateMeshes(header->numMeshes, header->totalIndices, 0);
+	this->meshHeader->flags = MeshHeader::TRISTRIP;
+	md = this->meshHeader->getMeshes();
+	indices = md->indices;
+	for(i = 0; i < header->numMeshes; i++){
+		md[i].material = ms[i].material;
+		md[i].numIndices = ms[i].numIndices;
+		md[i].indices = indices;
+		indices += md[i].numIndices;
+		memcpy(md[i].indices, ms[i].indices, md[i].numIndices*sizeof(uint16));
+		rwFree(ms[i].indices);
+	}
+	rwFree(header);
+
+	verifyMesh(this);
+}
+
+/* Check that tristripped mesh and geometry triangles are actually the same. */
+static void
+verifyMesh(Geometry *geo)
+{
+	int32 i, k;
+	uint32 j;
+	int32 x;
+	int32 a, b, c, m;
+	Mesh *mesh;
+	Triangle *t;
+	uint8 *seen;
+
+	seen = rwNewT(uint8, geo->numTriangles, MEMDUR_FUNCTION | ID_GEOMETRY);
+	memset(seen, 0, geo->numTriangles);
+
+	mesh = geo->meshHeader->getMeshes();
+	for(i = 0; i < geo->meshHeader->numMeshes; i++){
+		m = geo->matList.findIndex(mesh->material);
+		x = 0;
+		for(j = 0; j < mesh->numIndices-2; j++){
+			a = mesh->indices[j+x];
+			x = !x;
+			b = mesh->indices[j+x];
+			c = mesh->indices[j+2];
+			if(a >= geo->numVertices ||
+			   b >= geo->numVertices ||
+			   c >= geo->numVertices){
+				fprintf(stderr, "triangle %d %d %d out of range (%d)\n", a, b, c, geo->numVertices);
+				goto loss;
+			}
+			if(a == b || a == c || b == c)
+				continue;
+trace("%d %d %d\n", a, b, c);
+
+			/* now that we have a triangle, try to find it */
+			for(k = 0; k < geo->numTriangles; k++){
+				t = &geo->triangles[k];
+				if(seen[k] || t->matId != m) continue;
+				if(t->v[0] == a && t->v[1] == b && t->v[2] == c ||
+				   t->v[1] == a && t->v[2] == b && t->v[0] == c ||
+				   t->v[2] == a && t->v[0] == b && t->v[1] == c){
+					seen[k] = 1;
+					goto found;
+				}
+			}
+			goto loss;
+		found:	;
+		}
+		mesh++;
+	}
+
+	/* Also check that all triangles are in the mesh */
+	for(i = 0; i < geo->numTriangles; i++)
+		if(!seen[i]){
+	loss:
+			fprintf(stderr, "TRISTRIP verify failed\n");
+			exit(1);
+		}
+
+	rwFree(seen);
 }
 
 }
