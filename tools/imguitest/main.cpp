@@ -74,7 +74,7 @@ Draw(float timeDelta)
 	static bool show_another_window = false;
 	static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-	rw::RGBA clearcol = { clear_color.x*255, clear_color.y*255, clear_color.z*255, clear_color.w*255 };
+	rw::RGBA clearcol = rw::makeRGBA(clear_color.x*255, clear_color.y*255, clear_color.z*255, clear_color.w*255);
 	Scene.camera->clear(&clearcol, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
 	Scene.camera->beginUpdate();
 
