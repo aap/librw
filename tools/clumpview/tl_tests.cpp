@@ -6,6 +6,8 @@ extern bool dosoftras;
 using namespace rw;
 using namespace RWDEVICE;
 
+void rastest_renderTriangles(RWDEVICE::Im2DVertex *scrverts, int32 verts, uint16 *indices, int32 numTris);
+
 //
 // This is a test to implement T&L in software and render with Im2D
 //
@@ -494,7 +496,6 @@ clipTriangles(MeshState *mstate, CamSpace3DVertex *camverts, Im2DVertex *scrvert
 static void
 submitTriangles(RWDEVICE::Im2DVertex *scrverts, int32 numVerts, uint16 *indices, int32 numTris)
 {
-void rastest_renderTriangles(RWDEVICE::Im2DVertex *scrverts, int32 verts, uint16 *indices, int32 numTris);
 	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	if(dosoftras)
 		rastest_renderTriangles(scrverts, numVerts, indices, numTris);
