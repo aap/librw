@@ -8,6 +8,10 @@ using namespace rw;
 
 #ifdef RW_D3D9
 
+#ifndef VK_OEM_NEC_EQUAL
+#define VK_OEM_NEC_EQUAL 0x92
+#endif
+
 static int keymap[256];
 static void
 initkeymap(void)
@@ -65,6 +69,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static int resizing = 0;
 	static int buttons = 0;
+	POINTS p;
 
 	MouseState ms;
 	switch(msg){
@@ -108,7 +113,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_MOUSEMOVE:
-		POINTS p = MAKEPOINTS(lParam);
+		p = MAKEPOINTS(lParam);
 		ms.posx = p.x;
 		ms.posy = p.y;
 		EventHandler(MOUSEMOVE, &ms);
@@ -231,8 +236,14 @@ WinMain(HINSTANCE instance, HINSTANCE,
 	if(!QueryPerformanceCounter((LARGE_INTEGER*)&ticks))
 		return 0;
 
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
+	args.argc = _argc;
+	args.argv = _argv;
+#else
 	args.argc = __argc;
 	args.argv = __argv;
+#endif
+
 	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
 		return 0;
 
@@ -294,7 +305,11 @@ WinMain(HINSTANCE instance, HINSTANCE,
 	freopen("CONOUT$", "w", stderr);
 */
 
+#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
+	return main(_argc, _argv);
+#else
 	return main(__argc, __argv);
+#endif
 }
 #endif
 #endif

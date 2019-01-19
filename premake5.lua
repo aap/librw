@@ -93,6 +93,11 @@ workspace "librw"
 	filter "action:vs*"
 		buildoptions { "/wd4996", "/wd4244" }
 
+	filter { "platforms:win*gl3", "action:not vs*" }
+		if _OPTIONS["gfxlib"] == "sdl2" then
+			includedirs { "/mingw/include/SDL2" } -- TODO: Detect this properly
+		end
+
 	filter {}
 
 	Libdir = "lib/%{cfg.platform}/%{cfg.buildcfg}"
@@ -122,8 +127,11 @@ function findlibs()
 		else
 			links { "SDL2" }
 		end
-	filter { "platforms:win*gl3" }
+	filter { "platforms:win*gl3", "action:vs*" }
 		defines { "GLEW_STATIC" }
+		links { "glew32s" }
+	filter { "platforms:win*gl3", "action:not vs*" }
+		links { "glew32" }
 	filter { "platforms:win-amd64-gl3" }
 		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/x64") }
 		libdirs { path.join(_OPTIONS["glfwdir"], "lib-vc2015") }
@@ -132,14 +140,16 @@ function findlibs()
 		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
-		links { "glew32s", "opengl32" }
+		links { "opengl32" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw3" }
 		else
 			links { "SDL2" }
 		end
 	filter { "platforms:*d3d9" }
-		links { "d3d9", "Xinput9_1_0" }
+		links { "gdi32", "d3d9" }
+	filter { "platforms:*d3d9", "action:vs*" }
+		links { "Xinput9_1_0" }
 	filter {}
 end
 

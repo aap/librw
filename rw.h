@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 
 #include "src/rwbase.h"

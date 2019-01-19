@@ -17,7 +17,7 @@
 namespace rw {
 namespace gl3 {
 
-static uint32 im2DVbo, im2DIbo;
+uint32 im2DVbo, im2DIbo;
 static int32 u_xform;
 
 #define STARTINDICES 10000

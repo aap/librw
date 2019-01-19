@@ -1,5 +1,5 @@
 #ifdef RW_D3D9
-#define NOMINMAX
+#define NOMINMAX 1
 #include <d3d9.h>
 #endif
 
