@@ -465,11 +465,11 @@ texfunc(Color t, Color f)
 		a = srTexUseAlpha ? t.a : f.a;
 		break;
 	}
-	r = clamp(r);
-	g = clamp(g);
-	b = clamp(b);
-	a = clamp(a);
-	Color v = { r, g, b, a };
+	Color v;
+	v.r = clamp(r);
+	v.g = clamp(g);
+	v.b = clamp(b);
+	v.a = clamp(a);
 	return v;
 }
 
