@@ -506,6 +506,11 @@ Geometry::buildMeshes(void)
 	Triangle *tri;
 	Mesh *mesh;
 
+	if(this->flags & Geometry::NATIVE){
+		fprintf(stderr, "WARNING: trying Geometry::buildMeshes() on pre-instanced geometry\n");
+		return;
+	}
+
 	rwFree(this->meshHeader);
 	this->meshHeader = nil;
 	int32 numMeshes = this->matList.numMaterials;

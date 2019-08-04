@@ -1339,7 +1339,7 @@ rasterCreate(Raster *raster)
 		break;
 	case Raster::CAMERATEXTURE:
 		// TODO. only RW_PS2
-		// check wdith/height and fall through to texture
+		// check width/height and fall through to texture
 		break;
 	}
 
@@ -1421,6 +1421,30 @@ unswizzle32to8(uint8 *dst, uint8 *src, int32 w, int32 h)
 			dst[y*w+x] = src[swizzled];
 		}
 }
+static void
+swizzle8to32(uint8 *dst, uint8 *src, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++) {
+			// byte address of beginning of PSMCT32 block
+			// yblock = y/16 * w/16 * 256
+			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
+			// y coordinate in PSMCT32 block
+			int32 ypos = (((y&~3)>>1)	// column number
+				 + (y&1))&0x7;	// row inside column
+			// indices are swapped in groups of 4 every 4
+			// pixel rows in a block, first at y = 2
+			int32 swap_sel = (y+2)&4;
+			// byte address of word in PSMCT32 block
+			int32 word_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
+			// byte offset in 32 bit word
+			int32 byte_loc = ((y>>1)&1) + ((x>>2)&2);
+			int32 swizzled = block_loc + word_loc + byte_loc;
+			dst[swizzled] = src[y*w+x];
+		}
+}
+
 
 // Unswizzle PSMT4 from PSMCT16 format
 static void
@@ -1453,6 +1477,37 @@ unswizzle16to4(uint8 *dst, uint8 *src, int32 w, int32 h)
 				dst[addr>>1] = dst[addr>>1]&0xF0 | c;
 		}
 }
+static void
+swizzle4to16(uint8 *dst, uint8 *src, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++){
+			// byte address of beginning of PSMCT16 block
+			// yblock = y/16 * w/32 * 256
+			int32 block_loc = (y&(~0xF))*w/2 + (x&(~0x1F));
+			// y coordinate in PSMCT16 block
+			int32 ypos = (((y&~3)>>1)	// column number
+				 + (y&1))&0x7;	// row inside column
+			// indices are swapped in groups of 4 every 4
+			// pixel rows in a block, first at y = 2
+			int32 swap_sel = (y+2)&4;
+			// byte address of halfword in PSMCT16 block
+			int32 hword_loc = ypos*w
+				+ (((x+swap_sel) & 0x7) + ((x & 0x10)>>1))*2;
+			// byte offset in 16 bit word
+			int32 byte_loc = (x>>3)&1;
+			uint32 swizzled = block_loc + hword_loc + byte_loc;
+
+			int32 addr = y*w + x;
+			int8 c = addr & 1 ? src[addr>>1] >> 4 : src[addr>>1] & 0xF;
+			// y&2 selects nibbles
+			if(y & 2)
+				dst[swizzled] = dst[swizzled]&0xF | c<<4;
+			else
+				dst[swizzled] = dst[swizzled]&0xF0 | c;
+		}
+}
 
 void
 expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
@@ -1464,6 +1519,14 @@ expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 			dst[y*w + x*2 + 1] = src[y*srcw/2 + x] >> 4;
 		}
 }
+void
+compressPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++)
+			dst[y*srcw/2 + x] = src[y*w + x*2 + 0] | src[y*w + x*2 + 1] << 4;
+}
 
 void
 copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
@@ -1472,6 +1535,92 @@ copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 	for(y = 0; y < h; y++)
 		for(x = 0; x < w; x++)
 			dst[y*w + x] = src[y*srcw + x];
+}
+
+void
+rasterFromImage(Raster *raster, Image *image)
+{
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+
+	raster->flags &= ~Raster::DONTALLOCATE;
+	if(raster->format & (Raster::PAL4|Raster::PAL8) &&
+	   (raster->format & 0xF00) == Raster::C1555){
+		raster->format &= 0xF000;
+		raster->format |= Raster::C8888;
+	}
+	rasterCreate(raster);
+
+	uint8 *in, *out;
+	if(image->depth <= 8){
+		in = image->palette;
+		out = paletteLock(raster);
+		if(image->depth == 4)
+			memcpy(out, in, 4*16);
+		else
+			convertCSM1_32((uint32*)out, (uint32*)in);
+		paletteUnlock(raster);
+	}
+
+	int32 w, h;
+	w = image->width;
+	h = image->height;
+
+	int minw, minh;
+	int th, tw;
+	transferMinSize(image->depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
+	tw = max(w, minw);
+	th = max(h, minh);
+	in = image->pixels;
+	out = raster->lock(0);
+	if(image->depth == 4){
+		if(natras->flags & Ps2Raster::SWIZZLED4){
+			uint8 *tmp = rwNewT(uint8, tw*th/2, MEMDUR_FUNCTION | ID_RASTERPS2);
+			compressPSMT4(tmp, in, w, h, tw);
+			swizzle4to16(out, tmp, tw, th);
+			rwFree(tmp);
+		}else
+			compressPSMT4(out, in, w, h, tw);
+	}else if(image->depth == 8){
+		if(natras->flags & Ps2Raster::SWIZZLED8){
+			uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
+			copyPSMT8(tmp, in, w, h, tw);
+			swizzle8to32(out, tmp, tw, th);
+			rwFree(tmp);
+		}else
+			copyPSMT8(out, in, w, h, tw);
+	}else{
+		// TODO: stride
+		for(int32 y = 0; y < image->height; y++)
+			for(int32 x = 0; x < image->width; x++)
+				switch(raster->format & 0xF00){
+				case Raster::C8888:
+					out[0] = in[0];
+					out[1] = in[1];
+					out[2] = in[2];
+					out[3] = in[3]*128/255;
+					in += 4;
+					out += 4;
+					break;
+				case Raster::C888:
+					out[0] = in[0];
+					out[1] = in[1];
+					out[2] = in[2];
+					out[3] = 0x80;
+					in += 3;
+					out += 4;
+					break;
+				case Raster::C1555:
+					out[0] = in[0];
+					out[1] = in[1];
+					in += 2;
+					out += 2;
+					break;
+				default:
+					assert(0 && "unknown ps2 raster format");
+					break;
+				}
+	}
+	raster->unlock(0);
 }
 
 Image*
@@ -1866,11 +2015,12 @@ streamExt.mipmapVal);
 	rw::version = oldversion;
 	tex->raster = raster;
 	natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
-//printf("%X %X\n", natras->paletteOffset, natras->tex1low);
+//printf("%X %X\n", natras->paletteBase, natras->tex1low);
 //	printf("%08X%08X %08X%08X %08X%08X\n",
-//	       natras->tex0[1], natras->tex0[0],
-//	       natras->miptbp1[0], natras->miptbp1[1], natras->miptbp2[0], natras->miptbp2[1]);
-//	printTEX0(((uint64)natras->tex0[1] << 32) | natras->tex0[0]);
+//	       (uint32)natras->tex0, (uint32)(natras->tex0>>32),
+//	       (uint32)natras->miptbp1, (uint32)(natras->miptbp1>>32),
+//	       (uint32)natras->miptbp2, (uint32)(natras->miptbp2>>32));
+//	printTEX0(natras->tex0);
 	uint64 tex1;
 	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
 //	printTEX1(tex1);
@@ -1879,6 +2029,22 @@ streamExt.mipmapVal);
 	assert(natras->pixelSize >= streamExt.pixelSize);
 	assert(natras->paletteSize >= streamExt.paletteSize);
 
+//if(natras->tex0 != streamExt.tex0)
+//printf("TEX0: %016llX\n      %016llX\n", natras->tex0, streamExt.tex0);
+//if(natras->tex1low != streamExt.tex1low)
+//printf("TEX1: %08X\n      %08X\n", natras->tex1low, streamExt.tex1low);
+//if(natras->miptbp1 != streamExt.miptbp1)
+//printf("MIP1: %016llX\n      %016llX\n", natras->miptbp1, streamExt.miptbp1);
+//if(natras->miptbp2 != streamExt.miptbp2)
+//printf("MIP2: %016llX\n      %016llX\n", natras->miptbp2, streamExt.miptbp2);
+//if(natras->paletteBase != streamExt.paletteOffset)
+//printf("PAL: %08X\n     %08X\n", natras->paletteBase, streamExt.paletteOffset);
+//if(natras->pixelSize != streamExt.pixelSize)
+//printf("PXS: %08X\n     %08X\n", natras->pixelSize, streamExt.pixelSize);
+//if(natras->paletteSize != streamExt.paletteSize)
+//printf("PLS: %08X\n     %08X\n", natras->paletteSize, streamExt.paletteSize);
+//if(natras->totalSize != streamExt.totalSize)
+//printf("TSZ: %08X\n     %08X\n", natras->totalSize, streamExt.totalSize);
 	natras->tex0 = streamExt.tex0;
 	natras->paletteBase = streamExt.paletteOffset;
 	natras->tex1low = streamExt.tex1low;
@@ -1888,11 +2054,12 @@ streamExt.mipmapVal);
 	natras->paletteSize = streamExt.paletteSize;
 	natras->totalSize = streamExt.totalSize;
 	natras->kl = streamExt.mipmapVal;
-//printf("%X %X\n", natras->paletteOffset, natras->tex1low);
+//printf("%X %X\n", natras->paletteBase, natras->tex1low);
 //	printf("%08X%08X %08X%08X %08X%08X\n",
-//	       natras->tex0[1], natras->tex0[0],
-//	       natras->miptbp1[0], natras->miptbp1[1], natras->miptbp2[0], natras->miptbp2[1]);
-//	printTEX0(((uint64)natras->tex0[1] << 32) | natras->tex0[0]);
+//	       (uint32)natras->tex0, (uint32)(natras->tex0>>32),
+//	       (uint32)natras->miptbp1, (uint32)(natras->miptbp1>>32),
+//	       (uint32)natras->miptbp2, (uint32)(natras->miptbp2>>32));
+//	printTEX0(natras->tex0);
 	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
 //	printTEX1(tex1);
 

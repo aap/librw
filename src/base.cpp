@@ -461,6 +461,8 @@ Matrix::lookAt(const V3d &dir, const V3d &up)
 	this->flags = TYPEORTHONORMAL;
 }
 
+/* For a row-major representation, this calculates src1 * src.
+ * For colum-major src2 * src1 */
 void
 Matrix::mult_(Matrix *dst, const Matrix *src1, const Matrix *src2)
 {
