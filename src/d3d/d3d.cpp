@@ -309,8 +309,10 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 }
 
 uint8*
-lockTexture(void *texture, int32 level)
+lockTexture(void *texture, int32 level, int32 lockMode)
 {
+	// TODO: don't ignore this
+	(void)lockMode;
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
 	D3DLOCKED_RECT lr;
@@ -458,10 +460,10 @@ rasterCreate(Raster *raster)
 }
 
 uint8*
-rasterLock(Raster *raster, int32 level)
+rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	return lockTexture(natras->texture, level);
+	return lockTexture(natras->texture, level, lockMode);
 }
 
 void
@@ -546,7 +548,7 @@ rasterFromImage(Raster *raster, Image *image)
 
 	int32 inc = image->bpp;
 	in = image->pixels;
-	out = raster->lock(0);
+	out = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	if(pallength)
 		memcpy(out, in, raster->width*raster->height);
 	else
@@ -592,7 +594,7 @@ rasterToImage(Raster *raster)
 	if(natras->customFormat){
 		image = Image::create(raster->width, raster->height, 32);
 		image->allocate();
-		uint8 *pix = raster->lock(0);
+		uint8 *pix = raster->lock(0, Raster::LOCKREAD);
 		switch(natras->format){
 		case D3DFMT_DXT1:
 			image->setPixelsDXT(1, pix);
@@ -660,7 +662,7 @@ rasterToImage(Raster *raster)
 	}
 
 	out = image->pixels;
-	in = raster->lock(0);
+	in = raster->lock(0, Raster::LOCKREAD);
 	if(pallength)
 		memcpy(out, in, raster->width*raster->height);
 	else
@@ -745,7 +747,7 @@ setPalette(Raster *raster, void *palette, int32 size)
 void
 setTexels(Raster *raster, void *texels, int32 level)
 {
-	uint8 *dst = raster->lock(level);
+	uint8 *dst = raster->lock(level, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	memcpy(dst, texels, getLevelSize(raster, level));
 	raster->unlock(level);
 }

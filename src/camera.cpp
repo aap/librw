@@ -500,7 +500,7 @@ Camera::setFOV(float32 hfov, float32 ratio)
 	}
 	hfov = hfov*3.14159f/360.0f;	// deg to rad and halved
 
-	float ar1 = 4.0/3.0;
+	float ar1 = 4.0f/3.0f;
 	float ar2 = w/h;
 	float vfov = atanf(tanf(hfov/2) / ar1) *2;
 	hfov = atanf(tanf(vfov/2) * ar2) *2;

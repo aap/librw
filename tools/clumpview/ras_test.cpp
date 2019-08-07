@@ -842,7 +842,7 @@ void
 endSoftras(void)
 {
 	int i;
-	uint8 *dst = testras->lock(0);
+	uint8 *dst = testras->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	uint8 *src = rs::canvas->fb;
 	for(i = 0; i < rs::canvas->w*rs::canvas->h; i++){
 		dst[0] = src[1];

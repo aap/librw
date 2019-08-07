@@ -19,6 +19,15 @@
 namespace rw {
 namespace ps2 {
 
+enum
+{
+	// from RW
+	PS2LOCK_READ		= 0x02,
+	PS2LOCK_WRITE		= 0x04,
+	PS2LOCK_READ_PALETTE	= 0x08,
+	PS2LOCK_WRITE_PALETTE	= 0x10,
+};
+
 int32 nativeRasterOffset;
 
 #define MAXLEVEL(r) ((r)->tex1low >> 2)
@@ -1345,168 +1354,217 @@ rasterCreate(Raster *raster)
 
 }
 
-uint8*
-rasterLock(Raster *raster, int32 level)
+static uint32
+swizzle(uint32 x, uint32 y, uint32 logw)
 {
+#define X(n) ((x>>(n))&1)
+#define Y(n) ((y>>(n))&1)
+
+	uint32 nx, ny, n;
+	x ^= (Y(1)^Y(2))<<2;
+	nx = x&7 | (x>>1)&~7;
+	ny = y&1 | (y>>1)&~1;
+	n = Y(1) | X(3)<<1;
+	return n | nx<<2 | ny<<logw-1+2;
+}
+
+void
+unswizzleRaster(Raster *raster)
+{
+	uint8 tmpbuf[1024*4];	// 1024x4px, maximum possible width
+	uint32 mask;
+	int32 x, y, w, h;
+	int32 i;
+	int32 logw;
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	uint8 *px;
+
+	if((raster->format & (Raster::PAL4|Raster::PAL8)) == 0)
+		return;
+
+	int minw, minh;
+	transferMinSize(raster->format & Raster::PAL4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
+	w = max(raster->width, minw);
+	h = max(raster->height, minh);
+	px = raster->pixels;
+	logw = 0;
+	for(i = 1; i < raster->width; i *= 2) logw++;
+	mask = (1<<logw+2)-1;
+
+	if(raster->format & Raster::PAL4 && natras->flags & Ps2Raster::SWIZZLED4){
+		for(y = 0; y < h; y += 4){
+			memcpy(tmpbuf, &px[y<<logw-1], 2*w);
+			for(i = 0; i < 4; i++)
+				for(x = 0; x < w; x++){
+					uint32 a = (y+i<<logw)+x;
+					uint32 s = swizzle(x, y+i, logw)&mask;
+					uint8 c = s & 1 ? tmpbuf[s>>1] >> 4 : tmpbuf[s>>1] & 0xF;
+					px[a>>1] = a & 1 ? px[a>>1]&0xF | c<<4 : px[a>>1]&0xF0 | c;
+				}
+		}
+	}else if(raster->format & Raster::PAL8 && natras->flags & Ps2Raster::SWIZZLED8){
+		for(y = 0; y < h; y += 4){
+			memcpy(tmpbuf, &px[y<<logw], 4*w);
+			for(i = 0; i < 4; i++)
+				for(x = 0; x < w; x++){
+					uint32 a = (y+i<<logw)+x;
+					uint32 s = swizzle(x, y+i, logw)&mask;
+					px[a] = tmpbuf[s];
+				}
+		}
+	}
+}
+
+void
+swizzleRaster(Raster *raster)
+{
+	uint8 tmpbuf[1024*4];	// 1024x4px, maximum possible width
+	uint32 mask;
+	int32 x, y, w, h;
+	int32 i;
+	int32 logw;
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	uint8 *px;
+
+	if((raster->format & (Raster::PAL4|Raster::PAL8)) == 0)
+		return;
+
+	int minw, minh;
+	transferMinSize(raster->format & Raster::PAL4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
+	w = max(raster->width, minw);
+	h = max(raster->height, minh);
+	px = raster->pixels;
+	logw = 0;
+	for(i = 1; i < raster->width; i *= 2) logw++;
+	mask = (1<<logw+2)-1;
+
+	if(raster->format & Raster::PAL4 && natras->flags & Ps2Raster::SWIZZLED4){
+		for(y = 0; y < h; y += 4){
+			for(i = 0; i < 4; i++)
+				for(x = 0; x < w; x++){
+					uint32 a = (y+i<<logw)+x;
+					uint32 s = swizzle(x, y+i, logw)&mask;
+					uint8 c = a & 1 ? px[a>>1] >> 4 : px[a>>1] & 0xF;
+					tmpbuf[s>>1] = s & 1 ? tmpbuf[s>>1]&0xF | c<<4 : tmpbuf[s>>1]&0xF0 | c;
+				}
+			memcpy(&px[y<<logw-1], tmpbuf, 2*w);
+		}
+	}else if(raster->format & Raster::PAL8 && natras->flags & Ps2Raster::SWIZZLED8){
+		for(y = 0; y < h; y += 4){
+			for(i = 0; i < 4; i++)
+				for(x = 0; x < w; x++){
+					uint32 a = (y+i<<logw)+x;
+					uint32 s = swizzle(x, y+i, logw)&mask;
+					tmpbuf[s] = px[a];
+				}
+			memcpy(&px[y<<logw], tmpbuf, 4*w);
+		}
+	}
+}
+
+uint8*
+rasterLock(Raster *raster, int32 level, int32 lockMode)
+{
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+
+	if(level > 0){
+		int32 minw, minh;
+		int32 mipw, miph;
+		transferMinSize(raster->format & Raster::PAL4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
+		while(level--){
+			mipw = max(raster->width, minw);
+			miph = max(raster->height, minh);
+			raster->pixels += ALIGN16(mipw*miph*raster->depth/8) + 0x50;
+			raster->width /= 2;
+			raster->height /= 2;
+		}
+	}
+
+	if((lockMode & Raster::LOCKNOFETCH) == 0)
+		unswizzleRaster(raster);
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= PS2LOCK_READ;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= PS2LOCK_WRITE;
 	return raster->pixels;
 }
 
 void
 rasterUnlock(Raster *raster, int32 level)
 {
-	// TODO
-	(void)raster;
-	(void)level;
+	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		swizzleRaster(raster);
+
+	raster->width = raster->originalWidth;
+	raster->height = raster->originalHeight;
+	raster->pixels = raster->originalPixels;
+	raster->stride = raster->originalStride;
+	if(natras->flags & Ps2Raster::NEWSTYLE)
+		raster->pixels = ((Ps2Raster::PixelPtr*)raster->pixels)->pixels + 0x50;
+
+	raster->privateFlags &= ~(PS2LOCK_READ|PS2LOCK_WRITE);
+	// TODO: generate mipmaps
 }
 
+static void
+convertCSM1_16(uint32 *pal)
+{
+	int i, j;
+	uint32 tmp;
+	for(i = 0; i < 256; i++)
+		// palette index bits 0x08 and 0x10 are flipped
+		if((i & 0x18) == 0x10){
+			j = i ^ 0x18;
+			tmp = pal[i];
+			pal[i] = pal[j];
+			pal[j] = tmp;
+		}
+}
+
+static void
+convertCSM1_32(uint32 *pal)
+{
+	int i, j;
+	uint32 tmp;
+	for(i = 0; i < 256; i++)
+		// palette index bits 0x08 and 0x10 are flipped
+		if((i & 0x18) == 0x10){
+			j = i ^ 0x18;
+			tmp = pal[i];
+			pal[i] = pal[j];
+			pal[j] = tmp;
+		}
+}
+
+static void
+convertPalette(Raster *raster)
+{
+	if(raster->format & Raster::PAL8){
+		if((raster->format & 0xF00) == Raster::C8888)
+			convertCSM1_32((uint32*)raster->palette);
+		else if((raster->format & 0xF00) == Raster::C8888)
+			convertCSM1_16((uint32*)raster->palette);
+	}
+}
+
+// NB: RW doesn't convert the palette when locking/unlocking
 uint8*
-paletteLock(Raster *raster)
+rasterLockPalette(Raster *raster, int32 lockMode)
 {
 	if((raster->format & (Raster::PAL4 | Raster::PAL8)) == 0)
 		return nil;
+	if((lockMode & Raster::LOCKNOFETCH) == 0)
+		convertPalette(raster);
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= PS2LOCK_READ_PALETTE;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= PS2LOCK_WRITE_PALETTE;
 	return raster->palette;
 }
 
 void
-paletteUnlock(Raster *raster)
+rasterUnlockPalette(Raster *raster)
 {
-	// TODO
-	(void)raster;
-}
-
-static void
-convertCSM1_16(uint16 *dst, uint16 *src)
-{
-	// palette index bits 0x08 and 0x10 are flipped
-	int i, j;
-	for(i = 0; i < 256; i++){
-		j = i&~0x18 | (i&0x10)>>1 | (i&0x8)<<1;
-		dst[i] = src[j];
-	}
-}
-
-static void
-convertCSM1_32(uint32 *dst, uint32 *src)
-{
-	// palette index bits 0x08 and 0x10 are flipped
-	int i, j;
-	for(i = 0; i < 256; i++){
-		j = i&~0x18 | (i&0x10)>>1 | (i&0x8)<<1;
-		dst[i] = src[j];
-	}
-}
-
-// Unswizzle PSMT8 from PSMCT32 format
-// Original code from http://ps2linux.no-ip.info/playstation2-linux.com/docs/howto/display_docef7c.html?docid=75
-static void
-unswizzle32to8(uint8 *dst, uint8 *src, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w; x++) {
-			// byte address of beginning of PSMCT32 block
-			// yblock = y/16 * w/16 * 256
-			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
-			// y coordinate in PSMCT32 block
-			int32 ypos = (((y&~3)>>1)	// column number
-				 + (y&1))&0x7;	// row inside column
-			// indices are swapped in groups of 4 every 4
-			// pixel rows in a block, first at y = 2
-			int32 swap_sel = (y+2)&4;
-			// byte address of word in PSMCT32 block
-			int32 word_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
-			// byte offset in 32 bit word
-			int32 byte_loc = ((y>>1)&1) + ((x>>2)&2);
-			int32 swizzled = block_loc + word_loc + byte_loc;
-			dst[y*w+x] = src[swizzled];
-		}
-}
-static void
-swizzle8to32(uint8 *dst, uint8 *src, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w; x++) {
-			// byte address of beginning of PSMCT32 block
-			// yblock = y/16 * w/16 * 256
-			int32 block_loc = (y&(~0xF))*w + (x&(~0xF))*2;
-			// y coordinate in PSMCT32 block
-			int32 ypos = (((y&~3)>>1)	// column number
-				 + (y&1))&0x7;	// row inside column
-			// indices are swapped in groups of 4 every 4
-			// pixel rows in a block, first at y = 2
-			int32 swap_sel = (y+2)&4;
-			// byte address of word in PSMCT32 block
-			int32 word_loc = ypos*w*2 + ((x+swap_sel)&0x7)*4;
-			// byte offset in 32 bit word
-			int32 byte_loc = ((y>>1)&1) + ((x>>2)&2);
-			int32 swizzled = block_loc + word_loc + byte_loc;
-			dst[swizzled] = src[y*w+x];
-		}
-}
-
-
-// Unswizzle PSMT4 from PSMCT16 format
-static void
-unswizzle16to4(uint8 *dst, uint8 *src, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w; x++){
-			// byte address of beginning of PSMCT16 block
-			// yblock = y/16 * w/32 * 256
-			int32 block_loc = (y&(~0xF))*w/2 + (x&(~0x1F));
-			// y coordinate in PSMCT16 block
-			int32 ypos = (((y&~3)>>1)	// column number
-				 + (y&1))&0x7;	// row inside column
-			// indices are swapped in groups of 4 every 4
-			// pixel rows in a block, first at y = 2
-			int32 swap_sel = (y+2)&4;
-			// byte address of halfword in PSMCT16 block
-			int32 hword_loc = ypos*w
-				+ (((x+swap_sel) & 0x7) + ((x & 0x10)>>1))*2;
-			// byte offset in 16 bit word
-			int32 byte_loc = (x>>3)&1;
-			uint32 swizzled = block_loc + hword_loc + byte_loc;
-			// y&2 selects nibbles
-			int8 c = y & 2 ? src[swizzled] >> 4 : src[swizzled] & 0xF;
-			int32 addr = y*w + x;
-			if(addr & 1)
-				dst[addr>>1] = dst[addr>>1]&0xF | c<<4;
-			else
-				dst[addr>>1] = dst[addr>>1]&0xF0 | c;
-		}
-}
-static void
-swizzle4to16(uint8 *dst, uint8 *src, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w; x++){
-			// byte address of beginning of PSMCT16 block
-			// yblock = y/16 * w/32 * 256
-			int32 block_loc = (y&(~0xF))*w/2 + (x&(~0x1F));
-			// y coordinate in PSMCT16 block
-			int32 ypos = (((y&~3)>>1)	// column number
-				 + (y&1))&0x7;	// row inside column
-			// indices are swapped in groups of 4 every 4
-			// pixel rows in a block, first at y = 2
-			int32 swap_sel = (y+2)&4;
-			// byte address of halfword in PSMCT16 block
-			int32 hword_loc = ypos*w
-				+ (((x+swap_sel) & 0x7) + ((x & 0x10)>>1))*2;
-			// byte offset in 16 bit word
-			int32 byte_loc = (x>>3)&1;
-			uint32 swizzled = block_loc + hword_loc + byte_loc;
-
-			int32 addr = y*w + x;
-			int8 c = addr & 1 ? src[addr>>1] >> 4 : src[addr>>1] & 0xF;
-			// y&2 selects nibbles
-			if(y & 2)
-				dst[swizzled] = dst[swizzled]&0xF | c<<4;
-			else
-				dst[swizzled] = dst[swizzled]&0xF0 | c;
-		}
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		convertPalette(raster);
+	raster->privateFlags &= ~(PS2LOCK_READ_PALETTE|PS2LOCK_WRITE_PALETTE);
 }
 
 void
@@ -1550,44 +1608,34 @@ rasterFromImage(Raster *raster, Image *image)
 	}
 	rasterCreate(raster);
 
+	int32 pallength = 0;
+	if(raster->format & Raster::PAL4)
+		pallength = 16;
+	else if(raster->format & Raster::PAL8)
+		pallength = 256;
+
 	uint8 *in, *out;
 	if(image->depth <= 8){
 		in = image->palette;
-		out = paletteLock(raster);
-		if(image->depth == 4)
-			memcpy(out, in, 4*16);
-		else
-			convertCSM1_32((uint32*)out, (uint32*)in);
-		paletteUnlock(raster);
+		out = raster->lockPalette(Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+		memcpy(out, in, 4*pallength);
+		for(int32 i = 0; i < pallength; i++){
+			out[3] = out[3]*128/255;
+			out += 4;
+		}
+		raster->unlockPalette();
 	}
 
-	int32 w, h;
-	w = image->width;
-	h = image->height;
-
 	int minw, minh;
-	int th, tw;
+	int tw;
 	transferMinSize(image->depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
-	tw = max(w, minw);
-	th = max(h, minh);
+	tw = max(image->width, minw);
 	in = image->pixels;
-	out = raster->lock(0);
+	out = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	if(image->depth == 4){
-		if(natras->flags & Ps2Raster::SWIZZLED4){
-			uint8 *tmp = rwNewT(uint8, tw*th/2, MEMDUR_FUNCTION | ID_RASTERPS2);
-			compressPSMT4(tmp, in, w, h, tw);
-			swizzle4to16(out, tmp, tw, th);
-			rwFree(tmp);
-		}else
-			compressPSMT4(out, in, w, h, tw);
+		compressPSMT4(out, in, image->width, image->height, tw);
 	}else if(image->depth == 8){
-		if(natras->flags & Ps2Raster::SWIZZLED8){
-			uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
-			copyPSMT8(tmp, in, w, h, tw);
-			swizzle8to32(out, tmp, tw, th);
-			rwFree(tmp);
-		}else
-			copyPSMT8(out, in, w, h, tw);
+		copyPSMT8(out, in, image->width, image->height, tw);
 	}else{
 		// TODO: stride
 		for(int32 y = 0; y < image->height; y++)
@@ -1666,52 +1714,28 @@ rasterToImage(Raster *raster)
 
 	if(pallength){
 		out = image->palette;
-		in = paletteLock(raster);
-		if(rasterFormat == Raster::C1555){
-			if(depth == 8)
-				convertCSM1_16((uint16*)out, (uint16*)in);
-			else
-				memcpy(out, in, pallength*2);
-		}else if(rasterFormat == Raster::C8888){
-			if(depth == 8)
-				convertCSM1_32((uint32*)out, (uint32*)in);
-			else
-				memcpy(out, in, pallength*4);
+		in = raster->lockPalette(Raster::LOCKREAD);
+		if(rasterFormat == Raster::C8888){
+			memcpy(out, in, pallength*4);
 			for(int32 i = 0; i < pallength; i++){
 				out[3] = out[3]*255/128;
 				out += 4;
 			}
-		}
-		paletteUnlock(raster);
+		}else
+			memcpy(out, in, pallength*2);
+		raster->unlockPalette();
 	}
 
-	int32 w, h;
-	w = raster->width;
-	h = raster->height;
-
 	int minw, minh;
-	int th, tw;
+	int tw;
 	transferMinSize(depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
-	tw = max(w, minw);
-	th = max(h, minh);
+	tw = max(raster->width, minw);
 	out = image->pixels;
-	in = raster->lock(0);
+	in = raster->lock(0, Raster::LOCKREAD);
 	if(depth == 4){
-		if(natras->flags & Ps2Raster::SWIZZLED4){
-			uint8 *tmp = rwNewT(uint8, tw*th/2, MEMDUR_FUNCTION | ID_RASTERPS2);
-			unswizzle16to4(tmp, in, tw, th);
-			expandPSMT4(out, tmp, w, h, tw);
-			rwFree(tmp);
-		}else
-			expandPSMT4(out, in, w, h, tw);
+		expandPSMT4(out, in, raster->width, raster->height, tw);
 	}else if(depth == 8){
-		if(natras->flags & Ps2Raster::SWIZZLED8){
-			uint8 *tmp = rwNewT(uint8, tw*th, MEMDUR_FUNCTION | ID_RASTERPS2);
-			unswizzle32to8(tmp, in, tw, th);
-			copyPSMT8(out, tmp, w, h, tw);
-			rwFree(tmp);
-		}else
-			copyPSMT8(out, in, w, h, tw);
+		copyPSMT8(out, in, raster->width, raster->height, tw);
 	}else
 		// TODO: stride
 		for(int32 y = 0; y < image->height; y++)
@@ -1787,8 +1811,8 @@ createNativeRaster(void *object, int32 offset, int32)
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
-	// TODO
-	(void)offset;
+	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
+	freealign(raster->data);
 	return object;
 }
 

@@ -32,6 +32,8 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_PS2]->rasterCreate = rasterCreate;
 	engine->driver[PLATFORM_PS2]->rasterLock = rasterLock;
 	engine->driver[PLATFORM_PS2]->rasterUnlock = rasterUnlock;
+	engine->driver[PLATFORM_PS2]->rasterLockPalette = rasterLockPalette;
+	engine->driver[PLATFORM_PS2]->rasterUnlockPalette = rasterUnlockPalette;
 	engine->driver[PLATFORM_PS2]->rasterNumLevels = rasterNumLevels;
 	engine->driver[PLATFORM_PS2]->rasterFromImage = rasterFromImage;
 	engine->driver[PLATFORM_PS2]->rasterToImage = rasterToImage;

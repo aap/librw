@@ -59,8 +59,10 @@ struct Driver
 	int32 rasterNativeOffset;
 
 	void   (*rasterCreate)(Raster*);
-	uint8 *(*rasterLock)(Raster*, int32 level);
+	uint8 *(*rasterLock)(Raster*, int32 level, int32 lockMode);
 	void   (*rasterUnlock)(Raster*, int32 level);
+	uint8 *(*rasterLockPalette)(Raster*, int32 lockMode);
+	void   (*rasterUnlockPalette)(Raster*);
 	int32  (*rasterNumLevels)(Raster*);
 	void   (*rasterFromImage)(Raster*, Image*);
 	Image *(*rasterToImage)(Raster*);
@@ -158,8 +160,10 @@ namespace null {
 	void  *getRenderState(int32 state);
 
 	void   rasterCreate(Raster*);
-	uint8 *rasterLock(Raster*, int32 level);
+	uint8 *rasterLock(Raster*, int32 level, int32 lockMode);
 	void   rasterUnlock(Raster*, int32 level);
+	uint8 *rasterLockPalette(Raster*, int32 lockMode);
+	void   rasterUnlockPalette(Raster*);
 	int32  rasterNumLevels(Raster*);
 	void   rasterFromImage(Raster*, Image*);
 	Image *rasterToImage(Raster*);

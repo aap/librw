@@ -95,7 +95,7 @@ rasterCreate(Raster *raster)
 }
 
 uint8*
-rasterLock(Raster*, int32 level)
+rasterLock(Raster*, int32 level, int32 lockMode)
 {
 	printf("locking\n");
 	return nil;

@@ -138,6 +138,8 @@ Engine::open(void)
 		engine->driver[i]->rasterCreate = null::rasterCreate;
 		engine->driver[i]->rasterLock = null::rasterLock;
 		engine->driver[i]->rasterUnlock = null::rasterUnlock;
+		engine->driver[i]->rasterLockPalette = null::rasterLockPalette;
+		engine->driver[i]->rasterUnlockPalette = null::rasterUnlockPalette;
 		engine->driver[i]->rasterNumLevels = null::rasterNumLevels;
 		engine->driver[i]->rasterFromImage = null::rasterFromImage;
 		engine->driver[i]->rasterToImage = null::rasterToImage;
@@ -225,7 +227,7 @@ rasterCreate(Raster*)
 }
 
 uint8*
-rasterLock(Raster*, int32)
+rasterLock(Raster*, int32, int32)
 {
 	assert(0 && "lockRaster not implemented");
 	return nil;
@@ -235,6 +237,19 @@ void
 rasterUnlock(Raster*, int32)
 {
 	assert(0 && "unlockRaster not implemented");
+}
+
+uint8*
+rasterLockPalette(Raster*, int32)
+{
+	assert(0 && "rasterLockPalette not implemented");
+	return nil;
+}
+
+void
+rasterUnlockPalette(Raster*)
+{
+	assert(0 && "rasterUnlockPalette not implemented");
 }
 
 int32

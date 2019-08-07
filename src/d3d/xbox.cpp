@@ -580,8 +580,11 @@ rasterCreate(Raster *raster)
 }
 
 uint8*
-rasterLock(Raster *raster, int32 level)
+rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
+	// TODO?
+	(void)lockMode;
+
 	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 	RasterLevels *levels = (RasterLevels*)natras->texture;
 	return levels->levels[level].data;
@@ -644,7 +647,7 @@ rasterToImage(Raster *raster)
 	if(natras->format){
 		image = Image::create(raster->width, raster->height, 32);
 		image->allocate();
-		uint8 *pix = raster->lock(0);
+		uint8 *pix = raster->lock(0, Raster::LOCKREAD);
 		switch(natras->format){
 		case D3DFMT_DXT1:
 			image->setPixelsDXT(1, pix);
@@ -715,7 +718,7 @@ rasterToImage(Raster *raster)
 	}
 
 	out = image->pixels;
-	in = raster->lock(0);
+	in = raster->lock(0, Raster::LOCKREAD);
 
 	unswizzle(out, in, image->width, image->height, depth < 8 ? 1 : depth/8);
 	// Fix RGB order
@@ -854,7 +857,7 @@ readNativeTexture(Stream *stream)
 		stream->read(ras->palette, 4*256);
 
 	// exploit the fact that mipmaps are allocated consecutively
-	uint8 *data = raster->lock(0);
+	uint8 *data = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	stream->read(data, totalSize);
 	raster->unlock(0);
 
@@ -899,7 +902,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		stream->write(ras->palette, 4*256);
 
 	// exploit the fact that mipmaps are allocated consecutively
-	uint8 *data = raster->lock(0);
+	uint8 *data = raster->lock(0, Raster::LOCKREAD);
 	stream->write(data, totalSize);
 	raster->unlock(0);
 }

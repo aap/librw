@@ -549,7 +549,7 @@ readNativeTexture(Stream *stream)
 	for(int32 i = 0; i < numLevels; i++){
 		size = stream->readU32();
 		if(i < raster->getNumLevels()){
-			data = raster->lock(i);
+			data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 			stream->read(data, size);
 			raster->unlock(i);
 		}else
@@ -612,7 +612,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	for(int32 i = 0; i < numLevels; i++){
 		size = getLevelSize(raster, i);
 		stream->writeU32(size);
-		data = raster->lock(i);
+		data = raster->lock(i, Raster::LOCKREAD);
 		stream->write(data, size);
 		raster->unlock(i);
 	}

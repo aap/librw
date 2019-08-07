@@ -170,13 +170,14 @@ struct Raster
 	// TODO: use bytes
 	int32 type;
 	int32 flags;
+	int32 privateFlags;
 	int32 format;
 	int32 width, height, depth;
 	int32 stride;
 	uint8 *pixels;
 	uint8 *palette;
+	// remember for locked rasters
 	uint8 *originalPixels;
-	// TODO: use them (for locking mainly)
 	int32 originalWidth;
 	int32 originalHeight;
 	int32 originalStride;
@@ -190,8 +191,10 @@ struct Raster
 	void destroy(void);
 	static Raster *createFromImage(Image *image, int32 platform = 0);
 	Image *toImage(void);
-	uint8 *lock(int32 level);
+	uint8 *lock(int32 level, int32 lockMode);
 	void unlock(int32 level);
+	uint8 *lockPalette(int32 lockMode);
+	void unlockPalette(void);
 	int32 getNumLevels(void);
 	static int32 calculateNumLevels(int32 width, int32 height);
 	static bool formatHasAlpha(int32 format);
@@ -220,6 +223,12 @@ struct Raster
 		TEXTURE       = 0x04,
 		CAMERATEXTURE = 0x05,
 		DONTALLOCATE  = 0x80
+	};
+	enum LockMode {
+		LOCKWRITE	= 1,
+		LOCKREAD	= 2,
+		LOCKNOFETCH	= 4,	// don't fetch pixel data
+		LOCKRAW		= 8,
 	};
 };
 

@@ -464,6 +464,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	raster->platform = platform ? platform : rw::platform;
 	raster->type = format & 0x7;
 	raster->flags = format & 0xF8;
+	raster->privateFlags = 0;
 	raster->format = format & 0xFF00;
 	raster->width = width;
 	raster->height = height;
@@ -498,15 +499,27 @@ Raster::destroy(void)
 }
 
 uint8*
-Raster::lock(int32 level)
+Raster::lock(int32 level, int32 lockMode)
 {
-	return engine->driver[this->platform]->rasterLock(this, level);
+	return engine->driver[this->platform]->rasterLock(this, level, lockMode);
 }
 
 void
 Raster::unlock(int32 level)
 {
 	engine->driver[this->platform]->rasterUnlock(this, level);
+}
+
+uint8*
+Raster::lockPalette(int32 lockMode)
+{
+	return engine->driver[this->platform]->rasterLockPalette(this, lockMode);
+}
+
+void
+Raster::unlockPalette(void)
+{
+	engine->driver[this->platform]->rasterUnlockPalette(this);
 }
 
 int32
