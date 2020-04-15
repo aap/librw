@@ -149,6 +149,7 @@ struct Image
 
 Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
+Image *readBMP(const char *filename);
 void writeBMP(Image *image, const char *filename);
 
 // used to emulate d3d and xbox textures

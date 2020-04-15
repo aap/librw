@@ -392,6 +392,7 @@ rasterCreateTexture(Raster *raster)
 	natras->texture = createTexture(raster->width, raster->height,
 	                                raster->format & Raster::MIPMAP ? levels : 1,
 	                                format);
+	assert(natras->texture && "couldn't create d3d texture");
 }
 
 static void
@@ -495,6 +496,7 @@ rasterFromImage(Raster *raster, Image *image)
 	if(image->depth <= 8 && !isP8supported){
 		truecolimg = Image::create(image->width, image->height, image->depth);
 		truecolimg->pixels = image->pixels;
+		truecolimg->stride = image->stride;
 		truecolimg->palette = image->palette;
 		truecolimg->unindex();
 		image = truecolimg;

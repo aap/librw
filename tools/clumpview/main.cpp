@@ -170,6 +170,7 @@ InitRW(void)
 
 	initFont();
 
+	rw::d3d::isP8supported = false;
 	tex = rw::Texture::read("maze", nil);
 	tex2 = rw::Texture::read("checkers", nil);
 
@@ -264,14 +265,16 @@ im2dtest(void)
 		verts[i].setScreenZ(rw::im2d::GetNearZ());
 		verts[i].setCameraZ(Scene.camera->nearPlane);
 		verts[i].setRecipCameraZ(recipZ);
-//		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
-		verts[i].setColor(255, 255, 255, 255);
+		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
+		if(dosoftras)
+			verts[i].setColor(255, 255, 255, 255);
 		verts[i].setU(vs[i].u + 0.5f/640.0f, recipZ);
 		verts[i].setV(vs[i].v + 0.5f/448.0f, recipZ);
 	}
 
-//	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex2->raster);
-	rw::SetRenderStatePtr(rw::TEXTURERASTER, testras);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+	if(dosoftras)
+		rw::SetRenderStatePtr(rw::TEXTURERASTER, testras);
 	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
@@ -347,8 +350,8 @@ void drawtest(void);
 extern void endSoftras(void);
 	if(dosoftras){
 		endSoftras();
-		im2dtest();
 	}
+		im2dtest();
 
 //	Scene.clump->render();
 //	im3dtest();
