@@ -218,7 +218,7 @@ struct Skin
 	void findUsedBones(int32 numVertices);
 
 	static void setPipeline(Atomic *a, int32 type);
-	static Skin *get(Geometry *geo){
+	static Skin *get(const Geometry *geo){
 		return *PLUGINOFFSET(Skin*, geo, skinGlobals.geoOffset);
 	}
 	static void set(Geometry *geo, Skin *skin){
@@ -228,7 +228,7 @@ struct Skin
 		*PLUGINOFFSET(HAnimHierarchy*, atomic,
 		              skinGlobals.atomicOffset) = hier;
 	}
-	static HAnimHierarchy *getHierarchy(Atomic *atomic){
+	static HAnimHierarchy *getHierarchy(const Atomic *atomic){
 		return *PLUGINOFFSET(HAnimHierarchy*, atomic,
 		                     skinGlobals.atomicOffset);
 	}

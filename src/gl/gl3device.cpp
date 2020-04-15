@@ -26,6 +26,13 @@
 namespace rw {
 namespace gl3 {
 
+struct DisplayMode
+{
+	GLFWvidmode mode;
+	int32 depth;
+	uint32 flags;
+};
+
 struct GlGlobals
 {
 #ifdef LIBRW_SDL2
@@ -33,8 +40,21 @@ struct GlGlobals
 	SDL_GLContext glcontext;
 #else
 	GLFWwindow *window;
+
+	GLFWmonitor *monitor;
+	int numMonitors;
+	int currentMonitor;
+
+	DisplayMode *modes;
+	int numModes;
+	int currentMode;
 #endif
 	int presentWidth, presentHeight;
+
+	// for opening the window
+	int winWidth, winHeight;
+	const char *winTitle;
+	GLFWwindow **pWindow;
 } glGlobals;
 
 struct UniformState
@@ -119,6 +139,7 @@ static RwStateCache rwStateCache;
 static int32 activeTexture;
 
 static uint32 blendMap[] = {
+	GL_ZERO,	// actually invalid
 	GL_ZERO,
 	GL_ONE,
 	GL_SRC_COLOR,
@@ -728,10 +749,10 @@ beginUpdate(Camera *cam)
 
 #ifdef LIBRW_SDL2
 static int
-openSDL2(EngineStartParams *startparams)
+openSDL2(EngineOpenParams *openparams)
 {
-	if (!startparams){
-		RWERROR((ERR_GENERAL, "startparams invalid"));
+	if (!openparams){
+		RWERROR((ERR_GENERAL, "openparams invalid"));
 		return 0;
 	}
 
@@ -752,9 +773,9 @@ openSDL2(EngineStartParams *startparams)
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
 	int flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL;
-	if (startparams->fullscreen)
+	if (openparams->fullscreen)
 		flags |= SDL_WINDOW_FULLSCREEN;
-	win = SDL_CreateWindow(startparams->windowtitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, startparams->width, startparams->height, flags);
+	win = SDL_CreateWindow(openparams->windowtitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, openparams->width, openparams->height, flags);
 	if(win == nil){
 		RWERROR((ERR_ENGINEOPEN, SDL_GetError()));
 		SDL_QuitSubSystem(SDL_INIT_VIDEO);
@@ -781,7 +802,7 @@ openSDL2(EngineStartParams *startparams)
 	}
 	glGlobals.window = win;
 	glGlobals.glcontext = ctx;
-	*startparams->window = win;
+	*openparams->window = win;
 	return 1;
 }
 
@@ -794,11 +815,64 @@ closeSDL2(void)
 	return 1;
 }
 #else
-static int
-openGLFW(EngineStartParams *startparams)
+
+static void
+addVideoMode(const GLFWvidmode *mode)
 {
-	GLenum status;
-	GLFWwindow *win;
+	int i;
+
+	for(i = 1; i < glGlobals.numModes; i++){
+		if(glGlobals.modes[i].mode.width == mode->width &&
+		   glGlobals.modes[i].mode.height == mode->height &&
+		   glGlobals.modes[i].mode.redBits == mode->redBits &&
+		   glGlobals.modes[i].mode.greenBits == mode->greenBits &&
+		   glGlobals.modes[i].mode.blueBits == mode->blueBits){
+			// had this mode already, remember highest refresh rate
+			if(mode->refreshRate > glGlobals.modes[i].mode.refreshRate)
+				glGlobals.modes[i].mode.refreshRate = mode->refreshRate;
+			return;
+		}
+	}
+
+	// none found, add
+	glGlobals.modes[glGlobals.numModes].mode = *mode;
+	glGlobals.modes[glGlobals.numModes].flags = VIDEOMODEEXCLUSIVE;
+	glGlobals.numModes++;
+}
+
+static void
+makeVideoModeList(void)
+{
+	int i, num;
+	const GLFWvidmode *modes;
+
+	modes = glfwGetVideoModes(glGlobals.monitor, &num);
+	rwFree(glGlobals.modes);
+	glGlobals.modes = rwNewT(DisplayMode, num, ID_DRIVER | MEMDUR_EVENT);
+
+	glGlobals.modes[0].mode = *glfwGetVideoMode(glGlobals.monitor);
+	glGlobals.modes[0].flags = 0;
+	glGlobals.numModes = 1;
+
+	for(i = 0; i < num; i++)
+		addVideoMode(&modes[i]);
+
+	for(i = 0; i < glGlobals.numModes; i++){
+		num = glGlobals.modes[i].mode.redBits +
+			glGlobals.modes[i].mode.greenBits +
+			glGlobals.modes[i].mode.blueBits;
+		// set depth to power of two
+		for(glGlobals.modes[i].depth = 1; glGlobals.modes[i].depth < num; glGlobals.modes[i].depth <<= 1);
+	}
+}
+
+static int
+openGLFW(EngineOpenParams *openparams)
+{
+	glGlobals.winWidth = openparams->width;
+	glGlobals.winHeight = openparams->height;
+	glGlobals.winTitle = openparams->windowtitle;
+	glGlobals.pWindow = openparams->window;
 
 	/* Init GLFW */
 	if(!glfwInit()){
@@ -811,20 +885,42 @@ openGLFW(EngineStartParams *startparams)
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	win = glfwCreateWindow(startparams->width, startparams->height, startparams->windowtitle, 0, 0);
+	glGlobals.monitor = glfwGetMonitors(&glGlobals.numMonitors)[0];
+
+	makeVideoModeList();
+
+	return 1;
+}
+
+static int
+closeGLFW(void)
+{
+	glfwTerminate();
+	return 1;
+}
+
+static int
+startGLFW(void)
+{
+	GLenum status;
+	GLFWwindow *win;
+	DisplayMode *mode;
+
+	mode = &glGlobals.modes[glGlobals.currentMode];
+
+	glfwWindowHint(GLFW_RED_BITS, mode->mode.redBits);
+	glfwWindowHint(GLFW_GREEN_BITS, mode->mode.greenBits);
+	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
+	glfwWindowHint(GLFW_REFRESH_RATE, mode->mode.refreshRate);
+
+	if(mode->flags & VIDEOMODEEXCLUSIVE)
+		win = glfwCreateWindow(mode->mode.width, mode->mode.height, glGlobals.winTitle, glGlobals.monitor, nil);
+	else
+		win = glfwCreateWindow(glGlobals.winWidth, glGlobals.winHeight, glGlobals.winTitle, nil, nil);
 	if(win == nil){
 		RWERROR((ERR_GENERAL, "glfwCreateWindow() failed"));
-		glfwTerminate();
 		return 0;
 	}
-	if(startparams->fullscreen){
-		int nbmonitors;
-		auto monitors = glfwGetMonitors(&nbmonitors);
-        	if (nbmonitors){
-			const GLFWvidmode* mode = glfwGetVideoMode(monitors[0]);
-            		glfwSetWindowMonitor(win, monitors[0], 0, 0, mode->width, mode->height, mode->refreshRate);
-        	}
-    	}
 	glfwMakeContextCurrent(win);
 
 	/* Init GLEW */
@@ -833,25 +929,22 @@ openGLFW(EngineStartParams *startparams)
 	if(status != GLEW_OK){
 		RWERROR((ERR_GENERAL, glewGetErrorString(status)));
 		glfwDestroyWindow(win);
-		glfwTerminate();
 		return 0;
 	}
 	if(!GLEW_VERSION_3_3){
 		RWERROR((ERR_GENERAL, "OpenGL 3.3 needed"));
 		glfwDestroyWindow(win);
-		glfwTerminate();
 		return 0;
 	}
 	glGlobals.window = win;
-	*startparams->window = win;
+	*glGlobals.pWindow = win;
 	return 1;
 }
 
 static int
-closeGLFW(void)
+stopGLFW(void)
 {
 	glfwDestroyWindow(glGlobals.window);
-	glfwTerminate();
 	return 1;
 }
 #endif
@@ -925,33 +1018,104 @@ finalizeOpenGL(void)
 	return 1;
 }
 
+#ifdef LIBRW_SDL2
 static int
-deviceSystem(DeviceReq req, void *arg0)
+deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 {
 	switch(req){
 	case DEVICEOPEN:
-#ifdef LIBRW_SDL2
-		return openSDL2((EngineStartParams*)arg0);
-#else
-		return openGLFW((EngineStartParams*)arg0);
-#endif
+		return openSDL2((EngineOpenParams*)arg);
 	case DEVICECLOSE:
-#ifdef LIBRW_SDL2
 		return closeSDL2();
-#else
-		return closeGLFW();
-#endif
 
 	case DEVICEINIT:
 		return initOpenGL();
 	case DEVICETERM:
 		return termOpenGL();
 
-	case DEVICEFINALIZE:
-		return finalizeOpenGL();
+	// TODO: implement subsystems and video modes
+
+	default:
+		assert(0 && "not implemented");
+		return 0;
 	}
 	return 1;
 }
+
+#else
+
+static int
+deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
+{
+	GLFWmonitor **monitors;
+	VideoMode *rwmode;
+	int num;
+
+	switch(req){
+	case DEVICEOPEN:
+		return openGLFW((EngineOpenParams*)arg);
+	case DEVICECLOSE:
+		return closeGLFW();
+
+	case DEVICEINIT:
+		return startGLFW() && initOpenGL();
+	case DEVICETERM:
+		return termOpenGL() && stopGLFW();
+
+	case DEVICEFINALIZE:
+		return finalizeOpenGL();
+
+
+	case DEVICEGETNUMSUBSYSTEMS:
+		return glGlobals.numMonitors;
+
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return glGlobals.currentMonitor;
+
+	case DEVICESETSUBSYSTEM:
+		monitors = glfwGetMonitors(&glGlobals.numMonitors);
+		if(n >= glGlobals.numMonitors)
+			return 0;
+		glGlobals.currentMonitor = n;
+		glGlobals.monitor = monitors[glGlobals.currentMonitor];
+		return 1;
+
+	case DEVICEGETSUBSSYSTEMINFO:
+		monitors = glfwGetMonitors(&glGlobals.numMonitors);
+		if(n >= glGlobals.numMonitors)
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, glfwGetMonitorName(monitors[n]), sizeof(SubSystemInfo::name));
+		return 1;
+
+
+	case DEVICEGETNUMVIDEOMODES:
+		return glGlobals.numModes;
+
+	case DEVICEGETCURRENTVIDEOMODE:
+		return glGlobals.currentMode;
+
+	case DEVICESETVIDEOMODE:
+		if(n >= glGlobals.numModes)
+			return 0;
+		glGlobals.currentMode = n;
+		return 1;
+
+	case DEVICEGETVIDEOMODEINFO:
+		rwmode = (VideoMode*)arg;
+		rwmode->width = glGlobals.modes[n].mode.width;
+		rwmode->height = glGlobals.modes[n].mode.height;
+		rwmode->depth = glGlobals.modes[n].depth;
+		rwmode->flags = glGlobals.modes[n].flags;
+		return 1;
+
+	default:
+		assert(0 && "not implemented");
+		return 0;
+	}
+	return 1;
+}
+
+#endif
 
 Device renderdevice = {
 	-1.0f, 1.0f,
@@ -968,7 +1132,11 @@ Device renderdevice = {
 	gl3::im3DTransform,
 	gl3::im3DRenderIndexed,
 	gl3::im3DEnd,
-	gl3::deviceSystem
+#ifdef LIBRW_SDL2
+	gl3::deviceSystemSDL2
+#else
+	gl3::deviceSystemGLFW
+#endif
 };
 
 }

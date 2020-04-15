@@ -29,21 +29,21 @@ enum RenderState
 
 enum AlphaTestFunc
 {
-	ALPHAALWAYS = 0,
+	ALPHAALWAYS,
 	ALPHAGREATEREQUAL,
 	ALPHALESS
 };
 
 enum CullMode
 {
-	CULLNONE,
+	CULLNONE = 1,
 	CULLBACK,
 	CULLFRONT
 };
 
 enum BlendFunction
 {
-	BLENDZERO = 0,
+	BLENDZERO = 1,
 	BLENDONE,
 	BLENDSRCCOLOR,
 	BLENDINVSRCCOLOR,

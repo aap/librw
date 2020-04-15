@@ -99,9 +99,8 @@ Engine::init(void)
 }
 
 // This is where RW allocates the engine and e.g. opens d3d
-// TODO: this will probably take an argument with device specific data
 bool32
-Engine::open(void)
+Engine::open(EngineOpenParams *p)
 {
 	if(engine || Engine::state != Initialized){
 		RWERROR((ERR_ENGINEOPEN));
@@ -125,7 +124,8 @@ Engine::open(void)
 	engine->device = null::renderdevice;
 #endif
 
-	// TODO: open device; create d3d object/get video mode
+	// TODO: create d3d object/get video mode
+	engine->device.system(DEVICEOPEN, (void*)p, 0);
 
 	// TODO: init driver functions
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
@@ -150,24 +150,22 @@ Engine::open(void)
 }
 
 // This is where RW creates the actual rendering device
-// ans calls the engine plugin ctors
+// and calls the engine plugin ctors
 bool32
-Engine::start(EngineStartParams *p)
+Engine::start(void)
 {
 	if(engine == nil || Engine::state != Opened){
 		RWERROR((ERR_ENGINESTART));
 		return 0;
 	}
 
-	// TODO: put this into Open?
-	engine->device.system(DEVICEOPEN, (void*)p);
-	engine->device.system(DEVICEINIT, nil);
+	engine->device.system(DEVICEINIT, nil, 0);
 
 	Engine::s_plglist.construct(engine);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].construct(rw::engine->driver[i]);
 
-	engine->device.system(DEVICEFINALIZE, nil);
+	engine->device.system(DEVICEFINALIZE, nil, 0);
 
 	Engine::state = Started;
 	return 1;
@@ -177,29 +175,99 @@ void
 Engine::term(void)
 {
 	// TODO
+	if(engine || Engine::state != Initialized){
+		RWERROR((ERR_GENERAL));
+		return;
+	}
+
 	Engine::state = Dead;
 }
 
 void
 Engine::close(void)
 {
-	// TODO
+	if(engine == nil || Engine::state != Opened){
+		RWERROR((ERR_GENERAL));
+		return;
+	}
+
+	engine->device.system(DEVICECLOSE, nil, 0);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		rwFree(rw::engine->driver[i]);
 	rwFree(engine);
+	engine = nil;
 	Engine::state = Initialized;
 }
 
 void
 Engine::stop(void)
 {
-	engine->device.system(DEVICETERM, nil);
-	engine->device.system(DEVICECLOSE, nil);
+	if(engine == nil || Engine::state != Started){
+		RWERROR((ERR_GENERAL));
+		return;
+	}
+
+	engine->device.system(DEVICETERM, nil, 0);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
 	Engine::s_plglist.destruct(engine);
 	Engine::state = Opened;
 }
+
+
+int32
+Engine::getNumSubSystems(void)
+{
+	return engine->device.system(DEVICEGETNUMSUBSYSTEMS, nil, 0);
+}
+
+int32
+Engine::getCurrentSubSystem(void)
+{
+	return engine->device.system(DEVICEGETCURRENTSUBSYSTEM, nil, 0);
+}
+
+bool32
+Engine::setSubSystem(int32 subsys)
+{
+	return engine->device.system(DEVICESETSUBSYSTEM, nil, subsys);
+}
+
+SubSystemInfo*
+Engine::getSubSystemInfo(SubSystemInfo *info, int32 subsys)
+{
+	if(engine->device.system(DEVICEGETSUBSSYSTEMINFO, info, subsys))
+		return info;
+	return nil;
+}
+
+
+int32
+Engine::getNumVideoModes(void)
+{
+	return engine->device.system(DEVICEGETNUMVIDEOMODES, nil, 0);
+}
+
+int32
+Engine::getCurrentVideoMode(void)
+{
+	return engine->device.system(DEVICEGETCURRENTVIDEOMODE, nil, 0);
+}
+
+bool32
+Engine::setVideoMode(int32 mode)
+{
+	return engine->device.system(DEVICESETVIDEOMODE, nil, mode);
+}
+
+VideoMode*
+Engine::getVideoModeInfo(VideoMode *info, int32 mode)
+{
+	if(engine->device.system(DEVICEGETVIDEOMODEINFO, info, mode))
+		return info;
+	return nil;
+}
+
 
 namespace null {
 
@@ -273,8 +341,16 @@ rasterToImage(Raster*)
 }
 
 int
-deviceSystem(DeviceReq req, void *arg0)
+deviceSystem(DeviceReq req, void *arg0, int32 n)
 {
+	switch(req){
+	case DEVICEGETNUMSUBSYSTEMS:
+		return 0;
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return 0;
+	case DEVICEGETSUBSSYSTEMINFO:
+		return 0;
+	}
 	return 1;
 }
 

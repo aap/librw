@@ -310,7 +310,7 @@ Matrix::transpose(Matrix *dst, const Matrix *src)
 }
 
 Matrix*
-Matrix::rotate(V3d *axis, float32 angle, CombineOp op)
+Matrix::rotate(const V3d *axis, float32 angle, CombineOp op)
 {
 	Matrix tmp, rot;
 	makeRotation(&rot, axis, angle);
@@ -351,7 +351,7 @@ Matrix::rotate(const Quat &q, CombineOp op)
 	return this;
 }
 Matrix*
-Matrix::translate(V3d *translation, CombineOp op)
+Matrix::translate(const V3d *translation, CombineOp op)
 {
 	Matrix tmp;
 	Matrix trans = identMat;
@@ -374,7 +374,7 @@ Matrix::translate(V3d *translation, CombineOp op)
 }
 
 Matrix*
-Matrix::scale(V3d *scale, CombineOp op)
+Matrix::scale(const V3d *scale, CombineOp op)
 {
 	Matrix tmp;
 	Matrix scl = identMat;
@@ -398,7 +398,7 @@ Matrix::scale(V3d *scale, CombineOp op)
 }
 
 Matrix*
-Matrix::transform(Matrix *mat, CombineOp op)
+Matrix::transform(const Matrix *mat, CombineOp op)
 {
 	Matrix tmp;
 	switch(op){
@@ -534,7 +534,7 @@ Matrix::invertGeneral(Matrix *dst, const Matrix *src)
 }
 
 void
-Matrix::makeRotation(Matrix *dst, V3d *axis, float32 angle)
+Matrix::makeRotation(Matrix *dst, const V3d *axis, float32 angle)
 {
 	V3d v = normalize(*axis);
 	angle = angle*(float)M_PI/180.0f;

@@ -7,7 +7,7 @@ struct SceneGlobals {
 	rw::World *world;
 	rw::Camera *camera;
 } Scene;
-rw::EngineStartParams engineStartParams;
+rw::EngineOpenParams engineOpenParams;
 
 void
 Init(void)

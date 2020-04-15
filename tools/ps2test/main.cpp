@@ -626,7 +626,7 @@ beginCamera(void)
 	f[3] = 0.0f;
 }
 
-rw::EngineStartParams engineStartParams;
+rw::EngineOpenParams engineOpenParams;
 
 void
 pluginattach(void)
@@ -654,9 +654,9 @@ initrw(void)
 	if(!rw::Engine::init())
 		return 0;
 	pluginattach();
-	if(!rw::Engine::open())
+	if(!rw::Engine::open(&engineOpenParams))
 		return 0;
-	if(!rw::Engine::start(&engineStartParams))
+	if(!rw::Engine::start())
 		return 0;
 	rw::Texture::setLoadTextures(0);
 

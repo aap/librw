@@ -62,16 +62,16 @@ struct Frame
 	Frame *addChild(Frame *f, bool32 append = 0);
 	Frame *removeChild(void);
 	Frame *forAllChildren(Callback cb, void *data);
-	Frame *getParent(void){
+	Frame *getParent(void) const {
 		return (Frame*)this->object.parent; }
 	int32 count(void);
-	bool32 dirty(void) {
+	bool32 dirty(void) const {
 		return !!(this->root->object.privateFlags & HIERARCHYSYNC); }
 	Matrix *getLTM(void);
-	void rotate(V3d *axis, float32 angle, CombineOp op);
-	void translate(V3d *trans, CombineOp op);
-	void scale(V3d *scale, CombineOp op);
-	void transform(Matrix *mat, CombineOp op);
+	void rotate(const V3d *axis, float32 angle, CombineOp op);
+	void translate(const V3d *trans, CombineOp op);
+	void scale(const V3d *scale, CombineOp op);
+	void transform(const Matrix *mat, CombineOp op);
 	void updateObjects(void);
 
 
@@ -350,6 +350,8 @@ struct MorphTarget
 	Sphere boundingSphere;
 	V3d *vertices;
 	V3d *normals;
+
+	Sphere calculateBoundingSphere(void) const;
 };
 
 struct InstanceDataHeader
@@ -482,7 +484,7 @@ struct Atomic
 		this->object.setFrame(f);
 		this->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	}
-	Frame *getFrame(void) { return (Frame*)this->object.object.parent; }
+	Frame *getFrame(void) const { return (Frame*)this->object.object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
 	void removeFromClump(void);
@@ -498,7 +500,7 @@ struct Atomic
 			this->renderCB = defaultRenderCB;
 	};
 	void setFlags(uint32 flags) { this->object.object.flags = flags; }
-	uint32 getFlags(void) { return this->object.object.flags; }
+	uint32 getFlags(void) const { return this->object.object.flags; }
 	static Atomic *streamReadClump(Stream *stream,
 		FrameList_ *frameList, Geometry **geometryList);
 	bool streamWriteClump(Stream *stream, FrameList_ *frmlst);
@@ -530,7 +532,7 @@ struct Light
 	static Light *create(int32 type);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
-	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
+	Frame *getFrame(void) const { return (Frame*)this->object.object.parent; }
 	static Light *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Light, inClump); }
 	static Light *fromWorld(LLLink *lnk){
@@ -617,7 +619,7 @@ struct Camera
 	Camera *clone(void);
 	void destroy(void);
 	void setFrame(Frame *f) { this->object.setFrame(f); }
-	Frame *getFrame(void){ return (Frame*)this->object.object.parent; }
+	Frame *getFrame(void)const { return (Frame*)this->object.object.parent; }
 	static Camera *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Camera, inClump); }
 	void beginUpdate(void) { this->beginUpdateCB(this); }
@@ -629,7 +631,7 @@ struct Camera
 	void setViewWindow(const V2d *window);
 	void setViewOffset(const V2d *offset);
 	void setProjection(int32 proj);
-	int32 frustumTestSphere(Sphere *s);
+	int32 frustumTestSphere(const Sphere *s) const;
 	static Camera *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
 	uint32 streamGetSize(void);
@@ -669,7 +671,7 @@ struct Clump
 	}
 	void setFrame(Frame *f){
 		this->object.parent = f; }
-	Frame *getFrame(void){
+	Frame *getFrame(void) const {
 		return (Frame*)this->object.parent; }
 	static Clump *streamRead(Stream *stream);
 	bool streamWrite(Stream *stream);
@@ -687,8 +689,11 @@ struct World
 	LinkList directionalLights;     // these do not (type < 0x80)
 
 	static World *create(void);
+	void destroy(void);
 	void addLight(Light *light);
+	void removeLight(Light *light);
 	void addCamera(Camera *cam);
+	void removeCamera(Camera *cam);
 };
 
 struct TexDictionary

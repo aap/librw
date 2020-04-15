@@ -12,9 +12,9 @@ struct SceneGlobals {
 } Scene;
 rw::Texture *tex, *tex2;
 rw::Raster *testras;
-rw::EngineStartParams engineStartParams;
+rw::EngineOpenParams engineOpenParams;
 
-bool dosoftras = 1;
+bool dosoftras = 0;
 
 namespace gen {
 void tlTest(rw::Clump *clump);

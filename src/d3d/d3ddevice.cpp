@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 
+#define WITH_D3D
 #include "../rwbase.h"
 #include "../rwplg.h"
 #include "../rwerror.h"
@@ -20,11 +21,25 @@ namespace d3d {
 
 #ifdef RW_D3D9
 
+struct DisplayMode
+{
+	D3DDISPLAYMODE mode;
+	uint32 flags;
+};
+
 struct D3d9Globals
 {
 	HWND window;
-	bool windowed;
-	int presentWidth, presentHeight;
+
+	IDirect3D9 *d3d9;
+	int numAdapters;
+	int adapter;
+	D3DCAPS9 caps;
+	DisplayMode *modes;
+	int numModes;
+	int currentMode;
+
+	D3DPRESENT_PARAMETERS present;
 } d3d9Globals;
 
 // Keep track of rasters exclusively in video memory
@@ -96,6 +111,7 @@ static D3DMATERIAL9 d3dmaterial;
 
 
 static uint32 blendMap[] = {
+	D3DBLEND_ZERO,	// actually invalid
 	D3DBLEND_ZERO,
 	D3DBLEND_ONE,
 	D3DBLEND_SRCCOLOR,
@@ -116,6 +132,7 @@ static uint32 alphafuncMap[] = {
 };
 
 static uint32 cullmodeMap[] = {
+	D3DCULL_NONE,	// actually invalid
 	D3DCULL_NONE,
 	D3DCULL_CW,
 	D3DCULL_CCW
@@ -721,29 +738,13 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	BOOL icon = IsIconic(d3d9Globals.window);
 	Raster *ras = cam->frameBuffer;
 	if(!icon &&
-	   (r.right != d3d9Globals.presentWidth || r.bottom != d3d9Globals.presentHeight)){
+	   (r.right != d3d9Globals.present.BackBufferWidth || r.bottom != d3d9Globals.present.BackBufferHeight)){
 		releaseVidmemRasters();
 
-		D3DPRESENT_PARAMETERS d3dpp;
-		d3dpp.BackBufferWidth            = r.right;
-		d3dpp.BackBufferHeight           = r.bottom;
-		d3dpp.BackBufferFormat           = D3DFMT_A8R8G8B8;
-		d3dpp.BackBufferCount            = 1;
-		d3dpp.MultiSampleType            = D3DMULTISAMPLE_NONE;
-		d3dpp.MultiSampleQuality         = 0;
-		d3dpp.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
-		d3dpp.hDeviceWindow              = d3d9Globals.window;
-		d3dpp.Windowed                   = d3d9Globals.windowed;
-		d3dpp.EnableAutoDepthStencil     = true;
-		d3dpp.AutoDepthStencilFormat     = D3DFMT_D24S8;
-		d3dpp.Flags                      = 0;
-		d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
-//		d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+		d3d9Globals.present.BackBufferWidth  = r.right;
+		d3d9Globals.present.BackBufferHeight = r.bottom;
 		// TODO: check result
-		d3d::d3ddevice->Reset(&d3dpp);
-		d3d9Globals.presentWidth = r.right;
-		d3d9Globals.presentHeight = r.bottom;
+		d3d::d3ddevice->Reset(&d3d9Globals.present);
 		resetD3d9Device();
 	}
 
@@ -760,82 +761,209 @@ showRaster(Raster *raster)
 	d3ddevice->Present(nil, nil, 0, nil);
 }
 
-// taken from Frank Luna's d3d9 book
+
+//
+// Device
+//
+
 static int
-openD3D(EngineStartParams *params)
+findFormatDepth(uint32 format)
+{
+	// not all formats actually
+	switch(format){
+	case D3DFMT_R8G8B8:	return 24;
+	case D3DFMT_A8R8G8B8:	return 32;
+	case D3DFMT_X8R8G8B8:	return 32;
+	case D3DFMT_R5G6B5:	return 16;
+	case D3DFMT_X1R5G5B5:	return 16;
+	case D3DFMT_A1R5G5B5:	return 16;
+	case D3DFMT_A4R4G4B4:	return 16;
+	case D3DFMT_R3G3B2:	return 8;
+	case D3DFMT_A8:	return 8;
+	case D3DFMT_A8R3G3B2:	return 16;
+	case D3DFMT_X4R4G4B4:	return 16;
+	case D3DFMT_A2B10G10R10:	return 32;
+	case D3DFMT_A8B8G8R8:	return 32;
+	case D3DFMT_X8B8G8R8:	return 32;
+	case D3DFMT_G16R16:	return 32;
+	case D3DFMT_A2R10G10B10:	return 32;
+	case D3DFMT_A16B16G16R16:	return 64;
+
+	case D3DFMT_L8:	return 8;
+	case D3DFMT_D16:	return 16;
+	case D3DFMT_D24X8:	return 32;
+	case D3DFMT_D32:	return 32;
+
+	default:	return 0;
+	}
+}
+
+// the commented ones don't "work"
+static D3DFORMAT fbFormats[] = {
+//	D3DFMT_A1R5G5B5,
+///	D3DFMT_A2R10G10B10,	// works but let's not use it...
+//	D3DFMT_A8R8G8B8,
+	D3DFMT_R5G6B5,
+//	D3DFMT_X1R5G5B5,
+	D3DFMT_X8R8G8B8
+};
+
+static void
+addVideoMode(D3DDISPLAYMODE *mode)
+{
+	int i;
+
+	for(i = 1; i < d3d9Globals.numModes; i++){
+		if(d3d9Globals.modes[i].mode.Width == mode->Width &&
+		   d3d9Globals.modes[i].mode.Height == mode->Height &&
+		   d3d9Globals.modes[i].mode.Format == mode->Format){
+			// had this format already, remember highest refresh rate
+			if(mode->RefreshRate > d3d9Globals.modes[i].mode.RefreshRate)
+				d3d9Globals.modes[i].mode.RefreshRate = mode->RefreshRate;
+			return;
+		}
+	}
+
+	// none found, add
+	d3d9Globals.modes[d3d9Globals.numModes].mode = *mode;
+	d3d9Globals.modes[d3d9Globals.numModes].flags = VIDEOMODEEXCLUSIVE;
+	d3d9Globals.numModes++;
+}
+
+static void
+makeVideoModeList(void)
+{
+	int i, j;
+	D3DDISPLAYMODE mode;
+
+	d3d9Globals.numModes = 1;
+	for(i = 0; i < nelem(fbFormats); i++)
+		d3d9Globals.numModes += d3d9Globals.d3d9->GetAdapterModeCount(d3d9Globals.adapter, fbFormats[i]);
+
+	rwFree(d3d9Globals.modes);
+	d3d9Globals.modes = rwNewT(DisplayMode, d3d9Globals.numModes, ID_DRIVER | MEMDUR_EVENT);
+
+	// first mode is current mode as windowed
+	d3d9Globals.d3d9->GetAdapterDisplayMode(d3d9Globals.adapter, &d3d9Globals.modes[0].mode);
+	d3d9Globals.modes[0].flags = 0;
+	d3d9Globals.numModes = 1;
+
+	for(i = 0; i < nelem(fbFormats); i++){
+		int n = d3d9Globals.d3d9->GetAdapterModeCount(d3d9Globals.adapter, fbFormats[i]);
+		for(j = 0; j < n; j++){
+			d3d9Globals.d3d9->EnumAdapterModes(d3d9Globals.adapter, fbFormats[i], j, &mode);
+			addVideoMode(&mode);
+		}
+	}
+}
+
+static int
+openD3D(EngineOpenParams *params)
 {
 	HWND win = params->window;
-	bool windowed = true;
 
 	d3d9Globals.window = win;
-	d3d9Globals.windowed = windowed;
+	d3d9Globals.numAdapters = 0;
+	d3d9Globals.modes = nil;
+	d3d9Globals.numModes = 0;
+	d3d9Globals.currentMode = 0;
 
-	HRESULT hr = 0;
-	IDirect3D9 *d3d9 = 0;
-	d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
-	if(!d3d9){
+	d3d9Globals.d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
+	if(d3d9Globals.d3d9 == nil){
 		RWERROR((ERR_GENERAL, "Direct3DCreate9() failed"));
 		return 0;
 	}
 
-	D3DCAPS9 caps;
-	d3d9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
-	int vp = 0;
-	if(caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT)
-		vp = D3DCREATE_HARDWARE_VERTEXPROCESSING;
-	else
-		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+	d3d9Globals.numAdapters = d3d9Globals.d3d9->GetAdapterCount();
+	d3d9Globals.adapter = 0;
 
-	RECT rect;
-	GetClientRect(win, &rect);
-	int width = rect.right - rect.left;
-	int height = rect.bottom - rect.top;
+	for(d3d9Globals.adapter = 0; d3d9Globals.adapter < d3d9Globals.numAdapters; d3d9Globals.adapter++)
+		if(d3d9Globals.d3d9->GetDeviceCaps(d3d9Globals.adapter, D3DDEVTYPE_HAL, &d3d9Globals.caps) == D3D_OK)
+			goto found;
+	// no adapter
+	d3d9Globals.d3d9->Release();
+	d3d9Globals.d3d9 = nil;
+	RWERROR((ERR_GENERAL, "Direct3DCreate9() failed"));
+	return 0;
 
-	d3d9Globals.presentWidth = width;
-	d3d9Globals.presentHeight = height;
-	D3DPRESENT_PARAMETERS d3dpp;
-	d3dpp.BackBufferWidth            = width;
-	d3dpp.BackBufferHeight           = height;
-	d3dpp.BackBufferFormat           = D3DFMT_A8R8G8B8;
-	d3dpp.BackBufferCount            = 1;
-	d3dpp.MultiSampleType            = D3DMULTISAMPLE_NONE;
-	d3dpp.MultiSampleQuality         = 0;
-	d3dpp.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
-	d3dpp.hDeviceWindow              = win;
-	d3dpp.Windowed                   = windowed;
-	d3dpp.EnableAutoDepthStencil     = true;
-	d3dpp.AutoDepthStencilFormat     = D3DFMT_D24S8;
-	d3dpp.Flags                      = 0;
-	d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-	d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
-//	d3dpp.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
-
-	IDirect3DDevice9 *dev;
-	hr = d3d9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, win,
-	                        vp, &d3dpp, &dev);
-	if(FAILED(hr)){
-		// try again using a 16-bit depth buffer
-		d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
-
-		hr = d3d9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
-		                        win, vp, &d3dpp, &dev);
-
-		if(FAILED(hr)){
-			RWERROR((ERR_GENERAL, "CreateDevice() failed"));
-			d3d9->Release();
-			return 0;
-		}
-	}
-	d3d9->Release();
-	d3d::d3ddevice = dev;
+found:
+	makeVideoModeList();
 	return 1;
 }
 
 static int
 closeD3D(void)
 {
-	d3d::d3ddevice->Release();
-	d3d::d3ddevice = nil;
+	d3d9Globals.d3d9->Release();
+	d3d9Globals.d3d9 = nil;
+	return 1;
+}
+
+static int
+startD3D(void)
+{
+	HRESULT hr;
+	int vp;
+	if(d3d9Globals.caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT)
+		vp = D3DCREATE_HARDWARE_VERTEXPROCESSING;
+	else
+		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+
+	uint32 width, height, depth;
+	D3DFORMAT format, zformat;
+	format = d3d9Globals.modes[d3d9Globals.currentMode].mode.Format;
+
+	// Use window size in windowed mode, otherwise get size from video mode
+	if(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE){
+		width = d3d9Globals.modes[d3d9Globals.currentMode].mode.Width;
+		height = d3d9Globals.modes[d3d9Globals.currentMode].mode.Height;
+	}else{
+		RECT rect;
+		GetClientRect(d3d9Globals.window, &rect);
+		width = rect.right - rect.left;
+		height = rect.bottom - rect.top;
+	}
+
+	bool windowed = !(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE);
+
+	// See if we can get an alpha channel
+	if(format == D3DFMT_X8R8G8B8){
+		if(d3d9Globals.d3d9->CheckDeviceType(d3d9Globals.adapter, D3DDEVTYPE_HAL, format, D3DFMT_A8R8G8B8, windowed) == D3D_OK)
+			format = D3DFMT_A8R8G8B8;
+	}
+
+	depth = findFormatDepth(format);
+
+	// TOOD: use something more sophisticated maybe?
+	if(depth == 32)
+		zformat = D3DFMT_D24S8;
+	else
+		zformat = D3DFMT_D16;
+
+	d3d9Globals.present.BackBufferWidth            = width;
+	d3d9Globals.present.BackBufferHeight           = height;
+	d3d9Globals.present.BackBufferFormat           = format;
+	d3d9Globals.present.BackBufferCount            = 1;
+	d3d9Globals.present.MultiSampleType            = D3DMULTISAMPLE_NONE;
+	d3d9Globals.present.MultiSampleQuality         = 0;
+	d3d9Globals.present.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
+	d3d9Globals.present.hDeviceWindow              = d3d9Globals.window;
+	d3d9Globals.present.Windowed                   = windowed;
+	d3d9Globals.present.EnableAutoDepthStencil     = true;
+	d3d9Globals.present.AutoDepthStencilFormat     = zformat;
+	d3d9Globals.present.Flags                      = 0;
+	d3d9Globals.present.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
+//	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+
+	IDirect3DDevice9 *dev;
+	hr = d3d9Globals.d3d9->CreateDevice(d3d9Globals.adapter, D3DDEVTYPE_HAL,
+			d3d9Globals.window, vp, &d3d9Globals.present, &dev);
+	if(FAILED(hr)){
+		RWERROR((ERR_GENERAL, "CreateDevice() failed"));
+		return 0;
+	}
+	d3d::d3ddevice = dev;
 	return 1;
 }
 
@@ -1027,6 +1155,9 @@ termD3D(void)
 {
 	closeIm3D();
 	closeIm2D();
+
+	d3d::d3ddevice->Release();
+	d3d::d3ddevice = nil;
 	return 1;
 }
 
@@ -1037,21 +1168,69 @@ finalizeD3D(void)
 }
 
 static int
-deviceSystem(DeviceReq req, void *arg0)
+deviceSystem(DeviceReq req, void *arg, int32 n)
 {
+	D3DADAPTER_IDENTIFIER9 adapter;
+	VideoMode *rwmode;
+
 	switch(req){
 	case DEVICEOPEN:
-		return openD3D((EngineStartParams*)arg0);
+		return openD3D((EngineOpenParams*)arg);
 	case DEVICECLOSE:
 		return closeD3D();
 
 	case DEVICEINIT:
-		return initD3D();
+		return startD3D() && initD3D();
 	case DEVICETERM:
 		return termD3D();
 
 	case DEVICEFINALIZE:
 		return finalizeD3D();
+
+
+	case DEVICEGETNUMSUBSYSTEMS:
+		return d3d9Globals.numAdapters;
+
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return d3d9Globals.adapter;
+
+	case DEVICESETSUBSYSTEM:
+		if(n >= d3d9Globals.numAdapters)
+			return 0;
+		d3d9Globals.adapter = n;
+		if(d3d9Globals.d3d9->GetDeviceCaps(d3d9Globals.adapter, D3DDEVTYPE_HAL, &d3d9Globals.caps) != D3D_OK)
+			return 0;
+		makeVideoModeList();
+		return 1;
+
+	case DEVICEGETSUBSSYSTEMINFO:
+		if(n >= d3d9Globals.numAdapters)
+			return 0;
+		if(d3d9Globals.d3d9->GetAdapterIdentifier(d3d9Globals.adapter, 0, &adapter) != D3D_OK)
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, adapter.Description, sizeof(SubSystemInfo::name));
+		return 1;
+
+
+	case DEVICEGETNUMVIDEOMODES:
+		return d3d9Globals.numModes;
+
+	case DEVICEGETCURRENTVIDEOMODE:
+		return d3d9Globals.currentMode;
+
+	case DEVICESETVIDEOMODE:
+		if(n >= d3d9Globals.numModes)
+			return 0;
+		d3d9Globals.currentMode = n;
+		return 1;
+
+	case DEVICEGETVIDEOMODEINFO:
+		rwmode = (VideoMode*)arg;
+		rwmode->width = d3d9Globals.modes[n].mode.Width;
+		rwmode->height = d3d9Globals.modes[n].mode.Height;
+		rwmode->depth = findFormatDepth(d3d9Globals.modes[n].mode.Format);
+		rwmode->flags = d3d9Globals.modes[n].flags;
+		return 1;
 	}
 	return 1;
 }

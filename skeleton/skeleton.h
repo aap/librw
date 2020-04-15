@@ -1,4 +1,4 @@
-extern rw::EngineStartParams engineStartParams;
+extern rw::EngineOpenParams engineOpenParams;
 
 namespace sk {
 

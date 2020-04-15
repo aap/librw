@@ -26,7 +26,15 @@ World::create(void)
 	world->object.init(World::ID, 0);
 	world->lights.init();
 	world->directionalLights.init();
+	s_plglist.construct(world);
 	return world;
+}
+
+void
+World::destroy(void)
+{
+	s_plglist.destruct(this);
+	rwFree(this);
 }
 
 void
@@ -43,11 +51,25 @@ World::addLight(Light *light)
 }
 
 void
+World::removeLight(Light *light)
+{
+	if(light->world == this)
+		light->inWorld.remove();
+}
+
+void
 World::addCamera(Camera *cam)
 {
 	cam->world = this;
 	if(cam->getFrame())
 		cam->getFrame()->updateObjects();
+}
+
+void
+World::removeCamera(Camera *cam)
+{
+	if(cam->world == this)
+		cam->world = nil;
 }
 
 }

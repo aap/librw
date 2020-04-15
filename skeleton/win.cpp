@@ -254,7 +254,7 @@ WinMain(HINSTANCE instance, HINSTANCE,
 		MessageBox(0, "MakeWindow() - FAILED", 0, 0);
 		return 0;
 	}
-	engineStartParams.window = win;
+	engineOpenParams.window = win;
 	initkeymap();
 
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
@@ -283,7 +283,7 @@ void
 SetMousePosition(int x, int y)
 {
 	POINT pos = { x, y };
-	ClientToScreen(engineStartParams.window, &pos);
+	ClientToScreen(engineOpenParams.window, &pos);
 	SetCursorPos(pos.x, pos.y);
 }
 

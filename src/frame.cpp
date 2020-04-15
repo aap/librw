@@ -258,28 +258,28 @@ Frame::syncDirty(void)
 }
 
 void
-Frame::rotate(V3d *axis, float32 angle, CombineOp op)
+Frame::rotate(const V3d *axis, float32 angle, CombineOp op)
 {
 	this->matrix.rotate(axis, angle, op);
 	updateObjects();
 }
 
 void
-Frame::translate(V3d *trans, CombineOp op)
+Frame::translate(const V3d *trans, CombineOp op)
 {
 	this->matrix.translate(trans, op);
 	updateObjects();
 }
 
 void
-Frame::scale(V3d *scl, CombineOp op)
+Frame::scale(const V3d *scl, CombineOp op)
 {
 	this->matrix.scale(scl, op);
 	updateObjects();
 }
 
 void
-Frame::transform(Matrix *mat, CombineOp op)
+Frame::transform(const Matrix *mat, CombineOp op)
 {
 	this->matrix.transform(mat, op);
 	updateObjects();

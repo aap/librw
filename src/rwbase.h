@@ -322,11 +322,11 @@ struct Matrix
 	static Matrix *mult(Matrix *dst, const Matrix *src1, const Matrix *src2);
 	static Matrix *invert(Matrix *dst, const Matrix *src);
 	static Matrix *transpose(Matrix *dst, const Matrix *src);
-	Matrix *rotate(V3d *axis, float32 angle, CombineOp op);
+	Matrix *rotate(const V3d *axis, float32 angle, CombineOp op);
 	Matrix *rotate(const Quat &q, CombineOp op);
-	Matrix *translate(V3d *translation, CombineOp op);
-	Matrix *scale(V3d *scl, CombineOp op);
-	Matrix *transform(Matrix *mat, CombineOp op);
+	Matrix *translate(const V3d *translation, CombineOp op);
+	Matrix *scale(const V3d *scl, CombineOp op);
+	Matrix *transform(const Matrix *mat, CombineOp op);
 	Quat getRotation(void);
 	void lookAt(const V3d &dir, const V3d &up);
 
@@ -334,7 +334,7 @@ struct Matrix
 	static void mult_(Matrix *dst, const Matrix *src1, const Matrix *src2);
 	static void invertOrthonormal(Matrix *dst, const Matrix *src);
 	static Matrix *invertGeneral(Matrix *dst, const Matrix *src);
-	static void makeRotation(Matrix *dst, V3d *axis, float32 angle);
+	static void makeRotation(Matrix *dst, const V3d *axis, float32 angle);
 	static void makeRotation(Matrix *dst, const Quat &q);
 private:
 	float32 normalError(void);

@@ -43,6 +43,7 @@ rasterCreate(Raster *raster)
 		// TODO: set/check width, height, depth, format?
 		raster->flags |= Raster::DONTALLOCATE;
 		break;
+	case Raster::NORMAL:
 	case Raster::TEXTURE:
 		// continue below
 		break;
@@ -52,8 +53,6 @@ rasterCreate(Raster *raster)
 
 	if(raster->flags & Raster::DONTALLOCATE)
 		return;
-
-	assert(raster->type == Raster::TEXTURE);
 
 #ifdef RW_OPENGL
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);

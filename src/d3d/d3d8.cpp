@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 
+#define WITH_D3D
 #include "../rwbase.h"
 #include "../rwerror.h"
 #include "../rwplg.h"

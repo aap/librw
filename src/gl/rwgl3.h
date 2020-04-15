@@ -10,7 +10,7 @@
 namespace rw {
 
 #ifdef RW_GL3
-struct EngineStartParams
+struct EngineOpenParams
 {
 #ifdef LIBRW_SDL2
 	SDL_Window **window;
@@ -18,7 +18,6 @@ struct EngineStartParams
 	GLFWwindow **window;
 #endif
 	int width, height;
-	bool32 fullscreen;
 	const char *windowtitle;
 };
 #endif

@@ -1,7 +1,7 @@
 namespace rw {
 
 #ifdef RW_PS2
-struct EngineStartParams
+struct EngineOpenParams
 {
 };
 #endif

@@ -2,22 +2,34 @@ namespace rw {
 
 enum DeviceReq
 {
-	// Device/Context creation
-	DEVICEOPEN,
-	// Device/Context shutdown
-	DEVICECLOSE,
-
 	// Device initialization before Engine/Driver plugins are opened
 	DEVICEINIT,
 	// Device de-initialization after Engine/Driver plugins are closed
 	DEVICETERM,
 
+	// Device/Context creation
+	DEVICEOPEN,
+	// Device/Context shutdown
+	DEVICECLOSE,
+
 	// Device initialization after Engine/Driver plugins are opened
-	DEVICEFINALIZE
+	DEVICEFINALIZE,
 	// TODO? counterpart to FINALIZE?
+
+	// Video adapters
+	DEVICEGETNUMSUBSYSTEMS,
+	DEVICEGETCURRENTSUBSYSTEM,
+	DEVICESETSUBSYSTEM,
+	DEVICEGETSUBSSYSTEMINFO,
+
+	// Video modes
+	DEVICEGETNUMVIDEOMODES,
+	DEVICEGETCURRENTVIDEOMODE,
+	DEVICESETVIDEOMODE,
+	DEVICEGETVIDEOMODEINFO
 };
 
-typedef int DeviceSystem(DeviceReq req, void *arg0);
+typedef int DeviceSystem(DeviceReq req, void *arg, int32 n);
 
 struct Camera;
 struct Image;
@@ -75,7 +87,7 @@ struct Driver
 	}
 };
 
-struct EngineStartParams;
+struct EngineOpenParams;
 
 enum MemHint
 {
@@ -101,6 +113,25 @@ struct MemoryFunctions
 	void *(*rwmustrealloc)(void *p, size_t sz, uint32 hint);
 };
 
+struct SubSystemInfo
+{
+	char name[80];
+};
+
+enum VideoModeFlags
+{
+	VIDEOMODEEXCLUSIVE = 1
+};
+
+struct VideoMode
+{
+	int32 width;
+	int32 height;
+	int32 depth;
+	uint32 flags;
+};
+
+
 // This is for platform independent things
 // TODO: move more stuff into this
 struct Engine
@@ -124,11 +155,22 @@ struct Engine
 	static State state;
 
 	static bool32 init(void);
-	static bool32 open(void);
-	static bool32 start(EngineStartParams*);
+	static bool32 open(EngineOpenParams*);
+	static bool32 start(void);
 	static void term(void);
 	static void close(void);
 	static void stop(void);
+
+	static int32 getNumSubSystems(void);
+	static int32 getCurrentSubSystem(void);
+	static bool32 setSubSystem(int32 subsys);
+	static SubSystemInfo *getSubSystemInfo(SubSystemInfo *info, int32 subsys);
+
+	static int32 getNumVideoModes(void);
+	static int32 getCurrentVideoMode(void);
+	static bool32 setVideoMode(int32 mode);
+	static VideoMode *getVideoModeInfo(VideoMode *info, int32 mode);
+
 
 	static PluginList s_plglist;
 	static int32 registerPlugin(int32 size, uint32 id,

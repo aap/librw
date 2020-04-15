@@ -13,9 +13,34 @@ InitRW(void)
 		return false;
 	if(AppEventHandler(sk::PLUGINATTACH, nil) == EVENTERROR)
 		return false;
-	if(!rw::Engine::open())
+	if(!rw::Engine::open(&engineOpenParams))
 		return false;
-	if(!rw::Engine::start(&engineStartParams))
+
+	SubSystemInfo info;
+	int i, n;
+	n = Engine::getNumSubSystems();
+	for(i = 0; i < n; i++)
+		if(Engine::getSubSystemInfo(&info, i))
+			printf("subsystem: %s\n", info.name);
+
+	int want = -1;
+	VideoMode mode;
+	n = Engine::getNumVideoModes();
+	for(i = 0; i < n; i++)
+		if(Engine::getVideoModeInfo(&mode, i)){
+			if(mode.width == 640 && mode.height == 480 && mode.depth == 32)
+				want = i;
+			printf("mode: %dx%dx%d %d\n", mode.width, mode.height, mode.depth, mode.flags);
+		}
+//	if(want >= 0) Engine::setVideoMode(want);
+	Engine::getVideoModeInfo(&mode, Engine::getCurrentVideoMode());
+
+	if(mode.flags & VIDEOMODEEXCLUSIVE){
+		globals.width = mode.width;
+		globals.height = mode.height;
+	}
+
+	if(!rw::Engine::start())
 		return false;
 
 	rw::Image::setSearchPath("./");

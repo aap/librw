@@ -415,10 +415,10 @@ Camera::setProjection(int32 proj)
 }
 
 int32
-Camera::frustumTestSphere(Sphere *s)
+Camera::frustumTestSphere(const Sphere *s) const
 {
 	int32 res = SPHEREINSIDE;
-	FrustumPlane *p = this->frustumPlanes;
+	const FrustumPlane *p = this->frustumPlanes;
 	for(int32 i = 0; i < 6; i++){
 		float32 dist = dot(p->plane.normal, s->center) - p->plane.distance;
 		if(s->radius < dist)

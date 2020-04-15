@@ -217,10 +217,10 @@ main(int argc, char *argv[])
 	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
 		return 0;
 
-	engineStartParams.width = sk::globals.width;
-	engineStartParams.height = sk::globals.height;
-	engineStartParams.windowtitle = sk::globals.windowtitle;
-	engineStartParams.window = &window;
+	engineOpenParams.width = sk::globals.width;
+	engineOpenParams.height = sk::globals.height;
+	engineOpenParams.windowtitle = sk::globals.windowtitle;
+	engineOpenParams.window = &window;
 
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
 		return 0;
@@ -253,7 +253,7 @@ namespace sk {
 void
 SetMousePosition(int x, int y)
 {
-	glfwSetCursorPos(*engineStartParams.window, (double)x, (double)y);
+	glfwSetCursorPos(*engineOpenParams.window, (double)x, (double)y);
 }
 
 }

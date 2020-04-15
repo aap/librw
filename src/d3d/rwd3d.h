@@ -1,37 +1,56 @@
 #ifdef RW_D3D9
-#define NOMINMAX 1
+#ifdef WITH_D3D
 #include <d3d9.h>
+#endif
 #endif
 
 namespace rw {
 
 #ifdef RW_D3D9
-struct EngineStartParams
+
+#ifdef _WINDOWS_
+struct EngineOpenParams
 {
 	HWND window;
 };
+#else
+struct EngineOpenParams
+{
+	uint32 please_include_windows_h;
+};
+#endif
+#else
+#ifdef _D3D9_H_
+#error "please don't include d3d9.h for non-d3d9 platforms"
+#endif
 #endif
 
 namespace d3d {
 
 extern bool32 isP8supported;
 
-#ifdef RW_D3D9
-extern IDirect3DDevice9 *d3ddevice;
 extern Device renderdevice;
 
+#ifdef RW_D3D9
+#ifdef _D3D9_H_
+extern IDirect3DDevice9 *d3ddevice;
+void setD3dMaterial(D3DMATERIAL9 *mat9);
+#endif
+
 void lightingCB(bool32 normals);
+
+#define COLOR_ARGB(a, r, g, b) ((rw::uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 
 struct Im3DVertex
 {
 	V3d position;
-	D3DCOLOR color;
+	uint32 color;
 	float32 u, v;
 
 	void setX(float32 x) { this->position.x = x; }
 	void setY(float32 y) { this->position.y = y; }
 	void setZ(float32 z) { this->position.z = z; }
-	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = D3DCOLOR_ARGB(a, r, g, b); }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = COLOR_ARGB(a, r, g, b); }
 	void setU(float32 u) { this->u = u; }
 	void setV(float32 v) { this->v = v; }
 
@@ -48,7 +67,7 @@ struct Im2DVertex
 {
 	float32 x, y, z;
 	float32 w;
-	D3DCOLOR color;
+	uint32 color;
 	float32 u, v;
 
 	void setScreenX(float32 x) { this->x = x; }
@@ -56,7 +75,7 @@ struct Im2DVertex
 	void setScreenZ(float32 z) { this->z = z; }
 	void setCameraZ(float32 z) { }
 	void setRecipCameraZ(float32 recipz) { this->w = recipz; }
-	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = D3DCOLOR_ARGB(a, r, g, b); }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = COLOR_ARGB(a, r, g, b); }
 	void setU(float32 u, float recipZ) { this->u = u; }
 	void setV(float32 v, float recipZ) { this->v = v; }
 
@@ -69,8 +88,6 @@ struct Im2DVertex
 	float getU(void) { return this->u; }
 	float getV(void) { return this->v; }
 };
-
-void setD3dMaterial(D3DMATERIAL9 *mat9);
 
 #else
 enum {
@@ -120,7 +137,6 @@ enum {
 	D3DDECLUSAGE_DEPTH,         // 12
 	D3DDECLUSAGE_SAMPLE         // 13
 };
-
 #endif
 
 extern int vertFormatMap[];

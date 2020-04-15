@@ -330,21 +330,7 @@ Geometry::calculateBoundingSphere(void)
 {
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		V3d min = {  1000000.0f,  1000000.0f,  1000000.0f };
-		V3d max = { -1000000.0f, -1000000.0f, -1000000.0f };
-		V3d *v = m->vertices;
-		for(int32 j = 0; j < this->numVertices; j++){
-			if(v->x > max.x) max.x = v->x;
-			if(v->x < min.x) min.x = v->x;
-			if(v->y > max.y) max.y = v->y;
-			if(v->y < min.y) min.y = v->y;
-			if(v->z > max.z) max.z = v->z;
-			if(v->z < min.z) min.z = v->z;
-			v++;
-		}
-		m->boundingSphere.center = scale(add(min, max), 1/2.0f);
-		max = sub(max, m->boundingSphere.center);
-		m->boundingSphere.radius = length(max);
+		m->boundingSphere = m->calculateBoundingSphere();
 	}
 }
 
@@ -672,6 +658,29 @@ Geometry::removeUnusedMaterials(void)
 		this->triangles[i].matId = map[this->triangles[i].matId];
 	rwFree(map);
 }
+
+Sphere
+MorphTarget::calculateBoundingSphere(void) const
+{
+	Sphere sphere;
+	V3d min = {  1000000.0f,  1000000.0f,  1000000.0f };
+	V3d max = { -1000000.0f, -1000000.0f, -1000000.0f };
+	V3d *v = this->vertices;
+	for(int32 j = 0; j < this->parent->numVertices; j++){
+		if(v->x > max.x) max.x = v->x;
+		if(v->x < min.x) min.x = v->x;
+		if(v->y > max.y) max.y = v->y;
+		if(v->y < min.y) min.y = v->y;
+		if(v->z > max.z) max.z = v->z;
+		if(v->z < min.z) min.z = v->z;
+		v++;
+	}
+	sphere.center = scale(add(min, max), 1/2.0f);
+	max = sub(max, sphere.center);
+	sphere.radius = length(max);
+	return sphere;
+}
+
 
 //
 // MaterialList
