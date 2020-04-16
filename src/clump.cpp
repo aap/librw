@@ -40,7 +40,7 @@ Clump*
 Clump::clone(void)
 {
 	Clump *clump = Clump::create();
-	Frame *root = this->getFrame()->cloneHierarchy();
+	Frame *root = this->getFrame()->cloneAndLink();
 	clump->setFrame(root);
 	FORLIST(lnk, this->atomics){
 		Atomic *a = Atomic::fromClump(lnk);

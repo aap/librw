@@ -44,8 +44,8 @@ Frame::create(void)
 Frame*
 Frame::cloneHierarchy(void)
 {
-	Frame *frame = this->cloneAndLink(nil);
-	frame->purgeClone();
+	Frame *frame = this->cloneAndLink();
+	this->purgeClone();
 	return frame;
 }
 
@@ -129,8 +129,12 @@ Frame::removeChild(void)
 Frame*
 Frame::forAllChildren(Callback cb, void *data)
 {
-	for(Frame *f = this->child; f; f = f->next)
-		cb(f, data);
+	Frame *next;
+	for(Frame *f = this->child; f; f = next){
+		next = f->next;
+		if(cb(f, data) == nil)
+			return this;
+	}
 	return this;
 }
 
@@ -304,25 +308,37 @@ Frame::setHierarchyRoot(Frame *root)
 		child->setHierarchyRoot(root);
 }
 
-// Clone a frame hierarchy. Link cloned frames into Frame::root of the originals.
-Frame*
-Frame::cloneAndLink(Frame *clonedroot)
+static Frame*
+cloneRecurse(Frame *old, Frame *newroot)
 {
 	Frame *frame = Frame::create();
-	if(clonedroot == nil)
-		clonedroot = frame;
-	frame->object.copy(&this->object);
-	frame->matrix = this->matrix;
-	frame->root = clonedroot;
-	this->root = frame;	// Remember cloned frame
-	for(Frame *child = this->child; child; child = child->next){
-		Frame *clonedchild = child->cloneAndLink(clonedroot);
+	if(newroot == nil)
+		newroot = frame;
+	frame->object.copy(&old->object);
+	frame->matrix = old->matrix;
+	frame->root = newroot;
+	old->root = frame;	// Remember cloned frame
+	for(Frame *child = old->child; child; child = child->next){
+		Frame *clonedchild = cloneRecurse(child, newroot);
 		clonedchild->next = frame->child;
 		frame->child = clonedchild;
 		clonedchild->object.parent = frame;
 	}
-	s_plglist.copy(frame, this);
+	Frame::s_plglist.copy(frame, old);
 	return frame;
+}
+
+// Clone a frame hierarchy. Link cloned frames into Frame::root of the originals.
+Frame*
+Frame::cloneAndLink(void)
+{
+	Frame *newhier = cloneRecurse(this, nil);
+	if(newhier){
+		// frame is not in dirty list so important to get this flag right
+		newhier->object.privateFlags &= ~HIERARCHYSYNC;
+		newhier->updateObjects();
+	}
+	return newhier;
 }
 
 // Remove links to cloned frames from hierarchy.

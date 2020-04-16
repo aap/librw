@@ -77,7 +77,7 @@ struct Frame
 
 	void syncHierarchyLTM(void);
 	void setHierarchyRoot(Frame *root);
-	Frame *cloneAndLink(Frame *clonedroot);
+	Frame *cloneAndLink(void);
 	void purgeClone(void);
 
 #ifndef RWPUBLIC
@@ -200,6 +200,15 @@ struct Raster
 	static int32 calculateNumLevels(int32 width, int32 height);
 	static bool formatHasAlpha(int32 format);
 
+	static Raster *pushContext(Raster *raster);
+	static Raster *popContext(void);
+	static Raster *getCurrentContext(void);
+	bool32 renderFast(int32 x, int32 y);
+
+#ifndef RWPUBLIC
+	static void registerModule(void);
+#endif
+
 	enum Format {
 		DEFAULT    = 0,
 		C1555      = 0x0100,
@@ -232,6 +241,7 @@ struct Raster
 		LOCKRAW		= 8,
 	};
 };
+
 
 #define IGNORERASTERIMP 0
 

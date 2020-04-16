@@ -21,26 +21,7 @@ namespace d3d {
 
 #ifdef RW_D3D9
 
-struct DisplayMode
-{
-	D3DDISPLAYMODE mode;
-	uint32 flags;
-};
-
-struct D3d9Globals
-{
-	HWND window;
-
-	IDirect3D9 *d3d9;
-	int numAdapters;
-	int adapter;
-	D3DCAPS9 caps;
-	DisplayMode *modes;
-	int numModes;
-	int currentMode;
-
-	D3DPRESENT_PARAMETERS present;
-} d3d9Globals;
+D3d9Globals d3d9Globals;
 
 // Keep track of rasters exclusively in video memory
 // as they need special treatment sometimes
@@ -761,12 +742,52 @@ showRaster(Raster *raster)
 	d3ddevice->Present(nil, nil, 0, nil);
 }
 
+static bool32
+rasterRenderFast(Raster *raster, int32 x, int32 y)
+{
+	IDirect3DTexture9 *dsttex;
+	IDirect3DSurface9 *srcsurf, *dstsurf;
+	D3DSURFACE_DESC srcdesc, dstdesc;
+	RECT rect = { x, y, x, y };
+
+	Raster *src = raster;
+	Raster *dst = Raster::getCurrentContext();
+	D3dRaster *natdst = PLUGINOFFSET(D3dRaster, dst, nativeRasterOffset);
+	D3dRaster *natsrc = PLUGINOFFSET(D3dRaster, src, nativeRasterOffset);
+
+	switch(dst->type){
+	case Raster::CAMERATEXTURE:
+		switch(src->type){
+		case Raster::CAMERA:
+			dsttex = (IDirect3DTexture9*)natdst->texture;
+			dsttex->GetSurfaceLevel(0, &dstsurf);
+			assert(dstsurf);
+			dstsurf->GetDesc(&dstdesc);
+
+			d3ddevice->GetRenderTarget(0, &srcsurf);
+			assert(srcsurf);
+			srcsurf->GetDesc(&srcdesc);
+
+			rect.right += srcdesc.Width;
+			rect.bottom += srcdesc.Height;
+
+			d3ddevice->StretchRect(srcsurf, &rect, dstsurf, &rect, D3DTEXF_NONE);
+			dstsurf->Release();
+			srcsurf->Release();
+			return 1;
+		}
+		break;
+	}
+
+	return 0;
+}
+
 
 //
 // Device
 //
 
-static int
+int
 findFormatDepth(uint32 format)
 {
 	// not all formats actually
@@ -1241,6 +1262,7 @@ Device renderdevice = {
 	d3d::endUpdate,
 	d3d::clearCamera,
 	d3d::showRaster,
+	d3d::rasterRenderFast,
 	d3d::setRwRenderState,
 	d3d::getRwRenderState,
 	d3d::im2DRenderLine,

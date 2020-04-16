@@ -10,6 +10,7 @@
 #include "../rwobjects.h"
 #include "../rwengine.h"
 #include "rwd3d.h"
+#include "rwd3dimpl.h"
 
 namespace rw {
 namespace d3d {
@@ -358,40 +359,139 @@ struct RasterFormatInfo
 	uint32 d3dformat;
 	int32 depth;
 	bool32 hasAlpha;
+	uint32 rwFormat;
 };
-static RasterFormatInfo formatInfo[16] = {
+
+// indexed directly by RW format
+static RasterFormatInfo formatInfoRW[16] = {
 	{ 0, 0, 0},
-	{ D3DFMT_A1R5G5B5, 16, 1 },	// C1555
-	{ D3DFMT_R5G6B5,   16, 0 },	// C565
-	{ D3DFMT_A4R4G4B4, 16, 1 },	// C4444
-	{ D3DFMT_L8,        8, 0 },	// LUM8
-	{ D3DFMT_A8R8G8B8, 32, 1 },	// C8888
-	{ D3DFMT_X8R8G8B8, 32, 0 },	// C888
-	{ D3DFMT_D16,      16, 0 },	// D16
-	{ D3DFMT_D24X8,    32, 0 },	// D24
-	{ D3DFMT_D32,      32, 0 },	// D32
-	{ D3DFMT_X1R5G5B5, 16, 0 },	// C555
+	{ D3DFMT_A1R5G5B5, 16, 1, Raster::C1555 },
+	{ D3DFMT_R5G6B5,   16, 0, Raster::C565 },
+	{ D3DFMT_A4R4G4B4, 16, 1, Raster::C4444 },
+	{ D3DFMT_L8,        8, 0, Raster::LUM8 },
+	{ D3DFMT_A8R8G8B8, 32, 1, Raster::C8888 },
+	{ D3DFMT_X8R8G8B8, 32, 0, Raster::C888 },
+	{ D3DFMT_D16,      16, 0, Raster::D16 },
+	{ D3DFMT_D24X8,    32, 0, Raster::D24 },
+	{ D3DFMT_D32,      32, 0, Raster::D32 },
+	{ D3DFMT_X1R5G5B5, 16, 0, Raster::C555 },
 };
+
+static RasterFormatInfo formatInfoFull[] = {
+	{ D3DFMT_R8G8B8, 0, 24, 0 },
+	{ D3DFMT_A8R8G8B8, 1, 32, Raster::C8888 },
+	{ D3DFMT_X8R8G8B8, 0, 32, Raster::C888 },
+	{ D3DFMT_R5G6B5, 0, 16, Raster::C565 },
+	{ D3DFMT_X1R5G5B5, 0, 16, Raster::C555 },
+	{ D3DFMT_A1R5G5B5, 1, 16, Raster::C1555 },
+	{ D3DFMT_A4R4G4B4, 1, 16, Raster::C4444 },
+	{ D3DFMT_R3G3B2, 0, 8, 0 },
+	{ D3DFMT_A8, 1, 8, 0 },
+	{ D3DFMT_A8R3G3B2, 1, 16, 0 },
+	{ D3DFMT_X4R4G4B4, 0, 16, 0 },
+	{ D3DFMT_A2B10G10R10, 1, 32, 0 },
+	{ D3DFMT_A8B8G8R8, 1, 32, 0 },
+	{ D3DFMT_X8B8G8R8, 0, 32, 0 },
+	{ D3DFMT_G16R16, 0, 32, 0 },
+	{ D3DFMT_A2R10G10B10, 1, 32, 0 },
+	{ D3DFMT_A16B16G16R16, 1, 64, 0 },
+	{ D3DFMT_A8P8, 1, 16, 0 },
+//	{ D3DFMT_P8, 0, 8, ... },
+//	{ D3DFMT_L8, 0, 8, ... },
+	{ D3DFMT_A8L8, 1, 16, 0 },
+	{ D3DFMT_A4L4, 1, 8, 0 },
+	{ D3DFMT_V8U8, 0, 16, 0 },
+	{ D3DFMT_L6V5U5, 0, 16, 0 },
+	{ D3DFMT_X8L8V8U8, 0, 32, 0 },
+	{ D3DFMT_Q8W8V8U8, 0, 32, 0 },
+	{ D3DFMT_V16U16, 0, 32, 0 },
+	{ D3DFMT_A2W10V10U10, 1, 32, 0 },
+	{ D3DFMT_D16_LOCKABLE, 0, 16, Raster::D16 },
+	{ D3DFMT_D32, 0, 32, Raster::D32 },
+	{ D3DFMT_D15S1, 0, 16, Raster::D16 },
+	{ D3DFMT_D24S8, 0, 32, Raster::D32 },
+	{ D3DFMT_D24X8, 0, 32, Raster::D32 },
+	{ D3DFMT_D24X4S4, 0, 32, Raster::D32 },
+	{ D3DFMT_D16, 0, 16, Raster::D16 },
+	{ D3DFMT_D32F_LOCKABLE, 0, 32, Raster::D32 },
+	{ D3DFMT_D24FS8, 0, 32, Raster::D32 },
+	{ D3DFMT_L16, 0, 16, 0 },
+	{ D3DFMT_Q16W16V16U16, 0, 64, 0 },
+	{ D3DFMT_R16F, 0, 16, 0 },
+	{ D3DFMT_G16R16F, 0, 32, 0 },
+	{ D3DFMT_A16B16G16R16F, 1, 64, 0 },
+	{ D3DFMT_R32F, 0, 32, 0 },
+	{ D3DFMT_G32R32F, 0, 64, 0 },
+	{ D3DFMT_A32B32G32R32F, 1, 128, 0 },
+	{ D3DFMT_CxV8U8, 0, 16, 0 },
+};
+
+RasterFormatInfo*
+findFormatInfoD3D(uint32 d3dformat)
+{
+	static RasterFormatInfo fake = { 0, 0, 0, 0 };
+	int i;
+	for(i = 0; i < nelem(formatInfoFull); i++)
+		if(formatInfoFull[i].d3dformat == d3dformat)
+			return &formatInfoFull[i];
+	return &fake;
+}
+
+
+static void
+rasterSetFormat(Raster *raster)
+{
+	if(raster->format == 0){
+		// have to find a format first
+		// this could perhaps be a bit more intelligent
+
+		switch(raster->type){
+		case Raster::NORMAL:
+		case Raster::TEXTURE:
+			raster->format = Raster::C8888;
+			break;
+
+#ifdef RW_D3D9
+		case Raster::ZBUFFER:
+			raster->format = findFormatInfoD3D(d3d9Globals.present.AutoDepthStencilFormat)->rwFormat;
+			// can this even happen? just do something...
+			if(raster->format == 0)
+				raster->format = Raster::D32;
+			break;
+
+		case Raster::CAMERATEXTURE:
+		case Raster::CAMERA:
+			raster->format = findFormatInfoD3D(d3d9Globals.present.BackBufferFormat)->rwFormat;
+			// can this even happen? just do something...
+			if(raster->format == 0)
+				raster->format = Raster::C8888;
+			break;
+#endif
+		}
+	}
+
+
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		natras->format = D3DFMT_P8;
+	else
+		natras->format = formatInfoRW[(raster->format >> 8) & 0xF].d3dformat;
+	raster->depth = formatInfoRW[(raster->format >> 8) & 0xF].depth;
+	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
+}
 
 static void
 rasterCreateTexture(Raster *raster)
 {
-	uint32 format;
 	int32 levels;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 
-	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
-		format = D3DFMT_P8;
+	if(natras->format == D3DFMT_P8)
 		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-	}else
-		format = formatInfo[(raster->format >> 8) & 0xF].d3dformat;
-	natras->format = format;
-	raster->depth = formatInfo[(raster->format >> 8) & 0xF].depth;
-	natras->hasAlpha = formatInfo[(raster->format >> 8) & 0xF].hasAlpha;
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
 	natras->texture = createTexture(raster->width, raster->height,
 	                                raster->format & Raster::MIPMAP ? levels : 1,
-	                                format);
+	                                natras->format);
 	assert(natras->texture && "couldn't create d3d texture");
 }
 
@@ -404,8 +504,6 @@ rasterCreateCameraTexture(Raster *raster)
 
 	int32 levels;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	natras->format = formatInfo[(raster->format >> 8) & 0xF].d3dformat;
-	natras->hasAlpha = formatInfo[(raster->format >> 8) & 0xF].hasAlpha;
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
 
 #ifdef RW_D3D9
@@ -421,42 +519,72 @@ rasterCreateCameraTexture(Raster *raster)
 #endif
 }
 
+static void
+rasterCreateCamera(Raster *raster)
+{
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	raster->flags |= Raster::DONTALLOCATE;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->stride = 0;
+	raster->pixels = nil;
+
+#ifdef RW_D3D9
+	natras->format = d3d9Globals.present.BackBufferFormat;
+	raster->depth = findFormatDepth(natras->format);
+#endif
+}
+
+static void
+rasterCreateZbuffer(Raster *raster)
+{
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	raster->flags |= Raster::DONTALLOCATE;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->stride = 0;
+	raster->pixels = nil;
+
+#ifdef RW_D3D9
+	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
+	raster->depth = findFormatDepth(natras->format);
+#endif
+}
+
 void
 rasterCreate(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 
-	// Dummy to use as subraster
-	if(raster->width == 0 || raster->height == 0){
-		raster->flags |= Raster::DONTALLOCATE;
-		raster->stride = 0;
-		return;
-	}
+	rasterSetFormat(raster);
 
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
+		// Dummy to use as subraster
+		// ^ what did i do there?
+		if(raster->width == 0 || raster->height == 0){
+			raster->flags |= Raster::DONTALLOCATE;
+			raster->stride = 0;
+			return;
+		}
+
 		if(raster->flags & Raster::DONTALLOCATE)
 			return;
 		rasterCreateTexture(raster);
 		break;
 
-	case Raster::ZBUFFER:
-		raster->flags |= Raster::DONTALLOCATE;
-		// TODO
-		break;
-	case Raster::CAMERA:
-		// TODO: get stuff from video mode
-		raster->flags |= Raster::DONTALLOCATE;
-		raster->originalWidth = raster->width;
-		raster->originalHeight = raster->height;
-		raster->stride = 0;
-		raster->pixels = nil;
-		break;
 	case Raster::CAMERATEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
 			return;
 		rasterCreateCameraTexture(raster);
+		break;
+
+	case Raster::ZBUFFER:
+		rasterCreateZbuffer(raster);
+		break;
+	case Raster::CAMERA:
+		rasterCreateCamera(raster);
 		break;
 	}
 }

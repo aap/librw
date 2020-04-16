@@ -1,5 +1,6 @@
 namespace rw {
 
+// uhhhm..... why are these not actual functions?
 enum DeviceReq
 {
 	// Device initialization before Engine/Driver plugins are opened
@@ -45,6 +46,7 @@ struct Device
 	void  (*endUpdate)(Camera*);
 	void  (*clearCamera)(Camera*, RGBA *col, uint32 mode);
 	void  (*showRaster)(Raster *raster);
+	bool32 (*rasterRenderFast)(Raster *raster, int32 x, int32 y);
 	void  (*setRenderState)(int32 state, void *value);
 	void *(*getRenderState)(int32 state);
 

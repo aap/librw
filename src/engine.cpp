@@ -84,6 +84,7 @@ Engine::init(void)
 
 	// core plugin attach here
 	Frame::registerModule();
+	Raster::registerModule();
 	Texture::registerModule();
 
 	// driver plugin attach
@@ -124,10 +125,8 @@ Engine::open(EngineOpenParams *p)
 	engine->device = null::renderdevice;
 #endif
 
-	// TODO: create d3d object/get video mode
 	engine->device.system(DEVICEOPEN, (void*)p, 0);
 
-	// TODO: init driver functions
 	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
 		rw::engine->driver[i] = (Driver*)rwNew(Driver::s_plglist[i].size,
@@ -279,6 +278,8 @@ void showRaster(Raster*) { }
 void   setRenderState(int32, void*) { }
 void  *getRenderState(int32) { return 0; }
 
+bool32 rasterRenderFast(Raster *raster, int32 x, int32 y) { return 0; }
+
 void im2DRenderLine(void*, int32, int32, int32) { }
 void im2DRenderTriangle(void*, int32, int32, int32, int32) { }
 void im2DRenderPrimitive(PrimitiveType, void*, int32) { }
@@ -360,6 +361,7 @@ Device renderdevice = {
 	null::endUpdate,
 	null::clearCamera,
 	null::showRaster,
+	null::rasterRenderFast,
 	null::setRenderState,
 	null::getRenderState,
 	null::im2DRenderLine,

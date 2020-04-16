@@ -14,6 +14,8 @@ rw::Texture *tex, *tex2;
 rw::Raster *testras;
 rw::EngineOpenParams engineOpenParams;
 
+rw::Texture *frontbuffer;
+
 bool dosoftras = 0;
 
 namespace gen {
@@ -28,6 +30,11 @@ void printScreen(const char *s, float x, float y);
 void
 Init(void)
 {
+//	AllocConsole();
+//	freopen("CONIN$", "r", stdin);
+//	freopen("CONOUT$", "w", stdout);
+//	freopen("CONOUT$", "w", stderr);
+
 	sk::globals.windowtitle = "Clump viewer";
 	sk::globals.width = 640;
 	sk::globals.height = 448;
@@ -318,7 +325,8 @@ im3dtest(void)
 		verts[i].setV(vs[i].v);
 	}
 
-	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+//	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, frontbuffer->raster);
 	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 
@@ -333,9 +341,34 @@ im3dtest(void)
 }
 
 void
+getFrontBuffer(void)
+{
+	rw::Raster *fb = Scene.camera->frameBuffer;
+
+	if(frontbuffer == nil || fb->width > frontbuffer->raster->width || fb->height > frontbuffer->raster->height){
+		int w, h;
+		for(w = 1; w < fb->width; w <<= 1);
+		for(h = 1; h < fb->height; h <<= 1);
+		rw::Raster *ras = rw::Raster::create(w, h, fb->depth,  rw::Raster::CAMERATEXTURE);
+		if(frontbuffer){
+			frontbuffer->raster->destroy();
+			frontbuffer->raster = ras;
+		}else
+			frontbuffer = rw::Texture::create(ras);
+		printf("created FB with %d %d %d\n", ras->width, ras->height, ras->depth);
+	}
+
+	rw::Raster::pushContext(frontbuffer->raster);
+	fb->renderFast(0, 0);
+	rw::Raster::popContext();
+}
+
+void
 Draw(float timeDelta)
 {
-	static rw::RGBA clearcol = { 0x80, 0x80, 0x80, 0xFF };
+	getFrontBuffer();
+
+	static rw::RGBA clearcol = { 0x60, 0x60, 0x60, 0xFF };
 	camera->m_rwcam->clear(&clearcol, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
 	camera->update();
 	camera->m_rwcam->beginUpdate();
@@ -343,7 +376,7 @@ Draw(float timeDelta)
 extern void beginSoftras(void);
 	beginSoftras();
 
-	gen::tlTest(Scene.clump);
+//	gen::tlTest(Scene.clump);
 void drawtest(void);
 //	drawtest();
 
@@ -351,14 +384,15 @@ extern void endSoftras(void);
 	if(dosoftras){
 		endSoftras();
 	}
-		im2dtest();
+	//	im2dtest();
 
 //	Scene.clump->render();
-//	im3dtest();
+	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
 
 
 	camera->m_rwcam->endUpdate();
+
 	camera->m_rwcam->showRaster();
 }
 

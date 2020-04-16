@@ -662,6 +662,13 @@ showRaster(Raster *raster)
 #endif
 }
 
+static bool32
+rasterRenderFast(Raster *raster, int32 x, int32 y)
+{
+	// use glCopyTexSubImage2D
+	return 0;
+}
+
 static void
 beginUpdate(Camera *cam)
 {
@@ -1123,6 +1130,7 @@ Device renderdevice = {
 	null::endUpdate,
 	gl3::clearCamera,
 	gl3::showRaster,
+	gl3::rasterRenderFast,
 	gl3::setRenderState,
 	gl3::getRenderState,
 	gl3::im2DRenderLine,

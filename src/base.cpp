@@ -536,7 +536,10 @@ Matrix::invertGeneral(Matrix *dst, const Matrix *src)
 void
 Matrix::makeRotation(Matrix *dst, const V3d *axis, float32 angle)
 {
-	V3d v = normalize(*axis);
+//	V3d v = normalize(*axis);
+	float32 len = dot(*axis, *axis);
+	if(len != 0.0f) len = 1.0f/sqrtf(len);
+	V3d v = rw::scale(*axis, len);
 	angle = angle*(float)M_PI/180.0f;
 	float32 s = sin(angle);
 	float32 c = cos(angle);
@@ -880,13 +883,13 @@ StreamFile::close(void)
 uint32
 StreamFile::write(const void *data, uint32 length)
 {
-	return (uint32)fwrite(data, length, 1, this->file);
+	return (uint32)fwrite(data, 1, length, this->file);
 }
 
 uint32
 StreamFile::read(void *data, uint32 length)
 {
-	return (uint32)fread(data, length, 1, this->file);
+	return (uint32)fread(data, 1, length, this->file);
 }
 
 void
@@ -974,7 +977,7 @@ getFileContents(char *name, uint32 *len)
 	*len = ftell(cf);
 	fseek(cf, 0, SEEK_SET);
 	uint8 *data = rwNewT(uint8, *len, MEMDUR_EVENT);
-	fread(data, *len, 1, cf);
+	fread(data, 1, *len, cf);
 	fclose(cf);
 	return data;
 }
