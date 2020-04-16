@@ -257,7 +257,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	geo->instData = header;
 	header->platform = PLATFORM_D3D8;
 
-	header->serialNumber = 0;
+	header->serialNumber = meshh->serialNum;
 	header->numMeshes = meshh->numMeshes;
 	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 

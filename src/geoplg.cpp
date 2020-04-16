@@ -23,6 +23,8 @@
 
 namespace rw {
 
+static uint16 nextSerialNum = 1;
+
 // Mesh
 
 // Allocate a mesh header, meshes and optionally indices.
@@ -50,7 +52,7 @@ Geometry::allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices)
 		this->meshHeader = mh;
 	}
 	mh->numMeshes = numMeshes;
-	mh->serialNum = 0;	// TODO
+	mh->serialNum = nextSerialNum++;
 	mh->totalIndices = numIndices;
 	m = mh->getMeshes();
 	indices = (uint16*)&m[numMeshes];

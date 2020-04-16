@@ -73,6 +73,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	geo->addMorphTargets(1);
 
 	geo->matList.init();
+	geo->lockedSinceInst = 0;
 	geo->meshHeader = nil;
 	geo->instData = nil;
 	geo->refCount = 1;
@@ -96,6 +97,24 @@ Geometry::destroy(void)
 		this->matList.deinit();
 		rwFree(this);
 	}
+}
+
+void
+Geometry::lock(int32 lockFlags)
+{
+	lockedSinceInst |= lockFlags;
+	if(lockFlags & LOCKPOLYGONS){
+		rwFree(this->meshHeader);
+		this->meshHeader = nil;
+	}
+}
+
+void
+Geometry::unlock(void)
+{
+	if(this->meshHeader == nil)
+		this->buildMeshes();
+		
 }
 
 struct GeoStreamData

@@ -97,14 +97,12 @@ getDeclaration(void *declaration, VertexElement *elements)
 #endif
 }
 
-
-void*
-destroyNativeData(void *object, int32, int32)
+void
+freeInstanceData(Geometry *geometry)
 {
-	Geometry *geometry = (Geometry*)object;
 	if(geometry->instData == nil ||
 	   geometry->instData->platform != PLATFORM_D3D9)
-		return object;
+		return;
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = nil;
@@ -114,6 +112,14 @@ destroyNativeData(void *object, int32, int32)
 	deleteObject(header->vertexStream[1].vertexBuffer);
 	rwFree(header->inst);
 	rwFree(header);
+	return;
+}
+
+
+void*
+destroyNativeData(void *object, int32, int32)
+{
+	freeInstanceData((Geometry*)object);
 	return object;
 }
 
@@ -309,23 +315,18 @@ registerNativeDataPlugin(void)
 	                               getSizeNativeData);
 }
 
-static void
-instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
+static InstanceDataHeader*
+instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
 {
-	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
-	Geometry *geo = atomic->geometry;
-	// TODO: allow for REINSTANCE
-	if(geo->instData)
-		return;
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
-	geo->instData = header;
 	header->platform = PLATFORM_D3D9;
 
-	header->serialNumber = 0;
+	header->serialNumber = meshh->serialNum;
 	header->numMeshes = meshh->numMeshes;
 	header->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
 	header->useOffsets = 0;
+	header->vertexDeclaration = nil;
 	header->totalNumVertex = geo->numVertices;
 	header->totalNumIndex = meshh->totalIndices;
 	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
@@ -359,7 +360,36 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	memset(&header->vertexStream, 0, 2*sizeof(VertexStream));
 
-	pipe->instanceCB(geo, header);
+	return header;
+}
+
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
+{
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
+	Geometry *geo = atomic->geometry;
+	// don't try to (re)instance native data
+	if(geo->flags & Geometry::NATIVE)
+		return;
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	if(geo->instData){
+		// Already have instanced data, so check if we have to reinstance
+		assert(header->platform == PLATFORM_D3D9);
+		if(header->serialNumber != geo->meshHeader->serialNum){
+			// Mesh changed, so reinstance everything
+			freeInstanceData(geo);
+		}
+	}
+
+	// no instance or complete reinstance
+	if(geo->instData == nil){
+		geo->instData = instanceMesh(rwpipe, geo);
+		pipe->instanceCB(geo, (InstanceDataHeader*)geo->instData, 0);
+	}else if(geo->lockedSinceInst)
+		pipe->instanceCB(geo, (InstanceDataHeader*)geo->instData, 1);
+
+	geo->lockedSinceInst = 0;
 }
 
 static void
@@ -401,9 +431,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	// TODO: allow for REINSTANCE
-	if(geo->instData == nil)
-		pipe->instance(atomic);
+	pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D9);
 	if(pipe->renderCB)
@@ -422,81 +450,95 @@ ObjPipeline::ObjPipeline(uint32 platform)
 }
 
 void
-defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
+defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 {
-	VertexElement dcl[NUMDECLELT];
-
-	VertexStream *s = &header->vertexStream[0];
-	s->offset = 0;
-	s->managed = 1;
-	s->geometryFlags = 0;
-	s->dynamicLock = 0;
-
 	int i = 0;
-	dcl[i].stream = 0;
-	dcl[i].offset = 0;
-	dcl[i].type = D3DDECLTYPE_FLOAT3;
-	dcl[i].method = D3DDECLMETHOD_DEFAULT;
-	dcl[i].usage = D3DDECLUSAGE_POSITION;
-	dcl[i].usageIndex = 0;
-	i++;
-	uint16 stride = 12;
-	s->geometryFlags |= 0x2;
+	VertexElement dcl[NUMDECLELT];
+	VertexStream *s = &header->vertexStream[0];
 
 	bool isPrelit = (geo->flags & Geometry::PRELIT) != 0;
-	if(isPrelit){
-		dcl[i].stream = 0;
-		dcl[i].offset = stride;
-		dcl[i].type = D3DDECLTYPE_D3DCOLOR;
-		dcl[i].method = D3DDECLMETHOD_DEFAULT;
-		dcl[i].usage = D3DDECLUSAGE_COLOR;
-		dcl[i].usageIndex = 0;
-		i++;
-		s->geometryFlags |= 0x8;
-		stride += 4;
-	}
-
-	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		dcl[i].stream = 0;
-		dcl[i].offset = stride;
-		dcl[i].type = D3DDECLTYPE_FLOAT2;
-		dcl[i].method = D3DDECLMETHOD_DEFAULT;
-		dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
-		dcl[i].usageIndex = (uint8)n;
-		i++;
-		s->geometryFlags |= 0x10 << n;
-		stride += 8;
-	}
-
 	bool hasNormals = (geo->flags & Geometry::NORMALS) != 0;
-	if(hasNormals){
-		dcl[i].stream = 0;
-		dcl[i].offset = stride;
-		dcl[i].type = D3DDECLTYPE_FLOAT3;
-		dcl[i].method = D3DDECLMETHOD_DEFAULT;
-		dcl[i].usage = D3DDECLUSAGE_NORMAL;
-		dcl[i].usageIndex = 0;
-		i++;
-		s->geometryFlags |= 0x4;
-		stride += 12;
-	}
-	dcl[i] = D3DDECL_END();
-	header->vertexStream[0].stride = stride;
-
-	header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
-
-	s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, D3DPOOL_MANAGED);
 
 	// TODO: support both vertex buffers
-	uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
-	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
-		;
-	instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-		geo->morphTargets[0].vertices,
-		header->totalNumVertex,
-		header->vertexStream[dcl[i].stream].stride);
 
-	if(isPrelit){
+	if(!reinstance){
+		// Create declarations and buffers only the first time
+
+		assert(s->vertexBuffer == nil);
+		s->offset = 0;
+		s->managed = 1;
+		s->geometryFlags = 0;
+		s->dynamicLock = 0;
+
+		dcl[i].stream = 0;
+		dcl[i].offset = 0;
+		dcl[i].type = D3DDECLTYPE_FLOAT3;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_POSITION;
+		dcl[i].usageIndex = 0;
+		i++;
+		uint16 stride = 12;
+		s->geometryFlags |= 0x2;
+
+		if(isPrelit){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_D3DCOLOR;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_COLOR;
+			dcl[i].usageIndex = 0;
+			i++;
+			s->geometryFlags |= 0x8;
+			stride += 4;
+		}
+
+		for(int32 n = 0; n < geo->numTexCoordSets; n++){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_FLOAT2;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
+			dcl[i].usageIndex = (uint8)n;
+			i++;
+			s->geometryFlags |= 0x10 << n;
+			stride += 8;
+		}
+
+		if(hasNormals){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_FLOAT3;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_NORMAL;
+			dcl[i].usageIndex = 0;
+			i++;
+			s->geometryFlags |= 0x4;
+			stride += 12;
+		}
+		dcl[i] = D3DDECL_END();
+		s->stride = stride;
+
+		assert(header->vertexDeclaration == nil);
+		header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
+
+		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, D3DPOOL_MANAGED);
+	}else
+		getDeclaration(header->vertexDeclaration, dcl);
+
+	uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+
+	// Instance vertices
+	if(!reinstance || geo->lockedSinceInst&Geometry::LOCKVERTICES){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
+			;
+		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+			geo->morphTargets[0].vertices,
+			header->totalNumVertex,
+			header->vertexStream[dcl[i].stream].stride);
+	}
+
+	// Instance prelight colors
+	if(isPrelit && (!reinstance || geo->lockedSinceInst&Geometry::LOCKPRELIGHT)){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
 			;
 		InstanceData *inst = header->inst;
@@ -512,16 +554,20 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 		}
 	}
 
+	// Instance tex coords
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
-			;
-		instTexCoords(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->texCoords[n],
-			header->totalNumVertex,
-			header->vertexStream[dcl[i].stream].stride);
+		if(!reinstance || geo->lockedSinceInst&(Geometry::LOCKTEXCOORDS<<n)){
+			for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
+				;
+			instTexCoords(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+				geo->texCoords[n],
+				header->totalNumVertex,
+				header->vertexStream[dcl[i].stream].stride);
+		}
 	}
 
-	if(hasNormals){
+	// Instance normals
+	if(hasNormals && (!reinstance || geo->lockedSinceInst&Geometry::LOCKNORMALS)){
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
 			;
 		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,

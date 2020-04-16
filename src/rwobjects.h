@@ -343,7 +343,7 @@ struct MeshHeader
 	};
 	uint32 flags;
 	uint16 numMeshes;
-	uint16 serialNum;	// not used yet
+	uint16 serialNum;
 	uint32 totalIndices;
 	uint32 pad;	// needed for alignment of Meshes
 	// after this the meshes
@@ -391,13 +391,13 @@ struct MaterialList
 	uint32 streamGetSize(void);
 };
 
-// TODO: implement locking
 struct Geometry
 {
 	PLUGINBASE
 	enum { ID = 8 };
 	Object object;
 	uint32 flags;
+	uint16 lockedSinceInst;
 	int32 numTriangles;
 	int32 numVertices;
 	int32 numMorphTargets;
@@ -417,6 +417,8 @@ struct Geometry
 
 	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
 	void destroy(void);
+	void lock(int32 lockFlags);
+	void unlock(void);
 	void addMorphTargets(int32 n);
 	void calculateBoundingSphere(void);
 	bool32 hasColoredMaterial(void);
@@ -453,6 +455,26 @@ struct Geometry
 		NATIVEINSTANCE = 0x02000000
 	};
 
+	enum LockFlags
+	{
+		LOCKPOLYGONS     = 0x0001,
+		LOCKVERTICES     = 0x0002,
+		LOCKNORMALS      = 0x0004,
+		LOCKPRELIGHT     = 0x0008,
+
+		LOCKTEXCOORDS    = 0x0010,
+		LOCKTEXCOORDS1   = 0x0010,
+		LOCKTEXCOORDS2   = 0x0020,
+		LOCKTEXCOORDS3   = 0x0040,
+		LOCKTEXCOORDS4   = 0x0080,
+		LOCKTEXCOORDS5   = 0x0100,
+		LOCKTEXCOORDS6   = 0x0200,
+		LOCKTEXCOORDS7   = 0x0400,
+		LOCKTEXCOORDS8   = 0x0800,
+		LOCKTEXCOORDSALL = 0x0ff0,
+
+		LOCKALL          = 0x0fff
+	};
 };
 
 void registerMeshPlugin(void);

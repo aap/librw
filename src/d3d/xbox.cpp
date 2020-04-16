@@ -212,7 +212,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	// The 0x18 byte are the resentryheader.
 	// We don't have it but it's used for alignment.
 	header->data = rwNewT(uint8, header->size + 0x18, MEMDUR_EVENT | ID_GEOMETRY);
-	header->serialNumber = 0;
+	header->serialNumber = meshh->serialNum;
 	header->numMeshes = meshh->numMeshes;
 	header->primType = meshh->flags == MeshHeader::TRISTRIP ?
 		D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;

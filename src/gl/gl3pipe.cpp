@@ -35,7 +35,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	geo->instData = header;
 	header->platform = PLATFORM_GL3;
 
-	header->serialNumber = 0;
+	header->serialNumber = meshh->serialNum;
 	header->numMeshes = meshh->numMeshes;
 	header->primType = meshh->flags == 1 ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
 	header->totalNumVertex = geo->numVertices;
