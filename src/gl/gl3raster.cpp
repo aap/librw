@@ -20,40 +20,9 @@ namespace gl3 {
 
 int32 nativeRasterOffset;
 
-void
-rasterCreate(Raster *raster)
+static void
+rasterCreateTexture(Raster *raster)
 {
-	// Dummy to use as subraster
-	if(raster->width == 0 || raster->height == 0){
-		raster->flags |= Raster::DONTALLOCATE;
-		raster->stride = 0;
-		return;
-	}
-
-	switch(raster->type){
-	case Raster::CAMERA:
-		// TODO: set/check width, height, depth, format?
-		raster->flags |= Raster::DONTALLOCATE;
-		raster->originalWidth = raster->width;
-		raster->originalHeight = raster->height;
-		raster->stride = 0;
-		raster->pixels = nil;
-		break;
-	case Raster::ZBUFFER:
-		// TODO: set/check width, height, depth, format?
-		raster->flags |= Raster::DONTALLOCATE;
-		break;
-	case Raster::NORMAL:
-	case Raster::TEXTURE:
-		// continue below
-		break;
-	default:
-		assert(0 && "unsupported format");	
-	}
-
-	if(raster->flags & Raster::DONTALLOCATE)
-		return;
-
 #ifdef RW_OPENGL
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(raster->format & 0xF00){
@@ -91,6 +60,114 @@ rasterCreate(Raster *raster)
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif
+}
+
+#ifdef RW_OPENGL
+
+// This is totally fake right now, can't render to it. Only used to copy into from FB
+// For rendering the idea would probably be to render to the backbuffer and copy it here afterwards.
+// alternatively just use FBOs but that probably needs some more infrastructure.
+static void
+rasterCreateCameraTexture(Raster *raster)
+{
+	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+		// TODO: give some error
+		return;
+
+	// TODO: figure out what the backbuffer is and use that as a default
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	switch(raster->format & 0xF00){
+	case Raster::C8888:
+	default:
+		natras->internalFormat = GL_RGBA;
+		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_BYTE;
+		natras->hasAlpha = 1;
+		break;
+	case Raster::C888:
+		natras->internalFormat = GL_RGB;
+		natras->format = GL_RGB;
+		natras->type = GL_UNSIGNED_BYTE;
+		natras->hasAlpha = 0;
+		break;
+	case Raster::C1555:
+		// TODO: check if this is correct
+		natras->internalFormat = GL_RGBA;
+		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
+		natras->hasAlpha = 1;
+		break;
+	}
+
+	glGenTextures(1, &natras->texid);
+	glBindTexture(GL_TEXTURE_2D, natras->texid);
+	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
+	             raster->width, raster->height,
+	             0, natras->format, natras->type, nil);
+	natras->filterMode = 0;
+	natras->addressU = 0;
+	natras->addressV = 0;
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+static void
+rasterCreateCamera(Raster *raster)
+{
+	// TODO: set/check width, height, depth, format?
+	raster->flags |= Raster::DONTALLOCATE;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->stride = 0;
+	raster->pixels = nil;
+}
+
+static void
+rasterCreateZbuffer(Raster *raster)
+{
+	// TODO: set/check width, height, depth, format?
+	raster->flags |= Raster::DONTALLOCATE;
+}
+
+#endif
+
+void
+rasterCreate(Raster *raster)
+{
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+		// Dummy to use as subraster
+		// ^ what did i do there?
+		if(raster->width == 0 || raster->height == 0){
+			raster->flags |= Raster::DONTALLOCATE;
+			raster->stride = 0;
+			return;
+		}
+
+		if(raster->flags & Raster::DONTALLOCATE)
+			return;
+		rasterCreateTexture(raster);
+		break;
+
+#ifdef RW_OPENGL
+	case Raster::CAMERATEXTURE:
+		if(raster->flags & Raster::DONTALLOCATE)
+			return;
+		rasterCreateCameraTexture(raster);
+		break;
+
+	case Raster::ZBUFFER:
+		rasterCreateZbuffer(raster);
+		break;
+	case Raster::CAMERA:
+		rasterCreateCamera(raster);
+		break;
+#endif
+
+	default:
+		assert(0 && "unsupported format");	
+	}
 }
 
 uint8*

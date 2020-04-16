@@ -137,6 +137,7 @@ struct RwStateCache {
 static RwStateCache rwStateCache;
 
 static int32 activeTexture;
+static uint32 boundTexture[MAXNUMSTAGES];
 
 static uint32 blendMap[] = {
 	GL_ZERO,	// actually invalid
@@ -198,8 +199,15 @@ setActiveTexture(int32 n)
 {
 	if(activeTexture != n){
 		activeTexture = n;
-		glActiveTexture(n);
+		glActiveTexture(GL_TEXTURE0+n);
 	}
+}
+
+static void
+bindTexture(uint32 texid)
+{
+	boundTexture[activeTexture] = texid;
+	glBindTexture(GL_TEXTURE_2D, texid);
 }
 
 // TODO: support mipmaps
@@ -272,11 +280,11 @@ setRasterStageOnly(uint32 stage, Raster *raster)
 	bool32 alpha;
 	if(raster != rwStateCache.texstage[stage].raster){
 		rwStateCache.texstage[stage].raster = raster;
-		setActiveTexture(GL_TEXTURE0+stage);
+		setActiveTexture(stage);
 		if(raster){
 			assert(raster->platform == PLATFORM_GL3);
 			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
-			glBindTexture(GL_TEXTURE_2D, natras->texid);
+			bindTexture(natras->texid);
 
 			rwStateCache.texstage[stage].filter = (rw::Texture::FilterMode)natras->filterMode;
 			rwStateCache.texstage[stage].addressingU = (rw::Texture::Addressing)natras->addressU;
@@ -284,7 +292,7 @@ setRasterStageOnly(uint32 stage, Raster *raster)
 
 			alpha = natras->hasAlpha;
 		}else{
-			glBindTexture(GL_TEXTURE_2D, whitetex);
+			bindTexture(whitetex);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -310,11 +318,11 @@ setRasterStage(uint32 stage, Raster *raster)
 	bool32 alpha;
 	if(raster != rwStateCache.texstage[stage].raster){
 		rwStateCache.texstage[stage].raster = raster;
-		setActiveTexture(GL_TEXTURE0+stage);
+		setActiveTexture(stage);
 		if(raster){
 			assert(raster->platform == PLATFORM_GL3);
 			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
-			glBindTexture(GL_TEXTURE_2D, natras->texid);
+			bindTexture(natras->texid);
 			uint32 filter = rwStateCache.texstage[stage].filter;
 			uint32 addrU = rwStateCache.texstage[stage].addressingU;
 			uint32 addrV = rwStateCache.texstage[stage].addressingV;
@@ -333,7 +341,7 @@ setRasterStage(uint32 stage, Raster *raster)
 			}
 			alpha = natras->hasAlpha;
 		}else{
-			glBindTexture(GL_TEXTURE_2D, whitetex);
+			bindTexture(whitetex);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -549,10 +557,12 @@ resetRenderState(void)
 	rwStateCache.cullmode = CULLNONE;
 	glDisable(GL_CULL_FACE);
 
+	activeTexture = -1;
 	for(int i = 0; i < MAXNUMSTAGES; i++){
-		glActiveTexture(GL_TEXTURE0+i);
-		glBindTexture(GL_TEXTURE_2D, whitetex);
+		setActiveTexture(i);
+		bindTexture(whitetex);
 	}
+	setActiveTexture(0);
 }
 
 void
@@ -665,7 +675,26 @@ showRaster(Raster *raster)
 static bool32
 rasterRenderFast(Raster *raster, int32 x, int32 y)
 {
-	// use glCopyTexSubImage2D
+	Raster *src = raster;
+	Raster *dst = Raster::getCurrentContext();
+	Gl3Raster *natdst = PLUGINOFFSET(Gl3Raster, dst, nativeRasterOffset);
+	Gl3Raster *natsrc = PLUGINOFFSET(Gl3Raster, src, nativeRasterOffset);
+
+	switch(dst->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+	case Raster::CAMERATEXTURE:
+		switch(src->type){
+		case Raster::CAMERA:
+			setActiveTexture(0);
+			glBindTexture(GL_TEXTURE_2D, natdst->texid);
+			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
+				0, 0, src->width, src->height);
+			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
+			return 1;
+		}
+		break;
+	}
 	return 0;
 }
 
@@ -1056,7 +1085,6 @@ deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 {
 	GLFWmonitor **monitors;
 	VideoMode *rwmode;
-	int num;
 
 	switch(req){
 	case DEVICEOPEN:

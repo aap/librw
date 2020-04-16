@@ -495,6 +495,8 @@ rasterCreateTexture(Raster *raster)
 	assert(natras->texture && "couldn't create d3d texture");
 }
 
+#ifdef RW_D3D9
+
 static void
 rasterCreateCameraTexture(Raster *raster)
 {
@@ -506,7 +508,6 @@ rasterCreateCameraTexture(Raster *raster)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
 
-#ifdef RW_D3D9
 	IDirect3DTexture9 *tex;
 	d3ddevice->CreateTexture(raster->width, raster->height,
 				raster->format & Raster::MIPMAP ? levels : 1,
@@ -514,9 +515,6 @@ rasterCreateCameraTexture(Raster *raster)
 				(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
 	natras->texture = tex;
 	addVidmemRaster(raster);
-#else
-	natras->texture = nil;
-#endif
 }
 
 static void
@@ -529,10 +527,8 @@ rasterCreateCamera(Raster *raster)
 	raster->stride = 0;
 	raster->pixels = nil;
 
-#ifdef RW_D3D9
 	natras->format = d3d9Globals.present.BackBufferFormat;
 	raster->depth = findFormatDepth(natras->format);
-#endif
 }
 
 static void
@@ -545,11 +541,10 @@ rasterCreateZbuffer(Raster *raster)
 	raster->stride = 0;
 	raster->pixels = nil;
 
-#ifdef RW_D3D9
 	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
 	raster->depth = findFormatDepth(natras->format);
-#endif
 }
+#endif
 
 void
 rasterCreate(Raster *raster)
@@ -574,6 +569,7 @@ rasterCreate(Raster *raster)
 		rasterCreateTexture(raster);
 		break;
 
+#ifdef RW_D3D9
 	case Raster::CAMERATEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
 			return;
@@ -586,6 +582,7 @@ rasterCreate(Raster *raster)
 	case Raster::CAMERA:
 		rasterCreateCamera(raster);
 		break;
+#endif
 	}
 }
 

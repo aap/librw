@@ -2,7 +2,7 @@ newoption {
 	trigger     = "glewdir",
 	value       = "PATH",
 	description = "Directory of GLEW",
-	default     = "C:/Users/aap/src/glew-2.1.0",
+	default     = "../glew-2.1.0",
 }
 
 newoption {
@@ -20,14 +20,21 @@ newoption {
 	trigger     = "glfwdir",
 	value       = "PATH",
 	description = "Directory of glfw",
-	default     = "C:/Users/aap/src/glfw-3.2.1.bin.WIN64",
+	default     = "../glfw-3.3.2.bin.WIN64",
+}
+
+newoption {
+	trigger     = "glfwdir32",
+	value       = "PATH",
+	description = "Directory of glfw",
+	default     = "../glfw-3.3.2.bin.WIN32",
 }
 
 newoption {
 	trigger     = "sdl2dir",
 	value       = "PATH",
 	description = "Directory of sdl2",
-	default     = "C:/Users/aap/src/SDL2-2.0.8",
+	default     = "../SDL2-2.0.8",
 }
 
 workspace "librw"
@@ -138,6 +145,7 @@ function findlibs()
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
 		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
+		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
 		links { "opengl32" }
