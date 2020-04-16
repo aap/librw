@@ -177,7 +177,7 @@ AnimInterpolator::create(int32 numNodes, int32 maxFrameSize)
 	int32 sz;
 	int32 realsz = maxFrameSize;
 
-	// Add some space for pointers and padding, hopefully this will
+	// Add some space for pointers and padding, hopefully this will be
 	// enough. Don't change maxFrameSize not to mess up streaming.
 	if(sizeof(void*) > 4)
 		realsz += 16;

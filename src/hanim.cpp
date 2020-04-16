@@ -47,13 +47,19 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 	}else{
 		hier->matricesUnaligned = rwNew(hier->numNodes*64 + 0xF, MEMDUR_EVENT | ID_HANIM);
 		hier->matrices =
-		  (Matrix*)((uintptr)hier->matricesUnaligned & ~0xF);
+		  (Matrix*)(((uintptr)hier->matricesUnaligned + 0xF) & ~0xF);
 	}
 	hier->nodeInfo = rwNewT(HAnimNodeInfo, hier->numNodes, MEMDUR_EVENT | ID_HANIM);
 	for(int32 i = 0; i < hier->numNodes; i++){
-		hier->nodeInfo[i].id = nodeIDs[i];
+		if(nodeIDs)
+			hier->nodeInfo[i].id = nodeIDs[i];
+		else
+			hier->nodeInfo[i].id = 0;
 		hier->nodeInfo[i].index = i;
-		hier->nodeInfo[i].flags = nodeFlags[i];
+		if(nodeFlags)
+			hier->nodeInfo[i].flags = nodeFlags[i];
+		else
+			hier->nodeInfo[i].flags = 0;
 		hier->nodeInfo[i].frame = nil;
 	}
 	return hier;
@@ -195,9 +201,14 @@ createHAnim(void *object, int32 offset, int32)
 static void*
 destroyHAnim(void *object, int32 offset, int32)
 {
+	int i;
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
-	if(hanim->hierarchy)
-		hanim->hierarchy->destroy();
+	if(hanim->hierarchy){
+		for(i = 0; i < hanim->hierarchy->numNodes; i++)
+			hanim->hierarchy->nodeInfo[i].frame = nil;
+		if(object == hanim->hierarchy->parentFrame)
+			hanim->hierarchy->destroy();
+	}
 	hanim->id = -1;
 	hanim->hierarchy = nil;
 	return object;
@@ -206,11 +217,24 @@ destroyHAnim(void *object, int32 offset, int32)
 static void*
 copyHAnim(void *dst, void *src, int32 offset, int32)
 {
+	int i;
 	HAnimData *dsthanim = PLUGINOFFSET(HAnimData, dst, offset);
 	HAnimData *srchanim = PLUGINOFFSET(HAnimData, src, offset);
+	HAnimHierarchy *srchier, *dsthier;
 	dsthanim->id = srchanim->id;
-	// TODO
 	dsthanim->hierarchy = nil;
+	srchier = srchanim->hierarchy;
+	if(srchier && !(srchier->flags & HAnimHierarchy::SUBHIERARCHY)){
+		dsthier = HAnimHierarchy::create(srchier->numNodes, nil, nil, srchier->flags, srchier->currentAnim->maxInterpKeyFrameSize);
+		for(i = 0; i < dsthier->numNodes; i++){
+			dsthier->nodeInfo[i].frame = nil;
+			dsthier->nodeInfo[i].flags = srchier->nodeInfo[i].flags;
+			dsthier->nodeInfo[i].index = srchier->nodeInfo[i].index;
+			dsthier->nodeInfo[i].id = srchier->nodeInfo[i].id;
+		}
+		dsthanim->hierarchy = dsthier;
+		dsthier->parentFrame = (Frame*)dst;
+	}
 	return dst;
 }
 

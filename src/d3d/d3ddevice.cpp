@@ -848,9 +848,9 @@ static D3DFORMAT fbFormats[] = {
 //	D3DFMT_A1R5G5B5,
 ///	D3DFMT_A2R10G10B10,	// works but let's not use it...
 //	D3DFMT_A8R8G8B8,
-	D3DFMT_R5G6B5,
+	D3DFMT_X8R8G8B8,
 //	D3DFMT_X1R5G5B5,
-	D3DFMT_X8R8G8B8
+	D3DFMT_R5G6B5
 };
 
 static void
