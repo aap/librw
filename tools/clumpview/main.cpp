@@ -27,6 +27,8 @@ void genIm3DEnd(void);
 void initFont(void);
 void printScreen(const char *s, float x, float y);
 
+//#include <Windows.h>
+
 void
 Init(void)
 {

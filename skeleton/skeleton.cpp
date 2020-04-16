@@ -1,10 +1,12 @@
 #include <rw.h>
 #include "skeleton.h"
 
+
 namespace sk {
 
 Globals globals;
 Args args;
+
 
 bool
 InitRW(void)
@@ -22,13 +24,15 @@ InitRW(void)
 	for(i = 0; i < n; i++)
 		if(Engine::getSubSystemInfo(&info, i))
 			printf("subsystem: %s\n", info.name);
+	Engine::setSubSystem(n-1);
 
 	int want = -1;
 	VideoMode mode;
 	n = Engine::getNumVideoModes();
 	for(i = 0; i < n; i++)
 		if(Engine::getVideoModeInfo(&mode, i)){
-			if(mode.width == 640 && mode.height == 480 && mode.depth == 32)
+//			if(mode.width == 640 && mode.height == 480 && mode.depth == 32)
+			if(mode.width == 1920 && mode.height == 1080 && mode.depth == 32)
 				want = i;
 			printf("mode: %dx%dx%d %d\n", mode.width, mode.height, mode.depth, mode.flags);
 		}

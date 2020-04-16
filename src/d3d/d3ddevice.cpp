@@ -244,6 +244,18 @@ resetD3d9Device(void)
 	d3ddevice->SetMaterial(&d3dmaterial);
 }
 
+void
+destroyD3D9Raster(Raster *raster)
+{
+	int i;
+	if(raster->type == Raster::CAMERATEXTURE)
+		removeVidmemRaster(raster);
+	// Make sure we're not still referencing this raster
+	for(i = 0; i < MAXNUMSTAGES; i++)
+		if(rwStateCache.texstage[i].raster == raster)
+			rwStateCache.texstage[i].raster = nil;
+}
+
 // RW render state
 
 static void
@@ -744,12 +756,14 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	Raster *ras = cam->frameBuffer;
 	if(!icon &&
 	   (r.right != d3d9Globals.present.BackBufferWidth || r.bottom != d3d9Globals.present.BackBufferHeight)){
-		releaseVidmemRasters();
 
-		d3d9Globals.present.BackBufferWidth  = r.right;
+		d3d9Globals.present.BackBufferWidth = r.right;
 		d3d9Globals.present.BackBufferHeight = r.bottom;
-		// TODO: check result
+
+		releaseVidmemRasters();
 		d3d::d3ddevice->Reset(&d3d9Globals.present);
+		// important that we get all raster back before restoring state
+		recreateVidmemRasters();
 		resetD3d9Device();
 	}
 
@@ -763,7 +777,19 @@ showRaster(Raster *raster)
 
 	// not used but we want cameras to have rasters
 	assert(raster);
-	d3ddevice->Present(nil, nil, 0, nil);
+	HRESULT res = d3ddevice->Present(nil, nil, 0, nil);
+
+	if(res == D3DERR_DEVICELOST){
+		res = d3ddevice->TestCooperativeLevel();
+		// lost while being minimized, not reset once we're back
+		if(res == D3DERR_DEVICENOTRESET){
+			releaseVidmemRasters();
+			d3d::d3ddevice->Reset(&d3d9Globals.present);
+			// important that we get all raster back before restoring state
+			recreateVidmemRasters();
+			resetD3d9Device();
+		}
+	}
 }
 
 static bool32
@@ -960,6 +986,8 @@ startD3D(void)
 
 	// Use window size in windowed mode, otherwise get size from video mode
 	if(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE){
+		// this will be much better for restoring after iconification
+		SetWindowLong(d3d9Globals.window, GWL_STYLE, WS_POPUP);
 		width = d3d9Globals.modes[d3d9Globals.currentMode].mode.Width;
 		height = d3d9Globals.modes[d3d9Globals.currentMode].mode.Height;
 	}else{

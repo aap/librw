@@ -44,6 +44,7 @@ struct D3d9Globals
 extern D3d9Globals d3d9Globals;
 
 int findFormatDepth(uint32 format);
+void destroyD3D9Raster(Raster *raster);
 #endif
 
 void rasterCreate(Raster *raster);

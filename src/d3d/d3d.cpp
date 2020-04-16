@@ -898,8 +898,7 @@ destroyNativeRaster(void *object, int32 offset, int32)
 	Raster *raster = (Raster*)object;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
 #ifdef RW_D3D9
-	if(raster->type == Raster::CAMERATEXTURE)
-		removeVidmemRaster(raster);
+	destroyD3D9Raster(raster);
 #endif
 	if(natras->texture)
 		deleteObject(natras->texture);
