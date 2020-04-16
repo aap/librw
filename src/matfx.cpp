@@ -159,8 +159,12 @@ void
 MatFX::setBumpTexture(Texture *t)
 {
 	int32 i = this->getEffectIndex(BUMPMAP);
-	if(i >= 0)
+	if(i >= 0){
+		if(this->fx[i].bump.tex)
+			this->fx[i].bump.tex->destroy();
 		this->fx[i].bump.tex = t;
+		t->refCount++;
+	}
 }
 
 void
@@ -193,8 +197,12 @@ void
 MatFX::setEnvTexture(Texture *t)
 {
 	int32 i = this->getEffectIndex(ENVMAP);
-	if(i >= 0)
+	if(i >= 0){
+		if(this->fx[i].env.tex)
+			this->fx[i].env.tex->destroy();
 		this->fx[i].env.tex = t;
+		t->refCount++;
+	}
 }
 
 void
@@ -245,8 +253,12 @@ void
 MatFX::setDualTexture(Texture *t)
 {
 	int32 i = this->getEffectIndex(DUAL);
-	if(i >= 0)
+	if(i >= 0){
+		if(this->fx[i].dual.tex)
+			this->fx[i].dual.tex->destroy();
 		this->fx[i].dual.tex = t;
+		t->refCount++;
+	}
 }
 
 void

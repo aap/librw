@@ -247,6 +247,36 @@ resetD3d9Device(void)
 // RW render state
 
 static void
+setDepthTest(bool32 enable)
+{
+	if(rwStateCache.ztest != enable){
+		rwStateCache.ztest = enable;
+		if(rwStateCache.zwrite && !enable){
+			// If we still want to write, enable but set mode to always
+			setRenderState(D3DRS_ZENABLE, TRUE);
+			setRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
+		}else{
+			setRenderState(D3DRS_ZENABLE, rwStateCache.ztest);
+			setRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+		}
+	}
+}
+
+static void
+setDepthWrite(bool32 enable)
+{
+	if(rwStateCache.zwrite != enable){
+		rwStateCache.zwrite = enable;
+		if(enable && !rwStateCache.ztest){
+			// Have to switch on ztest so writing can work
+			setRenderState(D3DRS_ZENABLE, TRUE);
+			setRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
+		}
+		setRenderState(D3DRS_ZWRITEENABLE, rwStateCache.zwrite);
+	}
+}
+
+static void
 setVertexAlpha(bool32 enable)
 {
 	if(rwStateCache.vertexAlpha != enable){
@@ -415,16 +445,10 @@ setRwRenderState(int32 state, void *pvalue)
 		}
 		break;
 	case ZTESTENABLE:
-		if(rwStateCache.ztest != bval){
-			rwStateCache.ztest = bval;
-			setRenderState(D3DRS_ZENABLE, rwStateCache.ztest);
-		}
+		setDepthTest(bval);
 		break;
 	case ZWRITEENABLE:
-		if(rwStateCache.zwrite != bval){
-			rwStateCache.zwrite = bval;
-			setRenderState(D3DRS_ZWRITEENABLE, rwStateCache.zwrite);
-		}
+		setDepthWrite(bval);
 		break;
 	case FOGENABLE:
 		if(rwStateCache.fogenable != bval){
