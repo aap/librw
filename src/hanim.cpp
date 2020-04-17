@@ -167,6 +167,7 @@ HAnimHierarchy::updateMatrices(void)
 	else
 		rootMat.setIdentity();
 	parentMat = &rootMat;
+	*sp++ = parentMat;
 	HAnimNodeInfo *node = this->nodeInfo;
 	for(i = 0; i < this->numNodes; i++){
 		anim->applyCB(&animMat, anim->getInterpFrame(i));
@@ -177,6 +178,8 @@ HAnimHierarchy::updateMatrices(void)
 		parentMat = curMat;
 		if(node->flags & POP)
 			parentMat = *--sp;
+		assert(sp >= stack);
+		assert(sp <= &stack[64]);
 
 		node++;
 		curMat++;
