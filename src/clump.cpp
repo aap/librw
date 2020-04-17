@@ -13,6 +13,9 @@
 
 namespace rw {
 
+int32 Clump::numAllocated;
+int32 Atomic::numAllocated;
+
 PluginList Clump::s_plglist = { sizeof(Clump), sizeof(Clump), nil, nil };
 PluginList Atomic::s_plglist = { sizeof(Atomic), sizeof(Atomic), nil, nil };
 
@@ -28,6 +31,7 @@ Clump::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	clump->object.init(Clump::ID, 0);
 	clump->atomics.init();
 	clump->lights.init();
@@ -67,6 +71,7 @@ Clump::destroy(void)
 	if(f = this->getFrame(), f)
 		f->destroyHierarchy();
 	rwFree(this);
+	numAllocated--;
 }
 
 Clump*
@@ -341,6 +346,7 @@ Atomic::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	atomic->object.object.init(Atomic::ID, 0);
 	atomic->object.syncCB = atomicSync;
 	atomic->geometry = nil;
@@ -391,6 +397,7 @@ Atomic::destroy(void)
 		this->inClump.remove();
 	this->setFrame(nil);
 	rwFree(this);
+	numAllocated--;
 }
 
 void

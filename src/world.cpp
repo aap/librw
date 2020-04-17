@@ -13,6 +13,8 @@
 
 namespace rw {
 
+int32 World::numAllocated = 0;
+
 PluginList World::s_plglist = { sizeof(World), sizeof(World), nil, nil };
 
 World*
@@ -23,6 +25,7 @@ World::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	world->object.init(World::ID, 0);
 	world->lights.init();
 	world->directionalLights.init();
@@ -35,6 +38,7 @@ World::destroy(void)
 {
 	s_plglist.destruct(this);
 	rwFree(this);
+	numAllocated--;
 }
 
 void

@@ -197,7 +197,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 			continue;
 		// TODO: unset managed flag when using morph targets.
 		//       also uses different buffer type and locks differently
-		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, 0, D3DPOOL_MANAGED);
+		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, 0, false);
 		uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 		stream->read(verts, s->stride*header->totalNumVertex);
 		unlockVertices(s->vertexBuffer);
@@ -521,7 +521,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		assert(header->vertexDeclaration == nil);
 		header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
 
-		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, D3DPOOL_MANAGED);
+		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, false);
 	}else
 		getDeclaration(header->vertexDeclaration, dcl);
 

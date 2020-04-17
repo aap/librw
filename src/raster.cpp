@@ -19,6 +19,8 @@
 
 namespace rw {
 
+int32 Raster::numAllocated;
+
 struct RasterGlobals
 {
 	int32 sp;
@@ -57,6 +59,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	// TODO: pass arguments through to the driver and create the raster there
 	Raster *raster = (Raster*)rwMalloc(s_plglist.size, MEMDUR_EVENT);	// TODO
 	assert(raster != nil);
+	numAllocated++;
 	raster->parent = raster;
 	raster->offsetX = 0;
 	raster->offsetY = 0;
@@ -92,9 +95,8 @@ void
 Raster::destroy(void)
 {
 	s_plglist.destruct(this);
-//	delete[] this->texels;
-//	delete[] this->palette;
 	rwFree(this);
+	numAllocated--;
 }
 
 uint8*

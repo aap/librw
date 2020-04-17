@@ -144,7 +144,7 @@ extern int vertFormatMap[];
 void *createIndexBuffer(uint32 length);
 uint16 *lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockIndices(void *indexBuffer);
-void *createVertexBuffer(uint32 length, uint32 fvf, int32 pool);
+void *createVertexBuffer(uint32 length, uint32 fvf, bool dynamic);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
 void *createTexture(int32 width, int32 height, int32 levels, uint32 format);

@@ -12,6 +12,8 @@
 
 namespace rw {
 
+int32 Camera::numAllocated;
+
 PluginList Camera::s_plglist = { sizeof(Camera), sizeof(Camera), nil, nil };
 
 void
@@ -279,6 +281,7 @@ Camera::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	cam->object.object.init(Camera::ID, 0);
 	cam->object.syncCB = cameraSync;
 	cam->beginUpdateCB = defaultBeginUpdateCB;
@@ -339,6 +342,7 @@ Camera::destroy(void)
 	if(this->clump)
 		this->inClump.remove();
 	rwFree(this);
+	numAllocated--;
 }
 
 void

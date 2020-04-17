@@ -55,6 +55,8 @@ struct Frame
 	Frame *next;
 	Frame *root;
 
+	static int32 numAllocated;
+
 	static Frame *create(void);
 	Frame *cloneHierarchy(void);
 	void destroy(void);
@@ -130,6 +132,8 @@ struct Image
 	uint8 *pixels;
 	uint8 *palette;
 
+	static int32 numAllocated;
+
 	static Image *create(int32 width, int32 height, int32 depth);
 	void destroy(void);
 	void allocate(void);
@@ -185,6 +189,8 @@ struct Raster
 	// subraster
 	Raster *parent;
 	int32 offsetX, offsetY;
+
+	static int32 numAllocated;
 
 	static Raster *create(int32 width, int32 height, int32 depth,
 	                      int32 format, int32 platform = 0);
@@ -273,6 +279,8 @@ struct Texture
 	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
 	int32 refCount;
 
+	static int32 numAllocated;
+
 	static Texture *create(Raster *raster);
 	void destroy(void);
 	static Texture *fromDict(LLLink *lnk){
@@ -317,6 +325,8 @@ struct Material
 	SurfaceProperties surfaceProps;
 	Pipeline *pipeline;
 	int32 refCount;
+
+	static int32 numAllocated;
 
 	static Material *create(void);
 	Material *clone(void);
@@ -415,6 +425,8 @@ struct Geometry
 
 	int32 refCount;
 
+	static int32 numAllocated;
+
 	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
 	void destroy(void);
 	void lock(int32 lockFlags);
@@ -510,6 +522,8 @@ struct Atomic
 	World *world;
 	ObjectWithFrame::Sync originalSync;
 
+	static int32 numAllocated;
+
 	static Atomic *create(void);
 	Atomic *clone(void);
 	void destroy(void);
@@ -561,6 +575,8 @@ struct Light
 	// world extension
 	World *world;
 	ObjectWithFrame::Sync originalSync;
+
+	static int32 numAllocated;
 
 	static Light *create(int32 type);
 	void destroy(void);
@@ -648,6 +664,8 @@ struct Camera
 	void (*originalBeginUpdate)(Camera*);
 	void (*originalEndUpdate)(Camera*);
 
+	static int32 numAllocated;
+
 	static Camera *create(void);
 	Camera *clone(void);
 	void destroy(void);
@@ -683,6 +701,8 @@ struct Clump
 	LinkList cameras;
 
 	World *world;
+
+	static int32 numAllocated;
 
 	static Clump *create(void);
 	Clump *clone(void);
@@ -721,6 +741,8 @@ struct World
 	LinkList lights;                // these have positions (type >= 0x80)
 	LinkList directionalLights;     // these do not (type < 0x80)
 
+	static int32 numAllocated;
+
 	static World *create(void);
 	void destroy(void);
 	void addLight(Light *light);
@@ -735,6 +757,8 @@ struct TexDictionary
 	enum { ID = 6 };
 	Object object;
 	LinkList textures;
+
+	static int32 numAllocated;
 
 	static TexDictionary *create(void);
 	void destroy(void);

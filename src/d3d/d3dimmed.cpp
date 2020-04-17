@@ -46,16 +46,30 @@ openIm2D(void)
 		D3DDECL_END()
 	};
 	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &im2ddecl);
-	im2dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im2DVertex), 0, D3DPOOL_MANAGED);
+	assert(im2ddecl);
+	d3d9Globals.numVertexDeclarations++;
+	im2dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im2DVertex), 0, true);
+	assert(im2dvertbuf);
+	addDynamicVB(NUMVERTICES*sizeof(Im2DVertex), 0, &im2dvertbuf);
 	im2dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16));
+	assert(im2dindbuf);
 }
 
 void
 closeIm2D(void)
 {
 	deleteObject(im2ddecl);
+	d3d9Globals.numVertexDeclarations--;
+	im2ddecl = nil;
+
+	removeDynamicVB(&im2dvertbuf);
 	deleteObject(im2dvertbuf);
+	d3d9Globals.numVertexBuffers--;
+	im2dvertbuf = nil;
+
 	deleteObject(im2dindbuf);
+	d3d9Globals.numIndexBuffers--;
+	im2dindbuf = nil;
 }
 
 static Im2DVertex tmpprimbuf[3];
@@ -86,7 +100,7 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 		// TODO: error
 		return;
 	}
-	uint8 *lockedvertices = lockVertices(im2dvertbuf, 0, numVertices*sizeof(Im2DVertex), D3DLOCK_NOSYSLOCK);
+	uint8 *lockedvertices = lockVertices(im2dvertbuf, 0, numVertices*sizeof(Im2DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im2DVertex));
 	unlockVertices(im2dvertbuf);
 
@@ -138,7 +152,7 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	memcpy(lockedindices, indices, numIndices*sizeof(uint16));
 	unlockIndices(im2dindbuf);
 
-	uint8 *lockedvertices = lockVertices(im2dvertbuf, 0, numVertices*sizeof(Im2DVertex), D3DLOCK_NOSYSLOCK);
+	uint8 *lockedvertices = lockVertices(im2dvertbuf, 0, numVertices*sizeof(Im2DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im2DVertex));
 	unlockVertices(im2dvertbuf);
 
@@ -199,16 +213,30 @@ openIm3D(void)
 		D3DDECL_END()
 	};
 	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &im3ddecl);
-	im3dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im3DVertex), 0, D3DPOOL_MANAGED);
+	assert(im3ddecl);
+	d3d9Globals.numVertexDeclarations++;
+	im3dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im3DVertex), 0, true);
+	assert(im3dvertbuf);
+	addDynamicVB(NUMVERTICES*sizeof(Im3DVertex), 0, &im3dvertbuf);
 	im3dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16));
+	assert(im3dindbuf);
 }
 
 void
 closeIm3D(void)
 {
 	deleteObject(im3ddecl);
+	d3d9Globals.numVertexDeclarations--;
+	im3ddecl = nil;
+
+	removeDynamicVB(&im3dvertbuf);
 	deleteObject(im3dvertbuf);
+	d3d9Globals.numVertexBuffers--;
+	im3dvertbuf = nil;
+
 	deleteObject(im3dindbuf);
+	d3d9Globals.numIndexBuffers--;
+	im3dindbuf = nil;
 }
 
 void
@@ -225,7 +253,7 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 	convMatrix(&d3dworld, world);
 	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&d3dworld);
 
-	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_NOSYSLOCK);
+	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));
 	unlockVertices(im3dvertbuf);
 

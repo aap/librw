@@ -12,6 +12,8 @@
 
 namespace rw {
 
+int32 Frame::numAllocated;
+
 PluginList Frame::s_plglist = { sizeof(Frame), sizeof(Frame), nil, nil };
 static void *frameOpen(void *object, int32 offset, int32 size) { engine->frameDirtyList.init(); return object; }
 static void *frameClose(void *object, int32 offset, int32 size) { return object; }
@@ -30,6 +32,7 @@ Frame::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	f->object.init(Frame::ID, 0);
 	f->objectList.init();
 	f->child = nil;
@@ -60,6 +63,7 @@ Frame::destroy(void)
 	for(Frame *f = this->child; f; f = f->next)
 		f->object.parent = nil;
 	rwFree(this);
+	numAllocated--;
 }
 
 void

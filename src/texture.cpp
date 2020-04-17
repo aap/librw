@@ -21,6 +21,9 @@
 
 namespace rw {
 
+int32 Texture::numAllocated;
+int32 TexDictionary::numAllocated;
+
 PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
 PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
 PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
@@ -87,6 +90,7 @@ TexDictionary::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	dict->object.init(TexDictionary::ID, 0);
 	dict->textures.init();
 	s_plglist.construct(dict);
@@ -102,6 +106,7 @@ TexDictionary::destroy(void)
 		Texture::fromDict(lnk)->destroy();
 	s_plglist.destruct(this);
 	rwFree(this);
+	numAllocated--;
 }
 
 void
@@ -228,6 +233,7 @@ Texture::create(Raster *raster)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	tex->dict = nil;
 	tex->inDict.init();
 	memset(tex->name, 0, 32);
@@ -250,6 +256,7 @@ Texture::destroy(void)
 		if(this->raster)
 			this->raster->destroy();
 		rwFree(this);
+		numAllocated--;
 	}
 }
 

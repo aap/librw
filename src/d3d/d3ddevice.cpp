@@ -34,6 +34,18 @@ static VidmemRaster *vidmemRasters;
 void addVidmemRaster(Raster *raster);
 void removeVidmemRaster(Raster *raster);
 
+// Same thing for dynamic vertex buffers
+struct DynamicVB
+{
+	uint32 length;
+	uint32 fvf;
+	IDirect3DVertexBuffer9 **buf;
+	DynamicVB *next;
+};
+static DynamicVB *dynamicVBs;
+void addDynamicVB(uint32 length, uint32 fvf, IDirect3DVertexBuffer9 **buf);
+void removeDynamicVB(IDirect3DVertexBuffer9 **buf);
+
 struct RwRasterStateCache {
 	Raster *raster;
 	Texture::Addressing addressingU;
@@ -215,7 +227,7 @@ getSamplerState(uint32 stage, uint32 type, uint32 *value)
 
 // Bring D3D device in accordance with saved render states (after a reset)
 static void
-resetD3d9Device(void)
+restoreD3d9Device(void)
 {
 	int32 i;
 	uint32 s, t;
@@ -579,6 +591,7 @@ createVertexShader(void *csosrc)
 	void *shdr;
 	if(d3ddevice->CreateVertexShader((DWORD*)csosrc, (IDirect3DVertexShader9**)&shdr) == D3D_OK)
 		return shdr;
+	d3d9Globals.numVertexShaders++;
 	return nil;
 }
 
@@ -588,6 +601,7 @@ createPixelShader(void *csosrc)
 	void *shdr;
 	if(d3ddevice->CreatePixelShader((DWORD*)csosrc, (IDirect3DPixelShader9**)&shdr) == D3D_OK)
 		return shdr;
+	d3d9Globals.numPixelShaders++;
 	return nil;
 }
 
@@ -680,6 +694,8 @@ endUpdate(Camera *cam)
 	d3ddevice->EndScene();
 }
 
+// Manage video memory
+
 void
 addVidmemRaster(Raster *raster)
 {
@@ -713,8 +729,11 @@ releaseVidmemRasters(void)
 		raster = vmr->raster;
 		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 		if(raster->type == Raster::CAMERATEXTURE){
-			deleteObject(natras->texture);
-			natras->texture = nil;
+			if(natras->texture){
+				deleteObject(natras->texture);
+				d3d9Globals.numTextures--;
+				natras->texture = nil;
+			}
 		}
 	}
 }
@@ -736,8 +755,86 @@ recreateVidmemRasters(void)
 						D3DUSAGE_RENDERTARGET,
 						(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
 			natras->texture = tex;
+			if(natras->texture)
+				d3d9Globals.numTextures++;
 		}
 	}
+}
+
+void
+addDynamicVB(uint32 length, uint32 fvf, IDirect3DVertexBuffer9 **buf)
+{
+	DynamicVB *dvb = rwNewT(DynamicVB, 1, ID_DRIVER | MEMDUR_EVENT);
+	dvb->length = length;
+	dvb->fvf = fvf;
+	dvb->buf = buf;
+	dvb->next = dynamicVBs;
+	dynamicVBs = dvb;
+}
+
+void
+removeDynamicVB(IDirect3DVertexBuffer9 **buf)
+{
+	DynamicVB **p, *dvb;
+	for(p = &dynamicVBs; *p; p = &(*p)->next)
+		if((*p)->buf == buf)
+			goto found;
+	return;
+found:
+	dvb = *p;
+	*p = dvb->next;
+	rwFree(dvb);
+}
+
+static void
+releaseDynamicVBs(void)
+{
+	DynamicVB *dvb;
+	for(dvb = dynamicVBs; dvb; dvb = dvb->next){
+		if(*dvb->buf){
+			deleteObject(*dvb->buf);
+			d3d9Globals.numVertexBuffers--;
+			*dvb->buf = nil;
+		}
+	}
+}
+
+static void
+recreateDynamicVBs(void)
+{
+	DynamicVB *dvb;
+	for(dvb = dynamicVBs; dvb; dvb = dvb->next){
+		*dvb->buf = (IDirect3DVertexBuffer9*)createVertexBuffer(dvb->length, dvb->fvf, true);
+		if(*dvb->buf)
+			d3d9Globals.numVertexBuffers++;
+	}
+}
+
+static void
+releaseVideoMemory(void)
+{
+	int32 i;
+	for(i = 0; i < MAXNUMSTAGES; i++)
+		d3ddevice->SetTexture(i, nil);
+	d3ddevice->SetVertexDeclaration(nil);
+	d3ddevice->SetVertexShader(nil);
+	d3ddevice->SetPixelShader(nil);
+	d3ddevice->SetIndices(nil);
+	for(i = 0; i < 2; i++)
+		d3ddevice->SetStreamSource(0, nil, 0, 0);
+
+	releaseVidmemRasters();
+	releaseDynamicVBs();
+}
+
+static void
+restoreVideoMemory(void)
+{
+	recreateDynamicVBs();
+	// important that we get all raster back before restoring state
+	recreateVidmemRasters();
+
+	restoreD3d9Device();
 }
 
 static void
@@ -760,11 +857,9 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		d3d9Globals.present.BackBufferWidth = r.right;
 		d3d9Globals.present.BackBufferHeight = r.bottom;
 
-		releaseVidmemRasters();
+		releaseVideoMemory();
 		d3d::d3ddevice->Reset(&d3d9Globals.present);
-		// important that we get all raster back before restoring state
-		recreateVidmemRasters();
-		resetD3d9Device();
+		restoreVideoMemory();
 	}
 
 	d3ddevice->Clear(0, 0, mode, c, 1.0f, 0);
@@ -783,11 +878,9 @@ showRaster(Raster *raster)
 		res = d3ddevice->TestCooperativeLevel();
 		// lost while being minimized, not reset once we're back
 		if(res == D3DERR_DEVICENOTRESET){
-			releaseVidmemRasters();
+			releaseVideoMemory();
 			d3d::d3ddevice->Reset(&d3d9Globals.present);
-			// important that we get all raster back before restoring state
-			recreateVidmemRasters();
-			resetD3d9Device();
+			restoreVideoMemory();
 		}
 	}
 }
@@ -965,7 +1058,9 @@ found:
 static int
 closeD3D(void)
 {
-	d3d9Globals.d3d9->Release();
+	ULONG ref = d3d9Globals.d3d9->Release();
+	if(ref != 0)
+		printf("IDirect3D9_Release did not destroy\n");
 	d3d9Globals.d3d9 = nil;
 	return 1;
 }
@@ -984,20 +1079,20 @@ startD3D(void)
 	D3DFORMAT format, zformat;
 	format = d3d9Globals.modes[d3d9Globals.currentMode].mode.Format;
 
+	bool windowed = !(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE);
+
 	// Use window size in windowed mode, otherwise get size from video mode
-	if(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE){
-		// this will be much better for restoring after iconification
-		SetWindowLong(d3d9Globals.window, GWL_STYLE, WS_POPUP);
-		width = d3d9Globals.modes[d3d9Globals.currentMode].mode.Width;
-		height = d3d9Globals.modes[d3d9Globals.currentMode].mode.Height;
-	}else{
+	if(windowed){
 		RECT rect;
 		GetClientRect(d3d9Globals.window, &rect);
 		width = rect.right - rect.left;
 		height = rect.bottom - rect.top;
+	}else{
+		// this will be much better for restoring after iconification
+		SetWindowLong(d3d9Globals.window, GWL_STYLE, WS_POPUP);
+		width = d3d9Globals.modes[d3d9Globals.currentMode].mode.Width;
+		height = d3d9Globals.modes[d3d9Globals.currentMode].mode.Height;
 	}
-
-	bool windowed = !(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE);
 
 	// See if we can get an alpha channel
 	if(format == D3DFMT_X8R8G8B8){
@@ -1029,6 +1124,9 @@ startD3D(void)
 	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
 //	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
 
+	assert(d3d::d3ddevice == nil);
+
+	BOOL icon = IsIconic(d3d9Globals.window);
 	IDirect3DDevice9 *dev;
 	hr = d3d9Globals.d3d9->CreateDevice(d3d9Globals.adapter, D3DDEVTYPE_HAL,
 			d3d9Globals.window, vp, &d3d9Globals.present, &dev);
@@ -1046,6 +1144,13 @@ initD3D(void)
 	int32 s, t;
 
 	// TODO: do some real stuff here
+
+	d3d9Globals.numTextures = 0;
+	d3d9Globals.numVertexShaders = 0;
+	d3d9Globals.numPixelShaders = 0;
+	d3d9Globals.numVertexBuffers = 0;
+	d3d9Globals.numIndexBuffers = 0;
+	d3d9Globals.numVertexDeclarations = 0;
 
 	d3ddevice->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
 	rwStateCache.alphafunc = ALPHAGREATEREQUAL;
@@ -1229,7 +1334,11 @@ termD3D(void)
 	closeIm3D();
 	closeIm2D();
 
-	d3d::d3ddevice->Release();
+	releaseVideoMemory();
+
+	ULONG ref = d3d::d3ddevice->Release();
+	if(ref != 0)
+		printf("IDirect3D9Device_Release did not destroy\n");
 	d3d::d3ddevice = nil;
 	return 1;
 }

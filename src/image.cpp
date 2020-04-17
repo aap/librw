@@ -19,6 +19,8 @@
 
 namespace rw {
 
+int32 Image::numAllocated;
+
 // TODO: full 16 bit support
 
 Image*
@@ -29,6 +31,7 @@ Image::create(int32 width, int32 height, int32 depth)
 		RWERROR((ERR_ALLOC, sizeof(Image)));
 		return nil;
 	}
+	numAllocated++;
 	img->flags = 0;
 	img->width = width;
 	img->height = height;
@@ -45,6 +48,7 @@ Image::destroy(void)
 {
 	this->free();
 	rwFree(this);
+	numAllocated--;
 }
 
 void

@@ -12,6 +12,8 @@
 
 namespace rw {
 
+int32 Light::numAllocated;
+
 PluginList Light::s_plglist = { sizeof(Light), sizeof(Light), nil, nil };
 
 static void
@@ -34,6 +36,7 @@ Light::create(int32 type)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	light->object.object.init(Light::ID, type);
 	light->object.syncCB = lightSync;
 	light->radius = 0.0f;
@@ -67,6 +70,7 @@ Light::destroy(void)
 		this->inClump.remove();
 	// we do not remove from world, be careful
 	rwFree(this);
+	numAllocated--;
 }
 
 void

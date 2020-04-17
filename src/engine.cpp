@@ -87,6 +87,20 @@ Engine::init(void)
 	Raster::registerModule();
 	Texture::registerModule();
 
+	// TODO: reset all allocation counts here. or maybe do that in modules?
+	Frame::numAllocated = 0;
+	Image::numAllocated = 0;
+	Raster::numAllocated = 0;
+	Texture::numAllocated = 0;
+	TexDictionary::numAllocated = 0;
+	Geometry::numAllocated = 0;
+	Material::numAllocated = 0;
+	Atomic::numAllocated = 0;
+	Light::numAllocated = 0;
+	Camera::numAllocated = 0;
+	Clump::numAllocated = 0;
+	World::numAllocated = 0;
+
 	// driver plugin attach
 	ps2::registerPlatformPlugins();
 	xbox::registerPlatformPlugins();

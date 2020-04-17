@@ -15,6 +15,9 @@
 
 namespace rw {
 
+int32 Geometry::numAllocated;
+int32 Material::numAllocated;
+
 PluginList Geometry::s_plglist = { sizeof(Geometry), sizeof(Geometry), nil, nil };
 PluginList Material::s_plglist = { sizeof(Material), sizeof(Material), nil, nil };
 
@@ -29,6 +32,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	geo->object.init(Geometry::ID, 0);
 	geo->flags = flags & 0xFF00FFFF;
 	geo->numTexCoordSets = (flags & 0xFF0000) >> 16;
@@ -96,6 +100,7 @@ Geometry::destroy(void)
 		rwFree(this->meshHeader);
 		this->matList.deinit();
 		rwFree(this);
+		numAllocated--;
 	}
 }
 
@@ -856,6 +861,7 @@ Material::create(void)
 		RWERROR((ERR_ALLOC, s_plglist.size));
 		return nil;
 	}
+	numAllocated++;
 	mat->texture = nil;
 	memset(&mat->color, 0xFF, 4);
 	mat->surfaceProps = defaultSurfaceProps;
@@ -891,6 +897,7 @@ Material::destroy(void)
 		if(this->texture)
 			this->texture->destroy();
 		rwFree(this);
+		numAllocated--;
 	}
 }
 

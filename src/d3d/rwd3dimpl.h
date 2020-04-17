@@ -39,9 +39,23 @@ struct D3d9Globals
 	int currentMode;
 
 	D3DPRESENT_PARAMETERS present;
+
+	int numTextures;
+	int numVertexShaders;
+	int numPixelShaders;
+	int numVertexBuffers;
+	int numIndexBuffers;
+	int numVertexDeclarations;
 };
 
 extern D3d9Globals d3d9Globals;
+
+void addVidmemRaster(Raster *raster);
+void removeVidmemRaster(Raster *raster);
+
+void addDynamicVB(uint32 length, uint32 fvf, IDirect3DVertexBuffer9 **buf);	// NB: don't share this pointer
+void removeDynamicVB(IDirect3DVertexBuffer9 **buf);
+
 
 int findFormatDepth(uint32 format);
 void destroyD3D9Raster(Raster *raster);

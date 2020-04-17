@@ -116,9 +116,6 @@ enum {
 };
 #endif
 
-void addVidmemRaster(Raster *raster);
-void removeVidmemRaster(Raster *raster);
-
 // stolen from d3d8to9
 static uint32
 calculateTextureSize(uint32 width, uint32 height, uint32 depth, uint32 format)
@@ -190,6 +187,8 @@ createIndexBuffer(uint32 length)
 #ifdef RW_D3D9
 	IDirect3DIndexBuffer9 *ibuf;
 	d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
+	if(ibuf)
+		d3d9Globals.numIndexBuffers++;
 	return ibuf;
 #else
 	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
@@ -226,11 +225,16 @@ unlockIndices(void *indexBuffer)
 }
 
 void*
-createVertexBuffer(uint32 length, uint32 fvf, int32 pool)
+createVertexBuffer(uint32 length, uint32 fvf, bool dynamic)
 {
 #ifdef RW_D3D9
 	IDirect3DVertexBuffer9 *vbuf;
-	d3ddevice->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, fvf, (D3DPOOL)pool, &vbuf, 0);
+	if(dynamic)
+		d3ddevice->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, fvf, D3DPOOL_DEFAULT, &vbuf, 0);
+	else
+		d3ddevice->CreateVertexBuffer(length, D3DUSAGE_WRITEONLY, fvf, D3DPOOL_MANAGED, &vbuf, 0);
+	if(vbuf)
+		d3d9Globals.numVertexBuffers++;
 	return vbuf;
 #else
 	(void)fvf;
@@ -275,6 +279,8 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 	IDirect3DTexture9 *tex;
 	d3ddevice->CreateTexture(width, height, numlevels, 0,
 	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, nil);
+	if(tex)
+		d3d9Globals.numTextures++;
 	return tex;
 #else
 	int32 w = width;
@@ -344,7 +350,8 @@ deleteObject(void *object)
 		return;
 #ifdef RW_D3D9
 	IUnknown *unk = (IUnknown*)object;
-	unk->Release();
+	if(unk->Release() != 0)
+		printf("something wasn't destroyed\n");
 #else
 	rwFree(object);
 #endif
@@ -489,6 +496,15 @@ rasterCreateTexture(Raster *raster)
 	if(natras->format == D3DFMT_P8)
 		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
+// HACK
+// raster <- image has to be done differently to be compatible with RW
+// just delete texture here for the moment
+if(natras->texture){
+	deleteObject(natras->texture);
+	d3d9Globals.numTextures--;
+	natras->texture = nil;
+}
+	assert(natras->texture == nil);
 	natras->texture = createTexture(raster->width, raster->height,
 	                                raster->format & Raster::MIPMAP ? levels : 1,
 	                                natras->format);
@@ -513,7 +529,10 @@ rasterCreateCameraTexture(Raster *raster)
 				raster->format & Raster::MIPMAP ? levels : 1,
 				D3DUSAGE_RENDERTARGET,
 				(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
+	assert(natras->texture == nil);
 	natras->texture = tex;
+	assert(natras->texture && "couldn't create d3d camera texture");
+	d3d9Globals.numTextures++;
 	addVidmemRaster(raster);
 }
 
@@ -900,8 +919,10 @@ destroyNativeRaster(void *object, int32 offset, int32)
 #ifdef RW_D3D9
 	destroyD3D9Raster(raster);
 #endif
-	if(natras->texture)
+	if(natras->texture){
 		deleteObject(natras->texture);
+		d3d9Globals.numTextures--;
+	}
 	rwFree(natras->palette);
 	return object;
 }

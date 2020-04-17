@@ -151,7 +151,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		unlockIndices(inst->indexBuffer);
 
 		inst->managed = 1;
-		inst->vertexBuffer = createVertexBuffer(inst->stride*inst->numVertices, 0, D3DPOOL_MANAGED);
+		inst->vertexBuffer = createVertexBuffer(inst->stride*inst->numVertices, 0, false);
 		uint8 *verts = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 		stream->read(verts, inst->stride*inst->numVertices);
 		unlockVertices(inst->vertexBuffer);
@@ -357,7 +357,7 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 	inst->stride = getStride(geo->flags, geo->numTexCoordSets);
 
 	inst->vertexBuffer = createVertexBuffer(inst->numVertices*inst->stride,
-	                                              inst->vertexShader, D3DPOOL_MANAGED);
+	                                              inst->vertexShader, false);
 	inst->managed = 1;
 
 	uint8 *dst = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
