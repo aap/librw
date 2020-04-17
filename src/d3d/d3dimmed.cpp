@@ -248,9 +248,9 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 	if(world == nil){
 		Matrix ident;
 		ident.setIdentity();
-		world = &ident;
-	}
-	convMatrix(&d3dworld, world);
+		convMatrix(&d3dworld, &ident);
+	}else
+		convMatrix(&d3dworld, world);
 	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&d3dworld);
 
 	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
