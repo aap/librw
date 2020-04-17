@@ -33,6 +33,7 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_GL3]->rasterLock         = rasterLock;
 	engine->driver[PLATFORM_GL3]->rasterUnlock       = rasterUnlock;
 	engine->driver[PLATFORM_GL3]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_GL3]->imageFindRasterFormat = imageFindRasterFormat;
 	engine->driver[PLATFORM_GL3]->rasterFromImage    = rasterFromImage;
 
 	return o;

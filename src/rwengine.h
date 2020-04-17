@@ -72,13 +72,15 @@ struct Driver
 	ObjPipeline *defaultPipeline;
 	int32 rasterNativeOffset;
 
-	void   (*rasterCreate)(Raster*);
+	Raster* (*rasterCreate)(Raster*);
 	uint8 *(*rasterLock)(Raster*, int32 level, int32 lockMode);
 	void   (*rasterUnlock)(Raster*, int32 level);
 	uint8 *(*rasterLockPalette)(Raster*, int32 lockMode);
 	void   (*rasterUnlockPalette)(Raster*);
 	int32  (*rasterNumLevels)(Raster*);
-	void   (*rasterFromImage)(Raster*, Image*);
+	bool32 (*imageFindRasterFormat)(Image *img, int32 type,
+		int32 *width, int32 *height, int32 *depth, int32 *format);
+	bool32 (*rasterFromImage)(Raster*, Image*);
 	Image *(*rasterToImage)(Raster*);
 
 	static PluginList s_plglist[NUM_PLATFORMS];
@@ -203,13 +205,15 @@ namespace null {
 	void   setRenderState(int32 state, void *value);
 	void  *getRenderState(int32 state);
 
-	void   rasterCreate(Raster*);
+	Raster *rasterCreate(Raster*);
 	uint8 *rasterLock(Raster*, int32 level, int32 lockMode);
 	void   rasterUnlock(Raster*, int32 level);
 	uint8 *rasterLockPalette(Raster*, int32 lockMode);
 	void   rasterUnlockPalette(Raster*);
 	int32  rasterNumLevels(Raster*);
-	void   rasterFromImage(Raster*, Image*);
+	bool32 imageFindRasterFormat(Image *img, int32 type,
+		int32 *width, int32 *height, int32 *depth, int32 *format);
+	bool32 rasterFromImage(Raster*, Image*);
 	Image *rasterToImage(Raster*);
 
 	void   im2DRenderLine(void*, int32, int32, int32);

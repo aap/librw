@@ -512,7 +512,7 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 	return levels;
 }
 
-void
+Raster*
 rasterCreate(Raster *raster)
 {
 	static uint32 formatMap[] = {
@@ -554,14 +554,14 @@ rasterCreate(Raster *raster)
 	if(raster->width == 0 || raster->height == 0){
 		raster->flags |= Raster::DONTALLOCATE;
 		raster->stride = 0;
-		return;
+		return raster;
 	}
 
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
-			return;
+			return raster;
 		if(raster->format & (Raster::PAL4 | Raster::PAL8)){
 			format = D3DFMT_P8;
 			natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
@@ -573,10 +573,14 @@ rasterCreate(Raster *raster)
 		natras->texture = createTexture(raster->width, raster->height,
 		                                raster->format & Raster::MIPMAP ? levels : 1,
 		                                format);
-	default:
-		// unsupported
-		return;
+		if(natras->texture == nil){
+			RWERROR((ERR_NOTEXTURE));
+			return nil;
+		}
+		return raster;
 	}
+	// unsupported
+	return nil;
 }
 
 uint8*

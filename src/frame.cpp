@@ -55,6 +55,8 @@ Frame::cloneHierarchy(void)
 void
 Frame::destroy(void)
 {
+	FORLIST(lnk, this->objectList)
+		ObjectWithFrame::fromFrame(lnk)->setFrame(nil);
 	s_plglist.destruct(this);
 	if(this->getParent())
 		this->removeChild();

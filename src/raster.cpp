@@ -75,8 +75,7 @@ Raster::create(int32 width, int32 height, int32 depth, int32 format, int32 platf
 	s_plglist.construct(raster);
 
 //	printf("%d %d %d %d\n", raster->type, raster->width, raster->height, raster->depth);
-	engine->driver[raster->platform]->rasterCreate(raster);
-	return raster;
+	return engine->driver[raster->platform]->rasterCreate(raster);
 }
 
 void
@@ -147,14 +146,34 @@ Raster::formatHasAlpha(int32 format)
 	       (format & 0xF00) == Raster::C4444;
 }
 
+bool32
+Raster::imageFindRasterFormat(Image *image, int32 type,
+	int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat,
+	int32 platform)
+{
+	return engine->driver[platform ? platform : rw::platform]->imageFindRasterFormat(
+		image, type, pWidth, pHeight, pDepth, pFormat);
+}
+
+Raster*
+Raster::setFromImage(Image *image, int32 platform)
+{
+	if(engine->driver[platform ? platform : rw::platform]->rasterFromImage(this, image))
+		return this;
+	return nil;
+}
+
 Raster*
 Raster::createFromImage(Image *image, int32 platform)
 {
-	Raster *raster = Raster::create(image->width, image->height,
-	                                image->depth, TEXTURE | DONTALLOCATE,
-	                                platform);
-	engine->driver[raster->platform]->rasterFromImage(raster, image);
-	return raster;
+	Raster *raster;
+	int32 width, height, depth, format;
+	if(!imageFindRasterFormat(image, TEXTURE, &width, &height, &depth, &format, platform))
+		return nil;
+	raster = Raster::create(width, height, depth, format, platform);
+	if(raster == nil)
+		return nil;
+	return raster->setFromImage(image, platform);
 }
 
 Image*

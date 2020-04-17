@@ -154,6 +154,7 @@ Engine::open(EngineOpenParams *p)
 		engine->driver[i]->rasterLockPalette = null::rasterLockPalette;
 		engine->driver[i]->rasterUnlockPalette = null::rasterUnlockPalette;
 		engine->driver[i]->rasterNumLevels = null::rasterNumLevels;
+		engine->driver[i]->imageFindRasterFormat = null::imageFindRasterFormat;
 		engine->driver[i]->rasterFromImage = null::rasterFromImage;
 		engine->driver[i]->rasterToImage = null::rasterToImage;
 	}
@@ -303,10 +304,11 @@ void im3DTransform(void *vertices, int32 numVertices, Matrix *world) { }
 void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices) { }
 void im3DEnd(void) { }
 
-void
+Raster*
 rasterCreate(Raster*)
 {
 	assert(0 && "rasterCreate not implemented");
+	return nil;
 }
 
 uint8*
@@ -342,10 +344,19 @@ rasterNumLevels(Raster*)
 	return 0;
 }
 
-void
+bool32
+imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format)
+{
+	assert(0 && "imageFindRasterFormat not implemented");
+	return 0;
+}
+
+bool32
 rasterFromImage(Raster*, Image*)
 {
 	assert(0 && "rasterFromImage not implemented");
+	return 0;
 }
 
 Image*

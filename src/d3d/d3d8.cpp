@@ -31,6 +31,7 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_D3D8]->rasterLock         = rasterLock;
 	engine->driver[PLATFORM_D3D8]->rasterUnlock       = rasterUnlock;
 	engine->driver[PLATFORM_D3D8]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_D3D8]->imageFindRasterFormat = imageFindRasterFormat;
 	engine->driver[PLATFORM_D3D8]->rasterFromImage    = rasterFromImage;
 	engine->driver[PLATFORM_D3D8]->rasterToImage      = rasterToImage;
 	return o;

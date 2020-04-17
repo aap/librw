@@ -15,12 +15,14 @@
 #include "rwgl3.h"
 #include "rwgl3shader.h"
 
+#define PLUGIN_ID ID_DRIVER
+
 namespace rw {
 namespace gl3 {
 
 int32 nativeRasterOffset;
 
-static void
+static Raster*
 rasterCreateTexture(Raster *raster)
 {
 #ifdef RW_OPENGL
@@ -46,7 +48,8 @@ rasterCreateTexture(Raster *raster)
 		natras->hasAlpha = 1;
 		break;
 	default:
-		assert(0 && "unsupported raster format");
+		RWERROR((ERR_INVRASTER));
+		return nil;
 	}
 
 	glGenTextures(1, &natras->texid);
@@ -59,6 +62,9 @@ rasterCreateTexture(Raster *raster)
 	natras->addressV = 0;
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+	return raster;
+#else
+	return nil;
 #endif
 }
 
@@ -67,12 +73,13 @@ rasterCreateTexture(Raster *raster)
 // This is totally fake right now, can't render to it. Only used to copy into from FB
 // For rendering the idea would probably be to render to the backbuffer and copy it here afterwards.
 // alternatively just use FBOs but that probably needs some more infrastructure.
-static void
+static Raster*
 rasterCreateCameraTexture(Raster *raster)
 {
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		// TODO: give some error
-		return;
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		RWERROR((ERR_NOTEXTURE));
+		return nil;
+	}
 
 	// TODO: figure out what the backbuffer is and use that as a default
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
@@ -109,9 +116,10 @@ rasterCreateCameraTexture(Raster *raster)
 	natras->addressV = 0;
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+	return raster;
 }
 
-static void
+static Raster*
 rasterCreateCamera(Raster *raster)
 {
 	// TODO: set/check width, height, depth, format?
@@ -120,18 +128,20 @@ rasterCreateCamera(Raster *raster)
 	raster->originalHeight = raster->height;
 	raster->stride = 0;
 	raster->pixels = nil;
+	return raster;
 }
 
-static void
+static Raster*
 rasterCreateZbuffer(Raster *raster)
 {
 	// TODO: set/check width, height, depth, format?
 	raster->flags |= Raster::DONTALLOCATE;
+	return raster;
 }
 
 #endif
 
-void
+Raster*
 rasterCreate(Raster *raster)
 {
 	switch(raster->type){
@@ -142,32 +152,29 @@ rasterCreate(Raster *raster)
 		if(raster->width == 0 || raster->height == 0){
 			raster->flags |= Raster::DONTALLOCATE;
 			raster->stride = 0;
-			return;
+			return raster;
 		}
 
 		if(raster->flags & Raster::DONTALLOCATE)
-			return;
-		rasterCreateTexture(raster);
-		break;
+			return raster;
+		return rasterCreateTexture(raster);
 
 #ifdef RW_OPENGL
 	case Raster::CAMERATEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
-			return;
-		rasterCreateCameraTexture(raster);
-		break;
+			return raster;
+		return rasterCreateCameraTexture(raster);
 
 	case Raster::ZBUFFER:
-		rasterCreateZbuffer(raster);
-		break;
+		return rasterCreateZbuffer(raster);
 	case Raster::CAMERA:
-		rasterCreateCamera(raster);
-		break;
+		return rasterCreateCamera(raster);
 #endif
 
 	default:
 		assert(0 && "unsupported format");	
 	}
+	return nil;
 }
 
 uint8*
@@ -190,9 +197,18 @@ rasterNumLevels(Raster*)
 	return 0;
 }
 
-void
+bool32
+imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format)
+{
+	assert(0 && "not yet");
+	return 0;
+}
+
+bool32
 rasterFromImage(Raster *raster, Image *image)
 {
+	assert(0 && "not yet");
 	int32 format;
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 
@@ -225,6 +241,7 @@ rasterFromImage(Raster *raster, Image *image)
 	             0, natras->format, natras->type, image->pixels);
 	glBindTexture(GL_TEXTURE_2D, 0);
 #endif
+	return 1;
 }
 
 static void*

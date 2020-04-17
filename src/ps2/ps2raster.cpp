@@ -11,7 +11,7 @@
 #include "../rwengine.h"
 #include "rwps2.h"
 
-#define PLUGIN_ID 0
+#define PLUGIN_ID ID_DRIVER
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -755,8 +755,8 @@ calcOffsets(int32 width_Px, int32 height_Px, int32 psm, uint64 *bufferBase_B, ui
 #undef REALHEIGHT
 }
 
-static void
-createTexRaster(Raster *raster)
+static Raster*
+rasterCreateTexture(Raster *raster)
 {
 	// We use a map for fast lookup, even for impossible depths
 	static int32 pageWidths[32] = {
@@ -809,7 +809,7 @@ createTexRaster(Raster *raster)
 
 	// RW doesn't seem to check this, hm...
 	if(raster->flags & Raster::DONTALLOCATE)
-		return;
+		return raster;
 
 	//printf("%x %x %x %x\n", raster->format, raster->flags, raster->type, noNewStyleRasters);
 	pageWidth = pageWidths[depth-1];
@@ -841,7 +841,7 @@ createTexRaster(Raster *raster)
 			paletteHeight = 2;
 		}else{
 			// can't happen, sanity check in getRasterFormat
-			return;
+			return nil;;
 		}
 		tcc = 1;	// RGBA
 		cld = 1;
@@ -857,7 +857,7 @@ createTexRaster(Raster *raster)
 			palettePageheight = 32;
 		}else
 			// can't happen, sanity check in getRasterFormat
-			return;
+			return nil;;
 	}else{
 		paletteWidth = 0;
 		paletteHeight = 0;
@@ -875,7 +875,7 @@ createTexRaster(Raster *raster)
 			tcc = 1;	// RGBA
 		}else
 			// can't happen, sanity check in getRasterFormat
-			return;
+			return nil;;
 	}
 
 	for(int i = 0; i < 7; i++){
@@ -1308,13 +1308,14 @@ createTexRaster(Raster *raster)
 	raster->originalStride = raster->stride;
 	if(ras->flags & Ps2Raster::NEWSTYLE)
 		raster->pixels = ((Ps2Raster::PixelPtr*)raster->pixels)->pixels + 0x50;
+	return raster;
 }
 
-void
+Raster*
 rasterCreate(Raster *raster)
 {
 	if(!getRasterFormat(raster))
-		return;
+		return nil;
 
 	// init raster
 	raster->pixels = nil;
@@ -1326,32 +1327,29 @@ rasterCreate(Raster *raster)
 		raster->flags = Raster::DONTALLOCATE;
 		raster->stride = 0;
 		raster->originalStride = 0;
-		return;
+		return raster;
 	}
 
 	switch(raster->type){
 	case Raster::NORMAL:
-		// TODO
-		break;
+	case Raster::TEXTURE:
+		return rasterCreateTexture(raster);
 	case Raster::ZBUFFER:
 		// TODO. only RW_PS2
 		// get info from video mode
 		raster->flags = Raster::DONTALLOCATE;
-		break;
+		return raster;
 	case Raster::CAMERA:
 		// TODO. only RW_PS2
 		// get info from video mode
 		raster->flags = Raster::DONTALLOCATE;
-		break;
-	case Raster::TEXTURE:
-		createTexRaster(raster);
-		break;
+		return raster;
 	case Raster::CAMERATEXTURE:
 		// TODO. only RW_PS2
 		// check width/height and fall through to texture
-		break;
+		return nil;
 	}
-
+	return nil;
 }
 
 static uint32
@@ -1595,9 +1593,18 @@ copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 			dst[y*w + x] = src[y*srcw + x];
 }
 
-void
+bool32
+imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format)
+{
+	assert(0 && "not yet");
+	return 0;
+}
+
+bool32
 rasterFromImage(Raster *raster, Image *image)
 {
+	assert(0 && "not yet");
 	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 
 	raster->flags &= ~Raster::DONTALLOCATE;
@@ -1669,6 +1676,7 @@ rasterFromImage(Raster *raster, Image *image)
 				}
 	}
 	raster->unlock(0);
+	return 1;
 }
 
 Image*

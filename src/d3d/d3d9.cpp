@@ -39,6 +39,7 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_D3D9]->rasterLock         = rasterLock;
 	engine->driver[PLATFORM_D3D9]->rasterUnlock       = rasterUnlock;
 	engine->driver[PLATFORM_D3D9]->rasterNumLevels    = rasterNumLevels;
+	engine->driver[PLATFORM_D3D9]->imageFindRasterFormat = imageFindRasterFormat;
 	engine->driver[PLATFORM_D3D9]->rasterFromImage    = rasterFromImage;
 	engine->driver[PLATFORM_D3D9]->rasterToImage      = rasterToImage;
 	return o;
@@ -688,18 +689,21 @@ readNativeTexture(Stream *stream)
 		// is compressed
 		assert((flags & 2) == 0 && "Can't have cube maps yet");
 		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_D3D9);
+		assert(raster);
 		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 		ext->format = d3dformat;
 		ext->hasAlpha = flags & 1;
 		ext->texture = createTexture(raster->width, raster->height,
 		                             raster->format & Raster::MIPMAP ? numLevels : 1,
 		                             ext->format);
+		assert(ext->texture);
 		raster->flags &= ~Raster::DONTALLOCATE;
 		ext->customFormat = 1;
 	}else if(flags & 2){
 		assert(0 && "Can't have cube maps yet");
 	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D9);
+		assert(raster);
 		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	}
 	tex->raster = raster;

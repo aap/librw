@@ -17,4 +17,6 @@ ECODE(ERR_ENGINEOPEN,
 ECODE(ERR_ENGINESTART,
       "Engine could not be started"),
 ECODE(ERR_INVRASTER,
-      "Invalid raster format")
+      "Invalid raster format"),
+ECODE(ERR_NOTEXTURE,
+      "Could not create texture")

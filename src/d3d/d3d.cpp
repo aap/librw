@@ -5,12 +5,15 @@
 
 #define WITH_D3D
 #include "../rwbase.h"
+#include "../rwerror.h"
 #include "../rwplg.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
 #include "rwd3d.h"
 #include "rwd3dimpl.h"
+
+#define PLUGIN_ID ID_DRIVER
 
 namespace rw {
 namespace d3d {
@@ -238,7 +241,6 @@ createVertexBuffer(uint32 length, uint32 fvf, bool dynamic)
 	return vbuf;
 #else
 	(void)fvf;
-	(void)pool;
 	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
 #endif
 }
@@ -487,7 +489,7 @@ rasterSetFormat(Raster *raster)
 	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
 }
 
-static void
+static Raster*
 rasterCreateTexture(Raster *raster)
 {
 	int32 levels;
@@ -496,29 +498,26 @@ rasterCreateTexture(Raster *raster)
 	if(natras->format == D3DFMT_P8)
 		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
 	levels = Raster::calculateNumLevels(raster->width, raster->height);
-// HACK
-// raster <- image has to be done differently to be compatible with RW
-// just delete texture here for the moment
-if(natras->texture){
-	deleteObject(natras->texture);
-	d3d9Globals.numTextures--;
-	natras->texture = nil;
-}
 	assert(natras->texture == nil);
 	natras->texture = createTexture(raster->width, raster->height,
 	                                raster->format & Raster::MIPMAP ? levels : 1,
 	                                natras->format);
-	assert(natras->texture && "couldn't create d3d texture");
+	if(natras->texture == nil){
+		RWERROR((ERR_NOTEXTURE));
+		return nil;
+	}
+	return raster;
 }
 
 #ifdef RW_D3D9
 
-static void
+static Raster*
 rasterCreateCameraTexture(Raster *raster)
 {
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
-		// TODO: give some error
-		return;
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		RWERROR((ERR_NOTEXTURE));
+		return nil;
+	}
 
 	int32 levels;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -531,12 +530,16 @@ rasterCreateCameraTexture(Raster *raster)
 				(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
 	assert(natras->texture == nil);
 	natras->texture = tex;
-	assert(natras->texture && "couldn't create d3d camera texture");
+	if(natras->texture == nil){
+		RWERROR((ERR_NOTEXTURE));
+		return nil;
+	}
 	d3d9Globals.numTextures++;
 	addVidmemRaster(raster);
+	return raster;
 }
 
-static void
+static Raster*
 rasterCreateCamera(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -548,9 +551,10 @@ rasterCreateCamera(Raster *raster)
 
 	natras->format = d3d9Globals.present.BackBufferFormat;
 	raster->depth = findFormatDepth(natras->format);
+	return raster;
 }
 
-static void
+static Raster*
 rasterCreateZbuffer(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -562,10 +566,11 @@ rasterCreateZbuffer(Raster *raster)
 
 	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
 	raster->depth = findFormatDepth(natras->format);
+	return raster;
 }
 #endif
 
-void
+Raster*
 rasterCreate(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
@@ -580,29 +585,26 @@ rasterCreate(Raster *raster)
 		if(raster->width == 0 || raster->height == 0){
 			raster->flags |= Raster::DONTALLOCATE;
 			raster->stride = 0;
-			return;
+			return raster;
 		}
 
 		if(raster->flags & Raster::DONTALLOCATE)
-			return;
-		rasterCreateTexture(raster);
-		break;
+			return raster;
+		return rasterCreateTexture(raster);
 
 #ifdef RW_D3D9
 	case Raster::CAMERATEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
-			return;
-		rasterCreateCameraTexture(raster);
-		break;
+			return raster;
+		return rasterCreateCameraTexture(raster);
 
 	case Raster::ZBUFFER:
-		rasterCreateZbuffer(raster);
-		break;
+		return rasterCreateZbuffer(raster);
 	case Raster::CAMERA:
-		rasterCreateCamera(raster);
-		break;
+		return rasterCreateCamera(raster);
 #endif
 	}
+	return nil;
 }
 
 uint8*
@@ -632,25 +634,30 @@ rasterNumLevels(Raster *raster)
 #endif
 }
 
-void
-rasterFromImage(Raster *raster, Image *image)
+bool32
+imageFindRasterFormat(Image *img, int32 type,
+	int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat)
 {
-	// Unpalettize image if necessary but don't change original
-	Image *truecolimg = nil;
-	if(image->depth <= 8 && !isP8supported){
-		truecolimg = Image::create(image->width, image->height, image->depth);
-		truecolimg->pixels = image->pixels;
-		truecolimg->stride = image->stride;
-		truecolimg->palette = image->palette;
-		truecolimg->unindex();
-		image = truecolimg;
-	}
+	int32 width, height, depth, format;
 
-	int32 format;
-	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	switch(image->depth){
+	assert(type == Raster::TEXTURE);
+
+	for(width = 1; width < img->width; width <<= 1);
+	for(height = 1; height < img->height; height <<= 1);
+
+	depth = img->depth;
+
+	if(depth <= 8 && !isP8supported)
+		depth = 32;
+
+	switch(depth){
 	case 32:
-		format = image->hasAlpha() ? Raster::C8888 : Raster::C888;
+		if(img->hasAlpha())
+			format = Raster::C8888;
+		else{
+			format = Raster::C888;
+			depth = 24;
+		}
 		break;
 	case 24:
 		format = Raster::C888;
@@ -665,14 +672,60 @@ rasterFromImage(Raster *raster, Image *image)
 		format = Raster::PAL4 | Raster::C8888;
 		break;
 	default:
-		return;
+		return 0;
 	}
-	format |= Raster::TEXTURE;
 
-	raster->type = format & 0x7;
-	raster->flags = format & 0xF8;
-	raster->format = format & 0xFF00;
-	rasterCreate(raster);
+	format |= type;
+
+	*pWidth = width;
+	*pHeight = height;
+	*pDepth = depth;
+	*pFormat = format;
+
+	return 1;
+}
+
+bool32
+rasterFromImage(Raster *raster, Image *image)
+{
+	if((raster->type&0xF) != Raster::TEXTURE)
+		return 0;
+
+	// Unpalettize image if necessary but don't change original
+	Image *truecolimg = nil;
+	if(image->depth <= 8 && !isP8supported){
+		truecolimg = Image::create(image->width, image->height, image->depth);
+		truecolimg->pixels = image->pixels;
+		truecolimg->stride = image->stride;
+		truecolimg->palette = image->palette;
+		truecolimg->unindex();
+		image = truecolimg;
+	}
+
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	switch(image->depth){
+	case 32:
+		if(raster->format != Raster::C8888 &&
+		   raster->format != Raster::C888)
+			goto err;
+		break;
+	case 24:
+		if(raster->format != Raster::C888) goto err;
+		break;
+	case 16:
+		if(raster->format != Raster::C1555) goto err;
+		break;
+	case 8:
+		if(raster->format != (Raster::PAL8 | Raster::C8888)) goto err;
+		break;
+	case 4:
+		if(raster->format != (Raster::PAL4 | Raster::C8888)) goto err;
+		break;
+	default:
+	err:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
 
 	uint8 *in, *out;
 	int pallength = 0;
@@ -730,6 +783,8 @@ rasterFromImage(Raster *raster, Image *image)
 
 	if(truecolimg)
 		truecolimg->destroy();
+
+	return 1;
 }
 
 Image*
@@ -918,11 +973,14 @@ destroyNativeRaster(void *object, int32 offset, int32)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
 #ifdef RW_D3D9
 	destroyD3D9Raster(raster);
-#endif
 	if(natras->texture){
 		deleteObject(natras->texture);
 		d3d9Globals.numTextures--;
 	}
+#else
+	if(natras->texture)
+		deleteObject(natras->texture);
+#endif
 	rwFree(natras->palette);
 	return object;
 }

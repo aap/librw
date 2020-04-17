@@ -22,11 +22,13 @@ void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices);
 void im3DEnd(void);
 #endif
 
-void rasterCreate(Raster *raster);
+Raster *rasterCreate(Raster *raster);
 uint8 *rasterLock(Raster*, int32 level, int32 lockMode);
 void rasterUnlock(Raster*, int32);
 int32 rasterNumLevels(Raster*);
-void rasterFromImage(Raster *raster, Image *image);
+bool32 imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format);
+bool32 rasterFromImage(Raster *raster, Image *image);
 
 }
 }
