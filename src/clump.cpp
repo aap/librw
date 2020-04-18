@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -36,6 +37,11 @@ Clump::create(void)
 	clump->atomics.init();
 	clump->lights.init();
 	clump->cameras.init();
+
+	// World extension
+	clump->world = nil;
+	clump->inWorld.init();
+
 	s_plglist.construct(clump);
 	return clump;
 }
@@ -53,6 +59,11 @@ Clump::clone(void)
 		clump->addAtomic(atomic);
 	}
 	root->purgeClone();
+
+	// World extension
+	if(this->world)
+		this->world->addClump(clump);
+
 	s_plglist.copy(clump, this);
 	return clump;
 }
@@ -62,17 +73,76 @@ Clump::destroy(void)
 {
 	Frame *f;
 	s_plglist.destruct(this);
-	FORLIST(lnk, this->atomics)
-		Atomic::fromClump(lnk)->destroy();
-	FORLIST(lnk, this->lights)
-		Light::fromClump(lnk)->destroy();
-	FORLIST(lnk, this->cameras)
-		Camera::fromClump(lnk)->destroy();
+	FORLIST(lnk, this->atomics){
+		Atomic *a = Atomic::fromClump(lnk);
+		this->removeAtomic(a);
+		a->destroy();
+	}
+	FORLIST(lnk, this->lights){
+		Light *l = Light::fromClump(lnk);
+		this->removeLight(l);
+		l->destroy();
+	}
+	FORLIST(lnk, this->cameras){
+		Camera *c = Camera::fromClump(lnk);
+		this->removeCamera(c);
+		c->destroy();
+	}
 	if(f = this->getFrame(), f)
 		f->destroyHierarchy();
+	assert(this->world == nil);
 	rwFree(this);
 	numAllocated--;
 }
+
+void
+Clump::addAtomic(Atomic *a)
+{
+	assert(a->clump == nil);
+	a->clump = this;
+	this->atomics.append(&a->inClump);
+}
+
+void
+Clump::removeAtomic(Atomic *a)
+{
+	assert(a->clump == this);
+	a->inClump.remove();
+	a->clump = nil;
+}
+
+void
+Clump::addLight(Light *l)
+{
+	assert(l->clump == nil);
+	l->clump = this;
+	this->lights.append(&l->inClump);
+}
+
+void
+Clump::removeLight(Light *l)
+{
+	assert(l->clump == this);
+	l->inClump.remove();
+	l->clump = nil;
+}
+
+void
+Clump::addCamera(Camera *c)
+{
+	assert(c->clump == nil);
+	c->clump = this;
+	this->cameras.append(&c->inClump);
+}
+
+void
+Clump::removeCamera(Camera *c)
+{
+	assert(c->clump == this);
+	c->inClump.remove();
+	c->clump = nil;
+}
+
 
 Clump*
 Clump::streamRead(Stream *stream)
@@ -357,6 +427,7 @@ Atomic::create(void)
 	atomic->setFrame(nil);
 	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	atomic->clump = nil;
+	atomic->inClump.init();
 	atomic->pipeline = nil;
 	atomic->renderCB = Atomic::defaultRenderCB;
 	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
@@ -383,6 +454,9 @@ Atomic::clone()
 		atomic->setGeometry(this->geometry, 0);
 	atomic->renderCB = this->renderCB;
 	atomic->pipeline = this->pipeline;
+
+	// World extension doesn't add to world
+
 	s_plglist.copy(atomic, this);
 	return atomic;
 }
@@ -393,20 +467,11 @@ Atomic::destroy(void)
 	s_plglist.destruct(this);
 	if(this->geometry)
 		this->geometry->destroy();
-	if(this->clump)
-		this->inClump.remove();
+	assert(this->clump == nil);
+	assert(this->world == nil);
 	this->setFrame(nil);
 	rwFree(this);
 	numAllocated--;
-}
-
-void
-Atomic::removeFromClump(void)
-{
-	if(this->clump){
-		this->inClump.remove();
-		this->clump = nil;
-	}
 }
 
 void

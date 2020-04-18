@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cassert>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -66,9 +67,8 @@ void
 Light::destroy(void)
 {
 	s_plglist.destruct(this);
-	if(this->clump)
-		this->inClump.remove();
-	// we do not remove from world, be careful
+	assert(this->clump == nil);
+	assert(this->world == nil);
 	rwFree(this);
 	numAllocated--;
 }

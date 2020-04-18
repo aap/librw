@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -29,6 +30,7 @@ World::create(void)
 	world->object.init(World::ID, 0);
 	world->lights.init();
 	world->directionalLights.init();
+	world->clumps.init();
 	s_plglist.construct(world);
 	return world;
 }
@@ -64,6 +66,7 @@ World::removeLight(Light *light)
 void
 World::addCamera(Camera *cam)
 {
+	assert(cam->world == nil);
 	cam->world = this;
 	if(cam->getFrame())
 		cam->getFrame()->updateObjects();
@@ -74,6 +77,63 @@ World::removeCamera(Camera *cam)
 {
 	if(cam->world == this)
 		cam->world = nil;
+}
+
+void
+World::addAtomic(Atomic *atomic)
+{
+	assert(atomic->world == nil);
+	atomic->world = this;
+	if(atomic->getFrame())
+		atomic->getFrame()->updateObjects();
+}
+
+void
+World::removeAtomic(Atomic *atomic)
+{
+	assert(atomic->world == this);
+	atomic->world = nil;
+}
+
+void
+World::addClump(Clump *clump)
+{
+	assert(clump->world == nil);
+	clump->world = this;
+	this->clumps.add(&clump->inWorld);
+	FORLIST(lnk, clump->atomics)
+		this->addAtomic(Atomic::fromClump(lnk));
+	FORLIST(lnk, clump->lights)
+		this->addLight(Light::fromClump(lnk));
+	FORLIST(lnk, clump->cameras)
+		this->addCamera(Camera::fromClump(lnk));
+
+	if(clump->getFrame()){
+		clump->getFrame()->matrix.optimize();
+		clump->getFrame()->updateObjects();
+	}
+}
+
+void
+World::removeClump(Clump *clump)
+{
+	assert(clump->world == this);
+	clump->inWorld.remove();
+	FORLIST(lnk, clump->atomics)
+		this->removeAtomic(Atomic::fromClump(lnk));
+	FORLIST(lnk, clump->lights)
+		this->removeLight(Light::fromClump(lnk));
+	FORLIST(lnk, clump->cameras)
+		this->removeCamera(Camera::fromClump(lnk));
+	clump->world = nil;
+}
+
+void
+World::render(void)
+{
+	// this is very wrong, we really want world sectors
+	FORLIST(lnk, this->clumps)
+		Clump::fromWorld(lnk)->render();
 }
 
 }

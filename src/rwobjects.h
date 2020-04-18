@@ -537,7 +537,6 @@ struct Atomic
 	Frame *getFrame(void) const { return (Frame*)this->object.object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
 		return LLLinkGetData(lnk, Atomic, inClump); }
-	void removeFromClump(void);
 	void setGeometry(Geometry *geo, uint32 flags);
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
@@ -704,27 +703,24 @@ struct Clump
 	LinkList cameras;
 
 	World *world;
+	LLLink inWorld;
 
 	static int32 numAllocated;
 
 	static Clump *create(void);
 	Clump *clone(void);
 	void destroy(void);
+	static Clump *fromWorld(LLLink *lnk){
+		return LLLinkGetData(lnk, Clump, inWorld); }
 	int32 countAtomics(void) { return this->atomics.count(); }
-	void addAtomic(Atomic *a){
-		a->clump = this;
-		this->atomics.append(&a->inClump);
-	}
+	void addAtomic(Atomic *a);
+	void removeAtomic(Atomic *a);
 	int32 countLights(void) { return this->lights.count(); }
-	void addLight(Light *l){
-		l->clump = this;
-		this->lights.append(&l->inClump);
-	}
+	void addLight(Light *l);
+	void removeLight(Light *l);
 	int32 countCameras(void) { return this->cameras.count(); }
-	void addCamera(Camera *c){
-		c->clump = this;
-		this->cameras.append(&c->inClump);
-	}
+	void addCamera(Camera *c);
+	void removeCamera(Camera *c);
 	void setFrame(Frame *f){
 		this->object.parent = f; }
 	Frame *getFrame(void) const {
@@ -743,6 +739,7 @@ struct World
 	Object object;
 	LinkList lights;                // these have positions (type >= 0x80)
 	LinkList directionalLights;     // these do not (type < 0x80)
+	LinkList clumps;
 
 	static int32 numAllocated;
 
@@ -752,6 +749,11 @@ struct World
 	void removeLight(Light *light);
 	void addCamera(Camera *cam);
 	void removeCamera(Camera *cam);
+	void addAtomic(Atomic *atomic);
+	void removeAtomic(Atomic *atomic);
+	void addClump(Clump *clump);
+	void removeClump(Clump *clump);
+	void render(void);
 };
 
 struct TexDictionary

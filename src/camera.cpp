@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <cassert>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -331,6 +332,9 @@ Camera::clone(void)
 	cam->frameBuffer = this->frameBuffer;
 	cam->zBuffer = this->zBuffer;
 
+	if(this->world)
+		this->world->addCamera(cam);
+
 	s_plglist.copy(cam, this);
 	return cam;
 }
@@ -339,8 +343,8 @@ void
 Camera::destroy(void)
 {
 	s_plglist.destruct(this);
-	if(this->clump)
-		this->inClump.remove();
+	assert(this->clump == nil);
+	assert(this->world == nil);
 	rwFree(this);
 	numAllocated--;
 }
