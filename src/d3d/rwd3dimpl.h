@@ -37,6 +37,7 @@ struct D3d9Globals
 	DisplayMode *modes;
 	int numModes;
 	int currentMode;
+	DisplayMode startMode;
 
 	D3DPRESENT_PARAMETERS present;
 

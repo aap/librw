@@ -469,6 +469,13 @@ rasterSetFormat(Raster *raster)
 			break;
 
 		case Raster::CAMERATEXTURE:
+// let's not use this because we apparently don't want alpha
+//			raster->format = findFormatInfoD3D(d3d9Globals.present.BackBufferFormat)->rwFormat;
+			raster->format = findFormatInfoD3D(d3d9Globals.startMode.mode.Format)->rwFormat;
+			// can this even happen? just do something...
+			if(raster->format == 0)
+				raster->format = Raster::C888;
+			break;
 		case Raster::CAMERA:
 			raster->format = findFormatInfoD3D(d3d9Globals.present.BackBufferFormat)->rwFormat;
 			// can this even happen? just do something...

@@ -1077,9 +1077,10 @@ startD3D(void)
 
 	uint32 width, height, depth;
 	D3DFORMAT format, zformat;
-	format = d3d9Globals.modes[d3d9Globals.currentMode].mode.Format;
+	d3d9Globals.startMode = d3d9Globals.modes[d3d9Globals.currentMode];
+	format = d3d9Globals.startMode.mode.Format;
 
-	bool windowed = !(d3d9Globals.modes[d3d9Globals.currentMode].flags & VIDEOMODEEXCLUSIVE);
+	bool windowed = !(d3d9Globals.startMode.flags & VIDEOMODEEXCLUSIVE);
 
 	// Use window size in windowed mode, otherwise get size from video mode
 	if(windowed){
@@ -1090,8 +1091,8 @@ startD3D(void)
 	}else{
 		// this will be much better for restoring after iconification
 		SetWindowLong(d3d9Globals.window, GWL_STYLE, WS_POPUP);
-		width = d3d9Globals.modes[d3d9Globals.currentMode].mode.Width;
-		height = d3d9Globals.modes[d3d9Globals.currentMode].mode.Height;
+		width = d3d9Globals.startMode.mode.Width;
+		height = d3d9Globals.startMode.mode.Height;
 	}
 
 	// See if we can get an alpha channel
