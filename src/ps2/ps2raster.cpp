@@ -1593,33 +1593,87 @@ copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
 			dst[y*w + x] = src[y*srcw + x];
 }
 
+// Almost the same as d3d9 and gl3 function
 bool32
 imageFindRasterFormat(Image *img, int32 type,
-	int32 *width, int32 *height, int32 *depth, int32 *format)
+	int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat)
 {
-	assert(0 && "not yet");
-	return 0;
+	int32 width, height, depth, format;
+
+	assert((type&0xF) == Raster::TEXTURE);
+
+	for(width = 1; width < img->width; width <<= 1);
+	for(height = 1; height < img->height; height <<= 1);
+
+	depth = img->depth;
+
+	switch(depth){
+	case 32:
+		if(img->hasAlpha())
+			format = Raster::C8888;
+		else{
+			format = Raster::C888;
+			depth = 24;
+		}
+		break;
+	case 24:
+		format = Raster::C888;
+		break;
+	case 16:
+		format = Raster::C1555;
+		break;
+	case 8:
+		format = Raster::PAL8 | Raster::C8888;
+		break;
+	case 4:
+		format = Raster::PAL4 | Raster::C8888;
+		break;
+	default:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
+
+	format |= type;
+
+	*pWidth = width;
+	*pHeight = height;
+	*pDepth = depth;
+	*pFormat = format;
+
+	return 1;
 }
 
 bool32
 rasterFromImage(Raster *raster, Image *image)
 {
-	assert(0 && "not yet");
 	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
 
-	raster->flags &= ~Raster::DONTALLOCATE;
-	if(raster->format & (Raster::PAL4|Raster::PAL8) &&
-	   (raster->format & 0xF00) == Raster::C1555){
-		raster->format &= 0xF000;
-		raster->format |= Raster::C8888;
-	}
-	rasterCreate(raster);
-
 	int32 pallength = 0;
-	if(raster->format & Raster::PAL4)
-		pallength = 16;
-	else if(raster->format & Raster::PAL8)
+	switch(image->depth){
+	case 32:
+		if(raster->format != Raster::C8888 &&
+		   raster->format != Raster::C888)
+			goto err;
+		break;
+	case 24:
+		if(raster->format != Raster::C888) goto err;
+		break;
+	case 16:
+		if(raster->format != Raster::C1555) goto err;
+		break;
+	case 8:
+		if(raster->format != (Raster::PAL8 | Raster::C8888)) goto err;
 		pallength = 256;
+		break;
+	case 4:
+		if(raster->format != (Raster::PAL4 | Raster::C8888)) goto err;
+		pallength = 16;
+		break;
+	default:
+	err:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
 
 	uint8 *in, *out;
 	if(image->depth <= 8){

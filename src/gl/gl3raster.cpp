@@ -22,10 +22,10 @@ namespace gl3 {
 
 int32 nativeRasterOffset;
 
+#ifdef RW_OPENGL
 static Raster*
 rasterCreateTexture(Raster *raster)
 {
-#ifdef RW_OPENGL
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(raster->format & 0xF00){
 	case Raster::C8888:
@@ -63,12 +63,7 @@ rasterCreateTexture(Raster *raster)
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	return raster;
-#else
-	return nil;
-#endif
 }
-
-#ifdef RW_OPENGL
 
 // This is totally fake right now, can't render to it. Only used to copy into from FB
 // For rendering the idea would probably be to render to the backbuffer and copy it here afterwards.
@@ -145,6 +140,7 @@ Raster*
 rasterCreate(Raster *raster)
 {
 	switch(raster->type){
+#ifdef RW_OPENGL
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
 		// Dummy to use as subraster
@@ -159,7 +155,6 @@ rasterCreate(Raster *raster)
 			return raster;
 		return rasterCreateTexture(raster);
 
-#ifdef RW_OPENGL
 	case Raster::CAMERATEXTURE:
 		if(raster->flags & Raster::DONTALLOCATE)
 			return raster;
@@ -172,9 +167,9 @@ rasterCreate(Raster *raster)
 #endif
 
 	default:
-		assert(0 && "unsupported format");	
+		RWERROR((ERR_INVRASTER));
+		return nil;
 	}
-	return nil;
 }
 
 uint8*
@@ -197,24 +192,31 @@ rasterNumLevels(Raster*)
 	return 0;
 }
 
+// Almost the same as d3d9 and ps2 function
 bool32
 imageFindRasterFormat(Image *img, int32 type,
-	int32 *width, int32 *height, int32 *depth, int32 *format)
+	int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat)
 {
-	assert(0 && "not yet");
-	return 0;
-}
+	int32 width, height, depth, format;
 
-bool32
-rasterFromImage(Raster *raster, Image *image)
-{
-	assert(0 && "not yet");
-	int32 format;
-	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	assert((type&0xF) == Raster::TEXTURE);
 
-	switch(image->depth){
+	for(width = 1; width < img->width; width <<= 1);
+	for(height = 1; height < img->height; height <<= 1);
+
+	depth = img->depth;
+
+	if(depth <= 8)
+		depth = 32;
+
+	switch(depth){
 	case 32:
-		format = Raster::C8888;
+		if(img->hasAlpha())
+			format = Raster::C8888;
+		else{
+			format = Raster::C888;
+			depth = 24;
+		}
 		break;
 	case 24:
 		format = Raster::C888;
@@ -222,15 +224,62 @@ rasterFromImage(Raster *raster, Image *image)
 	case 16:
 		format = Raster::C1555;
 		break;
-	default:
-		assert(0 && "image depth\n");
-	}
-	format |= Raster::TEXTURE;
 
-	raster->type = format & 0x7;
-	raster->flags = format & 0xF8;
-	raster->format = format & 0xFF00;
-	rasterCreate(raster);
+	case 8:
+	case 4:
+	default:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
+
+	format |= type;
+
+	*pWidth = width;
+	*pHeight = height;
+	*pDepth = depth;
+	*pFormat = format;
+
+	return 1;
+}
+
+bool32
+rasterFromImage(Raster *raster, Image *image)
+{
+	if((raster->type&0xF) != Raster::TEXTURE)
+		return 0;
+
+	// Unpalettize image if necessary but don't change original
+	Image *truecolimg = nil;
+	if(image->depth <= 8){
+		truecolimg = Image::create(image->width, image->height, image->depth);
+		truecolimg->pixels = image->pixels;
+		truecolimg->stride = image->stride;
+		truecolimg->palette = image->palette;
+		truecolimg->unindex();
+		image = truecolimg;
+	}
+
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	switch(image->depth){
+	case 32:
+		if(raster->format != Raster::C8888 &&
+		   raster->format != Raster::C888)
+			goto err;
+		break;
+	case 24:
+		if(raster->format != Raster::C888) goto err;
+		break;
+	case 16:
+		if(raster->format != Raster::C1555) goto err;
+		break;
+
+	case 8:
+	case 4:
+	default:
+	err:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
 
 	natras->hasAlpha = image->hasAlpha();
 

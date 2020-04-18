@@ -641,13 +641,14 @@ rasterNumLevels(Raster *raster)
 #endif
 }
 
+// Almost the same as ps2 and gl3 function
 bool32
 imageFindRasterFormat(Image *img, int32 type,
 	int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat)
 {
 	int32 width, height, depth, format;
 
-	assert(type == Raster::TEXTURE);
+	assert((type&0xF) == Raster::TEXTURE);
 
 	for(width = 1; width < img->width; width <<= 1);
 	for(height = 1; height < img->height; height <<= 1);
@@ -679,6 +680,7 @@ imageFindRasterFormat(Image *img, int32 type,
 		format = Raster::PAL4 | Raster::C8888;
 		break;
 	default:
+		RWERROR((ERR_INVRASTER));
 		return 0;
 	}
 
@@ -842,7 +844,8 @@ rasterToImage(Raster *raster)
 	case Raster::C565:
 	case Raster::C4444:
 	case Raster::LUM8:
-		assert(0 && "unsupported raster format");
+		RWERROR((ERR_INVRASTER));
+		return nil;
 	}
 	int32 pallength = 0;
 	if((raster->format & Raster::PAL4) == Raster::PAL4){

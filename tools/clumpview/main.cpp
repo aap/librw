@@ -327,8 +327,8 @@ im3dtest(void)
 		verts[i].setV(vs[i].v);
 	}
 
-//	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
-	rw::SetRenderStatePtr(rw::TEXTURERASTER, frontbuffer->raster);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+//	rw::SetRenderStatePtr(rw::TEXTURERASTER, frontbuffer->raster);
 	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 
