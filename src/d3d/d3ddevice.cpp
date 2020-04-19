@@ -420,11 +420,11 @@ setMaterial(SurfaceProperties surfProps, rw::RGBA color)
 	mat9.Ambient.r = color.red*ambmult;
 	mat9.Ambient.g = color.green*ambmult;
 	mat9.Ambient.b = color.blue*ambmult;
-	mat9.Ambient.a = color.alpha*ambmult;
+	mat9.Ambient.a = color.alpha;
 	mat9.Diffuse.r = color.red*diffmult;
 	mat9.Diffuse.g = color.green*diffmult;
 	mat9.Diffuse.b = color.blue*diffmult;
-	mat9.Diffuse.a = color.alpha*diffmult;
+	mat9.Diffuse.a = color.alpha;
 	mat9.Power = 0.0f;
 	mat9.Emissive = black;
 	mat9.Specular = black;
