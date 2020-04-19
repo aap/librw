@@ -37,7 +37,7 @@ extern IDirect3DDevice9 *d3ddevice;
 void setD3dMaterial(D3DMATERIAL9 *mat9);
 #endif
 
-void lightingCB(bool32 normals);
+void lightingCB(Atomic *atomic);
 
 #define COLOR_ARGB(a, r, g, b) ((rw::uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 

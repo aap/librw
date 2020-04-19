@@ -20,10 +20,19 @@ IDirect3DDevice9 *d3ddevice = nil;
 #define MAX_LIGHTS 8
 
 void
-lightingCB(bool32 normals)
+lightingCB(Atomic *atomic)
 {
-	World *world;
-	RGBAf ambLight = { 0.0, 0.0, 0.0, 1.0 };
+	WorldLights lightData;
+	Light *directionals[8];
+	Light *locals[8];
+	lightData.directionals = directionals;
+	lightData.numDirectionals = 8;
+	lightData.locals = locals;
+	lightData.numLocals = 8;
+
+	((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
+
+	int i, n;
 	RGBA amb;
 	D3DLIGHT9 light;
 	light.Type = D3DLIGHT_DIRECTIONAL;
@@ -39,34 +48,83 @@ lightingCB(bool32 normals)
 	light.Attenuation2 = 0.0f;
 	light.Theta = 0.0f;
 	light.Phi = 0.0f;
-	int n = 0;
 
-	world = (World*)engine->currentWorld;
-	// only unpositioned lights right now
-	FORLIST(lnk, world->directionalLights){
-		Light *l = Light::fromWorld(lnk);
-		if((l->getFlags() & Light::LIGHTATOMICS) == 0)
-			continue;
-		if(normals &&
-		   l->getType() == Light::DIRECTIONAL &&
-		   l->getFlags() & Light::LIGHTATOMICS){
-			if(n >= MAX_LIGHTS)
-				continue;
+	convColor(&amb, &lightData.ambient);
+	d3d::setRenderState(D3DRS_AMBIENT, D3DCOLOR_RGBA(amb.red, amb.green, amb.blue, amb.alpha));
+
+	n = 0;
+	for(i = 0; i < lightData.numDirectionals; i++){
+		if(n >= MAX_LIGHTS)
+			return;
+		Light *l = lightData.directionals[i];
+		light.Type = D3DLIGHT_DIRECTIONAL;
+		light.Diffuse =  *(D3DCOLORVALUE*)&l->color;
+		light.Direction = *(D3DVECTOR*)&l->getFrame()->getLTM()->at;
+		d3ddevice->SetLight(n, &light);
+		d3ddevice->LightEnable(n, TRUE);
+		n++;
+	}
+
+	for(i = 0; i < lightData.numLocals; i++){
+		if(n >= MAX_LIGHTS)
+			return;
+		Light *l = lightData.locals[i];
+		switch(l->getType()){
+		case Light::POINT:
+			light.Type = D3DLIGHT_POINT;
 			light.Diffuse =  *(D3DCOLORVALUE*)&l->color;
-			light.Direction = *(D3DVECTOR*)&l->getFrame()->getLTM()->at;
+			light.Position = *(D3DVECTOR*)&l->getFrame()->getLTM()->pos;
+			light.Direction.x = 0.0f;
+			light.Direction.y = 0.0f;
+			light.Direction.z = 0.0f;
+			light.Range = l->radius;
+			light.Falloff = 1.0f;
+			light.Attenuation0 = 1.0f;
+			light.Attenuation1 = 0.0f/l->radius;
+			light.Attenuation2 = 5.0f/(l->radius*l->radius);
 			d3ddevice->SetLight(n, &light);
 			d3ddevice->LightEnable(n, TRUE);
 			n++;
-		}else if(l->getType() == Light::AMBIENT){
-			ambLight.red   += l->color.red;
-			ambLight.green += l->color.green;
-			ambLight.blue  += l->color.blue;
+			break;
+
+		case Light::SPOT:
+			light.Type = D3DLIGHT_SPOT;
+			light.Diffuse =  *(D3DCOLORVALUE*)&l->color;
+			light.Position = *(D3DVECTOR*)&l->getFrame()->getLTM()->pos;
+			light.Direction = *(D3DVECTOR*)&l->getFrame()->getLTM()->at;
+			light.Range = l->radius;
+			light.Falloff = 1.0f;
+			light.Attenuation0 = 1.0f;
+			light.Attenuation1 = 0.0f/l->radius;
+			light.Attenuation2 = 5.0f/(l->radius*l->radius);
+			light.Theta = l->getAngle()*2.0f;
+			light.Phi = light.Theta;
+			d3ddevice->SetLight(n, &light);
+			d3ddevice->LightEnable(n, TRUE);
+			n++;
+			break;
+
+		case Light::SOFTSPOT:
+			light.Type = D3DLIGHT_SPOT;
+			light.Diffuse =  *(D3DCOLORVALUE*)&l->color;
+			light.Position = *(D3DVECTOR*)&l->getFrame()->getLTM()->pos;
+			light.Direction = *(D3DVECTOR*)&l->getFrame()->getLTM()->at;
+			light.Range = l->radius;
+			light.Falloff = 1.0f;
+			light.Attenuation0 = 1.0f;
+			light.Attenuation1 = 0.0f/l->radius;
+			light.Attenuation2 = 5.0f/(l->radius*l->radius);
+			light.Theta = 0.0f;
+			light.Phi = l->getAngle()*2.0f;
+			d3ddevice->SetLight(n, &light);
+			d3ddevice->LightEnable(n, TRUE);
+			n++;
+			break;
 		}
 	}
+
 	for(; n < MAX_LIGHTS; n++)
 		d3ddevice->LightEnable(n, FALSE);
-	convColor(&amb, &ambLight);
-	d3d::setRenderState(D3DRS_AMBIENT, D3DCOLOR_RGBA(amb.red, amb.green, amb.blue, amb.alpha));
 }
 
 #endif

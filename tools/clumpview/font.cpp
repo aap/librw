@@ -111,6 +111,19 @@ initFont(void)
 {
 	vga.tex = Texture::read("Bm437_IBM_VGA8", "");
 	bios.tex = Texture::read("Bm437_IBM_BIOS", "");
+
+/*
+	FILE *foo = fopen("font.c", "w");
+	assert(foo);
+	int x, y;
+	rw::Image *img = rw::readTGA("vga_font.tga");
+	assert(img);
+	for(y = 0; y < img->height; y++){
+		for(x = 0; x < img->width; x++)
+			fprintf(foo, "%d, ", !!img->pixels[y*img->width + x]);
+		fprintf(foo, "\n");
+	}
+*/
 }
 
 /*

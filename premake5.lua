@@ -204,7 +204,14 @@ project "imguitest"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("imguitest")
-	files { "tools/imguitest/imgui/*.cpp" }
+	flags { "WinMain" }
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
+
+project "lights"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("lights")
 	flags { "WinMain" }
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }

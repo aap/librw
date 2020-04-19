@@ -66,7 +66,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	int lighting = !!(geo->flags & rw::Geometry::LIGHT);
 	if(lighting)
-		d3d::lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
+		d3d::lightingCB(atomic);
 
 	d3d::setRenderState(D3DRS_LIGHTING, lighting);
 

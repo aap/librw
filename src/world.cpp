@@ -28,8 +28,8 @@ World::create(void)
 	}
 	numAllocated++;
 	world->object.init(World::ID, 0);
-	world->lights.init();
-	world->directionalLights.init();
+	world->localLights.init();
+	world->globalLights.init();
 	world->clumps.init();
 	s_plglist.construct(world);
 	return world;
@@ -46,11 +46,12 @@ World::destroy(void)
 void
 World::addLight(Light *light)
 {
+	assert(light->world == nil);
 	light->world = this;
 	if(light->getType() < Light::POINT){
-		this->directionalLights.append(&light->inWorld);
+		this->globalLights.append(&light->inWorld);
 	}else{
-		this->lights.append(&light->inWorld);
+		this->localLights.append(&light->inWorld);
 		if(light->getFrame())
 			light->getFrame()->updateObjects();
 	}
@@ -59,8 +60,9 @@ World::addLight(Light *light)
 void
 World::removeLight(Light *light)
 {
-	if(light->world == this)
-		light->inWorld.remove();
+	assert(light->world == this);
+	light->inWorld.remove();
+	light->world = nil;
 }
 
 void
@@ -75,8 +77,8 @@ World::addCamera(Camera *cam)
 void
 World::removeCamera(Camera *cam)
 {
-	if(cam->world == this)
-		cam->world = nil;
+	assert(cam->world == this);
+	cam->world = nil;
 }
 
 void
@@ -134,6 +136,60 @@ World::render(void)
 	// this is very wrong, we really want world sectors
 	FORLIST(lnk, this->clumps)
 		Clump::fromWorld(lnk)->render();
+}
+
+// Find lights that illuminate an atomic
+void
+World::enumerateLights(Atomic *atomic, WorldLights *lightData)
+{
+	int32 maxDirectionals, maxLocals;
+
+	assert(atomic->world == this);
+
+	maxDirectionals = lightData->numDirectionals;
+	maxLocals = lightData->numLocals;
+
+	lightData->numDirectionals = 0;
+	lightData->numLocals = 0;
+	lightData->ambient.red = 0.0f;
+	lightData->ambient.green = 0.0f;
+	lightData->ambient.blue = 0.0f;
+	lightData->ambient.alpha = 1.0f;
+
+	bool32 normals = atomic->geometry->flags & Geometry::NORMALS;
+
+	FORLIST(lnk, this->globalLights){
+		Light *l = Light::fromWorld(lnk);
+		if((l->getFlags() & Light::LIGHTATOMICS) == 0)
+			continue;
+		if(l->getType() == Light::AMBIENT){
+			lightData->ambient.red   += l->color.red;
+			lightData->ambient.green += l->color.green;
+			lightData->ambient.blue  += l->color.blue;
+		}else if(normals && l->getType() == Light::DIRECTIONAL){
+			if(lightData->numDirectionals < maxDirectionals)
+				lightData->directionals[lightData->numDirectionals++] = l;
+		}
+	}
+
+	if(!normals)
+		return;
+
+	// TODO: for this we would use an atomic's world sectors, but we don't have those yet
+	FORLIST(lnk, this->localLights){
+		if(lightData->numLocals >= maxLocals)
+			return;
+
+		Light *l = Light::fromWorld(lnk);
+		if((l->getFlags() & Light::LIGHTATOMICS) == 0)
+			continue;
+
+		// check if spheres are intersecting
+		Sphere *atomsphere = atomic->getWorldBoundingSphere();
+		V3d dist = sub(l->getFrame()->getLTM()->pos, atomsphere->center);
+		if(length(dist) < atomsphere->radius + l->radius)
+			lightData->locals[lightData->numLocals++] = l;
+	}
 }
 
 }

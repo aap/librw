@@ -1,7 +1,4 @@
 #include <cstdio>
-//#include <cstdlib>
-//#include <cstring>
-//#include <cassert>
 
 #include "rwbase.h"
 #include "rwerror.h"

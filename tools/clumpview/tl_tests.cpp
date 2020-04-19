@@ -37,7 +37,7 @@ enumLights(Matrix *lightmat)
 	ambLight.alpha = 0.0;
 	numDirectionals = 0;
 	// only unpositioned lights right now
-	FORLIST(lnk, world->directionalLights){
+	FORLIST(lnk, world->globalLights){
 		Light *l = Light::fromWorld(lnk);
 		if(l->getType() == Light::DIRECTIONAL){
 			if(numDirectionals >= MAX_LIGHTS)

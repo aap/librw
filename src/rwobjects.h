@@ -731,14 +731,24 @@ struct Clump
 	void render(void);
 };
 
+// used by enumerateLights for lighting callback
+struct WorldLights
+{
+	RGBAf ambient;	// all ambients added
+	int32 numDirectionals;
+	Light **directionals;	// only directionals
+	int32 numLocals;
+	Light **locals;	// points, (soft)spots
+};
+
 // A bit of a stub right now
 struct World
 {
 	PLUGINBASE
 	enum { ID = 7 };
 	Object object;
-	LinkList lights;                // these have positions (type >= 0x80)
-	LinkList directionalLights;     // these do not (type < 0x80)
+	LinkList localLights;	// these have positions (type >= 0x80)
+	LinkList globalLights;	// these do not (type < 0x80)
 	LinkList clumps;
 
 	static int32 numAllocated;
@@ -754,6 +764,7 @@ struct World
 	void addClump(Clump *clump);
 	void removeClump(Clump *clump);
 	void render(void);
+	void enumerateLights(Atomic *atomic, WorldLights *lightData);
 };
 
 struct TexDictionary

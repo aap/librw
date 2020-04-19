@@ -27,6 +27,8 @@ void genIm3DEnd(void);
 void initFont(void);
 void printScreen(const char *s, float x, float y);
 
+rw::Charset *testfont;
+
 //#include <Windows.h>
 
 void
@@ -177,9 +179,18 @@ InitRW(void)
 	if(!sk::InitRW())
 		return false;
 
+	rw::d3d::isP8supported = false;
+
 	initFont();
 
-	rw::d3d::isP8supported = false;
+	rw::RGBA foreground = { 255, 255, 0, 255 };
+	rw::RGBA background = { 0, 0, 0, 0 };
+	rw::Charset::open();
+	testfont = rw::Charset::create(&foreground, &background);
+	assert(testfont);
+	foreground.blue = 255.0f;
+	testfont->setColors(&foreground, &background);
+
 	tex = rw::Texture::read("maze", nil);
 	tex2 = rw::Texture::read("checkers", nil);
 
@@ -327,7 +338,8 @@ im3dtest(void)
 		verts[i].setV(vs[i].v);
 	}
 
-	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+//	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, testfont->raster);
 //	rw::SetRenderStatePtr(rw::TEXTURERASTER, frontbuffer->raster);
 	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
@@ -392,6 +404,7 @@ extern void endSoftras(void);
 	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
 
+	testfont->print("foo ABC", 200, 200, true);
 
 	camera->m_rwcam->endUpdate();
 
