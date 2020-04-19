@@ -144,8 +144,6 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 {
 	int32 maxDirectionals, maxLocals;
 
-	assert(atomic->world == this);
-
 	maxDirectionals = lightData->numDirectionals;
 	maxLocals = lightData->numLocals;
 
@@ -171,6 +169,9 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 				lightData->directionals[lightData->numDirectionals++] = l;
 		}
 	}
+
+	if(atomic->world != this)
+		return;
 
 	if(!normals)
 		return;
