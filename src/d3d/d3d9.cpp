@@ -32,6 +32,9 @@ static VertexElement _d3ddec_end = {0xFF,0,D3DDECLTYPE_UNUSED,0,0,0};
 static void*
 driverOpen(void *o, int32, int32)
 {
+#ifdef RW_D3D9
+	createDefaultShaders();
+#endif
 	engine->driver[PLATFORM_D3D9]->defaultPipeline = makeDefaultPipeline();
 
 	engine->driver[PLATFORM_D3D9]->rasterNativeOffset = nativeRasterOffset;
@@ -48,6 +51,9 @@ driverOpen(void *o, int32, int32)
 static void*
 driverClose(void *o, int32, int32)
 {
+#ifdef RW_D3D9
+	destroyDefaultShaders();
+#endif
 	return o;
 }
 
@@ -638,7 +644,7 @@ makeDefaultPipeline(void)
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
+	pipe->renderCB = defaultRenderCB_Shader;
 	return pipe;
 }
 

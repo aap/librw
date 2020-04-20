@@ -44,7 +44,7 @@ makeSkinPipeline(void)
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB;
+	pipe->renderCB = defaultRenderCB_Shader;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;

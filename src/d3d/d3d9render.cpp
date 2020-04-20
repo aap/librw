@@ -59,14 +59,14 @@ drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst)
 }
 
 void
-defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
+defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 {
 	RawMatrix world;
 	Geometry *geo = atomic->geometry;
 
 	int lighting = !!(geo->flags & rw::Geometry::LIGHT);
 	if(lighting)
-		d3d::lightingCB(atomic);
+		d3d::lightingCB_Fix(atomic);
 
 	d3d::setRenderState(D3DRS_LIGHTING, lighting);
 
@@ -123,6 +123,58 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	}
 	d3d::setTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
 	d3d::setTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+}
+
+
+void
+defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
+{
+	int vsBits;
+	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	                           0, header->vertexStream[0].stride);
+	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+
+	vsBits = lightingCB_Shader(atomic);
+	uploadMatrices(atomic->getFrame()->getLTM());
+
+	// Pick a shader
+	if((vsBits & VSLIGHT_MASK) == 0)
+		setVertexShader(default_amb_VS);
+	else if((vsBits & VSLIGHT_MASK) == VSLIGHT_DIRECT)
+		setVertexShader(default_amb_dir_VS);
+	else
+		setVertexShader(default_all_VS);
+
+	float surfProps[4];
+	surfProps[3] = atomic->geometry->flags&Geometry::PRELIT ? 1.0f : 0.0f;
+
+	InstanceData *inst = header->inst;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		Material *m = inst->material;
+
+		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
+
+		rw::RGBAf col;
+		convColor(&col, &inst->material->color);
+		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
+
+		surfProps[0] = m->surfaceProps.ambient;
+		surfProps[1] = m->surfaceProps.specular;
+		surfProps[2] = m->surfaceProps.diffuse;
+		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+
+		if(inst->material->texture){
+			d3d::setTexture(0, m->texture);
+			setPixelShader(default_color_tex_PS);
+		}else
+			setPixelShader(default_color_PS);
+
+		drawInst(header, inst);
+		inst++;
+	}
+	setVertexShader(nil);
+	setPixelShader(nil);
 }
 
 #endif

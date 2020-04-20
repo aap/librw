@@ -163,7 +163,8 @@ MatFX::setBumpTexture(Texture *t)
 		if(this->fx[i].bump.tex)
 			this->fx[i].bump.tex->destroy();
 		this->fx[i].bump.tex = t;
-		t->refCount++;
+		if(t)
+			t->refCount++;
 	}
 }
 
@@ -201,7 +202,8 @@ MatFX::setEnvTexture(Texture *t)
 		if(this->fx[i].env.tex)
 			this->fx[i].env.tex->destroy();
 		this->fx[i].env.tex = t;
-		t->refCount++;
+		if(t)
+			t->refCount++;
 	}
 }
 
@@ -257,7 +259,8 @@ MatFX::setDualTexture(Texture *t)
 		if(this->fx[i].dual.tex)
 			this->fx[i].dual.tex->destroy();
 		this->fx[i].dual.tex = t;
-		t->refCount++;
+		if(t)
+			t->refCount++;
 	}
 }
 

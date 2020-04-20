@@ -135,6 +135,8 @@ struct VideoMode
 	uint32 flags;
 };
 
+struct Camera;
+struct World;
 
 // This is for platform independent things
 // TODO: move more stuff into this
@@ -146,8 +148,8 @@ struct Engine
 		Opened,
 		Started
 	};
-	void *currentCamera;
-	void *currentWorld;
+	Camera *currentCamera;
+	World *currentWorld;
 	LinkList frameDirtyList;
 
 	// Dynamically allocated because of plugins

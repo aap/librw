@@ -60,6 +60,7 @@ void removeDynamicVB(IDirect3DVertexBuffer9 **buf);
 
 int findFormatDepth(uint32 format);
 void destroyD3D9Raster(Raster *raster);
+
 #endif
 
 Raster *rasterCreate(Raster *raster);

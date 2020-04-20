@@ -6,6 +6,7 @@
 #define WITH_D3D
 #include "../rwbase.h"
 #include "../rwplg.h"
+#include "../rwrender.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
@@ -106,12 +107,11 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 
 	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
 	d3ddevice->SetVertexDeclaration(im2ddecl);
-	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+
+	if(engine->device.getRenderState(TEXTURERASTER))
+		setPixelShader(default_color_tex_PS);
+	else
+		setPixelShader(default_color_PS);
 
 	d3d::flushCache();
 
@@ -137,6 +137,8 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 		break;
 	}
 	d3ddevice->DrawPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0, primCount);
+
+	setPixelShader(nil);
 }
 
 void
@@ -159,12 +161,11 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
 	d3ddevice->SetIndices(im2dindbuf);
 	d3ddevice->SetVertexDeclaration(im2ddecl);
-	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+
+	if(engine->device.getRenderState(TEXTURERASTER))
+		setPixelShader(default_color_tex_PS);
+	else
+		setPixelShader(default_color_PS);
 
 	d3d::flushCache();
 
@@ -192,6 +193,8 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0,
 	                                0, numVertices,
 	                                0, primCount);
+
+	setPixelShader(nil);
 }
 
 
@@ -242,16 +245,10 @@ closeIm3D(void)
 void
 im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 {
-	RawMatrix d3dworld;
-	d3d::setRenderState(D3DRS_LIGHTING, 0);
-
-	if(world == nil){
-		Matrix ident;
-		ident.setIdentity();
-		convMatrix(&d3dworld, &ident);
-	}else
-		convMatrix(&d3dworld, world);
-	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&d3dworld);
+	if(world == nil)
+		uploadMatrices();
+	else
+		uploadMatrices(world);
 
 	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));
@@ -271,12 +268,12 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	unlockIndices(im3dindbuf);
 
 	d3ddevice->SetIndices(im3dindbuf);
-	setTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
-	setTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-	setTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+
+	if(engine->device.getRenderState(TEXTURERASTER))
+		setPixelShader(default_color_tex_PS);
+	else
+		setPixelShader(default_color_PS);
+
 	d3d::flushCache();
 
 	uint32 primCount = 0;
@@ -304,6 +301,8 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0,
 	                                0, num3DVertices,
 	                                0, primCount);
+
+	setPixelShader(nil);
 }
 
 void

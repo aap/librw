@@ -27,7 +27,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	RawMatrix world;
 
-	d3d::lightingCB(atomic);
+	d3d::lightingCB_Fix(atomic);
 
 	Geometry *geo = atomic->geometry;
 	d3d::setRenderState(D3DRS_LIGHTING, !!(geo->flags & rw::Geometry::LIGHT));

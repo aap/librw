@@ -58,6 +58,9 @@ void drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);
 // Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
 void drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst);
 
+
+
+
 void *destroyNativeData(void *object, int32, int32);
 Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
 Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
@@ -76,9 +79,11 @@ public:
 
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
-void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
+void defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header);
+void defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header);
 
 ObjPipeline *makeDefaultPipeline(void);
+
 
 // Skin plugin
 

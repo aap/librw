@@ -605,6 +605,21 @@ createPixelShader(void *csosrc)
 	return nil;
 }
 
+void
+destroyVertexShader(void *shader)
+{
+	((IDirect3DVertexShader9*)shader)->Release();
+	d3d9Globals.numVertexShaders--;
+}
+
+void
+destroyPixelShader(void *shader)
+{
+	((IDirect3DPixelShader9*)shader)->Release();
+	d3d9Globals.numPixelShaders--;
+}
+
+
 // Camera
 
 static void

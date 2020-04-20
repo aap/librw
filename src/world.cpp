@@ -149,6 +149,7 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 
 	lightData->numDirectionals = 0;
 	lightData->numLocals = 0;
+	lightData->numAmbients = 0;
 	lightData->ambient.red = 0.0f;
 	lightData->ambient.green = 0.0f;
 	lightData->ambient.blue = 0.0f;
@@ -164,6 +165,7 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 			lightData->ambient.red   += l->color.red;
 			lightData->ambient.green += l->color.green;
 			lightData->ambient.blue  += l->color.blue;
+			lightData->numAmbients++;
 		}else if(normals && l->getType() == Light::DIRECTIONAL){
 			if(lightData->numDirectionals < maxDirectionals)
 				lightData->directionals[lightData->numDirectionals++] = l;

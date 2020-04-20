@@ -734,6 +734,7 @@ struct Clump
 // used by enumerateLights for lighting callback
 struct WorldLights
 {
+	int32 numAmbients;
 	RGBAf ambient;	// all ambients added
 	int32 numDirectionals;
 	Light **directionals;	// only directionals

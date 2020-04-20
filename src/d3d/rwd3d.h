@@ -37,8 +37,6 @@ extern IDirect3DDevice9 *d3ddevice;
 void setD3dMaterial(D3DMATERIAL9 *mat9);
 #endif
 
-void lightingCB(Atomic *atomic);
-
 #define COLOR_ARGB(a, r, g, b) ((rw::uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 
 struct Im3DVertex
@@ -188,6 +186,57 @@ void setVertexShader(void *vs);
 void setPixelShader(void *ps);
 void *createVertexShader(void *csosrc);
 void *createPixelShader(void *csosrc);
+void destroyVertexShader(void *shader);
+void destroyPixelShader(void *shader);
+
+
+/*
+ * Vertex shaders and common pipeline stuff
+ */
+
+// Standard Vertex shader locations
+enum
+{
+	VSLOC_combined	= 0,
+	VSLOC_world	= 4,
+	VSLOC_normal	= 8,
+	VSLOC_matColor	= 12,
+	VSLOC_surfProps	= 13,
+	VSLOC_ambLight	= 14,
+	VSLOC_lightOffset	= 15,
+	VSLOC_lights	= 16,
+	VSLOC_afterLights	= VSLOC_lights + 8*3,
+
+	VSLOC_numLights	= 0,
+};
+
+// Vertex shader bits
+enum
+{
+	// These should be low so they could be used as indices
+	VSLIGHT_DIRECT	= 1,
+	VSLIGHT_POINT	= 2,
+	VSLIGHT_SPOT	= 4,
+	VSLIGHT_MASK	= 7,	// all the above
+	// less critical
+	VSLIGHT_AMBIENT = 8,
+};
+
+void lightingCB_Fix(Atomic *atomic);
+int32 lightingCB_Shader(Atomic *atomic);
+// for VS
+void uploadMatrices(void);	// no world transform
+void uploadMatrices(Matrix *worldMat);
+int32 uploadLights(WorldLights *lightData);	// called by lightingCB_Shader
+
+extern void *default_amb_VS;
+extern void *default_amb_dir_VS;
+extern void *default_all_VS;
+extern void *default_color_PS;
+extern void *default_color_tex_PS;
+void createDefaultShaders(void);
+void destroyDefaultShaders(void);
+
 
 }
 }
