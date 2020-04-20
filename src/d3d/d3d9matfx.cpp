@@ -244,10 +244,20 @@ createMatFXShaders(void)
 void
 destroyMatFXShaders(void)
 {
-	destroyVertexShader(matfx_env_PS);
+	destroyVertexShader(matfx_env_amb_VS);
+	matfx_env_amb_VS = nil;
+
+	destroyVertexShader(matfx_env_amb_dir_VS);
+	matfx_env_amb_dir_VS = nil;
+
+	destroyVertexShader(matfx_env_all_VS);
+	matfx_env_all_VS = nil;
+
+
+	destroyPixelShader(matfx_env_PS);
 	matfx_env_PS = nil;
 
-	destroyVertexShader(matfx_env_tex_PS);
+	destroyPixelShader(matfx_env_tex_PS);
 	matfx_env_tex_PS = nil;
 }
 
