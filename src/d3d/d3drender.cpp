@@ -319,7 +319,7 @@ lightingCB_Shader(Atomic *atomic)
 	if(atomic->geometry->flags & rw::Geometry::LIGHT){
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 		d3ddevice->SetVertexShaderConstantF(VSLOC_ambLight, (float*)&lightData.ambient, 1);
-		if(!(atomic->geometry->flags & rw::Geometry::PRELIT) == 0){
+		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
 			// Get rid of lights that need normals when we don't have any
 			lightData.numDirectionals = 0;
 			lightData.numLocals = 0;
