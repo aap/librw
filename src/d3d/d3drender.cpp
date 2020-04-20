@@ -56,7 +56,6 @@ createDefaultShaders(void)
 		default_color_PS = createPixelShader((void*)PS_NAME);
 		assert(default_color_PS);
 	}
-
 	{
 		static
 #include "shaders/default_color_tex_PS.h"
@@ -296,10 +295,14 @@ lightingCB_Shader(Atomic *atomic)
 	lightData.locals = locals;
 	lightData.numLocals = 8;
 
-	int lighting = !!(atomic->geometry->flags & rw::Geometry::LIGHT);
-	if(lighting){
+	if(atomic->geometry->flags & rw::Geometry::LIGHT){
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 		d3ddevice->SetVertexShaderConstantF(VSLOC_ambLight, (float*)&lightData.ambient, 1);
+		if(!(atomic->geometry->flags & rw::Geometry::PRELIT) == 0){
+			// Get rid of lights that need normals when we don't have any
+			lightData.numDirectionals = 0;
+			lightData.numLocals = 0;
+		}
 		return uploadLights(&lightData);
 	}else{
 		static const float zeroF[4];

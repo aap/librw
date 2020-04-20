@@ -157,6 +157,8 @@ struct MatFX
 	static void enableEffects(Atomic *atomic);
 	static void disableEffects(Atomic *atomic);
 	static bool32 getEffects(Atomic *atomic);
+
+	static bool32 modulateEnvMap;
 };
 
 struct MatFXGlobals

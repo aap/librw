@@ -24,6 +24,8 @@
 
 namespace rw {
 
+bool32 MatFX::modulateEnvMap;
+
 // Atomic
 
 static void*
