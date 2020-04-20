@@ -181,7 +181,7 @@ calculateTextureSize(uint32 width, uint32 height, uint32 depth, uint32 format)
 }
 
 int vertFormatMap[] = {
-	-1, VERT_FLOAT2, VERT_FLOAT3, -1, VERT_ARGB
+	-1, VERT_FLOAT2, VERT_FLOAT3, VERT_FLOAT4, VERT_ARGB, VERT_RGBA /* blend indices */
 };
 
 void*

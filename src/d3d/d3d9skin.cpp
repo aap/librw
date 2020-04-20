@@ -3,9 +3,11 @@
 #include <cstring>
 #include <cassert>
 
+#define WITH_D3D
 #include "../rwbase.h"
 #include "../rwerror.h"
 #include "../rwplg.h"
+#include "../rwrender.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwanim.h"
@@ -18,9 +20,336 @@ namespace rw {
 namespace d3d9 {
 using namespace d3d;
 
+#ifndef RW_D3D9
+void skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance) {}
+void skinRenderCB(Atomic *atomic, InstanceDataHeader *header) {}
+#else
+
+
+static void *skin_amb_VS;
+static void *skin_amb_dir_VS;
+static void *skin_all_VS;
+
+#define NUMDECLELT 14
+
+void
+skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
+{
+	int i = 0;
+	VertexElement dcl[NUMDECLELT];
+	VertexStream *s = &header->vertexStream[0];
+
+	bool isPrelit = (geo->flags & Geometry::PRELIT) != 0;
+	bool hasNormals = (geo->flags & Geometry::NORMALS) != 0;
+
+	// TODO: support both vertex buffers
+
+	if(!reinstance){
+		// Create declarations and buffers only the first time
+
+		assert(s->vertexBuffer == nil);
+		s->offset = 0;
+		s->managed = 1;
+		s->geometryFlags = 0;
+		s->dynamicLock = 0;
+
+		dcl[i].stream = 0;
+		dcl[i].offset = 0;
+		dcl[i].type = D3DDECLTYPE_FLOAT3;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_POSITION;
+		dcl[i].usageIndex = 0;
+		i++;
+		uint16 stride = 12;
+		s->geometryFlags |= 0x2;
+
+		if(isPrelit){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_D3DCOLOR;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_COLOR;
+			dcl[i].usageIndex = 0;
+			i++;
+			s->geometryFlags |= 0x8;
+			stride += 4;
+		}
+
+		for(int32 n = 0; n < geo->numTexCoordSets; n++){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_FLOAT2;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
+			dcl[i].usageIndex = (uint8)n;
+			i++;
+			s->geometryFlags |= 0x10 << n;
+			stride += 8;
+		}
+
+		if(hasNormals){
+			dcl[i].stream = 0;
+			dcl[i].offset = stride;
+			dcl[i].type = D3DDECLTYPE_FLOAT3;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_NORMAL;
+			dcl[i].usageIndex = 0;
+			i++;
+			s->geometryFlags |= 0x4;
+			stride += 12;
+		}
+
+		dcl[i].stream = 0;
+		dcl[i].offset = stride;
+		dcl[i].type = D3DDECLTYPE_FLOAT4;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_BLENDWEIGHT;
+		dcl[i].usageIndex = 0;
+		i++;
+		stride += 16;
+
+		dcl[i].stream = 0;
+		dcl[i].offset = stride;
+		dcl[i].type = D3DDECLTYPE_UBYTE4;
+		dcl[i].method = D3DDECLMETHOD_DEFAULT;
+		dcl[i].usage = D3DDECLUSAGE_BLENDINDICES;
+		dcl[i].usageIndex = 0;
+		i++;
+		stride += 4;
+
+
+		dcl[i] = D3DDECL_END();
+		s->stride = stride;
+
+		assert(header->vertexDeclaration == nil);
+		header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
+
+		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, false);
+	}else
+		getDeclaration(header->vertexDeclaration, dcl);
+
+	Skin *skin = Skin::get(geo);
+	uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
+
+	// Instance vertices
+	if(!reinstance || geo->lockedSinceInst&Geometry::LOCKVERTICES){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
+			;
+		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+			geo->morphTargets[0].vertices,
+			header->totalNumVertex,
+			header->vertexStream[dcl[i].stream].stride);
+	}
+
+	// Instance prelight colors
+	if(isPrelit && (!reinstance || geo->lockedSinceInst&Geometry::LOCKPRELIGHT)){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
+			;
+		InstanceData *inst = header->inst;
+		uint32 n = header->numMeshes;
+		while(n--){
+			uint32 stride = header->vertexStream[dcl[i].stream].stride;
+			inst->vertexAlpha = instColor(vertFormatMap[dcl[i].type],
+				verts + dcl[i].offset + stride*inst->minVert,
+				geo->colors + inst->minVert,
+				inst->numVertices,
+				stride);
+			inst++;
+		}
+	}
+
+	// Instance tex coords
+	for(int32 n = 0; n < geo->numTexCoordSets; n++){
+		if(!reinstance || geo->lockedSinceInst&(Geometry::LOCKTEXCOORDS<<n)){
+			for(i = 0; dcl[i].usage != D3DDECLUSAGE_TEXCOORD || dcl[i].usageIndex != n; i++)
+				;
+			instTexCoords(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+				geo->texCoords[n],
+				header->totalNumVertex,
+				header->vertexStream[dcl[i].stream].stride);
+		}
+	}
+
+	// Instance normals
+	if(hasNormals && (!reinstance || geo->lockedSinceInst&Geometry::LOCKNORMALS)){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
+			;
+		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+			geo->morphTargets[0].normals,
+			header->totalNumVertex,
+			header->vertexStream[dcl[i].stream].stride);
+	}
+
+	// Instance skin weights
+	if(!reinstance){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_BLENDWEIGHT || dcl[i].usageIndex != 0; i++)
+			;
+		instV4d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+			(V4d*)skin->weights,
+			header->totalNumVertex,
+			header->vertexStream[dcl[i].stream].stride);
+	}
+
+	// Instance skin indices
+	if(!reinstance){
+		for(i = 0; dcl[i].usage != D3DDECLUSAGE_BLENDINDICES || dcl[i].usageIndex != 0; i++)
+			;
+		// not really colors of course but what the heck
+		instColor(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
+			  (RGBA*)skin->indices,
+			  header->totalNumVertex,
+			  header->vertexStream[dcl[i].stream].stride);
+	}
+
+	unlockVertices(s->vertexBuffer);
+}
+
+enum
+{
+	VSLOC_boneMatrices = VSLOC_afterLights
+};
+
+static float skinMatrices[64*16];
+
+void
+uploadSkinMatrices(Atomic *a)
+{
+	int i;
+	Skin *skin = Skin::get(a->geometry);
+	HAnimHierarchy *hier = Skin::getHierarchy(a);
+	Matrix *invMats = (Matrix*)skin->inverseMatrices;
+	Matrix tmp;
+
+	Matrix *m = (Matrix*)skinMatrices;
+
+	if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
+		for(i = 0; i < hier->numNodes; i++){
+			invMats[i].flags = 0;
+			Matrix::mult(m, &invMats[i], &hier->matrices[i]);
+			m++;
+		}
+	}else{
+		Matrix invAtmMat;
+		Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
+		for(i = 0; i < hier->numNodes; i++){
+			invMats[i].flags = 0;
+			Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+			Matrix::mult(m, &invMats[i], &tmp);
+			m++;
+		}
+	}
+	d3ddevice->SetVertexShaderConstantF(VSLOC_boneMatrices, skinMatrices, hier->numNodes*4);
+}
+
+void
+skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
+{
+	int vsBits;
+
+	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	                           0, header->vertexStream[0].stride);
+	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+
+	vsBits = lightingCB_Shader(atomic);
+	uploadMatrices(atomic->getFrame()->getLTM());
+
+	uploadSkinMatrices(atomic);
+
+	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
+	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
+
+	// Pick a shader
+	if((vsBits & VSLIGHT_MASK) == 0)
+		setVertexShader(skin_amb_VS);
+	else if((vsBits & VSLIGHT_MASK) == VSLIGHT_DIRECT)
+		setVertexShader(skin_amb_dir_VS);
+	else
+		setVertexShader(skin_all_VS);
+
+	float surfProps[4];
+	surfProps[3] = atomic->geometry->flags&Geometry::PRELIT ? 1.0f : 0.0f;
+
+	InstanceData *inst = header->inst;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		Material *m = inst->material;
+
+		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
+
+		rw::RGBAf col;
+		convColor(&col, &inst->material->color);
+		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
+
+		surfProps[0] = m->surfaceProps.ambient;
+		surfProps[1] = m->surfaceProps.specular;
+		surfProps[2] = m->surfaceProps.diffuse;
+		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+
+		if(inst->material->texture){
+			d3d::setTexture(0, m->texture);
+			setPixelShader(default_tex_PS);
+		}else
+			setPixelShader(default_PS);
+
+		drawInst(header, inst);
+		inst++;
+	}
+	setVertexShader(nil);
+	setPixelShader(nil);
+}
+
+#define VS_NAME g_vs20_main
+#define PS_NAME g_ps20_main
+
+void
+createSkinShaders(void)
+{
+	{
+		static
+#include "shaders/skin_amb_VS.h"
+		skin_amb_VS = createVertexShader((void*)VS_NAME);
+		assert(skin_amb_VS);
+	}
+	{
+		static
+#include "shaders/skin_amb_dir_VS.h"
+		skin_amb_dir_VS = createVertexShader((void*)VS_NAME);
+		assert(skin_amb_dir_VS);
+	}
+	// Skinning takes a lot of instructions....lighting may be not possible
+	// TODO: should do something about this
+	{
+		static
+#include "shaders/skin_all_VS.h"
+		skin_all_VS = createVertexShader((void*)VS_NAME);
+//		assert(skin_all_VS);
+	}
+}
+
+void
+destroySkinShaders(void)
+{
+	destroyVertexShader(skin_amb_VS);
+	skin_amb_VS = nil;
+
+	destroyVertexShader(skin_amb_dir_VS);
+	skin_amb_dir_VS = nil;
+
+	if(skin_all_VS){
+		destroyVertexShader(skin_all_VS);
+		skin_all_VS = nil;
+	}
+}
+
+#endif
+
 static void*
 skinOpen(void *o, int32, int32)
 {
+#ifdef RW_D3D9
+	createSkinShaders();
+#endif
+
 	skinGlobals.pipelines[PLATFORM_D3D9] = makeSkinPipeline();
 	return o;
 }
@@ -28,6 +357,10 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+#ifdef RW_D3D9
+	destroySkinShaders();
+#endif
+
 	return o;
 }
 
@@ -42,9 +375,9 @@ ObjPipeline*
 makeSkinPipeline(void)
 {
 	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
-	pipe->instanceCB = defaultInstanceCB;
-	pipe->uninstanceCB = defaultUninstanceCB;
-	pipe->renderCB = defaultRenderCB_Shader;
+	pipe->instanceCB = skinInstanceCB;
+	pipe->uninstanceCB = nil;
+	pipe->renderCB = skinRenderCB;
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	return pipe;

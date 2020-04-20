@@ -20,6 +20,10 @@ namespace rw {
 namespace d3d9 {
 using namespace d3d;
 
+#ifndef RW_D3D9
+void matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header) {}
+#else
+
 static void *matfx_env_amb_VS;
 static void *matfx_env_amb_dir_VS;
 static void *matfx_env_all_VS;
@@ -261,10 +265,14 @@ destroyMatFXShaders(void)
 	matfx_env_tex_PS = nil;
 }
 
+#endif
+
 static void*
 matfxOpen(void *o, int32, int32)
 {
+#ifdef RW_D3D9
 	createMatFXShaders();
+#endif
 
 	matFXGlobals.pipelines[PLATFORM_D3D9] = makeMatFXPipeline();
 	return o;
@@ -273,7 +281,9 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+#ifdef RW_D3D9
 	destroyMatFXShaders();
+#endif
 
 	return o;
 }

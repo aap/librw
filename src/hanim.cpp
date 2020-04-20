@@ -162,7 +162,7 @@ HAnimHierarchy::updateMatrices(void)
 	curMat = this->matrices;
 
 	frm = this->parentFrame;
-	if(frm && (parfrm = frm->getParent()))
+	if(frm && (parfrm = frm->getParent()) && !(this->flags&LOCALSPACEMATRICES))
 		rootMat = *parfrm->getLTM();
 	else
 		rootMat.setIdentity();
@@ -171,7 +171,7 @@ HAnimHierarchy::updateMatrices(void)
 	HAnimNodeInfo *node = this->nodeInfo;
 	for(i = 0; i < this->numNodes; i++){
 		anim->applyCB(&animMat, anim->getInterpFrame(i));
-		Matrix::mult(curMat, parentMat, &animMat);
+		Matrix::mult(curMat, &animMat, parentMat);
 
 		if(node->flags & PUSH)
 			*sp++ = parentMat;

@@ -49,7 +49,7 @@ lightingCB(bool32 normals)
 
 	world = (World*)engine->currentWorld;
 	// only unpositioned lights right now
-	FORLIST(lnk, world->directionalLights){
+	FORLIST(lnk, world->globalLights){
 		Light *l = Light::fromWorld(lnk);
 		if(normals &&
 		   l->getType() == Light::DIRECTIONAL &&
