@@ -71,6 +71,8 @@ struct RwStateCache {
 };
 static RwStateCache rwStateCache;
 
+D3dShaderState d3dShaderState;
+
 #define MAXNUMSTATES (D3DRS_BLENDOPALPHA+1)
 #define MAXNUMTEXSTATES (D3DTSS_CONSTANT+1)
 #define MAXNUMSAMPLERSTATES (D3DSAMP_DMAPOFFSET+1)
@@ -477,7 +479,8 @@ setRwRenderState(int32 state, void *pvalue)
 	case FOGENABLE:
 		if(rwStateCache.fogenable != bval){
 			rwStateCache.fogenable = bval;
-			setRenderState(D3DRS_FOGENABLE, rwStateCache.fogenable);
+//			setRenderState(D3DRS_FOGENABLE, rwStateCache.fogenable);
+			d3dShaderState.fogData.disable = bval ? 0.0f : 1.0f;
 		};
 		break;
 	case FOGCOLOR:{
@@ -489,6 +492,7 @@ setRwRenderState(int32 state, void *pvalue)
 		if(!equal(rwStateCache.fogcolor, c)){
 			rwStateCache.fogcolor = c;
 			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
+			convColor(&d3dShaderState.fogColor, &c);
 		}} break;
 	case CULLMODE:
 		if(rwStateCache.cullmode != value){
@@ -686,8 +690,15 @@ beginUpdate(Camera *cam)
 	d3ddevice->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
 
 	// TODO: figure out where this is really done
-	setRenderState(D3DRS_FOGSTART, *(uint32*)&cam->fogPlane);
-	setRenderState(D3DRS_FOGEND, *(uint32*)&cam->farPlane);
+//	setRenderState(D3DRS_FOGSTART, *(uint32*)&cam->fogPlane);
+//	setRenderState(D3DRS_FOGEND, *(uint32*)&cam->farPlane);
+	d3dShaderState.fogData.start = cam->fogPlane;
+	d3dShaderState.fogData.end = cam->farPlane;
+	d3dShaderState.fogData.range = 1.0f/(cam->fogPlane - cam->farPlane);
+	d3dShaderState.fogDisable.start = 0.0f;
+	d3dShaderState.fogDisable.end = 0.0f;
+	d3dShaderState.fogDisable.range = 0.0f;
+	d3dShaderState.fogDisable.disable = 1.0f;
 
 	D3DVIEWPORT9 vp;
 	vp.MinZ = 0.0f;

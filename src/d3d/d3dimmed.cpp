@@ -109,9 +109,9 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	d3ddevice->SetVertexDeclaration(im2ddecl);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
-		setPixelShader(default_color_tex_PS);
+		setPixelShader(im2d_tex_PS);
 	else
-		setPixelShader(default_color_PS);
+		setPixelShader(im2d_PS);
 
 	d3d::flushCache();
 
@@ -163,9 +163,9 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	d3ddevice->SetVertexDeclaration(im2ddecl);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
-		setPixelShader(default_color_tex_PS);
+		setPixelShader(im2d_tex_PS);
 	else
-		setPixelShader(default_color_PS);
+		setPixelShader(im2d_PS);
 
 	d3d::flushCache();
 
@@ -250,12 +250,21 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 	else
 		uploadMatrices(world);
 
+	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
+	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
+	static float surfprops[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	static float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfprops, 1);
+	d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, white, 1);
+
 	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));
 	unlockVertices(im3dvertbuf);
 
 	d3ddevice->SetStreamSource(0, im3dvertbuf, 0, sizeof(Im3DVertex));
 	d3ddevice->SetVertexDeclaration(im3ddecl);
+
+	setVertexShader(default_amb_VS);
 
 	num3DVertices = numVertices;
 }
@@ -270,9 +279,9 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	d3ddevice->SetIndices(im3dindbuf);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
-		setPixelShader(default_color_tex_PS);
+		setPixelShader(default_tex_PS);
 	else
-		setPixelShader(default_color_PS);
+		setPixelShader(default_PS);
 
 	d3d::flushCache();
 
@@ -302,6 +311,7 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 	                                0, num3DVertices,
 	                                0, primCount);
 
+	setVertexShader(nil);
 	setPixelShader(nil);
 }
 

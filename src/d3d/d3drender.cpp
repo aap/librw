@@ -25,8 +25,11 @@ IDirect3DDevice9 *d3ddevice = nil;
 void *default_amb_VS;
 void *default_amb_dir_VS;
 void *default_all_VS;
-void *default_color_PS;
-void *default_color_tex_PS;
+void *default_PS;
+void *default_tex_PS;
+void *im2d_PS;
+void *im2d_tex_PS;
+
 
 void
 createDefaultShaders(void)
@@ -52,15 +55,28 @@ createDefaultShaders(void)
 
 	{
 		static
-#include "shaders/default_color_PS.h"
-		default_color_PS = createPixelShader((void*)PS_NAME);
-		assert(default_color_PS);
+#include "shaders/default_PS.h"
+		default_PS = createPixelShader((void*)PS_NAME);
+		assert(default_PS);
 	}
 	{
 		static
-#include "shaders/default_color_tex_PS.h"
-		default_color_tex_PS = createPixelShader((void*)PS_NAME);
-		assert(default_color_tex_PS);
+#include "shaders/default_tex_PS.h"
+		default_tex_PS = createPixelShader((void*)PS_NAME);
+		assert(default_tex_PS);
+	}
+
+	{
+		static
+#include "shaders/im2d_PS.h"
+		im2d_PS = createPixelShader((void*)PS_NAME);
+		assert(im2d_PS);
+	}
+	{
+		static
+#include "shaders/im2d_tex_PS.h"
+		im2d_tex_PS = createPixelShader((void*)PS_NAME);
+		assert(im2d_tex_PS);
 	}
 }
 
@@ -74,10 +90,15 @@ destroyDefaultShaders(void)
 	destroyVertexShader(default_all_VS);
 	default_all_VS = nil;
 
-	destroyPixelShader(default_color_PS);
-	default_color_PS = nil;
-	destroyPixelShader(default_color_tex_PS);
-	default_color_tex_PS = nil;
+	destroyPixelShader(default_PS);
+	default_PS = nil;
+	destroyPixelShader(default_tex_PS);
+	default_tex_PS = nil;
+
+	destroyPixelShader(im2d_PS);
+	im2d_PS = nil;
+	destroyPixelShader(im2d_tex_PS);
+	im2d_tex_PS = nil;
 }
 
 

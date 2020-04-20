@@ -138,6 +138,9 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
 
+	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
+	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
+
 	// Pick a shader
 	if((vsBits & VSLIGHT_MASK) == 0)
 		setVertexShader(default_amb_VS);
@@ -166,9 +169,9 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 		if(inst->material->texture){
 			d3d::setTexture(0, m->texture);
-			setPixelShader(default_color_tex_PS);
+			setPixelShader(default_tex_PS);
 		}else
-			setPixelShader(default_color_PS);
+			setPixelShader(default_PS);
 
 		drawInst(header, inst);
 		inst++;

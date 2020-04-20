@@ -1,26 +1,4 @@
-float4x4	combinedMat	: register(c0);
-float4x4	worldMat	: register(c4);
-float3x3	normalMat	: register(c8);
-float4		matCol		: register(c12);
-float4		surfProps	: register(c13);
-float4		ambientLight	: register(c14);
-
-#define surfAmbient (surfProps.x)
-#define surfSpecular (surfProps.y)
-#define surfDiffuse (surfProps.z)
-#define surfPrelight (surfProps.w)
-
-#include "lighting.h"
-
-int numDirLights : register(i0);
-int numPointLights : register(i1);
-int numSpotLights : register(i2);
-int4 firstLight : register(c15);
-Light lights[8] : register(c16);
-
-#define firstDirLight (firstLight.x)
-#define firstPointLight (firstLight.y)
-#define firstSpotLight (firstLight.z)
+#include "standardConstants.h"
 
 struct VS_in
 {
@@ -32,7 +10,7 @@ struct VS_in
 
 struct VS_out {
 	float4 Position		: POSITION;
-	float2 TexCoord0	: TEXCOORD0;
+	float3 TexCoord0	: TEXCOORD0;	// also fog
 	float4 Color		: COLOR0;
 };
 
@@ -45,7 +23,7 @@ VS_out main(in VS_in input)
 	float3 Vertex = mul(worldMat, input.Position).xyz;
 	float3 Normal = mul(normalMat, input.Normal);
 
-	output.TexCoord0 = input.TexCoord;
+	output.TexCoord0.xy = input.TexCoord;
 
 	output.Color = float4(0.0, 0.0, 0.0, 1.0);
 	if(surfPrelight > 0.0)
@@ -69,6 +47,8 @@ VS_out main(in VS_in input)
 	// PS2 clamps before material color
 	output.Color = clamp(output.Color, 0.0, 1.0);
 	output.Color *= matCol;
+
+	output.TexCoord0.z = clamp((output.Position.w - fogEnd)*fogRange, fogDisable, 1.0);
 
 	return output;
 }

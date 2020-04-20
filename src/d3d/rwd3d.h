@@ -194,6 +194,20 @@ void destroyPixelShader(void *shader);
  * Vertex shaders and common pipeline stuff
  */
 
+struct D3dShaderState
+{
+	// for VS
+	struct {
+		float32 start;
+		float32 end;
+		float32 range;	// 1/(start-end)
+		float32 disable;	// lower clamp
+	} fogData, fogDisable;
+	// for PS
+	RGBAf fogColor;
+};
+extern D3dShaderState d3dShaderState;
+
 // Standard Vertex shader locations
 enum
 {
@@ -202,12 +216,15 @@ enum
 	VSLOC_normal	= 8,
 	VSLOC_matColor	= 12,
 	VSLOC_surfProps	= 13,
-	VSLOC_ambLight	= 14,
-	VSLOC_lightOffset	= 15,
-	VSLOC_lights	= 16,
+	VSLOC_fogData	= 14,
+	VSLOC_ambLight	= 15,
+	VSLOC_lightOffset	= 16,
+	VSLOC_lights	= 17,
 	VSLOC_afterLights	= VSLOC_lights + 8*3,
 
 	VSLOC_numLights	= 0,
+
+	PSLOC_fogColor = 0
 };
 
 // Vertex shader bits
@@ -232,8 +249,10 @@ int32 uploadLights(WorldLights *lightData);	// called by lightingCB_Shader
 extern void *default_amb_VS;
 extern void *default_amb_dir_VS;
 extern void *default_all_VS;
-extern void *default_color_PS;
-extern void *default_color_tex_PS;
+extern void *default_PS;
+extern void *default_tex_PS;
+extern void *im2d_PS;
+extern void *im2d_tex_PS;
 void createDefaultShaders(void);
 void destroyDefaultShaders(void);
 
