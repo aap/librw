@@ -16,14 +16,15 @@ float4 colorClamp : register(c2);
 float4 main(VS_out input) : COLOR
 {
 	float4 pass1 = input.Color;
+	float4 envColor = max(pass1, colorClamp);
 #ifdef TEX
 	pass1 *= tex2D(diffTex, input.TexCoord0.xy);
 #endif
 
-	float4 envColor = max(pass1, colorClamp);
 	float4 pass2 = envColor*shininess*tex2D(envTex, input.TexCoord1.xy);
 
 	pass1.rgb = lerp(fogColor.rgb, pass1.rgb, input.TexCoord0.z);
+	pass2.rgb = lerp(float3(0.0, 0.0, 0.0), pass2.rgb, input.TexCoord0.z);
 
 	// We simulate drawing this in two passes.
 	// First pass with standard blending, second with addition
