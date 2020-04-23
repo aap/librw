@@ -12,9 +12,9 @@ struct Charset
 
 	static bool32 open(void);
 	static void close(void);
-	static Charset *create(RGBA *foreground, RGBA *background);
+	static Charset *create(const RGBA *foreground, const RGBA *background);
 	void destroy(void);
-	Charset *setColors(RGBA *foreground, RGBA *background);
+	Charset *setColors(const RGBA *foreground, const RGBA *background);
 	void print(const char *str, int32 x, int32 y, bool32 hideSpaces);
 	void printBuffered(const char *str, int32 x, int32 y, bool32 hideSpaces);
 	static void flushBuffer(void);

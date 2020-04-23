@@ -60,7 +60,7 @@ Charset::close(void)
 }
 
 Charset*
-Charset::create(RGBA *foreground, RGBA *background)
+Charset::create(const RGBA *foreground, const RGBA *background)
 {
 	Charset *charset = (Charset*)rwMalloc(sizeof(Charset), MEMDUR_EVENT);
 	if(charset == nil){
@@ -91,7 +91,7 @@ Charset::destroy(void)
 }
 
 Charset*
-Charset::setColors(RGBA *foreground, RGBA *background)
+Charset::setColors(const RGBA *foreground, const RGBA *background)
 {
 	Image *img = Image::create(256, 256, 8);
 	if(img == nil)

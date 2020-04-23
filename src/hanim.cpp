@@ -35,7 +35,7 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 		RWERROR((ERR_ALLOC, sizeof(*hier)));
 		return nil;
 	}
-	hier->currentAnim = AnimInterpolator::create(numNodes, maxKeySize);
+	hier->interpolator = AnimInterpolator::create(numNodes, maxKeySize);
 
 	hier->numNodes = numNodes;
 	hier->flags = flags;
@@ -68,6 +68,7 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 void
 HAnimHierarchy::destroy(void)
 {
+	this->interpolator->destroy();
 	rwFree(this->matricesUnaligned);
 	rwFree(this->nodeInfo);
 	rwFree(this);
@@ -156,7 +157,7 @@ HAnimHierarchy::updateMatrices(void)
 	Matrix **sp, *stack[64];
 	Frame *frm, *parfrm;
 	int32 i;
-	AnimInterpolator *anim = this->currentAnim;
+	AnimInterpolator *anim = this->interpolator;
 
 	sp = stack;
 	curMat = this->matrices;
@@ -228,7 +229,7 @@ copyHAnim(void *dst, void *src, int32 offset, int32)
 	dsthanim->hierarchy = nil;
 	srchier = srchanim->hierarchy;
 	if(srchier && !(srchier->flags & HAnimHierarchy::SUBHIERARCHY)){
-		dsthier = HAnimHierarchy::create(srchier->numNodes, nil, nil, srchier->flags, srchier->currentAnim->maxInterpKeyFrameSize);
+		dsthier = HAnimHierarchy::create(srchier->numNodes, nil, nil, srchier->flags, srchier->interpolator->maxInterpKeyFrameSize);
 		for(i = 0; i < dsthier->numNodes; i++){
 			dsthier->nodeInfo[i].frame = nil;
 			dsthier->nodeInfo[i].flags = srchier->nodeInfo[i].flags;
@@ -286,7 +287,7 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	HAnimHierarchy *hier = hanim->hierarchy;
 	stream->writeI32(hier->numNodes);
 	stream->writeI32(hier->flags);
-	stream->writeI32(hier->currentAnim->maxInterpKeyFrameSize);
+	stream->writeI32(hier->interpolator->maxInterpKeyFrameSize);
 	for(int32 i = 0; i < hier->numNodes; i++){
 		stream->writeI32(hier->nodeInfo[i].id);
 		stream->writeI32(hier->nodeInfo[i].index);
@@ -316,7 +317,7 @@ hAnimFrameRead(Stream *stream, Animation *anim)
 		stream->read(&frames[i].q, 4*4);
 		stream->read(&frames[i].t, 3*4);
 		int32 prev = stream->readI32()/0x24;
-		frames[i].prev = &frames[prev];
+		frames[i].prevFrame = &frames[prev];
 	}
 }
 
@@ -328,7 +329,7 @@ hAnimFrameWrite(Stream *stream, Animation *anim)
 		stream->writeF32(frames[i].time);
 		stream->write(&frames[i].q, 4*4);
 		stream->write(&frames[i].t, 3*4);
-		stream->writeI32((frames[i].prev - frames)*0x24);
+		stream->writeI32((frames[i].prevFrame - frames)*0x24);
 	}
 }
 

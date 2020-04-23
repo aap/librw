@@ -82,6 +82,25 @@ mult(const Quat &q, const Quat &p)
 	                q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
 }
 
+
+Quat*
+Quat::rotate(const V3d *axis, float32 angle, CombineOp op)
+{
+	Quat rot = rotation(angle, *axis);
+	switch(op){
+	case COMBINEREPLACE:
+		*this = rot;
+		break;
+	case COMBINEPRECONCAT:
+		*this = mult(*this, rot);
+		break;
+	case COMBINEPOSTCONCAT:
+		*this = mult(rot, *this);
+		break;
+	}
+	return this;
+}
+
 Quat
 lerp(const Quat &q, const Quat &p, float32 r)
 {

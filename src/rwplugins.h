@@ -6,7 +6,7 @@ namespace rw {
 
 struct HAnimKeyFrame
 {
-	HAnimKeyFrame *prev;
+	HAnimKeyFrame *prevFrame;
 	float32        time;
 	Quat           q;
 	V3d            t;
@@ -37,7 +37,7 @@ struct HAnimHierarchy
 	HAnimNodeInfo *nodeInfo;
 	Frame *parentFrame;
 	HAnimHierarchy *parentHierarchy;	// mostly unused
-	AnimInterpolator *currentAnim;
+	AnimInterpolator *interpolator;
 
 	static HAnimHierarchy *create(int32 numNodes, int32 *nodeFlags,
 			int32 *nodeIDs, int32 flags, int32 maxKeySize);

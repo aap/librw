@@ -235,19 +235,33 @@ struct V4d
 };
 inline bool32 equal(const V4d &v1, const V4d &v2) { return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w; }
 
+enum CombineOp
+{
+	COMBINEREPLACE,
+	COMBINEPRECONCAT,
+	COMBINEPOSTCONCAT
+};
+
+
 Quat makeQuat(float32 w, float32 x, float32 y, float32 z);
 Quat makeQuat(float32 w, const V3d &vec);
 
 struct Quat
 {
 	// order is important for streaming
-	float32 x, y, z, w;
+	union {
+		struct { float32 x, y, z, w; };
+		// needed for RW compatibility
+		struct { V3d imag; float32 real; };
+	};
 
 	static Quat rotation(float32 angle, const V3d &axis){
-		return makeQuat(cos(angle/2.0f), scale(axis, sin(angle/2.0f))); }
+		return makeQuat(cos(angle/2.0f), scale(normalize(axis), sin(angle/2.0f))); }
 	void set(float32 w, float32 x, float32 y, float32 z){
 		this->w = w; this->x = x; this->y = y; this->z = z; }
 	V3d vec(void){ return makeV3d(x, y, z); }
+
+	Quat *rotate(const V3d *axis, float32 angle, CombineOp op);
 };
 
 inline Quat makeQuat(float32 w, float32 x, float32 y, float32 z) { Quat q = { x, y, z, w }; return q; }
@@ -264,13 +278,6 @@ Quat mult(const Quat &q, const Quat &p);
 inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, makeQuat(0.0f, v)), conj(q)).vec(); }
 Quat lerp(const Quat &q, const Quat &p, float32 r);
 Quat slerp(const Quat &q, const Quat &p, float32 a);
-
-enum CombineOp
-{
-	COMBINEREPLACE,
-	COMBINEPRECONCAT,
-	COMBINEPOSTCONCAT
-};
 
 struct RawMatrix
 {
