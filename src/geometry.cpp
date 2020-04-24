@@ -641,7 +641,7 @@ Geometry::removeUnusedMaterials(void)
 		if(m[i].numIndices <= 0)
 			continue;
 		materials[numMaterials] = m[i].material;
-		m[i].material->refCount++;
+		m[i].material->addRef();
 		int32 oldid = this->matList.findIndex(m[i].material);
 		map[oldid] = numMaterials;
 		numMaterials++;
@@ -748,7 +748,7 @@ MaterialList::appendMaterial(Material *mat)
 		this->materials = ml;
 	}
 	this->materials[this->numMaterials++] = mat;
-	mat->refCount++;
+	mat->addRef();
 	return this->numMaterials-1;
 }
 
@@ -786,7 +786,7 @@ MaterialList::streamRead(Stream *stream, MaterialList *matlist)
 	for(int32 i = 0; i < numMat; i++){
 		if(indices[i] >= 0){
 			m = matlist->materials[indices[i]];
-			m->refCount++;
+			m->addRef();
 		}else{
 			if(!findChunk(stream, ID_MATERIAL, nil, nil)){
 				RWERROR((ERR_CHUNK, "MATERIAL"));
@@ -907,7 +907,7 @@ Material::setTexture(Texture *tex)
 	if(this->texture)
 		this->texture->destroy();
 	if(tex)
-		tex->refCount++;
+		tex->addRef();
 	this->texture = tex;
 }
 
@@ -945,8 +945,7 @@ Material::streamRead(Stream *stream)
 			RWERROR((ERR_CHUNK, "TEXTURE"));
 			goto fail;
 		}
-		Texture *t = Texture::streamRead(stream);
-		mat->setTexture(t);
+		mat->texture = Texture::streamRead(stream);
 	}
 
 	materialRights[0] = 0;

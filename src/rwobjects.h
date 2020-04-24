@@ -282,9 +282,12 @@ struct Texture
 	uint32 filterAddressing; // VVVVUUUU FFFFFFFF
 	int32 refCount;
 
+	LLLink inGlobalList;	// actually not in RW
+
 	static int32 numAllocated;
 
 	static Texture *create(Raster *raster);
+	void addRef(void) { this->refCount++; }
 	void destroy(void);
 	static Texture *fromDict(LLLink *lnk){
 		return LLLinkGetData(lnk, Texture, inDict); }
@@ -332,6 +335,7 @@ struct Material
 	static int32 numAllocated;
 
 	static Material *create(void);
+	void addRef(void) { this->refCount++; }
 	Material *clone(void);
 	void destroy(void);
 	void setTexture(Texture *tex);
@@ -431,6 +435,7 @@ struct Geometry
 	static int32 numAllocated;
 
 	static Geometry *create(int32 numVerts, int32 numTris, uint32 flags);
+	void addRef(void) { this->refCount++; }
 	void destroy(void);
 	void lock(int32 lockFlags);
 	void unlock(void);
@@ -785,6 +790,7 @@ struct TexDictionary
 	int32 count(void) { return this->textures.count(); }
 	void add(Texture *t);
 	void addFront(Texture *t);
+	void remove(Texture *t);
 	Texture *find(const char *name);
 	static TexDictionary *streamRead(Stream *stream);
 	void streamWrite(Stream *stream);

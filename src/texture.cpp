@@ -35,6 +35,8 @@ struct TextureGlobals
 	// create dummy textures to store just names
 	bool32 makeDummies;
 	LinkList texDicts;
+
+	LinkList textures;
 };
 int32 textureModuleOffset;
 
@@ -46,6 +48,7 @@ textureOpen(void *object, int32 offset, int32 size)
 	TexDictionary *texdict;
 	textureModuleOffset = offset;
 	TEXTUREGLOBAL(texDicts).init();
+	TEXTUREGLOBAL(textures).init();
 	texdict = TexDictionary::create();
 	TEXTUREGLOBAL(initialTexDict) = texdict;
 	TexDictionary::setCurrent(texdict);
@@ -60,6 +63,13 @@ textureClose(void *object, int32 offset, int32 size)
 		TexDictionary::fromLink(lnk)->destroy();
 	TEXTUREGLOBAL(initialTexDict) = nil;
 	TEXTUREGLOBAL(currentTexDict) = nil;
+
+	FORLIST(lnk, TEXTUREGLOBAL(textures)){
+		Texture *tex = LLLinkGetData(lnk, Texture, inGlobalList);
+		printf("Tex still allocated: %d %s %s\n", tex->refCount, tex->name, tex->mask);
+		assert(tex->dict == nil);
+		tex->destroy();
+	}
 	return object;
 }
 
@@ -106,10 +116,13 @@ TexDictionary::destroy(void)
 {
 	if(TEXTUREGLOBAL(currentTexDict) == this)
 		TEXTUREGLOBAL(currentTexDict) = nil;
-	FORLIST(lnk, this->textures)
-		Texture::fromDict(lnk)->destroy();
-	this->inGlobalList.remove();
+	FORLIST(lnk, this->textures){
+		Texture *tex = Texture::fromDict(lnk);
+		this->remove(tex);
+		tex->destroy();
+	}
 	s_plglist.destruct(this);
+	this->inGlobalList.remove();
 	rwFree(this);
 	numAllocated--;
 }
@@ -121,6 +134,14 @@ TexDictionary::add(Texture *t)
 		t->inDict.remove();
 	t->dict = this;
 	this->textures.append(&t->inDict);
+}
+
+void
+TexDictionary::remove(Texture *t)
+{
+	assert(t->dict == this);
+	t->inDict.remove();
+	t->dict = nil;
 }
 
 void
@@ -246,6 +267,7 @@ Texture::create(Raster *raster)
 	tex->filterAddressing = (WRAP << 12) | (WRAP << 8) | NEAREST;
 	tex->raster = raster;
 	tex->refCount = 1;
+	TEXTUREGLOBAL(textures).add(&tex->inGlobalList);
 	s_plglist.construct(tex);
 	return tex;
 }
@@ -260,6 +282,7 @@ Texture::destroy(void)
 			this->inDict.remove();
 		if(this->raster)
 			this->raster->destroy();
+		this->inGlobalList.remove();
 		rwFree(this);
 		numAllocated--;
 	}
@@ -311,7 +334,7 @@ Texture::read(const char *name, const char *mask)
 	Texture *tex;
 
 	if(tex = Texture::findCB(name), tex){
-		tex->refCount++;
+		tex->addRef();
 		return tex;
 	}
 	if(TEXTUREGLOBAL(loadTextures)){

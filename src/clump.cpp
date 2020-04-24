@@ -480,7 +480,7 @@ Atomic::setGeometry(Geometry *geo, uint32 flags)
 	if(this->geometry)
 		this->geometry->destroy();
 	if(geo)
-		geo->refCount++;
+		geo->addRef();
 	this->geometry = geo;
 	if(flags & SAMEBOUNDINGSPHERE)
 		return;

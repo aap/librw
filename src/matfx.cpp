@@ -166,7 +166,7 @@ MatFX::setBumpTexture(Texture *t)
 			this->fx[i].bump.tex->destroy();
 		this->fx[i].bump.tex = t;
 		if(t)
-			t->refCount++;
+			t->addRef();
 	}
 }
 
@@ -205,7 +205,7 @@ MatFX::setEnvTexture(Texture *t)
 			this->fx[i].env.tex->destroy();
 		this->fx[i].env.tex = t;
 		if(t)
-			t->refCount++;
+			t->addRef();
 	}
 }
 
@@ -262,7 +262,7 @@ MatFX::setDualTexture(Texture *t)
 			this->fx[i].dual.tex->destroy();
 		this->fx[i].dual.tex = t;
 		if(t)
-			t->refCount++;
+			t->addRef();
 	}
 }
 
@@ -363,19 +363,19 @@ copyMaterialMatFX(void *dst, void *src, int32 offset, int32)
 		switch(dstfx->fx[i].type){
 		case MatFX::BUMPMAP:
 			if(dstfx->fx[i].bump.bumpedTex)
-				dstfx->fx[i].bump.bumpedTex->refCount++;
+				dstfx->fx[i].bump.bumpedTex->addRef();
 			if(dstfx->fx[i].bump.tex)
-				dstfx->fx[i].bump.tex->refCount++;
+				dstfx->fx[i].bump.tex->addRef();
 			break;
 
 		case MatFX::ENVMAP:
 			if(dstfx->fx[i].env.tex)
-				dstfx->fx[i].env.tex->refCount++;
+				dstfx->fx[i].env.tex->addRef();
 			break;
 
 		case MatFX::DUAL:
 			if(dstfx->fx[i].dual.tex)
-				dstfx->fx[i].dual.tex->refCount++;
+				dstfx->fx[i].dual.tex->addRef();
 			break;
 		}
 	return dst;
