@@ -198,7 +198,7 @@ struct Raster
 	void destroy(void);
 	static bool32 imageFindRasterFormat(Image *image, int32 type,
 		int32 *pWidth, int32 *pHeight, int32 *pDepth, int32 *pFormat, int32 platform = 0);
-	Raster *Raster::setFromImage(Image *image, int32 platform = 0);
+	Raster *setFromImage(Image *image, int32 platform = 0);
 	static Raster *createFromImage(Image *image, int32 platform = 0);
 	Image *toImage(void);
 	uint8 *lock(int32 level, int32 lockMode);

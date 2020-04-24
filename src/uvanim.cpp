@@ -240,8 +240,8 @@ uvAnimParamInterpCB(void *out, void *in1, void *in2, float32 t, void *custom)
 	float32 f = (t - kf1->time) / (kf2->time - kf1->time);
 
 	float32 a = kf2->uv[0] - kf1->uv[0];
-	while(a < M_PI) a += 2*M_PI;
-	while(a > M_PI) a -= 2*M_PI;
+	while(a < (float)M_PI) a += 2 * (float)M_PI;
+	while(a > (float)M_PI) a -= 2 * (float)M_PI;
 	intf->uv[0] = a*f + kf1->uv[0];
 	intf->uv[1] = (kf2->uv[1] - kf1->uv[1])*f + kf1->uv[1];
 	intf->uv[2] = (kf2->uv[2] - kf1->uv[2])*f + kf1->uv[2];
