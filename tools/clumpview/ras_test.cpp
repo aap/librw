@@ -287,11 +287,11 @@ putpixel(Canvas *canvas, Point3 p, Color c)
 		case DEPTHTEST_ALWAYS:
 			break;
 		case DEPTHTEST_GEQUAL:
-			if(p.z < (int)*z)
+			if((u32)p.z < *z)
 				return;
 			break;
 		case DEPTHTEST_GREATER:
-			if(p.z <= (int)*z)
+			if((u32)p.z <= *z)
 				return;
 			break;
 		}

@@ -19,7 +19,7 @@ struct Charset
 	void printBuffered(const char *str, int32 x, int32 y, bool32 hideSpaces);
 	static void flushBuffer(void);
 private:
-	void printChar(uint32 c, int32 x, int32 y);
+	void printChar(int32 c, int32 x, int32 y);
 };
 
 }

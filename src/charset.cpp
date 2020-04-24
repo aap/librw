@@ -135,7 +135,7 @@ Charset::flushBuffer(void)
 }
 
 void
-Charset::printChar(uint32 c, int32 x, int32 y)
+Charset::printChar(int32 c, int32 x, int32 y)
 {
 	Camera *cam;
 	float recipZ;
@@ -143,7 +143,7 @@ Charset::printChar(uint32 c, int32 x, int32 y)
 	RWDEVICE::Im2DVertex *vert;
 	uint16 *ix;
 
-	if((int32)c >= this->desc.count)
+	if(c >= this->desc.count)
 		return;
 
 	if(this->raster != lastRaster || numChars >= NUMCHARS)
