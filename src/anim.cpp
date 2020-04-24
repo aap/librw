@@ -24,8 +24,6 @@ namespace rw {
 
 static AnimInterpolatorInfo *interpInfoList[MAXINTERPINFO];
 
-// TODO MEMORY: also clean it up again
-
 void
 AnimInterpolatorInfo::registerInterp(AnimInterpolatorInfo *interpInfo)
 {
@@ -35,6 +33,17 @@ AnimInterpolatorInfo::registerInterp(AnimInterpolatorInfo *interpInfo)
 			return;
 		}
 	assert(0 && "no room for interpolatorInfo");
+}
+
+void
+AnimInterpolatorInfo::unregisterInterp(AnimInterpolatorInfo *interpInfo)
+{
+	for(int32 i = 0; i < MAXINTERPINFO; i++)
+		if(interpInfoList[i] == interpInfo){
+			rwFree(interpInfoList[i]);
+			interpInfoList[i] = nil;
+			return;
+		}
 }
 
 AnimInterpolatorInfo*

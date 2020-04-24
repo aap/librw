@@ -18,8 +18,8 @@ namespace rw {
 int32 Geometry::numAllocated;
 int32 Material::numAllocated;
 
-PluginList Geometry::s_plglist = { sizeof(Geometry), sizeof(Geometry), nil, nil };
-PluginList Material::s_plglist = { sizeof(Material), sizeof(Material), nil, nil };
+PluginList Geometry::s_plglist(sizeof(Geometry));
+PluginList Material::s_plglist(sizeof(Material));
 
 static SurfaceProperties defaultSurfaceProps = { 1.0f, 1.0f, 1.0f };
 

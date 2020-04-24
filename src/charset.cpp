@@ -109,10 +109,9 @@ Charset::setColors(const RGBA *foreground, const RGBA *background)
 	img->palette[7] = foreground->alpha;
 
 	Raster *newRaster = Raster::createFromImage(img);
-	if(newRaster == nil){
-		img->destroy();
+	img->destroy();
+	if(newRaster == nil)
 		return nil;
-	}
 	if(this->raster)
 		this->raster->destroy();
 	this->raster = newRaster;

@@ -18,25 +18,58 @@ static void *defCtor(void *object, int32, int32) { return object; }
 static void *defDtor(void *object, int32, int32) { return object; }
 static void *defCopy(void *dst, void*, int32, int32) { return dst; }
 
+static LinkList allPlugins;
+
+#define PLG(lnk) LLLinkGetData(lnk, Plugin, inParentList)
+
+void
+PluginList::open(void)
+{
+	allPlugins.init();
+}
+
+void
+PluginList::close(void)
+{
+	PluginList *l;
+	Plugin *p;
+	FORLIST(lnk, allPlugins){
+		p = LLLinkGetData(lnk, Plugin, inGlobalList);
+		l = p->parentList;
+		p->inParentList.remove();
+		p->inGlobalList.remove();
+		rwFree(p);
+		if(l->plugins.isEmpty())
+			l->size = l->defaultSize;
+	}
+	assert(allPlugins.isEmpty());
+}
+
 void
 PluginList::construct(void *object)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		p->constructor(object, p->offset, p->size);
+	}
 }
 
 void
 PluginList::destruct(void *object)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		p->destructor(object, p->offset, p->size);
+	}
 }
 
 void
 PluginList::copy(void *dst, void *src)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		p->copy(dst, src, p->offset, p->size);
+	}
 }
 
 bool
@@ -50,12 +83,14 @@ PluginList::streamRead(Stream *stream, void *object)
 		if(!readChunkHeaderInfo(stream, &header))
 			return false;
 		length -= 12;
-		for(Plugin *p = this->first; p; p = p->next)
+		FORLIST(lnk, this->plugins){
+			Plugin *p = PLG(lnk);
 			if(p->id == header.type && p->read){
 				p->read(stream, header.length,
 				        object, p->offset, p->size);
 				goto cont;
 			}
+		}
 		stream->seek(header.length);
 cont:
 		length -= header.length;
@@ -68,7 +103,8 @@ PluginList::streamWrite(Stream *stream, void *object)
 {
 	int size = this->streamGetSize(object);
 	writeChunkHeader(stream, ID_EXTENSION, size);
-	for(Plugin *p = this->first; p; p = p->next){
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->getSize == nil ||
 		   (size = p->getSize(object, p->offset, p->size)) <= 0)
 			continue;
@@ -82,10 +118,12 @@ PluginList::streamGetSize(void *object)
 {
 	int32 size = 0;
 	int32 plgsize;
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->getSize &&
 		   (plgsize = p->getSize(object, p->offset, p->size)) > 0)
 			size += 12 + plgsize;
+	}
 	return size;
 }
 
@@ -107,13 +145,15 @@ PluginList::streamSkip(Stream *stream)
 void
 PluginList::assertRights(void *object, uint32 pluginID, uint32 data)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->id == pluginID){
 			if(p->rightsCallback)
 				p->rightsCallback(object,
 				                  p->offset, p->size, data);
 			return;
 		}
+	}
 }
 
 
@@ -136,17 +176,9 @@ PluginList::registerPlugin(int32 size, uint32 id,
 	p->write = nil;
 	p->getSize = nil;
 	p->rightsCallback = nil;
-	p->next = nil;
-	p->prev = nil;
-
-	if(this->first == nil){
-		this->first = p;
-		this->last = p;
-	}else{
-		this->last->next = p;
-		p->prev = this->last;
-		this->last = p;
-	}
+	p->parentList = this;
+	this->plugins.add(&p->inParentList);
+	allPlugins.add(&p->inGlobalList);
 	return p->offset;
 }
 
@@ -154,33 +186,39 @@ int32
 PluginList::registerStream(uint32 id,
 	StreamRead read, StreamWrite write, StreamGetSize getSize)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->id == id){
 			p->read = read;
 			p->write = write;
 			p->getSize = getSize;
 			return p->offset;
 		}
+	}
 	return -1;
 }
 
 int32
 PluginList::setStreamRightsCallback(uint32 id, RightsCallback cb)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->id == id){
 			p->rightsCallback = cb;
 			return p->offset;
 		}
+	}
 	return -1;
 }
 
 int32
 PluginList::getPluginOffset(uint32 id)
 {
-	for(Plugin *p = this->first; p; p = p->next)
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
 		if(p->id == id)
 			return p->offset;
+	}
 	return -1;
 }
 

@@ -11,28 +11,19 @@ typedef Stream *(*StreamWrite)(Stream *stream, int32 length, void *object, int32
 typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
 typedef void (*RightsCallback)(void *object, int32 offset, int32 size, uint32 data);
 
-struct Plugin
-{
-	int32 offset;
-	int32 size;
-	uint32 id;
-	Constructor constructor;
-	Destructor destructor;
-	CopyConstructor copy;
-	StreamRead read;
-	StreamWrite write;
-	StreamGetSize getSize;
-	RightsCallback rightsCallback;
-	Plugin *next;
-	Plugin *prev;
-};
-
 struct PluginList
 {
 	int32 size;
 	int32 defaultSize;
-	Plugin *first;
-	Plugin *last;
+	LinkList plugins;
+
+	PluginList(void) {}
+	PluginList(int32 defSize)
+	 : size(defSize), defaultSize(defSize)
+	{ plugins.init(); }
+
+	static void open(void);
+	static void close(void);
 
 	void construct(void *);
 	void destruct(void *);
@@ -48,6 +39,23 @@ struct PluginList
 	int32 registerStream(uint32 id, StreamRead, StreamWrite, StreamGetSize);
 	int32 setStreamRightsCallback(uint32 id, RightsCallback cb);
 	int32 getPluginOffset(uint32 id);
+};
+
+struct Plugin
+{
+	int32 offset;
+	int32 size;
+	uint32 id;
+	Constructor constructor;
+	Destructor destructor;
+	CopyConstructor copy;
+	StreamRead read;
+	StreamWrite write;
+	StreamGetSize getSize;
+	RightsCallback rightsCallback;
+	PluginList *parentList;
+	LLLink inParentList;
+	LLLink inGlobalList;
 };
 
 #define PLUGINBASE \

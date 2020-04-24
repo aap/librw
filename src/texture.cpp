@@ -22,9 +22,9 @@ namespace rw {
 int32 Texture::numAllocated;
 int32 TexDictionary::numAllocated;
 
-PluginList TexDictionary::s_plglist = { sizeof(TexDictionary), sizeof(TexDictionary), nil, nil };
-PluginList Texture::s_plglist = { sizeof(Texture), sizeof(Texture), nil, nil };
-PluginList Raster::s_plglist = { sizeof(Raster), sizeof(Raster), nil, nil };
+PluginList TexDictionary::s_plglist(sizeof(TexDictionary));
+PluginList Texture::s_plglist(sizeof(Texture));
+PluginList Raster::s_plglist(sizeof(Raster));
 
 struct TextureGlobals
 {

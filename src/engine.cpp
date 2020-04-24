@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <new>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -29,7 +30,7 @@
 namespace rw {
 
 Engine *engine;
-PluginList Engine::s_plglist;
+PluginList Engine::s_plglist(sizeof(Engine));
 Engine::State Engine::state = Dead;
 MemoryFunctions Engine::memfuncs;
 PluginList Driver::s_plglist[NUM_PLATFORMS];
@@ -128,7 +129,7 @@ free_managed(void *p)
 void *mustmalloc_h(size_t sz, uint32 hint)
 {
 	void *ret;
-	ret = rwMalloc(sz, hint);
+	ret = Engine::memfuncs.rwmalloc(sz, hint);
 	if(ret || sz == 0)
 		return ret;
 	fprintf(stderr, "Error: out of memory\n");
@@ -138,7 +139,7 @@ void *mustmalloc_h(size_t sz, uint32 hint)
 void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 {
 	void *ret;
-	ret = rwRealloc(p, sz, hint);
+	ret = Engine::memfuncs.rwrealloc(p, sz, hint);
 	if(ret || sz == 0)
 		return ret;
 	fprintf(stderr, "Error: out of memory\n");
@@ -174,13 +175,10 @@ Engine::init(void)
 	memfuncs.rwmustmalloc = mustmalloc_h;
 	memfuncs.rwmustrealloc = mustrealloc_h;
 
-	PluginList init = { sizeof(Driver), sizeof(Driver), nil, nil };
+	PluginList::open();
+
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
-		Driver::s_plglist[i] = init;
-	Engine::s_plglist.size = sizeof(Engine);
-	Engine::s_plglist.defaultSize = sizeof(Engine);
-	Engine::s_plglist.first = nil;
-	Engine::s_plglist.last = nil;
+		new (&Driver::s_plglist[i]) PluginList(sizeof(Driver));
 
 	// core plugin attach here
 	Frame::registerModule();
@@ -288,11 +286,12 @@ Engine::start(void)
 void
 Engine::term(void)
 {
-	// TODO
 	if(engine || Engine::state != Initialized){
 		RWERROR((ERR_GENERAL));
 		return;
 	}
+
+	PluginList::close();
 
 #ifdef TRACK_ALLOCATIONS
 	FORLIST(lnk, allocations){

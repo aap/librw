@@ -1207,6 +1207,10 @@ closeD3D(void)
 	if(ref != 0)
 		printf("IDirect3D9_Release did not destroy\n");
 	d3d9Globals.d3d9 = nil;
+	rwFree(d3d9Globals.modes);
+	d3d9Globals.modes = nil;
+	d3d9Globals.numModes = 0;
+	d3d9Globals.currentMode = 0;
 	return 1;
 }
 

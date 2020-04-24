@@ -383,7 +383,13 @@ hanimOpen(void *object, int32 offset, int32 size)
 	AnimInterpolatorInfo::registerInterp(info);
 	return object;
 }
-static void *hanimClose(void *object, int32 offset, int32 size) { return object; }
+
+static void*
+hanimClose(void *object, int32 offset, int32 size)
+{
+	AnimInterpolatorInfo::unregisterInterp(AnimInterpolatorInfo::find(1));
+	return object;
+}
 
 
 void

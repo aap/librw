@@ -46,6 +46,7 @@ struct AnimInterpolatorInfo
 	uint32 (*streamGetSize)(Animation *anim);
 
 	static void registerInterp(AnimInterpolatorInfo *interpInfo);
+	static void unregisterInterp(AnimInterpolatorInfo *interpInfo);
 	static AnimInterpolatorInfo *find(int32 id);
 };
 

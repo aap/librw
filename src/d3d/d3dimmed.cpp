@@ -240,6 +240,7 @@ closeIm3D(void)
 	destroyVertexBuffer(im3dvertbuf);
 	im3dvertbuf = nil;
 
+	removeDynamicIB(&im3dindbuf);
 	destroyIndexBuffer(im3dindbuf);
 	im3dindbuf = nil;
 }
