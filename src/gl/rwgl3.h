@@ -14,6 +14,7 @@ struct EngineOpenParams
 {
 #ifdef LIBRW_SDL2
 	SDL_Window **window;
+	bool32 fullscreen;
 #else
 	GLFWwindow **window;
 #endif

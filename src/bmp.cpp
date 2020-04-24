@@ -82,6 +82,9 @@ readBMP(const char *afilename)
 	StreamMemory file;
 	int i, x, y;
 
+	bool32 noalpha;
+	int pad;
+
 	filename = Image::getFilename(afilename);
 	if(filename == nil)
 		return nil;
@@ -103,7 +106,7 @@ readBMP(const char *afilename)
 		dib.paletteLen = 0;
 	}
 
-	bool32 noalpha = true;
+	noalpha = true;
 
 	// Recognize 32 bit formats
 	if(dib.compression == 3){
@@ -138,7 +141,7 @@ readBMP(const char *afilename)
 
 	file.seek(bmp.offset, 0);
 
-	int pad = image->width*image->bpp % 4;
+	pad = image->width*image->bpp % 4;
 
 	uint8 *px, *line;
 	line = image->pixels + (image->height-1)*image->stride;

@@ -475,7 +475,7 @@ static char*
 rwstrdup(const char *s)
 {
 	char *t;
-	int32 len = strlen(s)+1;
+	size_t len = strlen(s)+1;
 	t = (char*)rwMalloc(len, MEMDUR_EVENT);
 	if(t)
 		memcpy(t, s, len);

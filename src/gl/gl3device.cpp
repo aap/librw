@@ -25,13 +25,14 @@
 
 namespace rw {
 namespace gl3 {
-
+#ifndef LIBRW_SDL2
 struct DisplayMode
 {
 	GLFWvidmode mode;
 	int32 depth;
 	uint32 flags;
 };
+#endif
 
 struct GlGlobals
 {
@@ -48,13 +49,13 @@ struct GlGlobals
 	DisplayMode *modes;
 	int numModes;
 	int currentMode;
+	GLFWwindow **pWindow;
 #endif
 	int presentWidth, presentHeight;
 
 	// for opening the window
 	int winWidth, winHeight;
 	const char *winTitle;
-	GLFWwindow **pWindow;
 } glGlobals;
 
 struct UniformState
