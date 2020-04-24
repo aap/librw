@@ -80,7 +80,8 @@ void RenderPrimitive(PrimitiveType type, void *verts, int32 numVerts);
 namespace im3d {
 
 void Transform(void *vertices, int32 numVertices, Matrix *world);
-void RenderIndexed(PrimitiveType primType, void *indices, int32 numIndices);
+void RenderPrimitive(PrimitiveType primType);
+void RenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 void End(void);
 
 }

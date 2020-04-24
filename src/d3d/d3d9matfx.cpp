@@ -143,10 +143,10 @@ void
 matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
-	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                           0, header->vertexStream[0].stride);
-	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
 
 	lastEnvFrame = nil;
 
@@ -197,11 +197,7 @@ matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 		inst++;
 	}
-
 	d3d::setTexture(1, nil);
-
-	setVertexShader(nil);
-	setPixelShader(nil);
 }
 
 #define VS_NAME g_vs20_main

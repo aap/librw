@@ -46,30 +46,33 @@ openIm2D(void)
 		{ 0, offsetof(Im2DVertex, u), D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
 		D3DDECL_END()
 	};
-	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &im2ddecl);
+	assert(im2ddecl == nil);
+	im2ddecl = (IDirect3DVertexDeclaration9*)d3d9::createVertexDeclaration((d3d9::VertexElement*)elements);
 	assert(im2ddecl);
-	d3d9Globals.numVertexDeclarations++;
+
+	assert(im2dvertbuf == nil);
 	im2dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im2DVertex), 0, true);
 	assert(im2dvertbuf);
 	addDynamicVB(NUMVERTICES*sizeof(Im2DVertex), 0, &im2dvertbuf);
-	im2dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16));
+
+	assert(im2dindbuf == nil);
+	im2dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16), true);
 	assert(im2dindbuf);
+	addDynamicIB(NUMINDICES*sizeof(uint16), &im2dindbuf);
 }
 
 void
 closeIm2D(void)
 {
-	deleteObject(im2ddecl);
-	d3d9Globals.numVertexDeclarations--;
+	d3d9::destroyVertexDeclaration(im2ddecl);
 	im2ddecl = nil;
 
 	removeDynamicVB(&im2dvertbuf);
-	deleteObject(im2dvertbuf);
-	d3d9Globals.numVertexBuffers--;
+	destroyVertexBuffer(im2dvertbuf);
 	im2dvertbuf = nil;
 
-	deleteObject(im2dindbuf);
-	d3d9Globals.numIndexBuffers--;
+	removeDynamicIB(&im2dindbuf);
+	destroyIndexBuffer(im2dindbuf);
 	im2dindbuf = nil;
 }
 
@@ -105,8 +108,8 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im2DVertex));
 	unlockVertices(im2dvertbuf);
 
-	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
-	d3ddevice->SetVertexDeclaration(im2ddecl);
+	setStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
+	setVertexDeclaration(im2ddecl);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
@@ -137,8 +140,6 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 		break;
 	}
 	d3ddevice->DrawPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0, primCount);
-
-	setPixelShader(nil);
 }
 
 void
@@ -150,7 +151,7 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 		// TODO: error
 		return;
 	}
-	uint16 *lockedindices = lockIndices(im2dindbuf, 0, numIndices*sizeof(uint16), 0);
+	uint16 *lockedindices = lockIndices(im2dindbuf, 0, numIndices*sizeof(uint16), D3DLOCK_DISCARD);
 	memcpy(lockedindices, indices, numIndices*sizeof(uint16));
 	unlockIndices(im2dindbuf);
 
@@ -158,9 +159,9 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im2DVertex));
 	unlockVertices(im2dvertbuf);
 
-	d3ddevice->SetStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
-	d3ddevice->SetIndices(im2dindbuf);
-	d3ddevice->SetVertexDeclaration(im2ddecl);
+	setStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
+	setIndices(im2dindbuf);
+	setVertexDeclaration(im2ddecl);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
@@ -193,8 +194,6 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0,
 	                                0, numVertices,
 	                                0, primCount);
-
-	setPixelShader(nil);
 }
 
 
@@ -215,30 +214,33 @@ openIm3D(void)
 		{ 0, offsetof(Im3DVertex, u), D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
 		D3DDECL_END()
 	};
-	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &im3ddecl);
+
+	assert(im3ddecl == nil);
+	im3ddecl = (IDirect3DVertexDeclaration9*)d3d9::createVertexDeclaration((d3d9::VertexElement*)elements);
 	assert(im3ddecl);
-	d3d9Globals.numVertexDeclarations++;
+
+	assert(im3dvertbuf == nil);
 	im3dvertbuf = (IDirect3DVertexBuffer9*)createVertexBuffer(NUMVERTICES*sizeof(Im3DVertex), 0, true);
 	assert(im3dvertbuf);
 	addDynamicVB(NUMVERTICES*sizeof(Im3DVertex), 0, &im3dvertbuf);
-	im3dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16));
+
+	assert(im3dindbuf == nil);
+	im3dindbuf = (IDirect3DIndexBuffer9*)createIndexBuffer(NUMINDICES*sizeof(uint16), true);
 	assert(im3dindbuf);
+	addDynamicIB(NUMINDICES*sizeof(uint16), &im3dindbuf);
 }
 
 void
 closeIm3D(void)
 {
-	deleteObject(im3ddecl);
-	d3d9Globals.numVertexDeclarations--;
+	d3d9::destroyVertexDeclaration(im3ddecl);
 	im3ddecl = nil;
 
 	removeDynamicVB(&im3dvertbuf);
-	deleteObject(im3dvertbuf);
-	d3d9Globals.numVertexBuffers--;
+	destroyVertexBuffer(im3dvertbuf);
 	im3dvertbuf = nil;
 
-	deleteObject(im3dindbuf);
-	d3d9Globals.numIndexBuffers--;
+	destroyIndexBuffer(im3dindbuf);
 	im3dindbuf = nil;
 }
 
@@ -261,8 +263,8 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));
 	unlockVertices(im3dvertbuf);
 
-	d3ddevice->SetStreamSource(0, im3dvertbuf, 0, sizeof(Im3DVertex));
-	d3ddevice->SetVertexDeclaration(im3ddecl);
+	setStreamSource(0, im3dvertbuf, 0, sizeof(Im3DVertex));
+	setVertexDeclaration(im3ddecl);
 
 	setVertexShader(default_amb_VS);
 
@@ -270,13 +272,47 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 }
 
 void
-im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
+im3DRenderPrimitive(PrimitiveType primType)
 {
-	uint16 *lockedindices = lockIndices(im3dindbuf, 0, numIndices*sizeof(uint16), 0);
+	if(engine->device.getRenderState(TEXTURERASTER))
+		setPixelShader(default_tex_PS);
+	else
+		setPixelShader(default_PS);
+
+	d3d::flushCache();
+
+	uint32 primCount = 0;
+	switch(primType){
+	case PRIMTYPELINELIST:
+		primCount = num3DVertices/2;
+		break;
+	case PRIMTYPEPOLYLINE:
+		primCount = num3DVertices-1;
+		break;
+	case PRIMTYPETRILIST:
+		primCount = num3DVertices/3;
+		break;
+	case PRIMTYPETRISTRIP:
+		primCount = num3DVertices-2;
+		break;
+	case PRIMTYPETRIFAN:
+		primCount = num3DVertices-2;
+		break;
+	case PRIMTYPEPOINTLIST:
+		primCount = num3DVertices;
+		break;
+	}
+	d3ddevice->DrawPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0, primCount);
+}
+
+void
+im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
+{
+	uint16 *lockedindices = lockIndices(im3dindbuf, 0, numIndices*sizeof(uint16), D3DLOCK_DISCARD);
 	memcpy(lockedindices, indices, numIndices*sizeof(uint16));
 	unlockIndices(im3dindbuf);
 
-	d3ddevice->SetIndices(im3dindbuf);
+	setIndices(im3dindbuf);
 
 	if(engine->device.getRenderState(TEXTURERASTER))
 		setPixelShader(default_tex_PS);
@@ -306,13 +342,9 @@ im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
 		primCount = numIndices;
 		break;
 	}
-	d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)primTypeMap[primType], 0,
 	                                0, num3DVertices,
 	                                0, primCount);
-
-	setVertexShader(nil);
-	setPixelShader(nil);
 }
 
 void

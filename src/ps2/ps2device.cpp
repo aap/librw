@@ -37,7 +37,8 @@ Device renderdevice = {
 	null::im2DRenderPrimitive,
 	null::im2DRenderIndexedPrimitive,
 	null::im3DTransform,
-	null::im3DRenderIndexed,
+	null::im3DRenderPrimitive,
+	null::im3DRenderIndexedPrimitive,
 	null::im3DEnd,
 	null::deviceSystem
 };

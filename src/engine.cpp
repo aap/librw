@@ -221,10 +221,12 @@ Engine::stop(void)
 		return;
 	}
 
-	engine->device.system(DEVICETERM, nil, 0);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
 	Engine::s_plglist.destruct(engine);
+
+	engine->device.system(DEVICETERM, nil, 0);
+
 	Engine::state = Opened;
 }
 
@@ -301,7 +303,8 @@ void im2DRenderPrimitive(PrimitiveType, void*, int32) { }
 void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
 
 void im3DTransform(void *vertices, int32 numVertices, Matrix *world) { }
-void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices) { }
+void im3DRenderPrimitive(PrimitiveType primType) { }
+void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices) { }
 void im3DEnd(void) { }
 
 Raster*
@@ -394,7 +397,8 @@ Device renderdevice = {
 	null::im2DRenderPrimitive,
 	null::im2DRenderIndexedPrimitive,
 	null::im3DTransform,
-	null::im3DRenderIndexed,
+	null::im3DRenderPrimitive,
+	null::im3DRenderIndexedPrimitive,
 	null::im3DEnd,
 	null::deviceSystem
 };

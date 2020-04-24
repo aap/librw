@@ -52,6 +52,7 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 };
 
 void *createVertexDeclaration(VertexElement *elements);
+void destroyVertexDeclaration(void *delaration);
 uint32 getDeclaration(void *declaration, VertexElement *elements);
 
 void drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);

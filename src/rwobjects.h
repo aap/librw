@@ -774,10 +774,13 @@ struct TexDictionary
 	enum { ID = 6 };
 	Object object;
 	LinkList textures;
+	LLLink inGlobalList;
 
 	static int32 numAllocated;
 
 	static TexDictionary *create(void);
+	static TexDictionary *fromLink(LLLink *lnk){
+		return LLLinkGetData(lnk, TexDictionary, inGlobalList); }
 	void destroy(void);
 	int32 count(void) { return this->textures.count(); }
 	void add(Texture *t);

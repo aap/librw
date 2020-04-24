@@ -18,7 +18,8 @@ void im2DRenderIndexedPrimitive(PrimitiveType primType,
 void openIm3D(void);
 void closeIm3D(void);
 void im3DTransform(void *vertices, int32 numVertices, Matrix *world);
-void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices);
+void im3DRenderPrimitive(PrimitiveType primType);
+void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 void im3DEnd(void);
 #endif
 

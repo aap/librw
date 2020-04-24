@@ -50,8 +50,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);
 
 		d3ddevice->SetFVF(inst->vertexShader);
-		d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)inst->vertexBuffer, 0, inst->stride);
-		d3ddevice->SetIndices((IDirect3DIndexBuffer9*)inst->indexBuffer);
+		setStreamSource(0, (IDirect3DVertexBuffer9*)inst->vertexBuffer, 0, inst->stride);
+		setIndices((IDirect3DIndexBuffer9*)inst->indexBuffer);
 		uint32 numPrim = inst->primType == D3DPT_TRIANGLESTRIP ? inst->numIndices-2 : inst->numIndices/3;
 		d3d::flushCache();
 		d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)inst->primType, inst->baseIndex,

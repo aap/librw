@@ -50,16 +50,14 @@ struct Device
 	void  (*setRenderState)(int32 state, void *value);
 	void *(*getRenderState)(int32 state);
 
-	void   (*im2DRenderLine)(void*, int32, int32, int32);
-	void   (*im2DRenderTriangle)(void*, int32, int32, int32, int32);
-	void   (*im2DRenderPrimitive)(PrimitiveType,
-	                                     void*, int32);
-	void   (*im2DRenderIndexedPrimitive)(PrimitiveType,
-	                                     void*, int32, void*, int32);
+	void   (*im2DRenderLine)(void *vertices, int32 numVertices, int32 vert1, int32 vert2);
+	void   (*im2DRenderTriangle)(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3);
+	void   (*im2DRenderPrimitive)(PrimitiveType primType, void *vertices, int32 numVertices);
+	void   (*im2DRenderIndexedPrimitive)(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices);
 
-	// Not sure if this will stay...
 	void (*im3DTransform)(void *vertices, int32 numVertices, Matrix *world);
-	void (*im3DRenderIndexed)(PrimitiveType primType, void *indices, int32 numIndices);
+	void (*im3DRenderPrimitive)(PrimitiveType primType);
+	void (*im3DRenderIndexedPrimitive)(PrimitiveType primType, void *indices, int32 numIndices);
 	void (*im3DEnd)(void);
 
 	DeviceSystem *system;

@@ -57,9 +57,14 @@ Transform(void *vertices, int32 numVertices, Matrix *world)
 	engine->device.im3DTransform(vertices, numVertices, world);
 }
 void
-RenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
+RenderPrimitive(PrimitiveType primType)
 {
-	engine->device.im3DRenderIndexed(primType, indices, numIndices);
+	engine->device.im3DRenderPrimitive(primType);
+}
+void
+RenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
+{
+	engine->device.im3DRenderIndexedPrimitive(primType, indices, numIndices);
 }
 void
 End(void)

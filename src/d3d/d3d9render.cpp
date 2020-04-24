@@ -75,10 +75,10 @@ defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 	convMatrix(&world, f->getLTM());
 	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world);
 
-	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                           0, header->vertexStream[0].stride);
-	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -131,10 +131,10 @@ void
 defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
-	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                           0, header->vertexStream[0].stride);
-	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
 
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
@@ -177,8 +177,6 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 		drawInst(header, inst);
 		inst++;
 	}
-	setVertexShader(nil);
-	setPixelShader(nil);
 }
 
 #endif

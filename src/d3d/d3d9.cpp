@@ -73,6 +73,8 @@ createVertexDeclaration(VertexElement *elements)
 #ifdef RW_D3D9
 	IDirect3DVertexDeclaration9 *decl = 0;
 	d3ddevice->CreateVertexDeclaration((D3DVERTEXELEMENT9*)elements, &decl);
+	if(decl)
+		d3d9Globals.numVertexDeclarations++;
 	return decl;
 #else
 	int n = 0;
@@ -82,6 +84,20 @@ createVertexDeclaration(VertexElement *elements)
 	e = rwNewT(VertexElement, n, MEMDUR_EVENT | ID_DRIVER);
 	memcpy(e, elements, n*sizeof(VertexElement));
 	return e;
+#endif
+}
+
+void
+destroyVertexDeclaration(void *declaration)
+{
+#ifdef RW_D3D9
+	if(declaration){
+		if(((IUnknown*)declaration)->Release() != 0)
+			printf("declaration wasn't destroyed\n");
+		d3d9Globals.numVertexDeclarations--;
+	}
+#else
+	rwFree(declaration);
 #endif
 }
 
@@ -113,10 +129,10 @@ freeInstanceData(Geometry *geometry)
 	InstanceDataHeader *header =
 		(InstanceDataHeader*)geometry->instData;
 	geometry->instData = nil;
-	deleteObject(header->vertexDeclaration);
-	deleteObject(header->indexBuffer);
-	deleteObject(header->vertexStream[0].vertexBuffer);
-	deleteObject(header->vertexStream[1].vertexBuffer);
+	destroyVertexDeclaration(header->vertexDeclaration);
+	destroyIndexBuffer(header->indexBuffer);
+	destroyVertexBuffer(header->vertexStream[0].vertexBuffer);
+	destroyVertexBuffer(header->vertexStream[1].vertexBuffer);
 	rwFree(header->inst);
 	rwFree(header);
 	return;
@@ -183,7 +199,8 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	stream->read(elements, numDeclarations*8);
 	header->vertexDeclaration = createVertexDeclaration(elements);
 
-	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2);
+	assert(header->indexBuffer == nil);
+	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2, false);
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	stream->read(indices, 2*header->totalNumIndex);
 	unlockIndices(header->indexBuffer);
@@ -202,8 +219,8 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 		if(s->vertexBuffer == nil)
 			continue;
-		// TODO: unset managed flag when using morph targets.
-		//       also uses different buffer type and locks differently
+		// TODO: use dynamic VB when doing morphing
+		assert(s->vertexBuffer == nil);
 		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, 0, false);
 		uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 		stream->read(verts, s->stride*header->totalNumVertex);
@@ -338,7 +355,7 @@ instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
 	header->totalNumIndex = meshh->totalIndices;
 	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
-	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2);
+	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2, false);
 
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	InstanceData *inst = header->inst;
@@ -522,12 +539,34 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 			s->geometryFlags |= 0x4;
 			stride += 12;
 		}
+
+		// We expect some attributes to always be there, use the constant buffer as fallback
+		if(!isPrelit){
+			dcl[i].stream = 2;
+			dcl[i].offset = offsetof(VertexConstantData, color);
+			dcl[i].type = D3DDECLTYPE_D3DCOLOR;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_COLOR;
+			dcl[i].usageIndex = 0;
+			i++;
+		}
+		if(geo->numTexCoordSets == 0){
+			dcl[i].stream = 2;
+			dcl[i].offset = offsetof(VertexConstantData, texCoors[0]);
+			dcl[i].type = D3DDECLTYPE_FLOAT2;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
+			dcl[i].usageIndex = 0;
+			i++;
+		}
+
 		dcl[i] = D3DDECL_END();
 		s->stride = stride;
 
 		assert(header->vertexDeclaration == nil);
 		header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
 
+		assert(s->vertexBuffer == nil);
 		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, false);
 	}else
 		getDeclaration(header->vertexDeclaration, dcl);

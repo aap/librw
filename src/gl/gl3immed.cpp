@@ -220,7 +220,18 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 }
 
 void
-im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices)
+im3DRenderPrimitive(PrimitiveType primType)
+{
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
+
+	flushCache();
+	glDrawArrays(primTypeMap[primType], 0, num3DVertices);
+	disableAttribPointers(im3dattribDesc, 3);
+
+}
+
+void
+im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
 {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices*2,

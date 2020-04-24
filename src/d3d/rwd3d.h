@@ -139,16 +139,20 @@ enum {
 
 extern int vertFormatMap[];
 
-void *createIndexBuffer(uint32 length);
+void *createIndexBuffer(uint32 length, bool dynamic);
+void destroyIndexBuffer(void *indexBuffer);
 uint16 *lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockIndices(void *indexBuffer);
+
 void *createVertexBuffer(uint32 length, uint32 fvf, bool dynamic);
+void destroyVertexBuffer(void *vertexBuffer);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
+
 void *createTexture(int32 width, int32 height, int32 levels, uint32 format);
+void destroyTexture(void *texture);
 uint8 *lockTexture(void *texture, int32 level);
 void unlockTexture(void *texture, int32 level);
-void deleteObject(void *object);
 
 // Native Texture and Raster
 
@@ -184,6 +188,10 @@ void setMaterial(SurfaceProperties surfProps, rw::RGBA color);
 
 void setVertexShader(void *vs);
 void setPixelShader(void *ps);
+void setIndices(void *indexBuffer);
+void setStreamSource(int n, void *buffer, uint32 offset, uint32 stride);
+void setVertexDeclaration(void *declaration);
+
 void *createVertexShader(void *csosrc);
 void *createPixelShader(void *csosrc);
 void destroyVertexShader(void *shader);
@@ -193,6 +201,15 @@ void destroyPixelShader(void *shader);
 /*
  * Vertex shaders and common pipeline stuff
  */
+
+// This data will be available in vertex stream 2
+struct VertexConstantData
+{
+	V3d normal;
+	RGBA color;
+	TexCoords texCoors[8];
+};
+extern void *constantVertexStream;
 
 struct D3dShaderState
 {

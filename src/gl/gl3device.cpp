@@ -1166,7 +1166,8 @@ Device renderdevice = {
 	gl3::im2DRenderPrimitive,
 	gl3::im2DRenderIndexedPrimitive,
 	gl3::im3DTransform,
-	gl3::im3DRenderIndexed,
+	gl3::im3DRenderPrimitive,
+	gl3::im3DRenderIndexedPrimitive,
 	gl3::im3DEnd,
 #ifdef LIBRW_SDL2
 	gl3::deviceSystemSDL2

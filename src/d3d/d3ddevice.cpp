@@ -46,6 +46,18 @@ static DynamicVB *dynamicVBs;
 void addDynamicVB(uint32 length, uint32 fvf, IDirect3DVertexBuffer9 **buf);
 void removeDynamicVB(IDirect3DVertexBuffer9 **buf);
 
+// Same thing for dynamic index buffers
+struct DynamicIB
+{
+	uint32 length;
+	IDirect3DIndexBuffer9 **buf;
+	DynamicIB *next;
+};
+static DynamicIB *dynamicIBs;
+void addDynamicIB(uint32 length, IDirect3DIndexBuffer9 **buf);
+void removeDynamicIB(IDirect3DIndexBuffer9 **buf);
+
+
 struct RwRasterStateCache {
 	Raster *raster;
 	Texture::Addressing addressingU;
@@ -71,11 +83,14 @@ struct RwStateCache {
 };
 static RwStateCache rwStateCache;
 
+void *constantVertexStream;
+
 D3dShaderState d3dShaderState;
 
 #define MAXNUMSTATES (D3DRS_BLENDOPALPHA+1)
 #define MAXNUMTEXSTATES (D3DTSS_CONSTANT+1)
 #define MAXNUMSAMPLERSTATES (D3DSAMP_DMAPOFFSET+1)
+#define MAXNUMSTREAMS (3)
 
 static int32 numDirtyStates;
 static uint32 dirtyStates[MAXNUMSTATES];
@@ -84,6 +99,20 @@ static struct {
 	bool32 dirty;
 } stateCache[MAXNUMSTATES];
 static uint32 d3dStates[MAXNUMSTATES];
+
+// Things that aren't just integers
+struct D3dDeviceCache {
+	IDirect3DVertexShader9 *vertexShader;
+	IDirect3DPixelShader9 *pixelShader;
+	IDirect3DVertexDeclaration9 *vertexDeclaration;
+	IDirect3DIndexBuffer9 *indices;
+	struct {
+		IDirect3DVertexBuffer9 *buffer;
+		uint32 offset;
+		uint32 stride;
+	} vertexStreams[MAXNUMSTREAMS];
+};
+static D3dDeviceCache deviceCache;
 
 static int32 numDirtyTextureStageStates;
 static struct {
@@ -256,6 +285,13 @@ restoreD3d9Device(void)
 		for(s = 0; s < MAXNUMSTAGES; s++)
 			d3ddevice->SetSamplerState(s, (D3DSAMPLERSTATETYPE)t, d3dSamplerStates[t][s]);
 	d3ddevice->SetMaterial(&d3dmaterial);
+
+	d3ddevice->SetVertexShader(deviceCache.vertexShader);
+	d3ddevice->SetPixelShader(deviceCache.pixelShader);
+	d3ddevice->SetVertexDeclaration(deviceCache.vertexDeclaration);
+	d3ddevice->SetIndices(deviceCache.indices);
+	for(i = 0; i < MAXNUMSTREAMS; i++)
+		d3ddevice->SetStreamSource(i, deviceCache.vertexStreams[i].buffer, deviceCache.vertexStreams[i].offset, deviceCache.vertexStreams[i].stride);
 }
 
 void
@@ -580,13 +616,50 @@ getRwRenderState(int32 state)
 void
 setVertexShader(void *vs)
 {
-	d3ddevice->SetVertexShader((IDirect3DVertexShader9*)vs);
+	if(deviceCache.vertexShader != vs){
+		deviceCache.vertexShader = (IDirect3DVertexShader9*)vs;
+		d3ddevice->SetVertexShader(deviceCache.vertexShader);
+	}
 }
 
 void
 setPixelShader(void *ps)
 {
-	d3ddevice->SetPixelShader((IDirect3DPixelShader9*)ps);
+	if(deviceCache.pixelShader != ps){
+		deviceCache.pixelShader = (IDirect3DPixelShader9*)ps;
+		d3ddevice->SetPixelShader(deviceCache.pixelShader);
+	}
+}
+
+void
+setIndices(void *indexBuffer)
+{
+	if(deviceCache.indices != indexBuffer){
+		deviceCache.indices = (IDirect3DIndexBuffer9*)indexBuffer;
+		d3ddevice->SetIndices(deviceCache.indices);
+	}
+}
+
+void
+setStreamSource(int n, void *buffer, uint32 offset, uint32 stride)
+{
+	if(deviceCache.vertexStreams[n].buffer != buffer ||
+	   deviceCache.vertexStreams[n].offset != offset ||
+	   deviceCache.vertexStreams[n].stride != stride){
+		deviceCache.vertexStreams[n].buffer = (IDirect3DVertexBuffer9*)buffer;
+		deviceCache.vertexStreams[n].offset = offset;
+		deviceCache.vertexStreams[n].stride = stride;
+		d3ddevice->SetStreamSource(n, deviceCache.vertexStreams[n].buffer, offset, stride);
+	}
+}
+
+void
+setVertexDeclaration(void *declaration)
+{
+	if(deviceCache.vertexDeclaration != declaration){
+		deviceCache.vertexDeclaration = (IDirect3DVertexDeclaration9*)declaration;
+		d3ddevice->SetVertexDeclaration(deviceCache.vertexDeclaration);
+	}
 }
 
 void*
@@ -595,7 +668,8 @@ createVertexShader(void *csosrc)
 	void *shdr;
 	if(d3ddevice->CreateVertexShader((DWORD*)csosrc, (IDirect3DVertexShader9**)&shdr) == D3D_OK)
 		return shdr;
-	d3d9Globals.numVertexShaders++;
+	if(shdr)
+		d3d9Globals.numVertexShaders++;
 	return nil;
 }
 
@@ -605,22 +679,27 @@ createPixelShader(void *csosrc)
 	void *shdr;
 	if(d3ddevice->CreatePixelShader((DWORD*)csosrc, (IDirect3DPixelShader9**)&shdr) == D3D_OK)
 		return shdr;
-	d3d9Globals.numPixelShaders++;
+	if(shdr)
+		d3d9Globals.numPixelShaders++;
 	return nil;
 }
 
 void
 destroyVertexShader(void *shader)
 {
-	((IDirect3DVertexShader9*)shader)->Release();
-	d3d9Globals.numVertexShaders--;
+	if(shader){
+		((IDirect3DVertexShader9*)shader)->Release();
+		d3d9Globals.numVertexShaders--;
+	}
 }
 
 void
 destroyPixelShader(void *shader)
 {
-	((IDirect3DPixelShader9*)shader)->Release();
-	d3d9Globals.numPixelShaders--;
+	if(shader){
+		((IDirect3DPixelShader9*)shader)->Release();
+		d3d9Globals.numPixelShaders--;
+	}
 }
 
 
@@ -755,11 +834,8 @@ releaseVidmemRasters(void)
 		raster = vmr->raster;
 		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 		if(raster->type == Raster::CAMERATEXTURE){
-			if(natras->texture){
-				deleteObject(natras->texture);
-				d3d9Globals.numTextures--;
-				natras->texture = nil;
-			}
+			destroyTexture(natras->texture);
+			natras->texture = nil;
 		}
 	}
 }
@@ -817,11 +893,8 @@ releaseDynamicVBs(void)
 {
 	DynamicVB *dvb;
 	for(dvb = dynamicVBs; dvb; dvb = dvb->next){
-		if(*dvb->buf){
-			deleteObject(*dvb->buf);
-			d3d9Globals.numVertexBuffers--;
-			*dvb->buf = nil;
-		}
+		destroyVertexBuffer(*dvb->buf);
+		*dvb->buf = nil;
 	}
 }
 
@@ -830,9 +903,53 @@ recreateDynamicVBs(void)
 {
 	DynamicVB *dvb;
 	for(dvb = dynamicVBs; dvb; dvb = dvb->next){
+		assert(*dvb->buf == nil);
 		*dvb->buf = (IDirect3DVertexBuffer9*)createVertexBuffer(dvb->length, dvb->fvf, true);
-		if(*dvb->buf)
-			d3d9Globals.numVertexBuffers++;
+	}
+}
+
+
+void
+addDynamicIB(uint32 length, IDirect3DIndexBuffer9 **buf)
+{
+	DynamicIB *ivb = rwNewT(DynamicIB, 1, ID_DRIVER | MEMDUR_EVENT);
+	ivb->length = length;
+	ivb->buf = buf;
+	ivb->next = dynamicIBs;
+	dynamicIBs = ivb;
+}
+
+void
+removeDynamicIB(IDirect3DIndexBuffer9 **buf)
+{
+	DynamicIB **p, *ivb;
+	for(p = &dynamicIBs; *p; p = &(*p)->next)
+		if((*p)->buf == buf)
+			goto found;
+	return;
+found:
+	ivb = *p;
+	*p = ivb->next;
+	rwFree(ivb);
+}
+
+static void
+releaseDynamicIBs(void)
+{
+	DynamicIB *ivb;
+	for(ivb = dynamicIBs; ivb; ivb = ivb->next){
+		destroyIndexBuffer(*ivb->buf);
+		*ivb->buf = nil;
+	}
+}
+
+static void
+recreateDynamicIBs(void)
+{
+	DynamicIB *ivb;
+	for(ivb = dynamicIBs; ivb; ivb = ivb->next){
+		assert(*ivb->buf == nil);
+		*ivb->buf = (IDirect3DIndexBuffer9*)createIndexBuffer(ivb->length, true);
 	}
 }
 
@@ -846,16 +963,18 @@ releaseVideoMemory(void)
 	d3ddevice->SetVertexShader(nil);
 	d3ddevice->SetPixelShader(nil);
 	d3ddevice->SetIndices(nil);
-	for(i = 0; i < 2; i++)
+	for(i = 0; i < MAXNUMSTREAMS; i++)
 		d3ddevice->SetStreamSource(0, nil, 0, 0);
 
 	releaseVidmemRasters();
 	releaseDynamicVBs();
+	releaseDynamicIBs();
 }
 
 static void
 restoreVideoMemory(void)
 {
+	recreateDynamicIBs();
 	recreateDynamicVBs();
 	// important that we get all raster back before restoring state
 	recreateVidmemRasters();
@@ -1170,14 +1289,33 @@ initD3D(void)
 {
 	int32 s, t;
 
-	// TODO: do some real stuff here
-
 	d3d9Globals.numTextures = 0;
 	d3d9Globals.numVertexShaders = 0;
 	d3d9Globals.numPixelShaders = 0;
 	d3d9Globals.numVertexBuffers = 0;
 	d3d9Globals.numIndexBuffers = 0;
 	d3d9Globals.numVertexDeclarations = 0;
+
+	VertexConstantData constants;
+	constants.normal.x = 0.0f;
+	constants.normal.y = 0.0f;
+	constants.normal.z = 0.0f;
+	constants.color.red = 0;
+	constants.color.green = 0;
+	constants.color.blue = 0;
+	constants.color.alpha = 255;
+	for(s = 0; s < 8; s++){
+		constants.texCoors[s].u = 0.0f;
+		constants.texCoors[s].v = 0.0f;
+	}
+	assert(constantVertexStream == nil);
+	constantVertexStream = createVertexBuffer(sizeof(constants)*10000, 0, false);
+	assert(constantVertexStream);
+	uint8 *lockedvertices = lockVertices(constantVertexStream, 0, sizeof(constants), D3DLOCK_NOSYSLOCK);
+	assert(lockedvertices);
+	memcpy(lockedvertices, &constants, sizeof(constants));
+	unlockVertices(constantVertexStream);
+	setStreamSource(2, constantVertexStream, 0, 0);
 
 	d3ddevice->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
 	rwStateCache.alphafunc = ALPHAGREATEREQUAL;
@@ -1187,7 +1325,6 @@ initD3D(void)
 	d3ddevice->SetRenderState(D3DRS_FOGENABLE, FALSE);
 	rwStateCache.fogenable = 0;
 	d3ddevice->SetRenderState(D3DRS_FOGTABLEMODE, D3DFOG_LINEAR);
-	// TODO: more fog stuff
 
 	d3ddevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
 	rwStateCache.cullmode = CULLNONE;
@@ -1358,6 +1495,9 @@ initD3D(void)
 static int
 termD3D(void)
 {
+	destroyVertexBuffer(constantVertexStream);
+	constantVertexStream = nil;
+
 	closeIm3D();
 	closeIm2D();
 
@@ -1458,7 +1598,8 @@ Device renderdevice = {
 	d3d::im2DRenderPrimitive,
 	d3d::im2DRenderIndexedPrimitive,
 	d3d::im3DTransform,
-	d3d::im3DRenderIndexed,
+	d3d::im3DRenderPrimitive,
+	d3d::im3DRenderIndexedPrimitive,
 	d3d::im3DEnd,
 	d3d::deviceSystem,
 };

@@ -117,6 +117,25 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		i++;
 		stride += 4;
 
+		// We expect some attributes to always be there, use the constant buffer as fallback
+		if(!isPrelit){
+			dcl[i].stream = 2;
+			dcl[i].offset = offsetof(VertexConstantData, color);
+			dcl[i].type = D3DDECLTYPE_D3DCOLOR;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_COLOR;
+			dcl[i].usageIndex = 0;
+			i++;
+		}
+		if(geo->numTexCoordSets == 0){
+			dcl[i].stream = 2;
+			dcl[i].offset = offsetof(VertexConstantData, texCoors[0]);
+			dcl[i].type = D3DDECLTYPE_FLOAT2;
+			dcl[i].method = D3DDECLMETHOD_DEFAULT;
+			dcl[i].usage = D3DDECLUSAGE_TEXCOORD;
+			dcl[i].usageIndex = 0;
+			i++;
+		}
 
 		dcl[i] = D3DDECL_END();
 		s->stride = stride;
@@ -124,6 +143,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		assert(header->vertexDeclaration == nil);
 		header->vertexDeclaration = createVertexDeclaration((VertexElement*)dcl);
 
+		assert(s->vertexBuffer == nil);
 		s->vertexBuffer = createVertexBuffer(header->totalNumVertex*s->stride, 0, false);
 	}else
 		getDeclaration(header->vertexDeclaration, dcl);
@@ -246,10 +266,10 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
 
-	d3ddevice->SetStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
+	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                           0, header->vertexStream[0].stride);
-	d3ddevice->SetIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	d3ddevice->SetVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
+	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
 
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
@@ -294,8 +314,6 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		drawInst(header, inst);
 		inst++;
 	}
-	setVertexShader(nil);
-	setPixelShader(nil);
 }
 
 #define VS_NAME g_vs20_main

@@ -17,8 +17,6 @@
 
 #define PLUGIN_ID 0
 
-// TODO: maintain a global list of all texdicts
-
 namespace rw {
 
 int32 Texture::numAllocated;
@@ -36,6 +34,7 @@ struct TextureGlobals
 	bool32 loadTextures;
 	// create dummy textures to store just names
 	bool32 makeDummies;
+	LinkList texDicts;
 };
 int32 textureModuleOffset;
 
@@ -46,6 +45,7 @@ textureOpen(void *object, int32 offset, int32 size)
 {
 	TexDictionary *texdict;
 	textureModuleOffset = offset;
+	TEXTUREGLOBAL(texDicts).init();
 	texdict = TexDictionary::create();
 	TEXTUREGLOBAL(initialTexDict) = texdict;
 	TexDictionary::setCurrent(texdict);
@@ -56,7 +56,10 @@ textureOpen(void *object, int32 offset, int32 size)
 static void*
 textureClose(void *object, int32 offset, int32 size)
 {
-	TEXTUREGLOBAL(initialTexDict)->destroy();
+	FORLIST(lnk, TEXTUREGLOBAL(texDicts))
+		TexDictionary::fromLink(lnk)->destroy();
+	TEXTUREGLOBAL(initialTexDict) = nil;
+	TEXTUREGLOBAL(currentTexDict) = nil;
 	return object;
 }
 
@@ -93,6 +96,7 @@ TexDictionary::create(void)
 	numAllocated++;
 	dict->object.init(TexDictionary::ID, 0);
 	dict->textures.init();
+	TEXTUREGLOBAL(texDicts).add(&dict->inGlobalList);
 	s_plglist.construct(dict);
 	return dict;
 }
@@ -104,6 +108,7 @@ TexDictionary::destroy(void)
 		TEXTUREGLOBAL(currentTexDict) = nil;
 	FORLIST(lnk, this->textures)
 		Texture::fromDict(lnk)->destroy();
+	this->inGlobalList.remove();
 	s_plglist.destruct(this);
 	rwFree(this);
 	numAllocated--;

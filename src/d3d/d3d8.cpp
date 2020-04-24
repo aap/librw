@@ -89,8 +89,8 @@ destroyNativeData(void *object, int32, int32)
 	geometry->instData = nil;
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		deleteObject(inst->indexBuffer);
-		deleteObject(inst->vertexBuffer);
+		destroyIndexBuffer(inst->indexBuffer);
+		destroyVertexBuffer(inst->vertexBuffer);
 		inst++;
 	}
 	rwFree(header->inst);
@@ -146,12 +146,14 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 	inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		inst->indexBuffer = createIndexBuffer(inst->numIndices*2);
+		assert(inst->indexBuffer == nil);
+		inst->indexBuffer = createIndexBuffer(inst->numIndices*2, false);
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		stream->read(indices, 2*inst->numIndices);
 		unlockIndices(inst->indexBuffer);
 
 		inst->managed = 1;
+		assert(inst->vertexBuffer == nil);
 		inst->vertexBuffer = createVertexBuffer(inst->stride*inst->numVertices, 0, false);
 		uint8 *verts = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 		stream->read(verts, inst->stride*inst->numVertices);
@@ -277,7 +279,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		inst->managed = 0;
 		inst->remapped = 0;
 
-		inst->indexBuffer = createIndexBuffer(inst->numIndices*2);
+		inst->indexBuffer = createIndexBuffer(inst->numIndices*2, false);
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		if(inst->minVert == 0)
 			memcpy(indices, mesh->indices, inst->numIndices*2);
@@ -357,6 +359,7 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 	inst->vertexShader = makeFVFDeclaration(geo->flags, geo->numTexCoordSets);
 	inst->stride = getStride(geo->flags, geo->numTexCoordSets);
 
+	assert(inst->vertexBuffer == nil);
 	inst->vertexBuffer = createVertexBuffer(inst->numVertices*inst->stride,
 	                                              inst->vertexShader, false);
 	inst->managed = 1;

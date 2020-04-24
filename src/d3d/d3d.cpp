@@ -185,16 +185,33 @@ int vertFormatMap[] = {
 };
 
 void*
-createIndexBuffer(uint32 length)
+createIndexBuffer(uint32 length, bool dynamic)
 {
 #ifdef RW_D3D9
 	IDirect3DIndexBuffer9 *ibuf;
-	d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
+	if(dynamic)
+		d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY|D3DUSAGE_DYNAMIC, D3DFMT_INDEX16, D3DPOOL_DEFAULT, &ibuf, 0);
+	else
+		d3ddevice->CreateIndexBuffer(length, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibuf, 0);
 	if(ibuf)
 		d3d9Globals.numIndexBuffers++;
 	return ibuf;
 #else
 	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
+#endif
+}
+
+void
+destroyIndexBuffer(void *indexBuffer)
+{
+#ifdef RW_D3D9
+	if(indexBuffer){
+		if(((IUnknown*)indexBuffer)->Release() != 0)
+			printf("indexBuffer wasn't destroyed\n");
+		d3d9Globals.numIndexBuffers--;
+	}
+#else
+	rwFree(indexBuffer);
 #endif
 }
 
@@ -242,6 +259,20 @@ createVertexBuffer(uint32 length, uint32 fvf, bool dynamic)
 #else
 	(void)fvf;
 	return rwNewT(uint8, length, MEMDUR_EVENT | ID_DRIVER);
+#endif
+}
+
+void
+destroyVertexBuffer(void *vertexBuffer)
+{
+#ifdef RW_D3D9
+	if(vertexBuffer){
+		if(((IUnknown*)vertexBuffer)->Release() != 0)
+			printf("vertexBuffer wasn't destroyed\n");
+		d3d9Globals.numVertexBuffers--;
+	}
+#else
+	rwFree(vertexBuffer);
 #endif
 }
 
@@ -318,6 +349,20 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 #endif
 }
 
+void
+destroyTexture(void *texture)
+{
+#ifdef RW_D3D9
+	if(texture){
+		if(((IUnknown*)texture)->Release() != 0)
+			printf("texture wasn't destroyed\n");
+		d3d9Globals.numTextures--;
+	}
+#else
+	rwFree(texture);
+#endif
+}
+
 uint8*
 lockTexture(void *texture, int32 level, int32 lockMode)
 {
@@ -342,20 +387,6 @@ unlockTexture(void *texture, int32 level)
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
 	tex->UnlockRect(level);
-#endif
-}
-
-void
-deleteObject(void *object)
-{
-	if(object == nil)
-		return;
-#ifdef RW_D3D9
-	IUnknown *unk = (IUnknown*)object;
-	if(unk->Release() != 0)
-		printf("something wasn't destroyed\n");
-#else
-	rwFree(object);
 #endif
 }
 
@@ -983,14 +1014,8 @@ destroyNativeRaster(void *object, int32 offset, int32)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
 #ifdef RW_D3D9
 	destroyD3D9Raster(raster);
-	if(natras->texture){
-		deleteObject(natras->texture);
-		d3d9Globals.numTextures--;
-	}
-#else
-	if(natras->texture)
-		deleteObject(natras->texture);
 #endif
+	destroyTexture(natras->texture);
 	rwFree(natras->palette);
 	return object;
 }
