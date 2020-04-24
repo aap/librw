@@ -36,6 +36,89 @@ PluginList Driver::s_plglist[NUM_PLATFORMS];
 
 void *malloc_h(size_t sz, uint32 hint) { if(sz == 0) return nil; return malloc(sz); }
 void *realloc_h(void *p, size_t sz, uint32 hint) { return realloc(p, sz); }
+
+struct MemoryBlock
+{
+	size_t sz;
+	uint32 hint;
+	void *origPtr;
+	LLLink inAllocList;
+};
+LinkList allocations;
+size_t totalMemoryAllocated;
+
+// We align managed memory blocks on a 16 byte boundary
+
+#define ALIGN16(x) ((x) + 0xF & ~0xF)
+void*
+malloc_managed(size_t sz, uint32 hint)
+{
+	void *origPtr;
+	uint8 *data;
+	MemoryBlock *mem;
+
+	if(sz == 0) return nil;
+	origPtr = malloc(sz + sizeof(MemoryBlock) + 15);
+	if(origPtr == nil)
+		return nil;
+	totalMemoryAllocated += sz;
+	data = (uint8*)origPtr;
+	data += sizeof(MemoryBlock);
+	data = (uint8*)ALIGN16((uintptr)data);
+	mem = (MemoryBlock*)(data-sizeof(MemoryBlock));
+
+	mem->sz = sz;
+	mem->hint = hint;
+	mem->origPtr = origPtr;
+	allocations.add(&mem->inAllocList);
+
+	return data;
+}
+
+void*
+realloc_managed(void *p, size_t sz, uint32 hint)
+{
+	void *origPtr;
+	MemoryBlock *mem;
+	uint32 offset;
+
+	if(p == nil)
+		return malloc_managed(sz, hint);
+
+	mem = (MemoryBlock*)((uint8*)p-sizeof(MemoryBlock));
+	offset = (uint8*)p - (uint8*)mem->origPtr;
+
+	mem->inAllocList.remove();
+
+	origPtr = realloc(mem->origPtr, sz + sizeof(MemoryBlock) + 15);
+	if(origPtr == nil){
+		allocations.add(&mem->inAllocList);
+		return nil;
+	}
+	p = (uint8*)origPtr + offset;
+	mem = (MemoryBlock*)((uint8*)p-sizeof(MemoryBlock));
+	totalMemoryAllocated -= mem->sz;
+	mem->sz = sz;
+	mem->hint = hint;
+	mem->origPtr = origPtr;
+	allocations.add(&mem->inAllocList);
+	totalMemoryAllocated += mem->sz;
+
+	return p;
+}
+
+void
+free_managed(void *p)
+{
+	MemoryBlock *mem;
+	if(p == nil)
+		return;
+	mem = (MemoryBlock*)((uint8*)p-sizeof(MemoryBlock));
+	mem->inAllocList.remove();
+	totalMemoryAllocated -= mem->sz;
+	free(mem->origPtr);
+}
+
 // TODO: make the debug out configurable
 void *mustmalloc_h(size_t sz, uint32 hint)
 {
@@ -67,10 +150,20 @@ Engine::init(void)
 		return 0;
 	}
 
+	totalMemoryAllocated = 0;
+	allocations.init();
+
 	// TODO: make this an argument
+/**/
 	memfuncs.rwmalloc = malloc_h;
 	memfuncs.rwrealloc = realloc_h;
 	memfuncs.rwfree = free;
+/*/
+	memfuncs.rwmalloc = malloc_managed;
+	memfuncs.rwrealloc = realloc_managed;
+	memfuncs.rwfree = free_managed;
+/*/
+
 	memfuncs.rwmustmalloc = mustmalloc_h;
 	memfuncs.rwmustrealloc = mustrealloc_h;
 
@@ -193,6 +286,11 @@ Engine::term(void)
 		RWERROR((ERR_GENERAL));
 		return;
 	}
+
+//	FORLIST(lnk, allocations){
+//		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);
+//		printf("sz %d hint %X\n", mem->sz, mem->hint);
+//	}
 
 	Engine::state = Dead;
 }

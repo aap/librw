@@ -666,10 +666,10 @@ void*
 createVertexShader(void *csosrc)
 {
 	void *shdr;
-	if(d3ddevice->CreateVertexShader((DWORD*)csosrc, (IDirect3DVertexShader9**)&shdr) == D3D_OK)
-		return shdr;
-	if(shdr)
+	if(d3ddevice->CreateVertexShader((DWORD*)csosrc, (IDirect3DVertexShader9**)&shdr) == D3D_OK){
 		d3d9Globals.numVertexShaders++;
+		return shdr;
+	}
 	return nil;
 }
 
@@ -677,10 +677,10 @@ void*
 createPixelShader(void *csosrc)
 {
 	void *shdr;
-	if(d3ddevice->CreatePixelShader((DWORD*)csosrc, (IDirect3DPixelShader9**)&shdr) == D3D_OK)
-		return shdr;
-	if(shdr)
+	if(d3ddevice->CreatePixelShader((DWORD*)csosrc, (IDirect3DPixelShader9**)&shdr) == D3D_OK){
 		d3d9Globals.numPixelShaders++;
+		return shdr;
+	}
 	return nil;
 }
 
