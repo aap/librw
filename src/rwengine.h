@@ -185,16 +185,26 @@ struct Engine
 
 extern Engine *engine;
 
-// These must be macros because we might want to pass __FILE__ and __LINE__ later
-#define rwMalloc(s, h) rw::Engine::memfuncs.rwmalloc(s,h)
-#define rwMallocT(t, s, h) (t*)rw::Engine::memfuncs.rwmalloc((s)*sizeof(t),h)
-#define rwRealloc(p, s, h) rw::Engine::memfuncs.rwrealloc(p,s,h)
-#define rwReallocT(t, p, s, h) (t*)rw::Engine::memfuncs.rwrealloc(p,(s)*sizeof(t),h)
+#define RWTOSTR_(X) #X
+#define RWTOSTR(X) RWTOSTR_(X)
+#define RWHERE "file: " __FILE__ " line: " RWTOSTR(__LINE__)
+
+extern const char *allocLocation;
+
+inline void *malloc_LOC(size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwmalloc(sz,hint); }
+inline void *realloc_LOC(void *p, size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwrealloc(p,sz,hint); }
+inline void *mustmalloc_LOC(size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwmustmalloc(sz,hint); }
+inline void *mustrealloc_LOC(void *p, size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwmustrealloc(p,sz,hint); }
+
+#define rwMalloc(s, h) rw::malloc_LOC(s,h,RWHERE)
+#define rwMallocT(t, s, h) (t*)rw::malloc_LOC((s)*sizeof(t),h,RWHERE)
+#define rwRealloc(p, s, h) rw::realloc_LOC(p,s,h,RWHERE)
+#define rwReallocT(t, p, s, h) (t*)rw::realloc_LOC(p,(s)*sizeof(t),h,RWHERE)
 #define rwFree(p) rw::Engine::memfuncs.rwfree(p)
-#define rwNew(s, h) rw::Engine::memfuncs.rwmustmalloc(s,h)
-#define rwNewT(t, s, h) (t*)rw::Engine::memfuncs.rwmustmalloc((s)*sizeof(t),h)
-#define rwResize(p, s, h) rw::Engine::memfuncs.rwmustrealloc(p,s,h)
-#define rwResizeT(t, p, s, h) (t*)rw::Engine::memfuncs.rwmustrealloc(p,(s)*sizeof(t),h)
+#define rwNew(s, h) rw::mustmalloc_LOC(s,h,RWHERE)
+#define rwNewT(t, s, h) (t*)rw::mustmalloc_LOC((s)*sizeof(t),h,RWHERE)
+#define rwResize(p, s, h) rw::mustrealloc_LOC(p,s,h,RWHERE)
+#define rwResizeT(t, p, s, h) (t*)rw::mustrealloc_LOC(p,(s)*sizeof(t),h,RWHERE)
 
 namespace null {
 	void beginUpdate(Camera*);

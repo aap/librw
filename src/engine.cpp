@@ -34,6 +34,8 @@ Engine::State Engine::state = Dead;
 MemoryFunctions Engine::memfuncs;
 PluginList Driver::s_plglist[NUM_PLATFORMS];
 
+const char *allocLocation;
+
 void *malloc_h(size_t sz, uint32 hint) { if(sz == 0) return nil; return malloc(sz); }
 void *realloc_h(void *p, size_t sz, uint32 hint) { return realloc(p, sz); }
 
@@ -42,6 +44,7 @@ struct MemoryBlock
 	size_t sz;
 	uint32 hint;
 	void *origPtr;
+	const char *codeline;
 	LLLink inAllocList;
 };
 LinkList allocations;
@@ -70,6 +73,7 @@ malloc_managed(size_t sz, uint32 hint)
 	mem->sz = sz;
 	mem->hint = hint;
 	mem->origPtr = origPtr;
+	mem->codeline = allocLocation;
 	allocations.add(&mem->inAllocList);
 
 	return data;
@@ -101,6 +105,7 @@ realloc_managed(void *p, size_t sz, uint32 hint)
 	mem->sz = sz;
 	mem->hint = hint;
 	mem->origPtr = origPtr;
+	mem->codeline = allocLocation;
 	allocations.add(&mem->inAllocList);
 	totalMemoryAllocated += mem->sz;
 
@@ -141,6 +146,8 @@ void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 	return nil;
 }
 
+//#define TRACK_ALLOCATIONS
+
 // This function mainly registers engine plugins
 bool32
 Engine::init(void)
@@ -154,15 +161,15 @@ Engine::init(void)
 	allocations.init();
 
 	// TODO: make this an argument
-/**/
-	memfuncs.rwmalloc = malloc_h;
-	memfuncs.rwrealloc = realloc_h;
-	memfuncs.rwfree = free;
-/*/
+#ifdef TRACK_ALLOCATIONS
 	memfuncs.rwmalloc = malloc_managed;
 	memfuncs.rwrealloc = realloc_managed;
 	memfuncs.rwfree = free_managed;
-/*/
+#else
+	memfuncs.rwmalloc = malloc_h;
+	memfuncs.rwrealloc = realloc_h;
+	memfuncs.rwfree = free;
+#endif
 
 	memfuncs.rwmustmalloc = mustmalloc_h;
 	memfuncs.rwmustrealloc = mustrealloc_h;
@@ -287,10 +294,12 @@ Engine::term(void)
 		return;
 	}
 
-//	FORLIST(lnk, allocations){
-//		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);
-//		printf("sz %d hint %X\n", mem->sz, mem->hint);
-//	}
+#ifdef TRACK_ALLOCATIONS
+	FORLIST(lnk, allocations){
+		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);
+		printf("sz %d hint %X\n   %s\n", mem->sz, mem->hint, mem->codeline);
+	}
+#endif
 
 	Engine::state = Dead;
 }
