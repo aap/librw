@@ -25,10 +25,7 @@ VS_out main(in VS_in input)
 
 	output.TexCoord0.xy = input.TexCoord;
 
-	output.Color = float4(0.0, 0.0, 0.0, 1.0);
-	if(surfPrelight > 0.0)
-		output.Color = input.Prelight;
-
+	output.Color = input.Prelight;
 	output.Color.rgb += ambientLight.rgb * surfAmbient;
 
 	int i;

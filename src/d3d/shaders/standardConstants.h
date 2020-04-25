@@ -9,7 +9,6 @@ float4		ambientLight	: register(c15);
 #define surfAmbient (surfProps.x)
 #define surfSpecular (surfProps.y)
 #define surfDiffuse (surfProps.z)
-#define surfPrelight (surfProps.w)
 
 #define fogStart (fogData.x)
 #define fogEnd (fogData.y)
