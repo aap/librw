@@ -23,7 +23,7 @@ void defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header) {}
 #else
 
 void
-drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst)
+drawInst_simple(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst)
 {
 	d3d::flushCache();
 	d3ddevice->DrawIndexedPrimitive((D3DPRIMITIVETYPE)header->primType, inst->baseIndex,
@@ -36,27 +36,41 @@ void
 drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst)
 {
 	uint32 hasAlpha;
-	int alphafunc;
+	int alphafunc, alpharef, gsalpharef;
 	int zwrite;
 	d3d::getRenderState(D3DRS_ALPHABLENDENABLE, &hasAlpha);
 	if(hasAlpha){
 		zwrite = rw::GetRenderState(rw::ZWRITEENABLE);
 		alphafunc = rw::GetRenderState(rw::ALPHATESTFUNC);
 		if(zwrite){
+			alpharef = rw::GetRenderState(rw::ALPHATESTREF);
+			gsalpharef = rw::GetRenderState(rw::GSALPHATESTREF);
+
 			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAGREATEREQUAL);
-			drawInst(header, inst);
+			SetRenderState(rw::ALPHATESTREF, gsalpharef);
+			drawInst_simple(header, inst);
 			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHALESS);
 			SetRenderState(rw::ZWRITEENABLE, 0);
-			drawInst(header, inst);
+			drawInst_simple(header, inst);
 			SetRenderState(rw::ZWRITEENABLE, 1);
 			SetRenderState(rw::ALPHATESTFUNC, alphafunc);
+			SetRenderState(rw::ALPHATESTREF, alpharef);
 		}else{
 			SetRenderState(rw::ALPHATESTFUNC, rw::ALPHAALWAYS);
-			drawInst(header, inst);
+			drawInst_simple(header, inst);
 			SetRenderState(rw::ALPHATESTFUNC, alphafunc);
 		}
 	}else
-		drawInst(header, inst);
+		drawInst_simple(header, inst);
+}
+
+void
+drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst)
+{
+	if(rw::GetRenderState(rw::GSALPHATEST))
+		drawInst_GSemu(header, inst);
+	else
+		drawInst_simple(header, inst);
 }
 
 void

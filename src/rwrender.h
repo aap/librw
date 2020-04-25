@@ -24,7 +24,12 @@ enum RenderState
 
 	// platform specific or opaque?
 	ALPHATESTFUNC,
-	ALPHATESTREF
+	ALPHATESTREF,
+
+	// emulation of PS2 GS alpha test
+	//  in the mode where it still writes color but nor depth
+	GSALPHATEST,
+	GSALPHATESTREF
 };
 
 enum AlphaTestFunc

@@ -79,6 +79,11 @@ struct RwStateCache {
 	uint32 cullmode;
 	uint32 alphafunc;
 	uint32 alpharef;
+
+	// emulation of PS2 GS
+	bool32 gsalpha;
+	uint32 gsalpharef;
+
 	RwRasterStateCache texstage[MAXNUMSTAGES];
 };
 static RwStateCache rwStateCache;
@@ -548,6 +553,12 @@ setRwRenderState(int32 state, void *pvalue)
 			setRenderState(D3DRS_ALPHAREF, rwStateCache.alpharef);
 		}
 		break;
+	case GSALPHATEST:
+		rwStateCache.gsalpha = value;
+		break;
+	case GSALPHATESTREF:
+		rwStateCache.gsalpharef = value;
+		break;
 	}
 }
 
@@ -604,6 +615,12 @@ getRwRenderState(int32 state)
 		break;
 	case ALPHATESTREF:
 		val = rwStateCache.alpharef;
+		break;
+	case GSALPHATEST:
+		val = rwStateCache.gsalpha;
+		break;
+	case GSALPHATESTREF:
+		val = rwStateCache.gsalpharef;
 		break;
 	default:
 		val = 0;
@@ -1325,6 +1342,9 @@ initD3D(void)
 	rwStateCache.alphafunc = ALPHAGREATEREQUAL;
 	d3ddevice->SetRenderState(D3DRS_ALPHAREF, 10);
 	rwStateCache.alpharef = 10;
+
+	rwStateCache.gsalpha = 0;
+	rwStateCache.gsalpharef = 128;
 
 	d3ddevice->SetRenderState(D3DRS_FOGENABLE, FALSE);
 	rwStateCache.fogenable = 0;
