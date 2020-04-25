@@ -248,12 +248,8 @@ Quat makeQuat(float32 w, const V3d &vec);
 
 struct Quat
 {
-	// order is important for streaming
-	union {
-		struct { float32 x, y, z, w; };
-		// needed for RW compatibility
-		struct { V3d imag; float32 real; };
-	};
+	// order is important for streaming and RW compatibility
+	float32 x, y, z, w;
 
 	static Quat rotation(float32 angle, const V3d &axis){
 		return makeQuat(cos(angle/2.0f), scale(normalize(axis), sin(angle/2.0f))); }
