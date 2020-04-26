@@ -80,13 +80,13 @@ rasterCreateCameraTexture(Raster *raster)
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(raster->format & 0xF00){
 	case Raster::C8888:
-	default:
 		natras->internalFormat = GL_RGBA;
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
 		break;
 	case Raster::C888:
+	default:
 		natras->internalFormat = GL_RGB;
 		natras->format = GL_RGB;
 		natras->type = GL_UNSIGNED_BYTE;
