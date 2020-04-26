@@ -256,7 +256,7 @@ static GLint filterConvMap_NoMIP[] = {
 
 static GLint addressConvMap[] = {
 	0, GL_REPEAT, GL_MIRRORED_REPEAT,
-	GL_CLAMP, GL_CLAMP_TO_BORDER
+	GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER
 };
 
 static void
@@ -372,7 +372,7 @@ setRasterStage(uint32 stage, Raster *raster)
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, addressConvMap[addrU]);
 				natras->addressU = addrU;
 			}
-			if(natras->addressU != addrV){
+			if(natras->addressV != addrV){
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, addressConvMap[addrV]);
 				natras->addressV = addrV;
 			}
