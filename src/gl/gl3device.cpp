@@ -173,7 +173,6 @@ setDepthTest(bool32 enable)
 				glDisable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LEQUAL);
 		}
-
 	}
 }
 
@@ -719,7 +718,9 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		mask |= GL_COLOR_BUFFER_BIT;
 	if(mode & Camera::CLEARZ)
 		mask |= GL_DEPTH_BUFFER_BIT;
+	glDepthMask(GL_TRUE);
 	glClear(mask);
+	glDepthMask(rwStateCache.zwrite);
 }
 
 static void
