@@ -6,13 +6,14 @@ const char *simple_frag_src =
 "	int   u_alphaTest;\n"
 "	float u_alphaRef;\n"
 
-"	int   u_fogEnable;\n"
 "	float u_fogStart;\n"
 "	float u_fogEnd;\n"
+"	float u_fogRange;\n"
+"	float u_fogDisable;\n"
 "	vec4  u_fogColor;\n"
 "};\n"
 
-"uniform sampler2D tex;\n"
+"uniform sampler2D tex0;\n"
 
 "in vec4 v_color;\n"
 "in vec2 v_tex0;\n"
@@ -23,9 +24,8 @@ const char *simple_frag_src =
 "void\n"
 "main(void)\n"
 "{\n"
-"	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));\n"
-"	if(u_fogEnable != 0)\n"
-"		color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);\n"
+"	color = v_color*texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));\n"
+"	color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);\n"
 "	switch(u_alphaTest){\n"
 "	default:\n"
 "	case 0: break;\n"

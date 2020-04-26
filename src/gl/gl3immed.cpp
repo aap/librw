@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include "../rwbase.h"
 #include "../rwerror.h"
@@ -50,7 +51,10 @@ openIm2D(void)
 
 #include "shaders/im2d_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"
-	im2dShader = Shader::fromStrings(im2d_vert_src, simple_frag_src);
+	const char *vs[] = { header_vert_src, im2d_vert_src, nil };
+	const char *fs[] = { simple_frag_src, nil };
+	im2dShader = Shader::create(vs, fs);
+	assert(im2dShader);
 
 	glGenBuffers(1, &im2DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im2DIbo);
@@ -176,7 +180,10 @@ openIm3D(void)
 {
 #include "shaders/im3d_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"
-	im3dShader = Shader::fromStrings(im3d_vert_src, simple_frag_src);
+	const char *vs[] = { header_vert_src, im3d_vert_src, nil };
+	const char *fs[] = { simple_frag_src, nil };
+	im3dShader = Shader::create(vs, fs);
+	assert(im3dShader);
 
 	glGenBuffers(1, &im3DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);

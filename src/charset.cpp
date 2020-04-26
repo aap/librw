@@ -56,7 +56,9 @@ void
 Charset::close(void)
 {
 	rwFree(indices);
+	indices = nil;
 	rwFree(vertices);
+	vertices = nil;
 }
 
 Charset*

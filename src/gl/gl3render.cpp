@@ -40,31 +40,29 @@ disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs)
 		glDisableVertexAttribArray(a->index);
 }
 
-void
-lightingCB(bool32 normals)
+int32
+lightingCB(Atomic *atomic)
 {
-	World *world;
-	RGBAf ambLight = { 0.0, 0.0, 0.0, 1.0 };
-	int n = 0;
+	WorldLights lightData;
+	Light *directionals[8];
+	Light *locals[8];
+	lightData.directionals = directionals;
+	lightData.numDirectionals = 8;
+	lightData.locals = locals;
+	lightData.numLocals = 8;
 
-	world = (World*)engine->currentWorld;
-	// only unpositioned lights right now
-	FORLIST(lnk, world->globalLights){
-		Light *l = Light::fromWorld(lnk);
-		if(normals &&
-		   l->getType() == Light::DIRECTIONAL &&
-		   l->getFlags() & Light::LIGHTATOMICS){
-			if(n >= MAX_LIGHTS)
-				continue;
-			setLight(n++, l);
-		}else if(l->getType() == Light::AMBIENT){
-			ambLight.red   += l->color.red;
-			ambLight.green += l->color.green;
-			ambLight.blue  += l->color.blue;
+	if(atomic->geometry->flags & rw::Geometry::LIGHT){
+		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
+		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
+			// Get rid of lights that need normals when we don't have any
+			lightData.numDirectionals = 0;
+			lightData.numLocals = 0;
 		}
+		return setLights(&lightData);
+	}else{
+		memset(&lightData, 0, sizeof(lightData));
+		return setLights(&lightData);
 	}
-	setNumLights(n);
-	setAmbientLight(&ambLight);
 }
 
 #define U(i) currentShader->uniformLocations[i]
@@ -77,7 +75,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	GLfloat surfProps[4];
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
+	lightingCB(atomic);
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
@@ -86,7 +84,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	simpleShader->use();
+	defaultShader->use();
 
 	while(n--){
 		m = inst->material;
@@ -98,7 +96,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		surfProps[1] = m->surfaceProps.specular;
 		surfProps[2] = m->surfaceProps.diffuse;
 		surfProps[3] = 0.0f;
-		glUniform4fv(U(u_surfaceProps), 1, surfProps);
+		glUniform4fv(U(u_surfProps), 1, surfProps);
 
 		setTexture(0, m->texture);
 

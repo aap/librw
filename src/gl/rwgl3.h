@@ -57,7 +57,7 @@ enum AttribIndices
 
 // default uniform indices
 extern int32 u_matColor;
-extern int32 u_surfaceProps;
+extern int32 u_surfProps;
 
 struct InstanceData
 {
@@ -92,7 +92,7 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 
 struct Shader;
 
-extern Shader *simpleShader;
+extern Shader *defaultShader;
 
 struct Im3DVertex
 {
@@ -146,15 +146,27 @@ void disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
 
 // Render state
 
+// Vertex shader bits
+enum
+{
+	// These should be low so they could be used as indices
+	VSLIGHT_DIRECT	= 1,
+	VSLIGHT_POINT	= 2,
+	VSLIGHT_SPOT	= 4,
+	VSLIGHT_MASK	= 7,	// all the above
+	// less critical
+	VSLIGHT_AMBIENT = 8,
+};
+
+extern const char *header_vert_src;
+
 // per Scene
 void setProjectionMatrix(float32*);
 void setViewMatrix(float32*);
 
 // per Object
 void setWorldMatrix(Matrix*);
-void setAmbientLight(RGBAf*);
-void setNumLights(int32 n);
-void setLight(int32 n, Light*);
+int32 setLights(WorldLights *lightData);
 
 // per Mesh
 void setTexture(int32 n, Texture *tex);
@@ -176,7 +188,7 @@ public:
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
-void lightingCB(bool32 normals);
+int32 lightingCB(Atomic *atomic);
 
 ObjPipeline *makeDefaultPipeline(void);
 

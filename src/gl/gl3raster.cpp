@@ -44,7 +44,7 @@ rasterCreateTexture(Raster *raster)
 		// TODO: check if this is correct
 		natras->internalFormat = GL_RGBA;
 		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
+		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
 		natras->hasAlpha = 1;
 		break;
 	default:
@@ -96,7 +96,7 @@ rasterCreateCameraTexture(Raster *raster)
 		// TODO: check if this is correct
 		natras->internalFormat = GL_RGBA;
 		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
+		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
 		natras->hasAlpha = 1;
 		break;
 	}
@@ -242,12 +242,23 @@ imageFindRasterFormat(Image *img, int32 type,
 	return 1;
 }
 
+static uint8*
+flipImage(Image *image)
+{
+	int i;
+	uint8 *newPx = (uint8*)rwMalloc(image->stride*image->height, 0);
+	for(i = 0; i < image->height; i++)
+		memcpy(&newPx[i*image->stride], &image->pixels[(image->height-1-i)*image->stride], image->stride);
+	return newPx;
+}
+
 bool32
 rasterFromImage(Raster *raster, Image *image)
 {
 	if((raster->type&0xF) != Raster::TEXTURE)
 		return 0;
 
+#ifdef RW_OPENGL
 	// Unpalettize image if necessary but don't change original
 	Image *truecolimg = nil;
 	if(image->depth <= 8){
@@ -259,18 +270,28 @@ rasterFromImage(Raster *raster, Image *image)
 		image = truecolimg;
 	}
 
+	// NB: important to set the format of the input data here!
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(image->depth){
 	case 32:
 		if(raster->format != Raster::C8888 &&
 		   raster->format != Raster::C888)
 			goto err;
+		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_BYTE;
+		natras->hasAlpha = 1;
 		break;
 	case 24:
 		if(raster->format != Raster::C888) goto err;
+		natras->format = GL_RGB;
+		natras->type = GL_UNSIGNED_BYTE;
+		natras->hasAlpha = 0;
 		break;
 	case 16:
 		if(raster->format != Raster::C1555) goto err;
+		natras->format = GL_RGBA;
+		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+		natras->hasAlpha = 1;
 		break;
 
 	case 8:
@@ -283,12 +304,16 @@ rasterFromImage(Raster *raster, Image *image)
 
 	natras->hasAlpha = image->hasAlpha();
 
-#ifdef RW_OPENGL
+
+	uint8 *flipped = flipImage(image);
+
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
-	             0, natras->format, natras->type, image->pixels);
+	             0, natras->format, natras->type, flipped);
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	rwFree(flipped);
 #endif
 	return 1;
 }

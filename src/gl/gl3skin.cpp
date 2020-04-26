@@ -35,10 +35,15 @@ static void*
 skinOpen(void *o, int32, int32)
 {
 	u_boneMatrices = registerUniform("u_boneMatrices");
+	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
+
 #include "shaders/simple_fs_gl3.inc"
 #include "shaders/skin_gl3.inc"
-	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
-	skinShader = Shader::fromStrings(skin_vert_src, simple_frag_src);
+	const char *vs[] = { header_vert_src, skin_vert_src, nil };
+	const char *fs[] = { simple_frag_src, nil };
+	skinShader = Shader::create(vs, fs);
+	assert(skinShader);
+
 	return o;
 }
 
@@ -216,23 +221,34 @@ skinUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 static float skinMatrices[64*16];
 
 void
-updateSkinMatrices(Atomic *a)
+uploadSkinMatrices(Atomic *a)
 {
+	int i;
 	Skin *skin = Skin::get(a->geometry);
 	HAnimHierarchy *hier = Skin::getHierarchy(a);
 	Matrix *invMats = (Matrix*)skin->inverseMatrices;
+	Matrix tmp;
 
-	float *m;
-	m = (float*)skinMatrices;
-	for(int i = 0; i < hier->numNodes; i++){
-		invMats[i].flags = 0;
-		Matrix::mult((Matrix*)m, &invMats[i], &hier->matrices[i]);
-		m[3] = 0.0f;
-		m[7] = 0.0f;
-		m[11] = 0.0f;
-		m[15] = 1.0f;
-		m += 16;
+	Matrix *m = (Matrix*)skinMatrices;
+
+	if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
+		for(i = 0; i < hier->numNodes; i++){
+			invMats[i].flags = 0;
+			Matrix::mult(m, &invMats[i], &hier->matrices[i]);
+			m++;
+		}
+	}else{
+		Matrix invAtmMat;
+		Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
+		for(i = 0; i < hier->numNodes; i++){
+			invMats[i].flags = 0;
+			Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+			Matrix::mult(m, &invMats[i], &tmp);
+			m++;
+		}
 	}
+	glUniformMatrix4fv(U(u_boneMatrices), 64, GL_FALSE,
+	                   (GLfloat*)skinMatrices);
 }
 
 void
@@ -243,7 +259,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	GLfloat surfProps[4];
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
+	lightingCB(atomic);
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
@@ -252,14 +268,9 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-//	rw::setRenderState(ALPHATESTFUNC, 1);
-//	rw::setRenderState(ALPHATESTREF, 50);
-
 	skinShader->use();
 
-	updateSkinMatrices(atomic);
-	glUniformMatrix4fv(U(u_boneMatrices), 64, GL_FALSE,
-	                   (GLfloat*)skinMatrices);
+	uploadSkinMatrices(atomic);
 
 	while(n--){
 		m = inst->material;
@@ -271,7 +282,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		surfProps[1] = m->surfaceProps.specular;
 		surfProps[2] = m->surfaceProps.diffuse;
 		surfProps[3] = 0.0f;
-		glUniform4fv(U(u_surfaceProps), 1, surfProps);
+		glUniform4fv(U(u_surfProps), 1, surfProps);
 
 		setTexture(0, m->texture);
 

@@ -37,9 +37,14 @@ matfxOpen(void *o, int32, int32)
 {
 	u_texMatrix = registerUniform("u_texMatrix");
 	u_coefficient = registerUniform("u_coefficient");
-#include "shaders/matfx_gl3.inc"
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
-	envShader = Shader::fromStrings(matfx_env_vert_src, matfx_env_frag_src);
+
+#include "shaders/matfx_gl3.inc"
+	const char *vs[] = { header_vert_src, matfx_env_vert_src, nil };
+	const char *fs[] = { matfx_env_frag_src, nil };
+	envShader = Shader::create(vs, fs);
+	assert(envShader);
+
 	return o;
 }
 
@@ -65,7 +70,7 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 	GLfloat surfProps[4];
 	m = inst->material;
 
-	simpleShader->use();
+	defaultShader->use();
 
 	convColor(&col, &m->color);
 	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
@@ -74,7 +79,7 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 	surfProps[1] = m->surfaceProps.specular;
 	surfProps[2] = m->surfaceProps.diffuse;
 	surfProps[3] = 0.0f;
-	glUniform4fv(U(u_surfaceProps), 1, surfProps);
+	glUniform4fv(U(u_surfProps), 1, surfProps);
 
 	setTexture(0, m->texture);
 
@@ -85,81 +90,53 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 }
 
+static Frame *lastEnvFrame;
+
+static RawMatrix normal2texcoord = {
+	{ 0.5f,  0.0f, 0.0f }, 0.0f,
+	{ 0.0f, -0.5f, 0.0f }, 0.0f,
+	{ 0.0f,  0.0f, 1.0f }, 0.0f,
+	{ 0.5f,  0.5f, 0.0f }, 1.0f
+};
+
 void
-calcEnvTexMatrix(Frame *f, float32 *mat)
+uploadEnvMatrix(Frame *frame)
 {
-	Matrix cam;
-	if(f){
-		// PS2 style - could be simplified by the shader
-		cam = *((Camera*)engine->currentCamera)->getFrame()->getLTM();
-		cam.pos = { 0.0, 0.0, 0.0 };
-		cam.right.x = -cam.right.x;
-		cam.right.y = -cam.right.y;
-		cam.right.z = -cam.right.z;
+	Matrix invMat;
+	if(frame == nil)
+		frame = engine->currentCamera->getFrame();
 
-		Matrix inv;
-		Matrix::invert(&inv, f->getLTM());
-		inv.pos = { -1.0, -1.0, -1.0 };
-		inv.right.x *= -0.5f;
-		inv.right.y *= -0.5f;
-		inv.right.z *= -0.5f;
-		inv.up.x *= -0.5f;
-		inv.up.y *= -0.5f;
-		inv.up.z *= -0.5f;
-		inv.at.x *= -0.5f;
-		inv.at.y *= -0.5f;
-		inv.at.z *= -0.5f;
-		inv.pos.x *= -0.5f;
-		inv.pos.y *= -0.5f;
-		inv.pos.z *= -0.5f;
+	// cache the matrix across multiple meshes
+	static RawMatrix envMtx;
+	if(frame != lastEnvFrame){
+		lastEnvFrame = frame;
 
-		Matrix m;
-		Matrix::mult(&m, &cam, &inv);
-
-		memcpy(mat, &m, 64);
-		mat[3] = mat[7] = mat[11] = 0.0f;
-		mat[15] = 1.0f;
-
-	}else{
-		// D3D - TODO: find out what PS2 does
-		mat[0]  = 0.5f;
-		mat[1]  = 0.0f;
-		mat[2]  = 0.0f;
-		mat[3]  = 0.0f;
-
-		mat[4]  = 0.0f;
-		mat[5]  = -0.5f;
-		mat[6]  = 0.0f;
-		mat[7]  = 0.0f;
-
-		mat[8]  = 0.0f;
-		mat[9]  = 0.0f;
-		mat[10] = 1.0f;
-		mat[11] = 0.0f;
-
-		mat[12] = 0.5f;
-		mat[13] = 0.5f;
-		mat[14] = 0.0f;
-		mat[15] = 0.0f;
+		RawMatrix invMtx;
+		Matrix::invert(&invMat, frame->getLTM());
+		convMatrix(&invMtx, &invMat);
+		RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	}
+	glUniformMatrix4fv(U(u_texMatrix), 1, GL_FALSE, (float*)&envMtx);
 }
 
 void
-matfxEnvRender(InstanceDataHeader *header, InstanceData *inst)
+matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 {
 	Material *m;
 	RGBAf col;
 	GLfloat surfProps[4];
-	float32 texMat[16];
 	m = inst->material;
 
-	matfxDefaultRender(header, inst);
-
-	MatFX *fx = MatFX::get(m);
-	int32 idx = fx->getEffectIndex(MatFX::ENVMAP);
-	MatFX::Env *env = &fx->fx[idx].env;
+	if(env->tex == nil || env->coefficient == 0.0f){
+		matfxDefaultRender(header, inst);
+		return;
+	}
 
 	envShader->use();
+
+	setTexture(0, m->texture);
+	setTexture(1, env->tex);
+	uploadEnvMatrix(env->frame);
 
 	convColor(&col, &m->color);
 	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
@@ -168,52 +145,47 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst)
 	surfProps[1] = m->surfaceProps.specular;
 	surfProps[2] = m->surfaceProps.diffuse;
 	surfProps[3] = 0.0f;
-	glUniform4fv(U(u_surfaceProps), 1, surfProps);
+	glUniform4fv(U(u_surfProps), 1, surfProps);
 
 	glUniform1fv(U(u_coefficient), 1, &env->coefficient);
 
-	calcEnvTexMatrix(env->frame, texMat);
-	glUniformMatrix4fv(U(u_texMatrix), 1, GL_FALSE, texMat);
-
-	setTexture(0, env->tex);
-
 	rw::SetRenderState(VERTEXALPHA, 1);
 	rw::SetRenderState(SRCBLEND, BLENDONE);
-	rw::SetRenderState(DESTBLEND, BLENDONE);
 
 	flushCache();
 	glDrawElements(header->primType, inst->numIndex,
 	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
 
 	rw::SetRenderState(SRCBLEND, BLENDSRCALPHA);
-	rw::SetRenderState(DESTBLEND, BLENDINVSRCALPHA);
 }
 
 void
 matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(!!(atomic->geometry->flags & Geometry::NORMALS));
+	lightingCB(atomic);
 
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
 	setAttribPointers(header->attribDesc, header->numAttribs);
 
+	lastEnvFrame = nil;
+
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-//	rw::SetRenderState(ALPHATESTFUNC, 1);
-//	rw::SetRenderState(ALPHATESTREF, 50);
-
-	int32 fx;
 	while(n--){
-		fx = MatFX::getEffects(inst->material);
-		switch(fx){
+		MatFX *matfx = MatFX::get(inst->material);
+
+		if(matfx == nil)
+			matfxDefaultRender(header, inst);
+		else switch(matfx->type){
 		case MatFX::ENVMAP:
-			matfxEnvRender(header, inst);
+			matfxEnvRender(header, inst, &matfx->fx[0].env);
 			break;
 		default:
 			matfxDefaultRender(header, inst);
+			break;
 		}
 		inst++;
 	}

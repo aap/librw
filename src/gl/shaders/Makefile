@@ -1,4 +1,9 @@
-all: im2d_gl3.inc im3d_gl3.inc simple_vs_gl3.inc simple_fs_gl3.inc matfx_gl3.inc skin_gl3.inc
+all: header_vs.inc im2d_gl3.inc im3d_gl3.inc default_vs_gl3.inc simple_fs_gl3.inc matfx_gl3.inc skin_gl3.inc
+
+header_vs.inc: header.vert
+	(echo 'const char *header_vert_src =';\
+	 sed 's/..*/"&\\n"/' header.vert;\
+	 echo ';') >header_vs.inc
 
 im2d_gl3.inc: im2d.vert
 	(echo 'const char *im2d_vert_src =';\
@@ -10,10 +15,10 @@ im3d_gl3.inc: im3d.vert
 	 sed 's/..*/"&\\n"/' im3d.vert;\
 	 echo ';') >im3d_gl3.inc
 
-simple_vs_gl3.inc: simple.vert
-	(echo 'const char *simple_vert_src =';\
-	 sed 's/..*/"&\\n"/' simple.vert;\
-	 echo ';') >simple_vs_gl3.inc
+default_vs_gl3.inc: default.vert
+	(echo 'const char *default_vert_src =';\
+	 sed 's/..*/"&\\n"/' default.vert;\
+	 echo ';') >default_vs_gl3.inc
 
 simple_fs_gl3.inc: simple.frag
 	(echo 'const char *simple_frag_src =';\

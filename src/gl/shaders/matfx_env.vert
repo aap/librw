@@ -1,33 +1,4 @@
-#version 330
-
-layout(std140) uniform Scene
-{
-	mat4 u_proj;
-	mat4 u_view;
-};
-
-#define MAX_LIGHTS 8
-struct Light {
-	vec4  position;
-	vec4  direction;
-	vec4  color;
-	float radius;
-	float minusCosAngle;
-};
-
-layout(std140) uniform Object
-{
-	mat4  u_world;
-	vec4  u_ambLight;
-	int   u_numLights;
-	Light u_lights[MAX_LIGHTS];
-};
-
-uniform vec4 u_matColor;
-uniform vec4 u_surfaceProps;	// amb, spec, diff, extra
-
 uniform mat4 u_texMatrix;
-uniform float u_coefficient;
 
 layout(location = 0) in vec3 in_pos;
 layout(location = 1) in vec3 in_normal;
@@ -36,6 +7,8 @@ layout(location = 3) in vec2 in_tex0;
 
 out vec4 v_color;
 out vec2 v_tex0;
+out vec2 v_tex1;
+out float v_fog;
 
 void
 main(void)
@@ -44,15 +17,36 @@ main(void)
 	gl_Position = u_proj * u_view * V;
 	vec3 N = mat3(u_world) * in_normal;
 
+	v_tex0 = in_tex0;
+	v_tex1 = (u_texMatrix * vec4(N, 1.0)).xy;
+
 	v_color = in_color;
-	for(int i = 0; i < u_numLights; i++){
-		float L = max(0.0, dot(N, -normalize(u_lights[i].direction.xyz)));
-		v_color.rgb += u_lights[i].color.rgb*L*u_surfaceProps.z;
+	v_color.rgb += u_ambLight.rgb*surfAmbient;
+
+#ifdef DIRECTIONALS
+	for(int i = 0; i < MAX_LIGHTS; i++){
+		if(u_directLights[i].enabled == 0.0)
+			break;
+		v_color.rgb += DoDirLight(u_directLights[i], N)*surfDiffuse;
 	}
-	v_color.rgb += u_ambLight.rgb*u_surfaceProps.x;
+#endif
+#ifdef POINTLIGHTS
+	for(int i = 0; i < MAX_LIGHTS; i++){
+		if(u_pointLights[i].enabled == 0.0)
+			break;
+		v_color.rgb += DoPointLight(u_pointLights[i], V.xyz, N)*surfDiffuse;
+	}
+#endif
+#ifdef SPOTLIGHTS
+	for(int i = 0; i < MAX_LIGHTS; i++){
+		if(u_spotLights[i].enabled == 0.0)
+			break;
+		v_color.rgb += DoSpotLight(u_spotLights[i], V.xyz, N)*surfDiffuse;
+	}
+#endif
+
+	v_color = clamp(v_color, 0.0f, 1.0);
 	v_color *= u_matColor;
 
-	v_color *= u_coefficient;
-	vec3 cN = mat3(u_view) * in_normal;
-	v_tex0 = (u_texMatrix * vec4(cN, 1.0)).xy;
+	v_fog = DoFog(gl_Position.w);
 }

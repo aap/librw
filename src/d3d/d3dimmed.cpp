@@ -37,6 +37,8 @@ static IDirect3DVertexDeclaration9 *im2ddecl;
 static IDirect3DVertexBuffer9 *im2dvertbuf;
 static IDirect3DIndexBuffer9 *im2dindbuf;
 
+void *im2dOverridePS;
+
 void
 openIm2D(void)
 {
@@ -111,7 +113,9 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	setStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
 	setVertexDeclaration(im2ddecl);
 
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(im2dOverridePS)
+		setPixelShader(im2dOverridePS);
+	else if(engine->device.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
 	else
 		setPixelShader(im2d_PS);
@@ -163,7 +167,9 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	setIndices(im2dindbuf);
 	setVertexDeclaration(im2ddecl);
 
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(im2dOverridePS)
+		setPixelShader(im2dOverridePS);
+	else if(engine->device.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
 	else
 		setPixelShader(im2d_PS);

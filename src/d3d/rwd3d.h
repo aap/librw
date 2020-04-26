@@ -263,6 +263,8 @@ void uploadMatrices(void);	// no world transform
 void uploadMatrices(Matrix *worldMat);
 int32 uploadLights(WorldLights *lightData);	// called by lightingCB_Shader
 
+extern void *im2dOverridePS;
+
 extern void *default_amb_VS;
 extern void *default_amb_dir_VS;
 extern void *default_all_VS;

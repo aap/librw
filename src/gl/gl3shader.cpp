@@ -16,6 +16,8 @@
 namespace rw {
 namespace gl3 {
 
+#include "shaders/header_vs.inc"
+
 UniformRegistry uniformRegistry;
 
 int32
@@ -89,14 +91,17 @@ loadfile(const char *path)
 }
 
 static int
-compileshader(GLenum type, const char *src, GLuint *shader)
+compileshader(GLenum type, const char **src, GLuint *shader)
 {
+	GLint n;
 	GLint shdr, success;
 	GLint len;
 	char *log;
 
+	for(n = 0; src[n]; n++);
+
 	shdr = glCreateShader(type);
-	glShaderSource(shdr, 1, &src, nil);
+	glShaderSource(shdr, n, src, nil);
 	glCompileShader(shdr);
 	glGetShaderiv(shdr, GL_COMPILE_STATUS, &success);
 	if(!success){
@@ -139,6 +144,58 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 	return 0;
 }
 
+Shader*
+Shader::create(const char **vsrc, const char **fsrc)
+{
+	GLuint vs, fs, program;
+	int i;
+	int fail;
+
+	fail = compileshader(GL_VERTEX_SHADER, vsrc, &vs);
+	if(fail)
+		return nil;
+
+	fail = compileshader(GL_FRAGMENT_SHADER, fsrc, &fs);
+	if(fail)
+		return nil;
+
+	fail = linkprogram(vs, fs, &program);
+	if(fail)
+		return nil;
+	glDeleteProgram(vs);
+	glDeleteProgram(fs);
+
+	Shader *sh = rwNewT(Shader, 1, MEMDUR_EVENT | ID_DRIVER);	 // or global?
+
+	// set uniform block binding
+	for(i = 0; i < uniformRegistry.numBlocks; i++){
+		int idx = glGetUniformBlockIndex(program,
+		                                 uniformRegistry.blockNames[i]);
+		if(idx >= 0)
+			glUniformBlockBinding(program, idx, i);
+	}
+
+	// query uniform locations
+	sh->program = program;
+	sh->uniformLocations = rwNewT(GLint, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
+	for(i = 0; i < uniformRegistry.numUniforms; i++)
+		sh->uniformLocations[i] = glGetUniformLocation(program,
+			uniformRegistry.uniformNames[i]);
+
+	// set samplers
+	glUseProgram(program);
+	char name[64];
+	GLint loc;
+	for(i = 0; i < 4; i++){
+		sprintf(name, "tex%d", i);
+		loc = glGetUniformLocation(program, name);
+		glUniform1i(loc, i);
+	}
+
+	return sh;
+}
+
+#if 0
 Shader*
 Shader::fromStrings(const char *vsrc, const char *fsrc)
 {
@@ -191,6 +248,7 @@ Shader::fromFiles(const char *vspath, const char *fspath)
 	rwFree(fsrc);
 	return s;
 }
+#endif
 
 void
 Shader::use(void)

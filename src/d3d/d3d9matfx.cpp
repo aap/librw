@@ -159,7 +159,7 @@ matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	bool normals = !!(atomic->geometry->flags & Geometry::NORMALS);
 
 	float surfProps[4];
-	surfProps[3] = atomic->geometry->flags&Geometry::PRELIT ? 1.0f : 0.0f;
+	surfProps[3] = 0.0f;
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){

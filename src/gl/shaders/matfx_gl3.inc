@@ -1,34 +1,5 @@
 const char *matfx_env_vert_src =
-"#version 330\n"
-
-"layout(std140) uniform Scene\n"
-"{\n"
-"	mat4 u_proj;\n"
-"	mat4 u_view;\n"
-"};\n"
-
-"#define MAX_LIGHTS 8\n"
-"struct Light {\n"
-"	vec4  position;\n"
-"	vec4  direction;\n"
-"	vec4  color;\n"
-"	float radius;\n"
-"	float minusCosAngle;\n"
-"};\n"
-
-"layout(std140) uniform Object\n"
-"{\n"
-"	mat4  u_world;\n"
-"	vec4  u_ambLight;\n"
-"	int   u_numLights;\n"
-"	Light u_lights[MAX_LIGHTS];\n"
-"};\n"
-
-"uniform vec4 u_matColor;\n"
-"uniform vec4 u_surfaceProps;	// amb, spec, diff, extra\n"
-
 "uniform mat4 u_texMatrix;\n"
-"uniform float u_coefficient;\n"
 
 "layout(location = 0) in vec3 in_pos;\n"
 "layout(location = 1) in vec3 in_normal;\n"
@@ -37,6 +8,8 @@ const char *matfx_env_vert_src =
 
 "out vec4 v_color;\n"
 "out vec2 v_tex0;\n"
+"out vec2 v_tex1;\n"
+"out float v_fog;\n"
 
 "void\n"
 "main(void)\n"
@@ -45,17 +18,38 @@ const char *matfx_env_vert_src =
 "	gl_Position = u_proj * u_view * V;\n"
 "	vec3 N = mat3(u_world) * in_normal;\n"
 
+"	v_tex0 = in_tex0;\n"
+"	v_tex1 = (u_texMatrix * vec4(N, 1.0)).xy;\n"
+
 "	v_color = in_color;\n"
-"	for(int i = 0; i < u_numLights; i++){\n"
-"		float L = max(0.0, dot(N, -normalize(u_lights[i].direction.xyz)));\n"
-"		v_color.rgb += u_lights[i].color.rgb*L*u_surfaceProps.z;\n"
+"	v_color.rgb += u_ambLight.rgb*surfAmbient;\n"
+
+"#ifdef DIRECTIONALS\n"
+"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
+"		if(u_directLights[i].enabled == 0.0)\n"
+"			break;\n"
+"		v_color.rgb += DoDirLight(u_directLights[i], N)*surfDiffuse;\n"
 "	}\n"
-"	v_color.rgb += u_ambLight.rgb*u_surfaceProps.x;\n"
+"#endif\n"
+"#ifdef POINTLIGHTS\n"
+"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
+"		if(u_pointLights[i].enabled == 0.0)\n"
+"			break;\n"
+"		v_color.rgb += DoPointLight(u_pointLights[i], V.xyz, N)*surfDiffuse;\n"
+"	}\n"
+"#endif\n"
+"#ifdef SPOTLIGHTS\n"
+"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
+"		if(u_spotLights[i].enabled == 0.0)\n"
+"			break;\n"
+"		v_color.rgb += DoSpotLight(u_spotLights[i], V.xyz, N)*surfDiffuse;\n"
+"	}\n"
+"#endif\n"
+
+"	v_color = clamp(v_color, 0.0f, 1.0);\n"
 "	v_color *= u_matColor;\n"
 
-"	v_color *= u_coefficient;\n"
-"	vec3 cN = mat3(u_view) * in_normal;\n"
-"	v_tex0 = (u_texMatrix * vec4(cN, 1.0)).xy;\n"
+"	v_fog = DoFog(gl_Position.w);\n"
 "}\n"
 ;
 const char *matfx_env_frag_src =
@@ -65,20 +59,38 @@ const char *matfx_env_frag_src =
 "{\n"
 "	int   u_alphaTest;\n"
 "	float u_alphaRef;\n"
-"	// fog etc.\n"
+
+"	float u_fogStart;\n"
+"	float u_fogEnd;\n"
+"	float u_fogRange;\n"
+"	float u_fogDisable;\n"
+"	vec4  u_fogColor;\n"
 "};\n"
 
-"uniform sampler2D tex;\n"
+"uniform sampler2D tex0;\n"
+"uniform sampler2D tex1;\n"
+
+"uniform float u_coefficient;\n"
 
 "in vec4 v_color;\n"
 "in vec2 v_tex0;\n"
+"in vec2 v_tex1;\n"
+"in float v_fog;\n"
 
 "out vec4 color;\n"
 
 "void\n"
 "main(void)\n"
 "{\n"
-"	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));\n"
+"	vec4 pass1 = v_color;\n"
+"	vec4 envColor = pass1;	// TODO: colorClamp\n"
+
+"	pass1 *= texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));\n"
+"	vec4 pass2 = envColor*u_coefficient*texture(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));\n"
+
+"	color.rgb = pass1.rgb*pass1.a + pass2.rgb;\n"
+"	color.a = pass1.a;\n"
+
 "	switch(u_alphaTest){\n"
 "	default:\n"
 "	case 0: break;\n"
@@ -92,5 +104,4 @@ const char *matfx_env_frag_src =
 "		break;\n"
 "	}\n"
 "}\n"
-
 ;

@@ -62,10 +62,13 @@ struct UniformState
 {
 	int32   alphaFunc;
 	float32 alphaRef;
-	int32   fogEnable;
 	float32 fogStart;
 	float32 fogEnd;
-	int32   pad[3];
+
+	float32 fogRange;
+	float32 fogDisable;
+	int32   pad[2];
+
 	RGBAf   fogColor;
 };
 
@@ -77,14 +80,10 @@ struct UniformScene
 
 struct UniformLight
 {
-	V3d     position;
-	float32 w;
-	V3d     direction;
-	int32   pad1;
-	RGBAf   color;
-	float32 radius;
-	float32 minusCosAngle;
-	int32   pad2[2];
+	float32 enabled, radius, minusCosAngle, hardSpot;
+	V3d position; int32 pad0;
+	V3d direction; int32 pad1;
+	RGBAf color;
 };
 
 #define MAX_LIGHTS 8
@@ -93,9 +92,9 @@ struct UniformObject
 {
 	RawMatrix    world;
 	RGBAf        ambLight;
-	int32        numLights;
-	int32        pad[3];
-	UniformLight lights[MAX_LIGHTS];
+	UniformLight directLights[MAX_LIGHTS];
+	UniformLight pointLights[MAX_LIGHTS];
+	UniformLight spotLights[MAX_LIGHTS];
 };
 
 static GLuint vao;
@@ -106,9 +105,9 @@ static UniformScene uniformScene;
 static UniformObject uniformObject;
 
 int32 u_matColor;
-int32 u_surfaceProps;
+int32 u_surfProps;
 
-Shader *simpleShader;
+Shader *defaultShader;
 
 static bool32 stateDirty = 1;
 static bool32 sceneDirty = 1;
@@ -133,6 +132,9 @@ struct RwStateCache {
 	uint32 zwrite;
 	uint32 ztest;
 	uint32 cullmode;
+	uint32 fogEnable;
+	float32 fogStart;
+	float32 fogEnd;
 	RwRasterStateCache texstage[MAXNUMSTAGES];
 };
 static RwStateCache rwStateCache;
@@ -154,6 +156,41 @@ static uint32 blendMap[] = {
 	GL_ONE_MINUS_DST_COLOR,
 	GL_SRC_ALPHA_SATURATE,
 };
+
+static void
+setDepthTest(bool32 enable)
+{
+	if(rwStateCache.ztest != enable){
+		rwStateCache.ztest = enable;
+		if(rwStateCache.zwrite && !enable){
+			// If we still want to write, enable but set mode to always
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_ALWAYS);
+		}else{
+			if(rwStateCache.ztest)
+				glEnable(GL_DEPTH_TEST);
+			else
+				glDisable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+		}
+
+	}
+}
+
+static void
+setDepthWrite(bool32 enable)
+{
+	enable = enable ? GL_TRUE : GL_FALSE;
+	if(rwStateCache.zwrite != enable){
+		rwStateCache.zwrite = enable;
+		if(enable && !rwStateCache.ztest){
+			// Have to switch on ztest so writing can work
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_ALWAYS);
+		}
+		glDepthMask(rwStateCache.zwrite);
+	}
+}
 
 static void
 setAlphaTest(bool32 enable)
@@ -412,23 +449,14 @@ setRenderState(int32 state, void *pvalue)
 		}
 		break;
 	case ZTESTENABLE:
-		if(rwStateCache.ztest != value){
-			rwStateCache.ztest = value;
-			if(rwStateCache.ztest)
-				glEnable(GL_DEPTH_TEST);
-			else
-				glDisable(GL_DEPTH_TEST);
-		}
+		setDepthTest(value);
 		break;
 	case ZWRITEENABLE:
-		if(rwStateCache.zwrite != (value ? GL_TRUE : GL_FALSE)){
-			rwStateCache.zwrite = value ? GL_TRUE : GL_FALSE;
-			glDepthMask(rwStateCache.zwrite);
-		}
+		setDepthWrite(value);
 		break;
 	case FOGENABLE:
-		if(uniformState.fogEnable != value){
-			uniformState.fogEnable = value;
+		if(rwStateCache.fogEnable != value){
+			rwStateCache.fogEnable = value;
 			stateDirty = 1;
 		}
 		break;
@@ -506,7 +534,7 @@ getRenderState(int32 state)
 		val = rwStateCache.zwrite;
 		break;
 	case FOGENABLE:
-		val = uniformState.fogEnable;
+		val = rwStateCache.fogEnable;
 		break;
 	case FOGCOLOR:
 		convColor(&rgba, &uniformState.fogColor);
@@ -534,8 +562,10 @@ resetRenderState(void)
 	rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
 	uniformState.alphaFunc = 0;
 	uniformState.alphaRef = 10.0f/255.0f;
-	uniformState.fogEnable = 0;
+	uniformState.fogDisable = 1.0f;
 	uniformState.fogStart = 0.0f;
+	uniformState.fogEnd = 0.0f;
+	uniformState.fogRange = 0.0f;
 	uniformState.fogColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	stateDirty = 1;
 
@@ -573,40 +603,66 @@ setWorldMatrix(Matrix *mat)
 	objectDirty = 1;
 }
 
-void
-setAmbientLight(RGBAf *amb)
+int32
+setLights(WorldLights *lightData)
 {
-	uniformObject.ambLight = *amb;
-	objectDirty = 1;
-}
+	int i, np, ns;
+	Light *l;
+	int32 bits;
 
-void
-setNumLights(int32 n)
-{
-	uniformObject.numLights = n;
-	objectDirty = 1;
-}
+	uniformObject.ambLight = lightData->ambient;
+	memset(uniformObject.directLights, 0, sizeof(uniformObject.directLights));
+	memset(uniformObject.pointLights, 0, sizeof(uniformObject.pointLights));
+	memset(uniformObject.spotLights, 0, sizeof(uniformObject.spotLights));
 
-void
-setLight(int32 n, Light *light)
-{
-	UniformLight *l;
-	Frame *f;
-	Matrix *m;
+	bits = 0;
 
-	l = &uniformObject.lights[n];
-	f = light->getFrame();
-	if(f){
-		m = f->getLTM();
-		l->position  = m->pos;
-		l->direction = m->at;
+	for(i = 0; i < lightData->numDirectionals && i < 8; i++){
+		l = lightData->directionals[i];
+		uniformObject.directLights[i].enabled = 1.0f;
+		uniformObject.directLights[i].color = l->color;
+		uniformObject.directLights[i].direction = l->getFrame()->getLTM()->at;
+		bits |= VSLIGHT_POINT;
 	}
-	// light has position
-	l->w = light->getType() >= Light::POINT ? 1.0f : 0.0f;
-	l->color = light->color;
-	l->radius = light->radius;
-	l->minusCosAngle = light->minusCosAngle;
+
+	np = 0;
+	ns = 0;
+	for(i = 0; i < lightData->numLocals; i++){
+		l = lightData->locals[i];
+		switch(l->getType()){
+		case Light::POINT:
+			if(np >= 8)
+				continue;
+			uniformObject.pointLights[np].enabled = 1.0f;
+			uniformObject.pointLights[np].color = l->color;
+			uniformObject.pointLights[np].position = l->getFrame()->getLTM()->pos;
+			uniformObject.pointLights[np].radius = l->radius;
+			np++;
+			bits |= VSLIGHT_POINT;
+			break;
+
+		case Light::SPOT:
+		case Light::SOFTSPOT:
+			if(np >= 8)
+				continue;
+			uniformObject.spotLights[ns].enabled = 1.0f;
+			uniformObject.spotLights[ns].color = l->color;
+			uniformObject.spotLights[ns].position = l->getFrame()->getLTM()->pos;
+			uniformObject.spotLights[ns].direction = l->getFrame()->getLTM()->at;
+			uniformObject.spotLights[ns].radius = l->radius;
+			uniformObject.spotLights[ns].minusCosAngle = l->minusCosAngle;
+			if(l->getType() == Light::SOFTSPOT)
+				uniformObject.spotLights[ns].hardSpot = 0.0f;
+			else
+				uniformObject.spotLights[ns].hardSpot = 1.0f;
+			ns++;
+			bits |= VSLIGHT_SPOT;
+			break;
+		}
+	}
+
 	objectDirty = 1;
+	return 0;
 }
 
 void
@@ -639,6 +695,10 @@ flushCache(void)
 		sceneDirty = 0;
 	}
 	if(stateDirty){
+		uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
+		uniformState.fogStart = rwStateCache.fogStart;
+		uniformState.fogEnd = rwStateCache.fogEnd;
+		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformState),
 				&uniformState);
@@ -762,12 +822,12 @@ beginUpdate(Camera *cam)
 	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
 	setProjectionMatrix(proj);
 
-	if(uniformState.fogStart != cam->fogPlane){
-		uniformState.fogStart = cam->fogPlane;
+	if(rwStateCache.fogStart != cam->fogPlane){
+		rwStateCache.fogStart = cam->fogPlane;
 		stateDirty = 1;
 	}
-	if(uniformState.fogEnd != cam->farPlane){
-		uniformState.fogEnd = cam->farPlane;
+	if(rwStateCache.fogEnd != cam->farPlane){
+		rwStateCache.fogEnd = cam->farPlane;
 		stateDirty = 1;
 	}
 
@@ -993,7 +1053,7 @@ initOpenGL(void)
 	registerBlock("Object");
 	registerBlock("State");
 	u_matColor = registerUniform("u_matColor");
-	u_surfaceProps = registerUniform("u_surfaceProps");
+	u_surfProps = registerUniform("u_surfProps");
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 
@@ -1031,9 +1091,12 @@ initOpenGL(void)
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-#include "shaders/simple_vs_gl3.inc"
+#include "shaders/default_vs_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"
-	simpleShader = Shader::fromStrings(simple_vert_src, simple_frag_src);
+	const char *vs[] = { header_vert_src, default_vert_src, nil };
+	const char *fs[] = { simple_frag_src, nil };
+	defaultShader = Shader::create(vs, fs);
+	assert(defaultShader);
 
 	openIm2D();
 	openIm3D();

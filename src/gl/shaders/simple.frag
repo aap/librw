@@ -5,13 +5,14 @@ layout(std140) uniform State
 	int   u_alphaTest;
 	float u_alphaRef;
 
-	int   u_fogEnable;
 	float u_fogStart;
 	float u_fogEnd;
+	float u_fogRange;
+	float u_fogDisable;
 	vec4  u_fogColor;
 };
 
-uniform sampler2D tex;
+uniform sampler2D tex0;
 
 in vec4 v_color;
 in vec2 v_tex0;
@@ -22,9 +23,8 @@ out vec4 color;
 void
 main(void)
 {
-	color = v_color*texture(tex, vec2(v_tex0.x, v_tex0.y));
-	if(u_fogEnable != 0)
-		color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);
+	color = v_color*texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));
+	color.rgb = mix(u_fogColor.rgb, color.rgb, v_fog);
 	switch(u_alphaTest){
 	default:
 	case 0: break;

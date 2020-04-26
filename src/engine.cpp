@@ -293,6 +293,10 @@ Engine::term(void)
 
 	PluginList::close();
 
+	// This has to be reset because it won't be opened again otherwise
+	// TODO: maybe reset more stuff here?
+	d3d::nativeRasterOffset = 0;
+
 #ifdef TRACK_ALLOCATIONS
 	FORLIST(lnk, allocations){
 		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);

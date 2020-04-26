@@ -21,7 +21,13 @@ namespace rw {
 
 int32 Image::numAllocated;
 
-// TODO: full 16 bit support
+// Image formats are as follows:
+//  32 bit has 4 bytes: 8888 RGBA
+//  24 bit has 3 bytes: 888 RGB
+//  16 bit has 2 bytes: 1555 ARGB stored in platform native order (TODO?)
+// palettes always have 4 bytes: r, g, b, a
+//   8 bit has 1 byte: x
+//   4 bit has 1 byte per two pixels: 0xLR, where L and R are the left and right pixel resp.
 
 Image*
 Image::create(int32 width, int32 height, int32 depth)

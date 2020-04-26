@@ -89,10 +89,9 @@ defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 	convMatrix(&world, f->getLTM());
 	d3ddevice->SetTransform(D3DTS_WORLD, (D3DMATRIX*)&world);
 
-	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
-	                           0, header->vertexStream[0].stride);
-	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setStreamSource(0, header->vertexStream[0].vertexBuffer, 0, header->vertexStream[0].stride);
+	setIndices(header->indexBuffer);
+	setVertexDeclaration(header->vertexDeclaration);
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
@@ -145,10 +144,9 @@ void
 defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
-	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
-	                           0, header->vertexStream[0].stride);
-	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
-	setVertexDeclaration((IDirect3DVertexDeclaration9*)header->vertexDeclaration);
+	setStreamSource(0, header->vertexStream[0].vertexBuffer, 0, header->vertexStream[0].stride);
+	setIndices(header->indexBuffer);
+	setVertexDeclaration(header->vertexDeclaration);
 
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
@@ -165,7 +163,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 		setVertexShader(default_all_VS);
 
 	float surfProps[4];
-	surfProps[3] = atomic->geometry->flags&Geometry::PRELIT ? 1.0f : 0.0f;
+	surfProps[3] = 0.0f;
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
