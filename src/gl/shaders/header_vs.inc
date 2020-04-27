@@ -85,5 +85,5 @@ const char *header_vert_src =
 "}\n"
 
 "#define DIRECTIONALS\n"
-"//#define POINTLIGHTS\n"
-"//#define SPOTLIGHTS\n";
+"#define POINTLIGHTS\n"
+"#define SPOTLIGHTS\n";

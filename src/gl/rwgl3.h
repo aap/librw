@@ -171,6 +171,10 @@ int32 setLights(WorldLights *lightData);
 // per Mesh
 void setTexture(int32 n, Texture *tex);
 
+
+uint32 bindTexture(uint32 texid);
+
+
 void flushCache(void);
 
 #endif
@@ -202,6 +206,7 @@ struct Gl3Raster
 	int32 internalFormat;
 	int32 type;
 	int32 format;
+	int32 bbp;	// bytes per pixel
 	// texture object
 	uint32 texid;
 
@@ -211,6 +216,10 @@ struct Gl3Raster
 	uint8 addressU;
 	uint8 addressV;
 };
+
+Texture *readNativeTexture(Stream *stream);
+void writeNativeTexture(Texture *tex, Stream *stream);
+uint32 getSizeNativeTexture(Texture *tex);
 
 void registerNativeRaster(void);
 

@@ -240,11 +240,13 @@ setActiveTexture(int32 n)
 	}
 }
 
-static void
+uint32
 bindTexture(uint32 texid)
 {
+	uint32 prev = boundTexture[activeTexture];
 	boundTexture[activeTexture] = texid;
 	glBindTexture(GL_TEXTURE_2D, texid);
+	return prev;
 }
 
 // TODO: support mipmaps

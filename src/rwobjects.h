@@ -251,6 +251,11 @@ struct Raster
 	};
 };
 
+void conv_RGBA8888_to_RGBA8888(uint8 *out, uint8 *in);
+void conv_RGB888_to_RGBA8888(uint8 *out, uint8 *in);
+void conv_RGB888_to_RGB888(uint8 *out, uint8 *in);
+void conv_RGBA1555_to_RGBA5551(uint8 *out, uint8 *in);
+
 
 #define IGNORERASTERIMP 0
 

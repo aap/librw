@@ -29,28 +29,35 @@ rasterCreateTexture(Raster *raster)
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(raster->format & 0xF00){
 	case Raster::C8888:
-		natras->internalFormat = GL_RGBA;
+		natras->internalFormat = GL_RGBA8;
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
+		natras->bbp = 4;
+		raster->depth = 32;
 		break;
 	case Raster::C888:
-		natras->internalFormat = GL_RGB;
+		natras->internalFormat = GL_RGB8;
 		natras->format = GL_RGB;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 0;
+		natras->bbp = 3;
+		raster->depth = 24;
 		break;
 	case Raster::C1555:
-		// TODO: check if this is correct
-		natras->internalFormat = GL_RGBA;
+		natras->internalFormat = GL_RGB5_A1;
 		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
 		natras->hasAlpha = 1;
+		natras->bbp = 2;
+		raster->depth = 16;
 		break;
 	default:
 		RWERROR((ERR_INVRASTER));
 		return nil;
 	}
+
+	raster->stride = raster->width*natras->bbp;
 
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
@@ -80,23 +87,22 @@ rasterCreateCameraTexture(Raster *raster)
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(raster->format & 0xF00){
 	case Raster::C8888:
-		natras->internalFormat = GL_RGBA;
+		natras->internalFormat = GL_RGBA8;
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
 		break;
 	case Raster::C888:
 	default:
-		natras->internalFormat = GL_RGB;
+		natras->internalFormat = GL_RGB8;
 		natras->format = GL_RGB;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 0;
 		break;
 	case Raster::C1555:
-		// TODO: check if this is correct
-		natras->internalFormat = GL_RGBA;
+		natras->internalFormat = GL_RGB5_A1;
 		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
 		natras->hasAlpha = 1;
 		break;
 	}
@@ -136,6 +142,32 @@ rasterCreateZbuffer(Raster *raster)
 
 #endif
 
+/*
+{ 0, 0, 0 },
+{ 16, 4, GL_RGBA },	// 1555
+{ 16, 3, GL_RGB },	// 565
+{ 16, 4, GL_RGBA },	// 4444
+{ 0, 0, 0 },	// LUM8
+{ 32, 4, GL_RGBA },	// 8888
+{ 24, 3, GL_RGB },	// 888
+{ 16, 3, GL_RGB },	// D16
+{ 24, 3, GL_RGB },	// D24
+{ 32, 4, GL_RGBA },	// D32
+{ 16, 3, GL_RGB },	// 555
+
+0,
+GL_RGB5_A1,
+GL_RGB5,
+GL_RGBA4,
+0,
+GL_RGBA8,
+GL_RGB8,
+GL_RGB5,
+GL_RGB8,
+GL_RGBA8,
+GL_RGB5
+*/
+
 Raster*
 rasterCreate(Raster *raster)
 {
@@ -173,23 +205,59 @@ rasterCreate(Raster *raster)
 }
 
 uint8*
-rasterLock(Raster*, int32 level, int32 lockMode)
+rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
-	printf("locking\n");
+#ifdef RW_OPENGL
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	uint8 *px;
+
+	assert(raster->privateFlags == 0);
+
+	px = (uint8*)rwMalloc(raster->stride*raster->height, 0);	// TODO: hint
+	assert(raster->pixels == nil);
+	raster->pixels = px;
+
+	if(lockMode & Raster::LOCKREAD || !(lockMode & Raster::LOCKNOFETCH)){
+		uint32 prev = bindTexture(natras->texid);
+		glGetTexImage(GL_TEXTURE_2D, level, natras->format, natras->type, px);
+		bindTexture(prev);
+	}
+
+	raster->privateFlags = lockMode;
+
+	return px;
+#else
 	return nil;
+#endif
 }
 
 void
-rasterUnlock(Raster*, int32)
+rasterUnlock(Raster *raster, int32 level)
 {
-	printf("unlocking\n");
+#ifdef RW_OPENGL
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+
+	assert(raster->pixels);
+
+	if(raster->privateFlags & Raster::LOCKWRITE){
+		uint32 prev = bindTexture(natras->texid);
+		glTexImage2D(GL_TEXTURE_2D, level, natras->internalFormat,
+			     raster->width, raster->height,
+			     0, natras->format, natras->type, raster->pixels);
+		bindTexture(prev);
+	}
+
+	rwFree(raster->pixels);
+	raster->pixels = nil;
+	raster->privateFlags = 0;
+#endif
 }
 
 int32
 rasterNumLevels(Raster*)
 {
-	printf("numlevels\n");
-	return 0;
+	// TODO
+	return 1;
 }
 
 // Almost the same as d3d9 and ps2 function
@@ -242,23 +310,14 @@ imageFindRasterFormat(Image *img, int32 type,
 	return 1;
 }
 
-static uint8*
-flipImage(Image *image)
-{
-	int i;
-	uint8 *newPx = (uint8*)rwMalloc(image->stride*image->height, 0);
-	for(i = 0; i < image->height; i++)
-		memcpy(&newPx[i*image->stride], &image->pixels[(image->height-1-i)*image->stride], image->stride);
-	return newPx;
-}
-
 bool32
 rasterFromImage(Raster *raster, Image *image)
 {
 	if((raster->type&0xF) != Raster::TEXTURE)
 		return 0;
 
-#ifdef RW_OPENGL
+	void (*conv)(uint8 *out, uint8 *in) = nil;
+
 	// Unpalettize image if necessary but don't change original
 	Image *truecolimg = nil;
 	if(image->depth <= 8){
@@ -270,28 +329,27 @@ rasterFromImage(Raster *raster, Image *image)
 		image = truecolimg;
 	}
 
-	// NB: important to set the format of the input data here!
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(image->depth){
 	case 32:
-		if(raster->format != Raster::C8888 &&
-		   raster->format != Raster::C888)
+		if(raster->format == Raster::C8888)
+			conv = conv_RGBA8888_to_RGBA8888;
+		else if(raster->format == Raster::C888)
+			conv = conv_RGB888_to_RGB888;
+		else
 			goto err;
-		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_BYTE;
-		natras->hasAlpha = 1;
 		break;
 	case 24:
-		if(raster->format != Raster::C888) goto err;
-		natras->format = GL_RGB;
-		natras->type = GL_UNSIGNED_BYTE;
-		natras->hasAlpha = 0;
+		if(raster->format == Raster::C888)
+			conv = conv_RGB888_to_RGB888;
+		else
+			goto err;
 		break;
 	case 16:
-		if(raster->format != Raster::C1555) goto err;
-		natras->format = GL_RGBA;
-		natras->type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
-		natras->hasAlpha = 1;
+		if(raster->format == Raster::C1555)
+			conv = conv_RGBA1555_to_RGBA5551;
+		else
+			goto err;
 		break;
 
 	case 8:
@@ -304,17 +362,26 @@ rasterFromImage(Raster *raster, Image *image)
 
 	natras->hasAlpha = image->hasAlpha();
 
+	uint8 *pixels = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+	assert(pixels);
+	uint8 *imgpixels = image->pixels + (image->height-1)*image->stride;
 
-	uint8 *flipped = flipImage(image);
+	int x, y;
+	assert(image->width == raster->width);
+	assert(image->height == raster->height);
+	for(y = 0; y < image->height; y++){
+		uint8 *imgrow = imgpixels;
+		uint8 *rasrow = pixels;
+		for(x = 0; x < image->width; x++){
+			conv(rasrow, imgrow);
+			imgrow += image->bpp;
+			rasrow += natras->bbp;
+		}
+		imgpixels -= image->stride;
+		pixels += raster->stride;
+	}
 
-	glBindTexture(GL_TEXTURE_2D, natras->texid);
-	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
-	             raster->width, raster->height,
-	             0, natras->format, natras->type, flipped);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	rwFree(flipped);
-#endif
+	raster->unlock(0);
 	return 1;
 }
 
@@ -327,10 +394,12 @@ createNativeRaster(void *object, int32 offset, int32)
 }
 
 static void*
-destroyNativeRaster(void *object, int32, int32)
+destroyNativeRaster(void *object, int32 offset, int32)
 {
-	//Gl3Raster *ras = PLUGINOFFSET(Gl3Raster, object, offset);
-	// TODO
+	Gl3Raster *ras = PLUGINOFFSET(Gl3Raster, object, offset);
+#ifdef RW_OPENGL
+	glDeleteTextures(1, &ras->texid);
+#endif
 	return object;
 }
 
@@ -341,6 +410,113 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	d->texid = 0;
 	return dst;
 }
+
+static uint32
+getLevelSize(Raster *raster, int32 level)
+{
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	uint32 size = raster->stride*raster->height;
+	while(level--)
+		size /= 4;
+	return size;
+}
+
+Texture*
+readNativeTexture(Stream *stream)
+{
+	uint32 platform;
+	if(!findChunk(stream, ID_STRUCT, nil, nil)){
+		RWERROR((ERR_CHUNK, "STRUCT"));
+		return nil;
+	}
+	platform = stream->readU32();
+	if(platform != PLATFORM_GL3){
+		RWERROR((ERR_PLATFORM, platform));
+		return nil;
+	}
+	Texture *tex = Texture::create(nil);
+	if(tex == nil)
+		return nil;
+
+	// Texture
+	tex->filterAddressing = stream->readU32();
+	stream->read(tex->name, 32);
+	stream->read(tex->mask, 32);
+
+	// Raster
+	uint32 format = stream->readU32();
+	int32 width = stream->readI32();
+	int32 height = stream->readI32();
+	int32 depth = stream->readI32();
+	int32 numLevels = stream->readI32();
+
+	Raster *raster;
+	Gl3Raster *natras;
+	raster = Raster::create(width, height, depth, format | Raster::TEXTURE, PLATFORM_GL3);
+	assert(raster);
+	natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+	tex->raster = raster;
+
+	uint32 size;
+	uint8 *data;
+	for(int32 i = 0; i < numLevels; i++){
+		size = stream->readU32();
+		if(i < raster->getNumLevels()){
+			data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+			stream->read(data, size);
+			raster->unlock(i);
+		}else
+			stream->seek(size);
+	}
+	return tex;
+}
+
+void
+writeNativeTexture(Texture *tex, Stream *stream)
+{
+	Raster *raster = tex->raster;
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+
+	int32 chunksize = getSizeNativeTexture(tex);
+	writeChunkHeader(stream, ID_STRUCT, chunksize-12);
+	stream->writeU32(PLATFORM_GL3);
+
+	// Texture
+	stream->writeU32(tex->filterAddressing);
+	stream->write(tex->name, 32);
+	stream->write(tex->mask, 32);
+
+	// Raster
+	int32 numLevels = raster->getNumLevels();
+	stream->writeI32(raster->format);
+	stream->writeI32(raster->width);
+	stream->writeI32(raster->height);
+	stream->writeI32(raster->depth);
+	stream->writeI32(numLevels);
+	// TODO: compression? auto mipmaps?
+
+	uint32 size;
+	uint8 *data;
+	for(int32 i = 0; i < numLevels; i++){
+		size = getLevelSize(raster, i);
+		stream->writeU32(size);
+		data = raster->lock(i, Raster::LOCKREAD);
+		stream->write(data, size);
+		raster->unlock(i);
+	}
+}
+
+uint32
+getSizeNativeTexture(Texture *tex)
+{
+	uint32 size = 12 + 72 + 20;
+	int32 levels = tex->raster->getNumLevels();
+	for(int32 i = 0; i < levels; i++)
+		size += 4 + getLevelSize(tex->raster, i);
+	return size;
+}
+
+
 
 void registerNativeRaster(void)
 {
