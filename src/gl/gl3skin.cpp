@@ -67,103 +67,119 @@ enum
 };
 
 void
-skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
+skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 {
-	AttribDesc attribs[14], *a;
-	uint32 stride;
+	AttribDesc *attribs, *a;
 
-	//
-	// Create attribute descriptions
-	//
-	a = attribs;
-	stride = 0;
-
-	// Positions
-	a->index = ATTRIB_POS;
-	a->size = 3;
-	a->type = GL_FLOAT;
-	a->normalized = GL_FALSE;
-	a->offset = stride;
-	stride += 12;
-	a++;
-
-	// Normals
-	// TODO: compress
+	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
 	bool hasNormals = !!(geo->flags & Geometry::NORMALS);
-	if(hasNormals){
-		a->index = ATTRIB_NORMAL;
+
+	if(!reinstance){
+		AttribDesc tmpAttribs[14];
+		uint32 stride;
+
+		//
+		// Create attribute descriptions
+		//
+		a = tmpAttribs;
+		stride = 0;
+
+		// Positions
+		a->index = ATTRIB_POS;
 		a->size = 3;
 		a->type = GL_FLOAT;
 		a->normalized = GL_FALSE;
 		a->offset = stride;
 		stride += 12;
 		a++;
-	}
 
-	// Prelighting
-	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
-	if(isPrelit){
-		a->index = ATTRIB_COLOR;
+		// Normals
+		// TODO: compress
+		if(hasNormals){
+			a->index = ATTRIB_NORMAL;
+			a->size = 3;
+			a->type = GL_FLOAT;
+			a->normalized = GL_FALSE;
+			a->offset = stride;
+			stride += 12;
+			a++;
+		}
+
+		// Prelighting
+		if(isPrelit){
+			a->index = ATTRIB_COLOR;
+			a->size = 4;
+			a->type = GL_UNSIGNED_BYTE;
+			a->normalized = GL_TRUE;
+			a->offset = stride;
+			stride += 4;
+			a++;
+		}
+
+		// Texture coordinates
+		for(int32 n = 0; n < geo->numTexCoordSets; n++){
+			a->index = ATTRIB_TEXCOORDS0+n;
+			a->size = 2;
+			a->type = GL_FLOAT;
+			a->normalized = GL_FALSE;
+			a->offset = stride;
+			stride += 8;
+			a++;
+		}
+
+		// Weights
+		a->index = ATTRIB_WEIGHTS;
 		a->size = 4;
-		a->type = GL_UNSIGNED_BYTE;
-		a->normalized = GL_TRUE;
-		a->offset = stride;
-		stride += 4;
-		a++;
-	}
-
-	// Texture coordinates
-	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		a->index = ATTRIB_TEXCOORDS0+n;
-		a->size = 2;
 		a->type = GL_FLOAT;
 		a->normalized = GL_FALSE;
 		a->offset = stride;
-		stride += 8;
+		stride += 16;
 		a++;
+
+		// Indices
+		a->index = ATTRIB_INDICES;
+		a->size = 4;
+		a->type = GL_UNSIGNED_BYTE;
+		a->normalized = GL_FALSE;
+		a->offset = stride;
+		stride += 4;
+		a++;
+
+		header->numAttribs = a - tmpAttribs;
+		for(a = tmpAttribs; a != &tmpAttribs[header->numAttribs]; a++)
+			a->stride = stride;
+		header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
+		memcpy(header->attribDesc, tmpAttribs,
+		       header->numAttribs*sizeof(AttribDesc));
+
+		//
+		// Allocate vertex buffer
+		//
+		header->vertexBuffer = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
+		assert(header->vbo == 0);
+		glGenBuffers(1, &header->vbo);
 	}
 
-	// Weights
-	a->index = ATTRIB_WEIGHTS;
-	a->size = 4;
-	a->type = GL_FLOAT;
-	a->normalized = GL_FALSE;
-	a->offset = stride;
-	stride += 16;
-	a++;
-
-	// Indices
-	a->index = ATTRIB_INDICES;
-	a->size = 4;
-	a->type = GL_UNSIGNED_BYTE;
-	a->normalized = GL_FALSE;
-	a->offset = stride;
-	stride += 4;
-	a++;
-
-	header->numAttribs = a - attribs;
-	for(a = attribs; a != &attribs[header->numAttribs]; a++)
-		a->stride = stride;
-	header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
-	memcpy(header->attribDesc, attribs,
-	       header->numAttribs*sizeof(AttribDesc));
-
-	//
-	// Allocate and fill vertex buffer
-	//
 	Skin *skin = Skin::get(geo);
-	uint8 *verts = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
-	header->vertexBuffer = verts;
+	attribs = header->attribDesc;
+
+	//
+	// Fill vertex buffer
+	//
+
+	uint8 *verts = header->vertexBuffer;
 
 	// Positions
-	for(a = attribs; a->index != ATTRIB_POS; a++)
-		;
-	instV3d(VERT_FLOAT3, verts + a->offset,
-	        geo->morphTargets[0].vertices,
-	        header->totalNumVertex, a->stride);
+	if(!reinstance || geo->lockedSinceInst&Geometry::LOCKVERTICES){
+		for(a = attribs; a->index != ATTRIB_POS; a++)
+			;
+		instV3d(VERT_FLOAT3, verts + a->offset,
+			geo->morphTargets[0].vertices,
+			header->totalNumVertex, a->stride);
+	}
 
 	// Normals
-	if(hasNormals){
+	if(hasNormals && (!reinstance || geo->lockedSinceInst&Geometry::LOCKNORMALS)){
 		for(a = attribs; a->index != ATTRIB_NORMAL; a++)
 			;
 		instV3d(VERT_FLOAT3, verts + a->offset,
@@ -172,7 +188,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 
 	// Prelighting
-	if(isPrelit){
+	if(isPrelit && (!reinstance || geo->lockedSinceInst&Geometry::LOCKPRELIGHT)){
 		for(a = attribs; a->index != ATTRIB_COLOR; a++)
 			;
 		instColor(VERT_RGBA, verts + a->offset,
@@ -182,32 +198,37 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	// Texture coordinates
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
-			;
-		instTexCoords(VERT_FLOAT2, verts + a->offset,
-			geo->texCoords[n],
-			header->totalNumVertex, a->stride);
+		if(!reinstance || geo->lockedSinceInst&(Geometry::LOCKTEXCOORDS<<n)){
+			for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
+				;
+			instTexCoords(VERT_FLOAT2, verts + a->offset,
+				geo->texCoords[n],
+				header->totalNumVertex, a->stride);
+		}
 	}
 
 	// Weights
-	for(a = attribs; a->index != ATTRIB_WEIGHTS; a++)
-		;
-	float *w = skin->weights;
-	instV4d(VERT_FLOAT4, verts + a->offset,
-	        (V4d*)w,
-	        header->totalNumVertex, a->stride);
+	if(!reinstance){
+		for(a = attribs; a->index != ATTRIB_WEIGHTS; a++)
+			;
+		float *w = skin->weights;
+		instV4d(VERT_FLOAT4, verts + a->offset,
+			(V4d*)w,
+			header->totalNumVertex, a->stride);
+	}
 
 	// Indices
-	for(a = attribs; a->index != ATTRIB_INDICES; a++)
-		;
-	// not really colors of course but what the heck
-	instColor(VERT_RGBA, verts + a->offset,
-	          (RGBA*)skin->indices,
-	          header->totalNumVertex, a->stride);
+	if(!reinstance){
+		for(a = attribs; a->index != ATTRIB_INDICES; a++)
+			;
+		// not really colors of course but what the heck
+		instColor(VERT_RGBA, verts + a->offset,
+			  (RGBA*)skin->indices,
+			  header->totalNumVertex, a->stride);
+	}
 
-	glGenBuffers(1, &header->vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
-	glBufferData(GL_ARRAY_BUFFER, header->totalNumVertex*stride,
+	glBufferData(GL_ARRAY_BUFFER, header->totalNumVertex*attribs[0].stride,
 	             header->vertexBuffer, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

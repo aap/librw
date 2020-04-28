@@ -68,28 +68,6 @@ findBlock(const char *name)
 
 Shader *currentShader;
 
-// TODO: maybe make this public somewhere?
-static char*
-loadfile(const char *path)
-{
-	FILE *f;
-	char *buf;
-	long len;
-
-	if(f = fopen(path, "rb"), f == nil){
-		fprintf(stderr, "Couldn't open file %s\n", path);
-		exit(1);
-	}
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	buf = (char*)rwMalloc(len+1, MEMDUR_EVENT);
-	rewind(f);
-	fread(buf, 1, len, f);
-	buf[len] = '\0';
-	fclose(f);
-	return buf;
-}
-
 static int
 compileshader(GLenum type, const char **src, GLuint *shader)
 {
@@ -156,12 +134,17 @@ Shader::create(const char **vsrc, const char **fsrc)
 		return nil;
 
 	fail = compileshader(GL_FRAGMENT_SHADER, fsrc, &fs);
-	if(fail)
+	if(fail){
+		glDeleteShader(vs);
 		return nil;
+	}
 
 	fail = linkprogram(vs, fs, &program);
-	if(fail)
+	if(fail){
+		glDeleteShader(fs);
+		glDeleteShader(vs);
 		return nil;
+	}
 	glDeleteProgram(vs);
 	glDeleteProgram(fs);
 
@@ -194,61 +177,6 @@ Shader::create(const char **vsrc, const char **fsrc)
 
 	return sh;
 }
-
-#if 0
-Shader*
-Shader::fromStrings(const char *vsrc, const char *fsrc)
-{
-	GLuint vs, fs, program;
-	int i;
-	int fail;
-
-	fail = compileshader(GL_VERTEX_SHADER, vsrc, &vs);
-	if(fail)
-		return nil;
-
-	fail = compileshader(GL_FRAGMENT_SHADER, fsrc, &fs);
-	if(fail)
-		return nil;
-
-	fail = linkprogram(vs, fs, &program);
-	if(fail)
-		return nil;
-	glDeleteProgram(vs);
-	glDeleteProgram(fs);
-
-	Shader *sh = rwNewT(Shader, 1, MEMDUR_EVENT | ID_DRIVER);	 // or global?
-
-	// set uniform block binding
-	for(i = 0; i < uniformRegistry.numBlocks; i++){
-		int idx = glGetUniformBlockIndex(program,
-		                                 uniformRegistry.blockNames[i]);
-		if(idx >= 0)
-			glUniformBlockBinding(program, idx, i);
-	}
-
-	// query uniform locations
-	sh->program = program;
-	sh->uniformLocations = rwNewT(GLint, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
-	for(i = 0; i < uniformRegistry.numUniforms; i++)
-		sh->uniformLocations[i] = glGetUniformLocation(program,
-			uniformRegistry.uniformNames[i]);
-
-	return sh;
-}
-
-Shader*
-Shader::fromFiles(const char *vspath, const char *fspath)
-{
-	char *vsrc, *fsrc;
-	vsrc = loadfile(vspath);
-	fsrc = loadfile(fspath);
-	Shader *s = fromStrings(vsrc, fsrc);
-	rwFree(vsrc);
-	rwFree(fsrc);
-	return s;
-}
-#endif
 
 void
 Shader::use(void)

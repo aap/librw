@@ -22,14 +22,32 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-static void
-instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
+void
+freeInstanceData(Geometry *geometry)
 {
-	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
-	Geometry *geo = atomic->geometry;
-	// TODO: allow for REINSTANCE
-	if(geo->instData)
+	if(geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_GL3)
 		return;
+	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
+	geometry->instData = nil;
+	glDeleteBuffers(1, &header->ibo);
+	glDeleteBuffers(1, &header->vbo);
+	rwFree(header->indexBuffer);
+	rwFree(header->vertexBuffer);
+	rwFree(header->attribDesc);
+	rwFree(header);
+}
+
+void*
+destroyNativeData(void *object, int32, int32)
+{
+	freeInstanceData((Geometry*)object);
+	return object;
+}
+
+static InstanceDataHeader*
+instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
+{
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	MeshHeader *meshh = geo->meshHeader;
 	geo->instData = header;
@@ -74,7 +92,36 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 			header->indexBuffer, GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-	pipe->instanceCB(geo, header);
+	return header;
+}
+
+static void
+instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
+{
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
+	Geometry *geo = atomic->geometry;
+	// don't try to (re)instance native data
+	if(geo->flags & Geometry::NATIVE)
+		return;
+
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	if(geo->instData){
+		// Already have instanced data, so check if we have to reinstance
+		assert(header->platform == PLATFORM_GL3);
+		if(header->serialNumber != geo->meshHeader->serialNum){
+			// Mesh changed, so reinstance everything
+			freeInstanceData(geo);
+		}
+	}
+
+	// no instance or complete reinstance
+	if(geo->instData == nil){
+		geo->instData = instanceMesh(rwpipe, geo);
+		pipe->instanceCB(geo, (InstanceDataHeader*)geo->instData, 0);
+	}else if(geo->lockedSinceInst)
+		pipe->instanceCB(geo, (InstanceDataHeader*)geo->instData, 1);
+
+	geo->lockedSinceInst = 0;
 }
 
 static void
@@ -88,9 +135,7 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 {
 	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
 	Geometry *geo = atomic->geometry;
-	// TODO: allow for REINSTANCE
-	if(geo->instData == nil)
-		pipe->instance(atomic);
+	pipe->instance(atomic);
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_GL3);
 	if(pipe->renderCB)
@@ -109,84 +154,100 @@ ObjPipeline::ObjPipeline(uint32 platform)
 }
 
 void
-defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
+defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 {
-	AttribDesc attribs[12], *a;
-	uint32 stride;
+	AttribDesc *attribs, *a;
 
-	//
-	// Create attribute descriptions
-	//
-	a = attribs;
-	stride = 0;
-
-	// Positions
-	a->index = ATTRIB_POS;
-	a->size = 3;
-	a->type = GL_FLOAT;
-	a->normalized = GL_FALSE;
-	a->offset = stride;
-	stride += 12;
-	a++;
-
-	// Normals
-	// TODO: compress
+	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
 	bool hasNormals = !!(geo->flags & Geometry::NORMALS);
-	if(hasNormals){
-		a->index = ATTRIB_NORMAL;
+
+	if(!reinstance){
+		AttribDesc tmpAttribs[12];
+		uint32 stride;
+
+		//
+		// Create attribute descriptions
+		//
+		a = tmpAttribs;
+		stride = 0;
+
+		// Positions
+		a->index = ATTRIB_POS;
 		a->size = 3;
 		a->type = GL_FLOAT;
 		a->normalized = GL_FALSE;
 		a->offset = stride;
 		stride += 12;
 		a++;
+
+		// Normals
+		// TODO: compress
+		if(hasNormals){
+			a->index = ATTRIB_NORMAL;
+			a->size = 3;
+			a->type = GL_FLOAT;
+			a->normalized = GL_FALSE;
+			a->offset = stride;
+			stride += 12;
+			a++;
+		}
+
+		// Prelighting
+		if(isPrelit){
+			a->index = ATTRIB_COLOR;
+			a->size = 4;
+			a->type = GL_UNSIGNED_BYTE;
+			a->normalized = GL_TRUE;
+			a->offset = stride;
+			stride += 4;
+			a++;
+		}
+
+		// Texture coordinates
+		for(int32 n = 0; n < geo->numTexCoordSets; n++){
+			a->index = ATTRIB_TEXCOORDS0+n;
+			a->size = 2;
+			a->type = GL_FLOAT;
+			a->normalized = GL_FALSE;
+			a->offset = stride;
+			stride += 8;
+			a++;
+		}
+
+		header->numAttribs = a - tmpAttribs;
+		for(a = tmpAttribs; a != &tmpAttribs[header->numAttribs]; a++)
+			a->stride = stride;
+		header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
+		memcpy(header->attribDesc, tmpAttribs,
+		       header->numAttribs*sizeof(AttribDesc));
+
+		//
+		// Allocate vertex buffer
+		//
+		header->vertexBuffer = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
+		assert(header->vbo == 0);
+		glGenBuffers(1, &header->vbo);
 	}
 
-	// Prelighting
-	bool isPrelit = !!(geo->flags & Geometry::PRELIT);
-	if(isPrelit){
-		a->index = ATTRIB_COLOR;
-		a->size = 4;
-		a->type = GL_UNSIGNED_BYTE;
-		a->normalized = GL_TRUE;
-		a->offset = stride;
-		stride += 4;
-		a++;
-	}
-
-	// Texture coordinates
-	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		a->index = ATTRIB_TEXCOORDS0+n;
-		a->size = 2;
-		a->type = GL_FLOAT;
-		a->normalized = GL_FALSE;
-		a->offset = stride;
-		stride += 8;
-		a++;
-	}
-
-	header->numAttribs = a - attribs;
-	for(a = attribs; a != &attribs[header->numAttribs]; a++)
-		a->stride = stride;
-	header->attribDesc = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
-	memcpy(header->attribDesc, attribs,
-	       header->numAttribs*sizeof(AttribDesc));
+	attribs = header->attribDesc;
 
 	//
-	// Allocate and fill vertex buffer
+	// Fill vertex buffer
 	//
-	uint8 *verts = rwNewT(uint8, header->totalNumVertex*stride, MEMDUR_EVENT | ID_GEOMETRY);
-	header->vertexBuffer = verts;
+
+	uint8 *verts = header->vertexBuffer;
 
 	// Positions
-	for(a = attribs; a->index != ATTRIB_POS; a++)
-		;
-	instV3d(VERT_FLOAT3, verts + a->offset,
-	        geo->morphTargets[0].vertices,
-	        header->totalNumVertex, a->stride);
+	if(!reinstance || geo->lockedSinceInst&Geometry::LOCKVERTICES){
+		for(a = attribs; a->index != ATTRIB_POS; a++)
+			;
+		instV3d(VERT_FLOAT3, verts + a->offset,
+			geo->morphTargets[0].vertices,
+			header->totalNumVertex, a->stride);
+	}
 
 	// Normals
-	if(hasNormals){
+	if(hasNormals && (!reinstance || geo->lockedSinceInst&Geometry::LOCKNORMALS)){
 		for(a = attribs; a->index != ATTRIB_NORMAL; a++)
 			;
 		instV3d(VERT_FLOAT3, verts + a->offset,
@@ -195,7 +256,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 	}
 
 	// Prelighting
-	if(isPrelit){
+	if(isPrelit && (!reinstance || geo->lockedSinceInst&Geometry::LOCKPRELIGHT)){
 		for(a = attribs; a->index != ATTRIB_COLOR; a++)
 			;
 		int n = header->numMeshes;
@@ -212,16 +273,17 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	// Texture coordinates
 	for(int32 n = 0; n < geo->numTexCoordSets; n++){
-		for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
-			;
-		instTexCoords(VERT_FLOAT2, verts + a->offset,
-			geo->texCoords[n],
-			header->totalNumVertex, a->stride);
+		if(!reinstance || geo->lockedSinceInst&(Geometry::LOCKTEXCOORDS<<n)){
+			for(a = attribs; a->index != ATTRIB_TEXCOORDS0+n; a++)
+				;
+			instTexCoords(VERT_FLOAT2, verts + a->offset,
+				geo->texCoords[n],
+				header->totalNumVertex, a->stride);
+		}
 	}
 
-	glGenBuffers(1, &header->vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
-	glBufferData(GL_ARRAY_BUFFER, header->totalNumVertex*stride,
+	glBufferData(GL_ARRAY_BUFFER, header->totalNumVertex*attribs[0].stride,
 	             header->vertexBuffer, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

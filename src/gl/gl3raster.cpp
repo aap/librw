@@ -213,17 +213,27 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 
 	assert(raster->privateFlags == 0);
 
-	px = (uint8*)rwMalloc(raster->stride*raster->height, 0);	// TODO: hint
-	assert(raster->pixels == nil);
-	raster->pixels = px;
+	switch(raster->type & 0xF00){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+	case Raster::CAMERATEXTURE:
+		px = (uint8*)rwMalloc(raster->stride*raster->height, MEMDUR_EVENT | ID_DRIVER);
+		assert(raster->pixels == nil);
+		raster->pixels = px;
 
-	if(lockMode & Raster::LOCKREAD || !(lockMode & Raster::LOCKNOFETCH)){
-		uint32 prev = bindTexture(natras->texid);
-		glGetTexImage(GL_TEXTURE_2D, level, natras->format, natras->type, px);
-		bindTexture(prev);
+		if(lockMode & Raster::LOCKREAD || !(lockMode & Raster::LOCKNOFETCH)){
+			uint32 prev = bindTexture(natras->texid);
+			glGetTexImage(GL_TEXTURE_2D, level, natras->format, natras->type, px);
+			bindTexture(prev);
+		}
+
+		raster->privateFlags = lockMode;
+		break;
+
+	default:
+		assert(0 && "cannot lock this type of raster yet");
+		return nil;
 	}
-
-	raster->privateFlags = lockMode;
 
 	return px;
 #else

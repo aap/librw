@@ -371,7 +371,7 @@ lockTexture(void *texture, int32 level, int32 lockMode)
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
 	D3DLOCKED_RECT lr;
-	tex->LockRect(level, &lr, 0, 0);
+	tex->LockRect(level, &lr, 0, D3DLOCK_NOSYSLOCK);
 	return (uint8*)lr.pBits;
 #else
 	RasterLevels *levels = (RasterLevels*)texture;
