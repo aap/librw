@@ -17,7 +17,7 @@ newoption {
 }
 
 newoption {
-	trigger     = "glfwdir",
+	trigger     = "glfwdir64",
 	value       = "PATH",
 	description = "Directory of glfw",
 	default     = "../glfw-3.3.2.bin.WIN64",
@@ -94,8 +94,11 @@ workspace "librw"
 	filter { "platforms:win*gl3" }
 		defines { "GLEW_STATIC" }
 		includedirs { path.join(_OPTIONS["glewdir"], "include") }
-		includedirs { path.join(_OPTIONS["glfwdir"], "include") }
 		includedirs { path.join(_OPTIONS["sdl2dir"], "include") }
+	filter { "platforms:win-x86-gl3" }
+		includedirs { path.join(_OPTIONS["glfwdir32"], "include") }
+	filter { "platforms:win-amd64-gl3" }
+		includedirs { path.join(_OPTIONS["glfwdir64"], "include") }
 
 	filter "action:vs*"
 		buildoptions { "/wd4996", "/wd4244" }
@@ -141,7 +144,7 @@ function findlibs()
 		links { "glew32" }
 	filter { "platforms:win-amd64-gl3" }
 		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/x64") }
-		libdirs { path.join(_OPTIONS["glfwdir"], "lib-vc2015") }
+		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
 		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
@@ -192,10 +195,10 @@ function vucode()
 	filter {}
 end
 
-project "clumpview"
+project "playground"
 	kind "WindowedApp"
 	characterset ("MBCS")
-	skeltool("clumpview")
+	skeltool("playground")
 	flags { "WinMain" }
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" } -- for now
