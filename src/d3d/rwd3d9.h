@@ -55,9 +55,11 @@ void *createVertexDeclaration(VertexElement *elements);
 void destroyVertexDeclaration(void *delaration);
 uint32 getDeclaration(void *declaration, VertexElement *elements);
 
-void drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);
+void drawInst_simple(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);
 // Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
 void drawInst_GSemu(d3d9::InstanceDataHeader *header, InstanceData *inst);
+// This one switches between the above two depending on render state;
+void drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst);
 
 
 

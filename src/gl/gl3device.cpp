@@ -128,6 +128,7 @@ struct RwStateCache {
 	uint32 alphaTestEnable;
 	uint32 alphaFunc;
 	bool32 textureAlpha;
+	bool32 blendEnable;
 	uint32 srcblend, destblend;
 	uint32 zwrite;
 	uint32 ztest;
@@ -135,6 +136,11 @@ struct RwStateCache {
 	uint32 fogEnable;
 	float32 fogStart;
 	float32 fogEnd;
+
+	// emulation of PS2 GS
+	bool32 gsalpha;
+	uint32 gsalpharef;
+
 	RwRasterStateCache texstage[MAXNUMSTAGES];
 };
 static RwStateCache rwStateCache;
@@ -156,6 +162,21 @@ static uint32 blendMap[] = {
 	GL_ONE_MINUS_DST_COLOR,
 	GL_SRC_ALPHA_SATURATE,
 };
+
+void
+setAlphaBlend(bool32 enable)
+{
+	if(rwStateCache.blendEnable != enable){
+		rwStateCache.blendEnable = enable;
+		(enable ? glEnable : glDisable)(GL_BLEND);
+	}
+}
+
+bool32
+getAlphaBlend(void)
+{
+	return rwStateCache.blendEnable;
+}
 
 static void
 setDepthTest(bool32 enable)
@@ -224,7 +245,7 @@ setVertexAlpha(bool32 enable)
 {
 	if(rwStateCache.vertexAlpha != enable){
 		if(!rwStateCache.textureAlpha){
-			(enable ? glEnable : glDisable)(GL_BLEND);
+			setAlphaBlend(enable);
 			setAlphaTest(enable);
 		}
 		rwStateCache.vertexAlpha = enable;
@@ -343,7 +364,7 @@ setRasterStageOnly(uint32 stage, Raster *raster)
 			if(alpha != rwStateCache.textureAlpha){
 				rwStateCache.textureAlpha = alpha;
 				if(!rwStateCache.vertexAlpha){
-					(alpha ? glEnable : glDisable)(GL_BLEND);
+					setAlphaBlend(alpha);
 					setAlphaTest(alpha);
 				}
 			}
@@ -392,7 +413,7 @@ setRasterStage(uint32 stage, Raster *raster)
 			if(alpha != rwStateCache.textureAlpha){
 				rwStateCache.textureAlpha = alpha;
 				if(!rwStateCache.vertexAlpha){
-					(alpha ? glEnable : glDisable)(GL_BLEND);
+					setAlphaBlend(alpha);
 					setAlphaTest(alpha);
 				}
 			}
@@ -492,6 +513,11 @@ setRenderState(int32 state, void *pvalue)
 			stateDirty = 1;
 		}
 		break;
+	case GSALPHATEST:
+		rwStateCache.gsalpha = value;
+		break;
+	case GSALPHATESTREF:
+		rwStateCache.gsalpharef = value;
 	}
 }
 
@@ -551,6 +577,12 @@ getRenderState(int32 state)
 	case ALPHATESTREF:
 		val = (uint32)(uniformState.alphaRef*255.0f);
 		break;
+	case GSALPHATEST:
+		val = rwStateCache.gsalpha;
+		break;
+	case GSALPHATESTREF:
+		val = rwStateCache.gsalpharef;
+		break;
 	default:
 		val = 0;
 	}
@@ -568,13 +600,16 @@ resetRenderState(void)
 	uniformState.fogEnd = 0.0f;
 	uniformState.fogRange = 0.0f;
 	uniformState.fogColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	rwStateCache.gsalpha = 0;
+	rwStateCache.gsalpharef = 128;
 	stateDirty = 1;
 
 	rwStateCache.vertexAlpha = 0;
 	rwStateCache.textureAlpha = 0;
-	glDisable(GL_BLEND);
 	rwStateCache.alphaTestEnable = 0;
 
+	rwStateCache.blendEnable = 0;
+	glDisable(GL_BLEND);
 	rwStateCache.srcblend = BLENDSRCALPHA;
 	rwStateCache.destblend = BLENDINVSRCALPHA;
 	glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);

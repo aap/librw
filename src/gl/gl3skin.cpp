@@ -309,9 +309,7 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
-		flushCache();
-		glDrawElements(header->primType, inst->numIndex,
-		               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
+		drawInst(header, inst);
 		inst++;
 	}
 	disableAttribPointers(header->attribDesc, header->numAttribs);

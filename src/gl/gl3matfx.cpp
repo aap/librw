@@ -85,9 +85,7 @@ matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 
 	rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
-	flushCache();
-	glDrawElements(header->primType, inst->numIndex,
-	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
+	drawInst(header, inst);
 }
 
 static Frame *lastEnvFrame;
@@ -152,9 +150,7 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 	rw::SetRenderState(VERTEXALPHA, 1);
 	rw::SetRenderState(SRCBLEND, BLENDONE);
 
-	flushCache();
-	glDrawElements(header->primType, inst->numIndex,
-	               GL_UNSIGNED_SHORT, (void*)(uintptr)inst->offset);
+	drawInst(header, inst);
 
 	rw::SetRenderState(SRCBLEND, BLENDSRCALPHA);
 }

@@ -171,9 +171,10 @@ int32 setLights(WorldLights *lightData);
 // per Mesh
 void setTexture(int32 n, Texture *tex);
 
+void setAlphaBlend(bool32 enable);
+bool32 getAlphaBlend(void);
 
 uint32 bindTexture(uint32 texid);
-
 
 void flushCache(void);
 
@@ -193,6 +194,13 @@ void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinsta
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
 int32 lightingCB(Atomic *atomic);
+
+void drawInst_simple(InstanceDataHeader *header, InstanceData *inst);
+// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
+void drawInst_GSemu(InstanceDataHeader *header, InstanceData *inst);
+// This one switches between the above two depending on render state;
+void drawInst(InstanceDataHeader *header, InstanceData *inst);
+
 
 void *destroyNativeData(void *object, int32, int32);
 
