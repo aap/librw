@@ -304,6 +304,8 @@ makeDefaultPipeline(void)
 	return pipe;
 }
 
+#else
+void *destroyNativeData(void *object, int32, int32) { return object; }
 #endif
 
 }
