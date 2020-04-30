@@ -1073,6 +1073,8 @@ startGLFW(void)
 	}
 	glGlobals.window = win;
 	*glGlobals.pWindow = win;
+	glGlobals.presentWidth = 0;
+	glGlobals.presentHeight = 0;
 	return 1;
 }
 
