@@ -1,7 +1,7 @@
 #ifndef RW_PS2
 #include <stdint.h>
 #endif
-#include <cmath>
+#include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

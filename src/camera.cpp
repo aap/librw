@@ -1,6 +1,6 @@
-#include <cstdio>
-#include <cstdlib>
-#include <cassert>
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
 
 #include "rwbase.h"
 #include "rwerror.h"

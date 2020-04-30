@@ -1,7 +1,7 @@
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cassert>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
 
 #include "../rwbase.h"
 #include "../rwplg.h"

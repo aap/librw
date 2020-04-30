@@ -1,9 +1,9 @@
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cassert>
-#include <cmath>
-#include <cctype>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <math.h>
+#include <ctype.h>
 
 #include "rwbase.h"
 #include "rwerror.h"
