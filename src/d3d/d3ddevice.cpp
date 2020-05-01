@@ -909,7 +909,11 @@ static void
 releaseDynamicVBs(void)
 {
 	DynamicVB *dvb;
+	int i;
 	for(dvb = dynamicVBs; dvb; dvb = dvb->next){
+		for(i = 0; i < MAXNUMSTREAMS; i++)
+			if(deviceCache.vertexStreams[i].buffer == *dvb->buf)
+				deviceCache.vertexStreams[i].buffer = nil;
 		destroyVertexBuffer(*dvb->buf);
 		*dvb->buf = nil;
 	}
@@ -955,6 +959,8 @@ releaseDynamicIBs(void)
 {
 	DynamicIB *ivb;
 	for(ivb = dynamicIBs; ivb; ivb = ivb->next){
+		if(deviceCache.indices == *ivb->buf)
+			deviceCache.indices = nil;
 		destroyIndexBuffer(*ivb->buf);
 		*ivb->buf = nil;
 	}
