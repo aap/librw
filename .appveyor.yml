@@ -30,7 +30,7 @@ install:
 before_build:
   - mkdir "%APPVEYOR_BUILD_FOLDER%/build"
   - cd "%APPVEYOR_BUILD_FOLDER%"
-  - premake5 vs2017 --glewdir=%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE% --glfwdir=%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE% --sdl2dir=%APPVEYOR_BUILD_FOLDER%/%SDL2_DIRAME% %PREMAKE5_EXTRA_ARGS%
+  - premake5 vs2017 --glewdir=%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE% --glfwdir64=%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE% --sdl2dir=%APPVEYOR_BUILD_FOLDER%/%SDL2_DIRAME% %PREMAKE5_EXTRA_ARGS%
 build:
   project: c:\projects\librw\build\librw.sln
   verbosity: minimal
