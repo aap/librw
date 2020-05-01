@@ -19,15 +19,9 @@
 
 namespace rw {
 
-// TODO: fuck packed structs
-#ifndef RW_PS2
-#pragma pack(push)
-#pragma pack(1)
-#define PACKED_STRUCT
-#else
-#define PACKED_STRUCT __attribute__((__packed__))
-#endif
-struct PACKED_STRUCT TGAHeader
+
+// NB: this has padding and cannot be streamed directly!
+struct TGAHeader
 {
 	int8  IDlen;
 	int8  colorMapType;
@@ -39,15 +33,48 @@ struct PACKED_STRUCT TGAHeader
 	int16 width, height;
 	uint8 depth;
 	uint8 descriptor;
+
+	void read(Stream *stream);
+	void write(Stream *stream);
 };
-#ifndef RW_PS2
-#pragma pack(push)
-#endif
+
+void
+TGAHeader::read(Stream *stream)
+{
+	IDlen = stream->readI8();
+	colorMapType = stream->readI8();
+	imageType = stream->readI8();
+	colorMapOrigin = stream->readI16();
+	colorMapLength = stream->readI16();
+	colorMapDepth = stream->readI8();
+	xOrigin = stream->readI16();
+	yOrigin = stream->readI16();
+	width = stream->readI16();
+	height = stream->readI16();
+	depth = stream->readU8();
+	descriptor = stream->readU8();
+}
+
+void
+TGAHeader::write(Stream *stream)
+{
+	stream->writeI8(IDlen);
+	stream->writeI8(colorMapType);
+	stream->writeI8(imageType);
+	stream->writeI16(colorMapOrigin);
+	stream->writeI16(colorMapLength);
+	stream->writeI8(colorMapDepth);
+	stream->writeI16(xOrigin);
+	stream->writeI16(yOrigin);
+	stream->writeI16(width);
+	stream->writeI16(height);
+	stream->writeU8(depth);
+	stream->writeU8(descriptor);
+}
 
 Image*
 readTGA(const char *afilename)
 {
-	ASSERTLITTLE;
 	TGAHeader header;
 	Image *image;
 	char *filename;
@@ -61,7 +88,7 @@ readTGA(const char *afilename)
 	rwFree(filename);
 	StreamMemory file;
 	file.open(data, length);
-	file.read8(&header, sizeof(header));
+	header.read(&file);
 
 	assert(header.imageType == 1 || header.imageType == 2);
 	file.seek(header.IDlen);
@@ -126,7 +153,6 @@ readTGA(const char *afilename)
 void
 writeTGA(Image *image, const char *filename)
 {
-	ASSERTLITTLE;
 	TGAHeader header;
 	StreamFile file;
 	if(!file.open(filename, "wb")){
@@ -146,7 +172,7 @@ writeTGA(Image *image, const char *filename)
 	header.height = image->height;
 	header.depth = image->depth == 4 ? 8 : image->depth;
 	header.descriptor = 0x20 | (image->depth == 32 ? 8 : 0);
-	file.write8(&header, sizeof(header));
+	header.write(&file);
 
 	uint8 *palette = header.colorMapType ? image->palette : nil;
 	uint8 (*color)[4] = (uint8(*)[4])palette;;
