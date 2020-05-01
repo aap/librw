@@ -67,6 +67,7 @@ destroyNativeData(void *object, int32, int32)
 Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	uint32 vers;
 	uint32 platform;
@@ -92,7 +93,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	// We don't have it but it's used for alignment.
 	header->data = rwNewT(uint8, size + 0x18, MEMDUR_EVENT | ID_GEOMETRY);
 	uint8 *p = header->data+0x18+4;
-	stream->read(p, size-4);
+	stream->read8(p, size-4);
 
 	header->size = size;
 	header->serialNumber = *(uint16*)p; p += 2;
@@ -120,13 +121,14 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->end = inst;
 
 	header->vertexBuffer = rwNewT(uint8, header->stride*header->numVertices, MEMDUR_EVENT | ID_GEOMETRY);
-	stream->read(header->vertexBuffer, header->stride*header->numVertices);
+	stream->read8(header->vertexBuffer, header->stride*header->numVertices);
 	return stream;
 }
 
 Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	if(geometry->instData == nil ||
@@ -160,8 +162,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		inst++;
 	}
 
-	stream->write(header->data+0x18, header->size);
-	stream->write(header->vertexBuffer, header->stride*header->numVertices);
+	stream->write8(header->data+0x18, header->size);
+	stream->write8(header->vertexBuffer, header->stride*header->numVertices);
 	return stream;
 }
 
@@ -823,8 +825,8 @@ readNativeTexture(Stream *stream)
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
-	stream->read(tex->name, 32);
-	stream->read(tex->mask, 32);
+	stream->read8(tex->name, 32);
+	stream->read8(tex->mask, 32);
 
 	// Raster
 	int32 format = stream->readI32();
@@ -856,13 +858,13 @@ readNativeTexture(Stream *stream)
 	tex->raster = raster;
 
 	if(raster->format & Raster::PAL4)
-		stream->read(ras->palette, 4*32);
+		stream->read8(ras->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->read(ras->palette, 4*256);
+		stream->read8(ras->palette, 4*256);
 
 	// exploit the fact that mipmaps are allocated consecutively
 	uint8 *data = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-	stream->read(data, totalSize);
+	stream->read8(data, totalSize);
 	raster->unlock(0);
 
 	return tex;
@@ -877,8 +879,8 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Texture
 	stream->writeU32(tex->filterAddressing);
-	stream->write(tex->name, 32);
-	stream->write(tex->mask, 32);
+	stream->write8(tex->name, 32);
+	stream->write8(tex->mask, 32);
 
 	// Raster
 	Raster *raster = tex->raster;
@@ -901,13 +903,13 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	stream->writeI32(totalSize);
 
 	if(raster->format & Raster::PAL4)
-		stream->write(ras->palette, 4*32);
+		stream->write8(ras->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->write(ras->palette, 4*256);
+		stream->write8(ras->palette, 4*256);
 
 	// exploit the fact that mipmaps are allocated consecutively
 	uint8 *data = raster->lock(0, Raster::LOCKREAD);
-	stream->write(data, totalSize);
+	stream->write8(data, totalSize);
 	raster->unlock(0);
 }
 

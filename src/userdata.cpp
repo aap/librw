@@ -126,17 +126,17 @@ readUserData(Stream *stream, int32, void *object, int32 offset, int32)
 	for(i = 0; i < ext->numArrays; i++){
 		int32 len = stream->readI32();
 		a->name = (char*)udMalloc(len);
-		stream->read(a->name, len);
+		stream->read8(a->name, len);
 		a->datatype = stream->readU32();
 		a->numElements = stream->readI32();
 		switch(a->datatype){
 		case USERDATAINT:
 			a->data = (int32*)udMalloc(sizeof(int32)*a->numElements);
-			stream->read(a->data, sizeof(int32)*a->numElements);
+			stream->read32(a->data, sizeof(int32)*a->numElements);
 			break;
 		case USERDATAFLOAT:
 			a->data = (float32*)udMalloc(sizeof(float32)*a->numElements);
-			stream->read(a->data, sizeof(float32)*a->numElements);
+			stream->read32(a->data, sizeof(float32)*a->numElements);
 			break;
 		case USERDATASTRING:
 			strar = (char**)udMalloc(sizeof(char*)*a->numElements);
@@ -144,7 +144,7 @@ readUserData(Stream *stream, int32, void *object, int32 offset, int32)
 			for(j = 0; j < a->numElements; j++){
 				len = stream->readI32();
 				strar[j] = (char*)udMalloc(len);
-				stream->read(strar[j], len);
+				stream->read8(strar[j], len);
 			}
 			break;
 		}
@@ -166,22 +166,22 @@ writeUserData(Stream *stream, int32, void *object, int32 offset, int32)
 	for(i = 0; i < ext->numArrays; i++){
 		len = (int32)strlen(a->name)+1;
 		stream->writeI32(len);
-		stream->write(a->name, len);
+		stream->write8(a->name, len);
 		stream->writeU32(a->datatype);
 		stream->writeI32(a->numElements);
 		switch(a->datatype){
 		case USERDATAINT:
-			stream->write(a->data, sizeof(int32)*a->numElements);
+			stream->write32(a->data, sizeof(int32)*a->numElements);
 			break;
 		case USERDATAFLOAT:
-			stream->write(a->data, sizeof(float32)*a->numElements);
+			stream->write32(a->data, sizeof(float32)*a->numElements);
 			break;
 		case USERDATASTRING:
 			strar = (char**)a->data;
 			for(j = 0; j < a->numElements; j++){
 				len = (int32)strlen(strar[j])+1;
 				stream->writeI32(len);
-				stream->write(strar[j], len);
+				stream->write8(strar[j], len);
 			}
 			break;
 		}

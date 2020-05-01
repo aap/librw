@@ -149,6 +149,7 @@ destroyNativeData(void *object, int32, int32)
 Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
@@ -166,7 +167,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 	int32 size = stream->readI32();
 	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
-	stream->read(data, size);
+	stream->read8(data, size);
 	uint8 *p = data;
 	header->serialNumber = *(uint32*)p; p += 4;
 	header->numMeshes = *(uint32*)p; p += 4;
@@ -196,19 +197,19 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 
 	VertexElement elements[NUMDECLELT];
 	uint32 numDeclarations = stream->readU32();
-	stream->read(elements, numDeclarations*8);
+	stream->read8(elements, numDeclarations*8);
 	header->vertexDeclaration = createVertexDeclaration(elements);
 
 	assert(header->indexBuffer == nil);
 	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2, false);
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
-	stream->read(indices, 2*header->totalNumIndex);
+	stream->read8(indices, 2*header->totalNumIndex);
 	unlockIndices(header->indexBuffer);
 
 	VertexStream *s;
 	p = data;
 	for(int i = 0; i < 2; i++){
-		stream->read(p, 16);
+		stream->read8(p, 16);
 		s = &header->vertexStream[i];
 		s->vertexBuffer = (void*)(uintptr)*(uint32*)p; p += 4;
 		s->offset = 0; p += 4;
@@ -223,7 +224,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		assert(s->vertexBuffer == nil);
 		s->vertexBuffer = createVertexBuffer(s->stride*header->totalNumVertex, 0, false);
 		uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
-		stream->read(verts, s->stride*header->totalNumVertex);
+		stream->read8(verts, s->stride*header->totalNumVertex);
 		unlockVertices(s->vertexBuffer);
 	}
 
@@ -241,6 +242,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	if(geometry->instData == nil ||
@@ -277,15 +279,15 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		*(uint32*)p = inst->numPrimitives; p += 4;
 		inst++;
 	}
-	stream->write(data, size);
+	stream->write8(data, size);
 
 	VertexElement elements[NUMDECLELT];
 	uint32 numElt = getDeclaration(header->vertexDeclaration, elements);
 	stream->writeU32(numElt);
-	stream->write(elements, 8*numElt);
+	stream->write8(elements, 8*numElt);
 
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
-	stream->write(indices, 2*header->totalNumIndex);
+	stream->write8(indices, 2*header->totalNumIndex);
 	unlockIndices(header->indexBuffer);
 
 	VertexStream *s;
@@ -298,12 +300,12 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		*(uint16*)p = s->geometryFlags; p += 2;
 		*p++ = s->managed;
 		*p++ = s->dynamicLock;
-		stream->write(data, 16);
+		stream->write8(data, 16);
 
 		if(s->vertexBuffer == nil)
 			continue;
 		uint8 *verts = lockVertices(s->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
-		stream->write(verts, s->stride*header->totalNumVertex);
+		stream->write8(verts, s->stride*header->totalNumVertex);
 		unlockVertices(s->vertexBuffer);
 	}
 
@@ -708,8 +710,8 @@ readNativeTexture(Stream *stream)
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
-	stream->read(tex->name, 32);
-	stream->read(tex->mask, 32);
+	stream->read8(tex->name, 32);
+	stream->read8(tex->mask, 32);
 
 	// Raster
 	int32 format = stream->readI32();
@@ -756,9 +758,9 @@ readNativeTexture(Stream *stream)
 	// TODO: check if format supported and convert if necessary
 
 	if(raster->format & Raster::PAL4)
-		stream->read(ext->palette, 4*32);
+		stream->read8(ext->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->read(ext->palette, 4*256);
+		stream->read8(ext->palette, 4*256);
 
 	uint32 size;
 	uint8 *data;
@@ -766,7 +768,7 @@ readNativeTexture(Stream *stream)
 		size = stream->readU32();
 		if(i < raster->getNumLevels()){
 			data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-			stream->read(data, size);
+			stream->read8(data, size);
 			raster->unlock(i);
 		}else
 			stream->seek(size);
@@ -783,8 +785,8 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Texture
 	stream->writeU32(tex->filterAddressing);
-	stream->write(tex->name, 32);
-	stream->write(tex->mask, 32);
+	stream->write8(tex->name, 32);
+	stream->write8(tex->mask, 32);
 
 	// Raster
 	Raster *raster = tex->raster;
@@ -806,9 +808,9 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	stream->writeU8(flags);
 
 	if(raster->format & Raster::PAL4)
-		stream->write(ext->palette, 4*32);
+		stream->write8(ext->palette, 4*32);
 	else if(raster->format & Raster::PAL8)
-		stream->write(ext->palette, 4*256);
+		stream->write8(ext->palette, 4*256);
 
 	uint32 size;
 	uint8 *data;
@@ -816,7 +818,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		size = getLevelSize(raster, i);
 		stream->writeU32(size);
 		data = raster->lock(i, Raster::LOCKREAD);
-		stream->write(data, size);
+		stream->write8(data, size);
 		raster->unlock(i);
 	}
 }

@@ -134,13 +134,13 @@ uvAnimStreamRead(Stream *stream, Animation *anim)
 	UVAnimCustomData *custom = UVAnimCustomData::get(anim);
 	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
 	stream->readI32();
-	stream->read(custom->name, 32);
-	stream->read(custom->nodeToUVChannel, 8*4);
+	stream->read8(custom->name, 32);
+	stream->read32(custom->nodeToUVChannel, 8*4);
 	custom->refCount = 1;
 
 	for(int32 i = 0; i < anim->numFrames; i++){
 		frames[i].time = stream->readF32();
-		stream->read(frames[i].uv, 6*4);
+		stream->read32(frames[i].uv, 6*4);
 		int32 prev = stream->readI32();
 		frames[i].prev = &frames[prev];
 	}
@@ -152,12 +152,12 @@ uvAnimStreamWrite(Stream *stream, Animation *anim)
 	UVAnimCustomData *custom = UVAnimCustomData::get(anim);
 	UVAnimKeyFrame *frames = (UVAnimKeyFrame*)anim->keyframes;
 	stream->writeI32(0);
-	stream->write(custom->name, 32);
-	stream->write(custom->nodeToUVChannel, 8*4);
+	stream->write8(custom->name, 32);
+	stream->write32(custom->nodeToUVChannel, 8*4);
 
 	for(int32 i = 0; i < anim->numFrames; i++){
 		stream->writeF32(frames[i].time);
-		stream->write(frames[i].uv, 6*4);
+		stream->write32(frames[i].uv, 6*4);
 		stream->writeI32(frames[i].prev - frames);
 	}
 }
@@ -369,7 +369,7 @@ readUVAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	uint32 bit = 1;
 	for(int32 i = 0; i < 8; i++){
 		if(mask & bit){
-			stream->read(name, 32);
+			stream->read8(name, 32);
 			Animation *anim = nil;
 			if(currentUVAnimDictionary)
 				anim = currentUVAnimDictionary->find(name);
@@ -413,7 +413,7 @@ writeUVAnim(Stream *stream, int32 size, void *object, int32 offset, int32)
 		if(uvanim->interp[i]){
 			UVAnimCustomData *custom =
 			  UVAnimCustomData::get(uvanim->interp[i]->currentAnim);
-			stream->write(custom->name, 32);
+			stream->write8(custom->name, 32);
 		}
 	}
 	return stream;

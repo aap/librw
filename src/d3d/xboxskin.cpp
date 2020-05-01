@@ -30,6 +30,7 @@ struct NativeSkin
 Stream*
 readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	uint32 vers, platform;
 	if(!findChunk(stream, ID_STRUCT, nil, &vers)){
@@ -53,16 +54,16 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	skin->init(numBones, 0, 0);
 	NativeSkin *natskin = rwNewT(NativeSkin, 1, MEMDUR_EVENT | ID_SKIN);
 	skin->platformData = natskin;
-	stream->read(natskin->table1, 256*sizeof(int32));
-	stream->read(natskin->table2, 256*sizeof(int32));
+	stream->read32(natskin->table1, 256*sizeof(int32));
+	stream->read32(natskin->table2, 256*sizeof(int32));
 	natskin->numUsedBones = stream->readI32();
 	skin->numWeights = stream->readI32();
 	stream->seek(4);	// skip pointer to vertexBuffer
 	natskin->stride = stream->readI32();
 	int32 size = geometry->numVertices*natskin->stride;
 	natskin->vertexBuffer = rwNewT(uint8, size, MEMDUR_EVENT | ID_SKIN);
-	stream->read(natskin->vertexBuffer, size);
-	stream->read(skin->inverseMatrices, skin->numBones*64);
+	stream->read8(natskin->vertexBuffer, size);
+	stream->read32(skin->inverseMatrices, skin->numBones*64);
 
 	readSkinSplitData(stream, skin);
 	return stream;
@@ -71,6 +72,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 Stream*
 writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	assert(skin->platformData);
@@ -80,15 +82,15 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	stream->writeU32(PLATFORM_XBOX);
 	stream->writeI32(skin->numBones);
-	stream->write(natskin->table1, 256*sizeof(int32));
-	stream->write(natskin->table2, 256*sizeof(int32));
+	stream->write32(natskin->table1, 256*sizeof(int32));
+	stream->write32(natskin->table2, 256*sizeof(int32));
 	stream->writeI32(natskin->numUsedBones);
 	stream->writeI32(skin->numWeights);
 	stream->writeU32(0xBADEAFFE);	// pointer to vertexBuffer
 	stream->writeI32(natskin->stride);
-	stream->write(natskin->vertexBuffer,
+	stream->write8(natskin->vertexBuffer,
 	              geometry->numVertices*natskin->stride);
-	stream->write(skin->inverseMatrices, skin->numBones*64);
+	stream->write32(skin->inverseMatrices, skin->numBones*64);
 
 	writeSkinSplitData(stream, skin);
 	return stream;

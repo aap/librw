@@ -257,11 +257,12 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	header->ibo = 0;
 	header->numAttribs = stream->readU32();
 	header->attribs = rwNewT(AttribDesc, header->numAttribs, MEMDUR_EVENT | ID_GEOMETRY);
-	stream->read(header->attribs,
+	stream->read32(header->attribs,
 	            header->numAttribs*sizeof(AttribDesc));
 	header->dataSize = header->attribs[0].stride*geometry->numVertices;
 	header->data = rwNewT(uint8, header->dataSize, MEMDUR_EVENT | ID_GEOMETRY);
-	stream->read(header->data, header->dataSize);
+	ASSERTLITTLE;
+	stream->read8(header->data, header->dataSize);
 	return stream;
 }
 
@@ -274,8 +275,9 @@ writeNativeData(Stream *stream, int32, void *object, int32, int32)
 		return stream;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	stream->writeU32(header->numAttribs);
-	stream->write(header->attribs, header->numAttribs*sizeof(AttribDesc));
-	stream->write(header->data, header->dataSize);
+	stream->write32(header->attribs, header->numAttribs*sizeof(AttribDesc));
+	ASSERTLITTLE;
+	stream->write8(header->data, header->dataSize);
 	return stream;
 }
 
@@ -555,7 +557,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 
 	int32 numBones = stream->readI32();
 	skin->init(numBones, 0, 0);
-	stream->read(skin->inverseMatrices, skin->numBones*64);
+	stream->read32(skin->inverseMatrices, skin->numBones*64);
 	return stream;
 }
 
@@ -566,7 +568,7 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 	stream->writeU32(PLATFORM_GL);
 	Skin *skin = *PLUGINOFFSET(Skin*, object, offset);
 	stream->writeI32(skin->numBones);
-	stream->write(skin->inverseMatrices, skin->numBones*64);
+	stream->write32(skin->inverseMatrices, skin->numBones*64);
 	return stream;
 }
 

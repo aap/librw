@@ -2056,12 +2056,12 @@ readNativeTexture(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRING"));
 		goto fail;
 	}
-	stream->read(tex->name, length);
+	stream->read8(tex->name, length);
 	if(!findChunk(stream, ID_STRING, &length, nil)){
 		RWERROR((ERR_CHUNK, "STRING"));
 		goto fail;
 	}
-	stream->read(tex->mask, length);
+	stream->read8(tex->mask, length);
 
 	// Raster
 	StreamRasterExt streamExt;
@@ -2074,7 +2074,8 @@ readNativeTexture(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		goto fail;
 	}
-	stream->read(&streamExt, 0x40);
+	ASSERTLITTLE;
+	stream->read8(&streamExt, 0x40);
 /*
 printf("%X %X %X %X %X %016llX %X %X %016llX %016llX %X %X %X %X\n",
 streamExt.width,
@@ -2154,10 +2155,10 @@ streamExt.mipmapVal);
 		goto fail;
 	}
 	if(streamExt.type < 2){
-		stream->read(raster->pixels, length);
+		stream->read8(raster->pixels, length);
 	}else{
-		stream->read(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, natras->pixelSize);
-		stream->read(raster->palette-0x50, natras->paletteSize);
+		stream->read8(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, natras->pixelSize);
+		stream->read8(raster->palette-0x50, natras->paletteSize);
 	}
 //printf("\n");
 	return tex;
@@ -2177,10 +2178,10 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	stream->writeU32(tex->filterAddressing);
 	int32 len = strlen(tex->name)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, len);
-	stream->write(tex->name, len);
+	stream->write8(tex->name, len);
 	len = strlen(tex->mask)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, len);
-	stream->write(tex->mask, len);
+	stream->write8(tex->mask, len);
 
 	int32 sz = ras->pixelSize + ras->paletteSize;
 	writeChunkHeader(stream, ID_STRUCT, 12 + 64 + 12 + sz);
@@ -2204,14 +2205,15 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.paletteSize = ras->paletteSize;
 	streamExt.totalSize = ras->totalSize;
 	streamExt.mipmapVal = ras->kl;
-	stream->write(&streamExt, 64);
+	ASSERTLITTLE;
+	stream->write8(&streamExt, 64);
 
 	writeChunkHeader(stream, ID_STRUCT, sz);
 	if(streamExt.type < 2){
-		stream->write(raster->pixels, sz);
+		stream->write8(raster->pixels, sz);
 	}else{
-		stream->write(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, ras->pixelSize);
-		stream->write(raster->palette-0x50, ras->paletteSize);
+		stream->write8(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, ras->pixelSize);
+		stream->write8(raster->palette-0x50, ras->paletteSize);
 	}
 }
 

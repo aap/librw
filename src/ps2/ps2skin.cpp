@@ -82,7 +82,7 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	stream->read(header, 4);
+	stream->read8(header, 4);
 	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
 
@@ -98,9 +98,9 @@ readNativeSkin(Stream *stream, int32, void *object, int32 offset)
 	skin->numWeights = header[2];
 
 	if(!oldFormat)
-		stream->read(skin->usedBones, skin->numUsedBones);
+		stream->read8(skin->usedBones, skin->numUsedBones);
 	if(skin->numBones)
-		stream->read(skin->inverseMatrices, skin->numBones*64);
+		stream->read32(skin->inverseMatrices, skin->numBones*64);
 
 	// dummy data in case we need to write data in the new format
 	if(oldFormat){
@@ -137,14 +137,14 @@ writeNativeSkin(Stream *stream, int32 len, void *object, int32 offset)
 		header[2] = skin->numWeights;
 	}
 	header[3] = 0;
-	stream->write(header, 4);
+	stream->write8(header, 4);
 
 	if(!oldFormat)
-		stream->write(skin->usedBones, skin->numUsedBones);
-	stream->write(skin->inverseMatrices, skin->numBones*64);
+		stream->write8(skin->usedBones, skin->numUsedBones);
+	stream->write32(skin->inverseMatrices, skin->numBones*64);
 	if(!oldFormat){
 		uint32 buffer[4] = { 0, 0, 0, 0, };
-		stream->write(buffer, 4*4);
+		stream->write32(buffer, 4*4);
 
 		writeSkinSplitData(stream, skin);
 	}

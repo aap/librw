@@ -99,8 +99,7 @@ struct LightChunkData
 	float32 radius;
 	float32 red, green, blue;
 	float32 minusCosAngle;
-	uint16 flags;
-	uint16 type;
+	uint32 type_flags;
 };
 
 Light*
@@ -113,8 +112,8 @@ Light::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(&buf, sizeof(LightChunkData));
-	Light *light = Light::create(buf.type);
+	stream->read32(&buf, sizeof(LightChunkData));
+	Light *light = Light::create(buf.type_flags>>16);
 	if(light == nil)
 		return nil;
 	light->radius = buf.radius;
@@ -125,7 +124,7 @@ Light::streamRead(Stream *stream)
 	else
 		// tan -> -cos
 		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
-	light->object.object.flags = (uint8)buf.flags;
+	light->object.object.flags = (uint8)buf.type_flags;
 	if(s_plglist.streamRead(stream, light))
 		return light;
 	light->destroy();
@@ -146,9 +145,9 @@ Light::streamWrite(Stream *stream)
 		buf.minusCosAngle = this->minusCosAngle;
 	else
 		buf.minusCosAngle = tan(acos(-this->minusCosAngle));
-	buf.flags = this->object.object.flags;
-	buf.type = this->object.object.subType;
-	stream->write(&buf, sizeof(LightChunkData));
+	buf.type_flags = (uint32)this->object.object.flags |
+		(uint32)this->object.object.subType << 16;
+	stream->write32(&buf, sizeof(LightChunkData));
 
 	s_plglist.streamWrite(stream, this);
 	return true;

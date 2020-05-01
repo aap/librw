@@ -314,8 +314,8 @@ hAnimFrameRead(Stream *stream, Animation *anim)
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		frames[i].time = stream->readF32();
-		stream->read(&frames[i].q, 4*4);
-		stream->read(&frames[i].t, 3*4);
+		stream->read32(&frames[i].q, 4*4);
+		stream->read32(&frames[i].t, 3*4);
 		int32 prev = stream->readI32()/0x24;
 		frames[i].prevFrame = &frames[prev];
 	}
@@ -327,8 +327,8 @@ hAnimFrameWrite(Stream *stream, Animation *anim)
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		stream->writeF32(frames[i].time);
-		stream->write(&frames[i].q, 4*4);
-		stream->write(&frames[i].t, 3*4);
+		stream->write32(&frames[i].q, 4*4);
+		stream->write32(&frames[i].t, 3*4);
 		stream->writeI32((frames[i].prevFrame - frames)*0x24);
 	}
 }

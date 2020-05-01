@@ -405,6 +405,29 @@ enum PrimitiveType
 };
 
 /*
+ * Memory
+ */
+
+void memNative32_func(void *data, uint32 size);
+void memNative16_func(void *data, uint32 size);
+void memLittle32_func(void *data, uint32 size);
+void memLittle16_func(void *data, uint32 size);
+
+#ifdef BIGENDIAN
+inline void memNative32(void *data, uint32 size) { memNative32_func(data, size); }
+inline void memNative16(void *data, uint32 size) { memNative16_func(data, size); }
+inline void memLittle32(void *data, uint32 size) { memLittle32_func(data, size); }
+inline void memLittle16(void *data, uint32 size) { memLittle16_func(data, size); }
+#define ASSERTLITTLE assert(0 && "unsafe code on big-endian")
+#else
+inline void memNative32(void *data, uint32 size) { }
+inline void memNative16(void *data, uint32 size) { }
+inline void memLittle32(void *data, uint32 size) { }
+inline void memLittle16(void *data, uint32 size) { }
+#define ASSERTLITTLE
+#endif
+
+/*
  * Streams
  */
 
@@ -413,12 +436,17 @@ void makePath(char *filename);
 class Stream
 {
 public:
-	virtual void close(void) = 0;
-	virtual uint32 write(const void *data, uint32 length) = 0;
-	virtual uint32 read(void *data, uint32 length) = 0;
+	virtual ~Stream(void) { close(); }
+	virtual void close(void) {}
+	virtual uint32 write8(const void *data, uint32 length) = 0;
+	virtual uint32 read8(void *data, uint32 length) = 0;
 	virtual void seek(int32 offset, int32 whence = 1) = 0;
 	virtual uint32 tell(void) = 0;
 	virtual bool eof(void) = 0;
+	uint32  write32(const void *data, uint32 length);
+	uint32  write16(const void *data, uint32 length);
+	uint32  read32(void *data, uint32 length);
+	uint32  read16(void *data, uint32 length);
 	int32   writeI8(int8 val);
 	int32   writeU8(uint8 val);
 	int32   writeI16(int16 val);
@@ -443,8 +471,8 @@ class StreamMemory : public Stream
 	uint32 position;
 public:
 	void close(void);
-	uint32 write(const void *data, uint32 length);
-	uint32 read(void *data, uint32 length);
+	uint32 write8(const void *data, uint32 length);
+	uint32 read8(void *data, uint32 length);
 	void seek(int32 offset, int32 whence = 1);
 	uint32 tell(void);
 	bool eof(void);
@@ -462,8 +490,8 @@ class StreamFile : public Stream
 public:
 	StreamFile(void) { file = nil; }
 	void close(void);
-	uint32 write(const void *data, uint32 length);
-	uint32 read(void *data, uint32 length);
+	uint32 write8(const void *data, uint32 length);
+	uint32 read8(void *data, uint32 length);
 	void seek(int32 offset, int32 whence = 1);
 	uint32 tell(void);
 	bool eof(void);

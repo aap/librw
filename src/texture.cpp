@@ -379,13 +379,13 @@ Texture::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRING"));
 		return nil;
 	}
-	stream->read(name, length);
+	stream->read8(name, length);
 
 	if(!findChunk(stream, ID_STRING, &length, nil)){
 		RWERROR((ERR_CHUNK, "STRING"));
 		return nil;
 	}
-	stream->read(mask, length);
+	stream->read8(mask, length);
 
 	Texture *tex = Texture::read(name, mask);
 	if(tex == nil){
@@ -415,13 +415,13 @@ Texture::streamWrite(Stream *stream)
 	strncpy(buf, this->name, 32);
 	size = strlen(buf)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(buf, size);
+	stream->write8(buf, size);
 
 	memset(buf, 0, 36);
 	strncpy(buf, this->mask, 32);
 	size = strlen(buf)+4 & ~3;
 	writeChunkHeader(stream, ID_STRING, size);
-	stream->write(buf, size);
+	stream->write8(buf, size);
 
 	s_plglist.streamWrite(stream, this);
 	return true;

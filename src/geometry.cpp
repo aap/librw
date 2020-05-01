@@ -143,24 +143,24 @@ Geometry::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(&buf, sizeof(buf));
+	stream->read32(&buf, sizeof(buf));
 	Geometry *geo = Geometry::create(buf.numVertices,
 	                                 buf.numTriangles, buf.flags);
 	if(geo == nil)
 		return nil;
 	geo->addMorphTargets(buf.numMorphTargets-1);
 	if(version < 0x34000)
-		stream->read(&surfProps, 12);
+		stream->read32(&surfProps, 12);
 
 	if(!(geo->flags & NATIVE)){
 		if(geo->flags & PRELIT)
-			stream->read(geo->colors, 4*geo->numVertices);
+			stream->read8(geo->colors, 4*geo->numVertices);
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
-			stream->read(geo->texCoords[i],
+			stream->read32(geo->texCoords[i],
 				    2*geo->numVertices*4);
 		for(int32 i = 0; i < geo->numTriangles; i++){
 			uint32 tribuf[2];
-			stream->read(tribuf, 8);
+			stream->read32(tribuf, 8);
 			geo->triangles[i].v[0]  = tribuf[0] >> 16;
 			geo->triangles[i].v[1]  = tribuf[0];
 			geo->triangles[i].v[2]  = tribuf[1] >> 16;
@@ -170,13 +170,13 @@ Geometry::streamRead(Stream *stream)
 
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
 		MorphTarget *m = &geo->morphTargets[i];
-		stream->read(&m->boundingSphere, 4*4);
+		stream->read32(&m->boundingSphere, 4*4);
 		int32 hasVertices = stream->readI32();
 		int32 hasNormals = stream->readI32();
 		if(hasVertices)
-			stream->read(m->vertices, 3*geo->numVertices*4);
+			stream->read32(m->vertices, 3*geo->numVertices*4);
 		if(hasNormals)
-			stream->read(m->normals, 3*geo->numVertices*4);
+			stream->read32(m->normals, 3*geo->numVertices*4);
 	}
 
 	if(!findChunk(stream, ID_MATLIST, nil, nil)){
@@ -239,15 +239,15 @@ Geometry::streamWrite(Stream *stream)
 	buf.numTriangles = this->numTriangles;
 	buf.numVertices = this->numVertices;
 	buf.numMorphTargets = this->numMorphTargets;
-	stream->write(&buf, sizeof(buf));
+	stream->write32(&buf, sizeof(buf));
 	if(version < 0x34000)
-		stream->write(fbuf, sizeof(fbuf));
+		stream->write32(fbuf, sizeof(fbuf));
 
 	if(!(this->flags & NATIVE)){
 		if(this->flags & PRELIT)
-			stream->write(this->colors, 4*this->numVertices);
+			stream->write8(this->colors, 4*this->numVertices);
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
-			stream->write(this->texCoords[i],
+			stream->write32(this->texCoords[i],
 				    2*this->numVertices*4);
 		for(int32 i = 0; i < this->numTriangles; i++){
 			uint32 tribuf[2];
@@ -255,21 +255,21 @@ Geometry::streamWrite(Stream *stream)
 			            this->triangles[i].v[1];
 			tribuf[1] = this->triangles[i].v[2] << 16 |
 			            this->triangles[i].matId;
-			stream->write(tribuf, 8);
+			stream->write32(tribuf, 8);
 		}
 	}
 
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		MorphTarget *m = &this->morphTargets[i];
-		stream->write(&m->boundingSphere, 4*4);
+		stream->write32(&m->boundingSphere, 4*4);
 		if(!(this->flags & NATIVE)){
 			stream->writeI32(m->vertices != nil);
 			stream->writeI32(m->normals != nil);
 			if(m->vertices)
-				stream->write(m->vertices,
+				stream->write32(m->vertices,
 				             3*this->numVertices*4);
 			if(m->normals)
-				stream->write(m->normals,
+				stream->write32(m->normals,
 				             3*this->numVertices*4);
 		}else{
 			stream->writeI32(0);
@@ -780,7 +780,7 @@ MaterialList::streamRead(Stream *stream, MaterialList *matlist)
 	matlist->space = numMat;
 
 	indices = (int32*)rwMalloc(numMat*4, MEMDUR_FUNCTION | ID_MATERIAL);
-	stream->read(indices, numMat*4);
+	stream->read32(indices, numMat*4);
 
 	Material *m;
 	for(int32 i = 0; i < numMat; i++){
@@ -931,7 +931,7 @@ Material::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(&buf, sizeof(buf));
+	stream->read32(&buf, sizeof(buf));
 	Material *mat = Material::create();
 	if(mat == nil)
 		return nil;
@@ -939,7 +939,7 @@ Material::streamRead(Stream *stream)
 	if(version < 0x30400)
 		mat->surfaceProps = defaultSurfaceProps;
 	else
-		stream->read(&mat->surfaceProps, sizeof(SurfaceProperties));
+		stream->read32(&mat->surfaceProps, sizeof(SurfaceProperties));
 	if(buf.textured){
 		if(!findChunk(stream, ID_TEXTURE, &length, nil)){
 			RWERROR((ERR_CHUNK, "TEXTURE"));
@@ -973,14 +973,14 @@ Material::streamWrite(Stream *stream)
 	buf.flags = 0;
 	buf.unused = 0;
 	buf.textured = this->texture != nil;
-	stream->write(&buf, sizeof(buf));
+	stream->write32(&buf, sizeof(buf));
 
 	if(rw::version >= 0x30400){
 		float32 surfaceProps[3];
 		surfaceProps[0] = this->surfaceProps.ambient;
 		surfaceProps[1] = this->surfaceProps.specular;
 		surfaceProps[2] = this->surfaceProps.diffuse;
-		stream->write(surfaceProps, sizeof(surfaceProps));
+		stream->write32(surfaceProps, sizeof(surfaceProps));
 	}
 
 	if(this->texture)
@@ -1008,7 +1008,7 @@ Material::streamGetSize(void)
 static Stream*
 readMaterialRights(Stream *stream, int32, void *, int32, int32)
 {
-	stream->read(materialRights, 8);
+	stream->read32(materialRights, 8);
 //	printf("materialrights: %X %X\n", materialRights[0], materialRights[1]);
 	return stream;
 }
@@ -1020,7 +1020,7 @@ writeMaterialRights(Stream *stream, int32, void *object, int32, int32)
 	uint32 buffer[2];
 	buffer[0] = material->pipeline->pluginID;
 	buffer[1] = material->pipeline->pluginData;
-	stream->write(buffer, 8);
+	stream->write32(buffer, 8);
 	return stream;
 }
 

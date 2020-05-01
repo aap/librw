@@ -84,7 +84,7 @@ readSkinSplitData(Stream *stream, Skin *skin)
 	if(skin->numMeshes){
 		sz = skin->numBones + 2*(skin->numMeshes+skin->rleSize);
 		data = (int8*)rwMalloc(sz, MEMDUR_EVENT | ID_SKIN);
-		stream->read(data, sz);
+		stream->read8(data, sz);
 		skin->remapIndices = data;
 		skin->rleCount = (Skin::RLEcount*)(data + skin->numBones);
 		skin->rle = (Skin::RLE*)(data + skin->numBones + 2*skin->numMeshes);
@@ -99,7 +99,7 @@ writeSkinSplitData(Stream *stream, Skin *skin)
 	stream->writeI32(skin->numMeshes);
 	stream->writeI32(skin->rleSize);
 	if(skin->numMeshes)
-		stream->write(skin->remapIndices,
+		stream->write8(skin->remapIndices,
 		              skin->numBones + 2*(skin->numMeshes+skin->rleSize));
 	return stream;
 }
@@ -132,7 +132,7 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		}
 	}
 
-	stream->read(header, 4);  // numBones, numUsedBones,
+	stream->read8(header, 4);  // numBones, numUsedBones,
 	                          // numWeights, unused
 	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
 	*PLUGINOFFSET(Skin*, geometry, offset) = skin;
@@ -150,15 +150,15 @@ readSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 	skin->numWeights = header[2];
 
 	if(!oldFormat)
-		stream->read(skin->usedBones, skin->numUsedBones);
+		stream->read8(skin->usedBones, skin->numUsedBones);
 	if(skin->indices)
-		stream->read(skin->indices, geometry->numVertices*4);
+		stream->read8(skin->indices, geometry->numVertices*4);
 	if(skin->weights)
-		stream->read(skin->weights, geometry->numVertices*16);
+		stream->read32(skin->weights, geometry->numVertices*16);
 	for(int32 i = 0; i < skin->numBones; i++){
 		if(oldFormat)
 			stream->seek(4);	// skip 0xdeaddead
-		stream->read(&skin->inverseMatrices[i*16], 64);
+		stream->read32(&skin->inverseMatrices[i*16], 64);
 	}
 
 	if(oldFormat){
@@ -203,15 +203,15 @@ writeSkin(Stream *stream, int32 len, void *object, int32 offset, int32)
 		header[2] = skin->numWeights;
 	}
 	header[3] = 0;
-	stream->write(header, 4);
+	stream->write8(header, 4);
 	if(!oldFormat)
-		stream->write(skin->usedBones, skin->numUsedBones);
-	stream->write(skin->indices, geometry->numVertices*4);
-	stream->write(skin->weights, geometry->numVertices*16);
+		stream->write8(skin->usedBones, skin->numUsedBones);
+	stream->write8(skin->indices, geometry->numVertices*4);
+	stream->write32(skin->weights, geometry->numVertices*16);
 	for(int32 i = 0; i < skin->numBones; i++){
 		if(oldFormat)
 			stream->writeU32(0xdeaddead);
-		stream->write(&skin->inverseMatrices[i*16], 64);
+		stream->write32(&skin->inverseMatrices[i*16], 64);
 	}
 
 	if(!oldFormat)

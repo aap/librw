@@ -79,6 +79,7 @@ destroyNativeData(void *object, int32, int32)
 Stream*
 readNativeData(Stream *stream, int32, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	uint32 platform;
 	if(!findChunk(stream, ID_STRUCT, nil, nil)){
@@ -100,7 +101,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
 		uint32 buf[2];
-		stream->read(buf, 8);
+		stream->read32(buf, 8);
 		instance->dataSize = buf[0];
 		instance->dataRaw = rwNewT(uint8, instance->dataSize+0x7F, MEMDUR_EVENT | ID_GEOMETRY);
 		instance->data = ALIGNPTR(instance->dataRaw, 0x80);
@@ -108,7 +109,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 		uint32 a = (uint32)instance->data;
 		assert(a % 0x10 == 0);
 #endif
-		stream->read(instance->data, instance->dataSize);
+		stream->read8(instance->data, instance->dataSize);
 #ifdef RW_PS2
 		if(!buf[1])
 			fixDmaOffsets(instance);
@@ -123,6 +124,7 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 Stream*
 writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 {
+	ASSERTLITTLE;
 	Geometry *geometry = (Geometry*)object;
 	writeChunkHeader(stream, ID_STRUCT, len-12);
 	if(geometry->instData == nil ||
@@ -135,8 +137,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		uint32 buf[2];
 		buf[0] = instance->dataSize;
 		buf[1] = unfixDmaOffsets(instance);
-		stream->write(buf, 8);
-		stream->write(instance->data, instance->dataSize);
+		stream->write32(buf, 8);
+		stream->write8(instance->data, instance->dataSize);
 #ifdef RW_PS2
 		if(!buf[1])
 			fixDmaOffsets(instance);
@@ -1243,7 +1245,7 @@ readADC(Stream *stream, int32, void *object, int32 offset, int32)
 	}
 	int32 size = adc->numBits+3 & ~3;
 	adc->adcBits = rwNewT(int8, size, MEMDUR_EVENT | ID_ADC);
-	stream->read(adc->adcBits, size);
+	stream->read8(adc->adcBits, size);
 	return stream;
 }
 
@@ -1259,7 +1261,7 @@ writeADC(Stream *stream, int32 len, void *object, int32 offset, int32)
 	}
 	stream->writeI32(adc->numBits);
 	int32 size = adc->numBits+3 & ~3;
-	stream->write(adc->adcBits, size);
+	stream->write8(adc->adcBits, size);
 	return stream;
 }
 

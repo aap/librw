@@ -47,6 +47,7 @@ struct PACKED_STRUCT TGAHeader
 Image*
 readTGA(const char *afilename)
 {
+	ASSERTLITTLE;
 	TGAHeader header;
 	Image *image;
 	char *filename;
@@ -60,7 +61,7 @@ readTGA(const char *afilename)
 	rwFree(filename);
 	StreamMemory file;
 	file.open(data, length);
-	file.read(&header, sizeof(header));
+	file.read8(&header, sizeof(header));
 
 	assert(header.imageType == 1 || header.imageType == 2);
 	file.seek(header.IDlen);
@@ -125,6 +126,7 @@ readTGA(const char *afilename)
 void
 writeTGA(Image *image, const char *filename)
 {
+	ASSERTLITTLE;
 	TGAHeader header;
 	StreamFile file;
 	if(!file.open(filename, "wb")){
@@ -144,7 +146,7 @@ writeTGA(Image *image, const char *filename)
 	header.height = image->height;
 	header.depth = image->depth == 4 ? 8 : image->depth;
 	header.descriptor = 0x20 | (image->depth == 32 ? 8 : 0);
-	file.write(&header, sizeof(header));
+	file.write8(&header, sizeof(header));
 
 	uint8 *palette = header.colorMapType ? image->palette : nil;
 	uint8 (*color)[4] = (uint8(*)[4])palette;;

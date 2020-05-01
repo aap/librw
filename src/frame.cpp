@@ -380,7 +380,7 @@ FrameList_::streamRead(Stream *stream)
 	}
 	for(int32 i = 0; i < this->numFrames; i++){
 		Frame *f;
-		stream->read(&buf, sizeof(buf));
+		stream->read32(&buf, sizeof(buf));
 		this->frames[i] = f = Frame::create();
 		if(f == nil){
 			// TODO: clean up frames?
@@ -425,7 +425,7 @@ FrameList_::streamWrite(Stream *stream)
 		buf.parent = findPointer(f->getParent(), (void**)this->frames,
 		                         this->numFrames);
 		buf.matflag = 0; //f->matflag;
-		stream->write(&buf, sizeof(buf));
+		stream->write32(&buf, sizeof(buf));
 	}
 	for(int32 i = 0; i < this->numFrames; i++)
 		Frame::s_plglist.streamWrite(stream, this->frames[i]);

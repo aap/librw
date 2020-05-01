@@ -450,8 +450,8 @@ readNativeTexture(Stream *stream)
 
 	// Texture
 	tex->filterAddressing = stream->readU32();
-	stream->read(tex->name, 32);
-	stream->read(tex->mask, 32);
+	stream->read8(tex->name, 32);
+	stream->read8(tex->mask, 32);
 
 	// Raster
 	uint32 format = stream->readU32();
@@ -473,7 +473,7 @@ readNativeTexture(Stream *stream)
 		size = stream->readU32();
 		if(i < raster->getNumLevels()){
 			data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-			stream->read(data, size);
+			stream->read8(data, size);
 			raster->unlock(i);
 		}else
 			stream->seek(size);
@@ -493,8 +493,8 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Texture
 	stream->writeU32(tex->filterAddressing);
-	stream->write(tex->name, 32);
-	stream->write(tex->mask, 32);
+	stream->write8(tex->name, 32);
+	stream->write8(tex->mask, 32);
 
 	// Raster
 	int32 numLevels = raster->getNumLevels();
@@ -511,7 +511,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 		size = getLevelSize(raster, i);
 		stream->writeU32(size);
 		data = raster->lock(i, Raster::LOCKREAD);
-		stream->write(data, size);
+		stream->write8(data, size);
 		raster->unlock(i);
 	}
 }

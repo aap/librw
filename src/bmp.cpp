@@ -75,6 +75,7 @@ BMPheader::write(Stream *stream)
 Image*
 readBMP(const char *afilename)
 {
+	ASSERTLITTLE;
 	Image *image;
 	char *filename;
 	uint32 length;
@@ -99,7 +100,7 @@ readBMP(const char *afilename)
 	DIBheader dib;
 	if(!bmp.read(&file))
 		goto lose;
-	file.read(&dib, sizeof(dib));
+	file.read8(&dib, sizeof(dib));
 	file.seek(dib.headerSize-sizeof(dib));	// skip the part of the header we're ignoring
 	if(dib.headerSize <= 16){
 		dib.compression = 0;
@@ -205,6 +206,7 @@ lose:
 void
 writeBMP(Image *image, const char *filename)
 {
+	ASSERTLITTLE;
 	uint8 *p;
 	StreamFile file;
 	if(!file.open(filename, "wb")){
@@ -239,7 +241,7 @@ writeBMP(Image *image, const char *filename)
 	dib.vres = 2835;	// 72dpi
 	dib.paletteLen = 0;
 	dib.numImportant = 0;
-	file.write(&dib, dib.headerSize);
+	file.write8(&dib, dib.headerSize);
 
 	for(int i = 0; i < pallen; i++){
 		file.writeU8(image->palette[i*4+2]);

@@ -157,7 +157,7 @@ Clump::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(buf, length);
+	stream->read32(buf, length);
 	int32 numAtomics = buf[0];
 	int32 numLights = 0;
 	int32 numCameras = 0;
@@ -292,10 +292,10 @@ Clump::streamWrite(Stream *stream)
 	int32 numAtomics = this->countAtomics();
 	int32 numLights = this->countLights();
 	int32 numCameras = this->countCameras();
-	int buf[3] = { numAtomics, numLights, numCameras };
+	int32 buf[3] = { numAtomics, numLights, numCameras };
 	size = version > 0x33000 ? 12 : 4;
 	writeChunkHeader(stream, ID_STRUCT, size);
-	stream->write(buf, size);
+	stream->write32(buf, size);
 
 	FrameList_ frmlst;
 	frmlst.numFrames = this->getFrame()->count();
@@ -519,7 +519,7 @@ Atomic::streamReadClump(Stream *stream,
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(buf, version < 0x30400 ? 12 : 16);
+	stream->read32(buf, version < 0x30400 ? 12 : 16);
 	Atomic *atomic = Atomic::create();
 	if(atomic == nil)
 		return nil;
@@ -564,7 +564,7 @@ Atomic::streamWriteClump(Stream *stream, FrameList_ *frmlst)
 
 	if(version < 0x30400){
 		buf[1] = this->object.object.flags;
-		stream->write(buf, sizeof(int[3]));
+		stream->write32(buf, sizeof(int32[3]));
 		this->geometry->streamWrite(stream);
 	}else{
 		buf[1] = 0;
@@ -576,7 +576,7 @@ Atomic::streamWriteClump(Stream *stream, FrameList_ *frmlst)
 		return false;
 	foundgeo:
 		buf[2] = this->object.object.flags;
-		stream->write(buf, sizeof(buf));
+		stream->write32(buf, sizeof(buf));
 	}
 
 	s_plglist.streamWrite(stream, this);
@@ -632,7 +632,7 @@ Atomic::defaultRenderCB(Atomic *atomic)
 static Stream*
 readAtomicRights(Stream *stream, int32, void *, int32, int32)
 {
-	stream->read(atomicRights, 8);
+	stream->read32(atomicRights, 8);
 	return stream;
 }
 
@@ -643,7 +643,7 @@ writeAtomicRights(Stream *stream, int32, void *object, int32, int32)
 	uint32 buffer[2];
 	buffer[0] = atomic->pipeline->pluginID;
 	buffer[1] = atomic->pipeline->pluginData;
-	stream->write(buffer, 8);
+	stream->write32(buffer, 8);
 	return stream;
 }
 

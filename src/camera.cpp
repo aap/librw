@@ -455,7 +455,7 @@ Camera::streamRead(Stream *stream)
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		return nil;
 	}
-	stream->read(&buf, sizeof(CameraChunkData));
+	stream->read32(&buf, sizeof(CameraChunkData));
 	Camera *cam = Camera::create();
 	cam->viewWindow = buf.viewWindow;
 	cam->viewOffset = buf.viewOffset;
@@ -481,7 +481,7 @@ Camera::streamWrite(Stream *stream)
 	buf.farPlane  = this->farPlane;
 	buf.fogPlane = this->fogPlane;
 	buf.projection = this->projection;
-	stream->write(&buf, sizeof(CameraChunkData));
+	stream->write32(&buf, sizeof(CameraChunkData));
 	s_plglist.streamWrite(stream, this);
 	return true;
 }

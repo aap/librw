@@ -692,53 +692,166 @@ makePath(char *filename)
 #endif
 }
 
+void
+memNative32_func(void *data, uint32 size)
+{
+	uint8 *bytes = (uint8*)data;
+	uint32 *words = (uint32*)data;
+	size >>= 2;
+	while(size--){
+		*words++ = (uint32)bytes[0] | (uint32)bytes[1]<<8 |
+			(uint32)bytes[2]<<16 | (uint32)bytes[3]<<24;
+		bytes += 4;
+	}
+}
+
+void
+memNative16_func(void *data, uint32 size)
+{
+	uint8 *bytes = (uint8*)data;
+	uint16 *words = (uint16*)data;
+	size >>= 1;
+	while(size--){
+		*words++ = (uint16)bytes[0] | (uint16)bytes[1]<<8;
+		bytes += 2;
+	}
+}
+
+void
+memLittle32_func(void *data, uint32 size)
+{
+	uint32 w;
+	uint8 *bytes = (uint8*)data;
+	uint32 *words = (uint32*)data;
+	size >>= 2;
+	while(size--){
+		w = *words++;
+		*bytes++ = w;
+		*bytes++ = w >> 8;
+		*bytes++ = w >> 16;
+		*bytes++ = w >> 24;
+	}
+}
+
+void
+memLittle16_func(void *data, uint32 size)
+{
+	uint16 w;
+	uint8 *bytes = (uint8*)data;
+	uint16 *words = (uint16*)data;
+	size >>= 1;
+	while(size--){
+		w = *words++;
+		*bytes++ = w;
+		*bytes++ = w >> 8;
+	}
+}
+
+uint32
+Stream::write32(const void *data, uint32 length)
+{
+#ifdef BIGENDIAN
+	uint8 *src = (uint8*)data;
+	uint32 buf[256];
+	int32 n, len;
+	for(len = length >>= 2; len > 0; len -= 256){
+		n = len < 256 ? len : 256;
+		memcpy(buf, src, n*4);
+		memLittle16(buf, n*4);
+		write8(buf, n*4);
+		src += n*4;
+	}
+	return length;
+#else
+	return write8(data, length);
+#endif
+}
+
+uint32
+Stream::write16(const void *data, uint32 length)
+{
+#ifdef BIGENDIAN
+	uint8 *src = (uint8*)data;
+	uint16 buf[256];
+	int32 n, len;
+	for(len = length >>= 1; len > 0; len -= 256){
+		n = len < 256 ? len : 256;
+		memcpy(buf, src, n*2);
+		memLittle16(buf, n*2);
+		write8(buf, n*2);
+		src += n*2;
+	}
+	return length;
+#else
+	return write8(data, length);
+#endif
+}
+
+uint32
+Stream::read32(void *data, uint32 length)
+{
+	uint32 ret;
+	ret = read8(data, length);
+	memNative32(data, length);
+	return ret;
+}
+
+uint32
+Stream::read16(void *data, uint32 length)
+{
+	uint32 ret;
+	ret = read8(data, length);
+	memNative16(data, length);
+	return ret;
+}
+
 int32
 Stream::writeI8(int8 val)
 {
-	return write(&val, sizeof(int8));
+	return write8(&val, sizeof(int8));
 }
 
 int32
 Stream::writeU8(uint8 val)
 {
-	return write(&val, sizeof(uint8));
+	return write8(&val, sizeof(uint8));
 }
 
 int32
 Stream::writeI16(int16 val)
 {
-	return write(&val, sizeof(int16));
+	return write16(&val, sizeof(int16));
 }
 
 int32
 Stream::writeU16(uint16 val)
 {
-	return write(&val, sizeof(uint16));
+	return write16(&val, sizeof(uint16));
 }
 
 int32
 Stream::writeI32(int32 val)
 {
-	return write(&val, sizeof(int32));
+	return write32(&val, sizeof(int32));
 }
 
 int32
 Stream::writeU32(uint32 val)
 {
-	return write(&val, sizeof(uint32));
+	return write32(&val, sizeof(uint32));
 }
 
 int32
 Stream::writeF32(float32 val)
 {
-	return write(&val, sizeof(float32));
+	return write32(&val, sizeof(float32));
 }
 
 int8
 Stream::readI8(void)
 {
 	int8 tmp;
-	read(&tmp, sizeof(int8));
+	read8(&tmp, sizeof(int8));
 	return tmp;
 }
 
@@ -746,7 +859,7 @@ uint8
 Stream::readU8(void)
 {
 	uint8 tmp;
-	read(&tmp, sizeof(uint8));
+	read8(&tmp, sizeof(uint8));
 	return tmp;
 }
 
@@ -754,7 +867,7 @@ int16
 Stream::readI16(void)
 {
 	int16 tmp;
-	read(&tmp, sizeof(int16));
+	read16(&tmp, sizeof(int16));
 	return tmp;
 }
 
@@ -762,7 +875,7 @@ uint16
 Stream::readU16(void)
 {
 	uint16 tmp;
-	read(&tmp, sizeof(uint16));
+	read16(&tmp, sizeof(uint16));
 	return tmp;
 }
 
@@ -770,7 +883,7 @@ int32
 Stream::readI32(void)
 {
 	int32 tmp;
-	read(&tmp, sizeof(int32));
+	read32(&tmp, sizeof(int32));
 	return tmp;
 }
 
@@ -778,7 +891,7 @@ uint32
 Stream::readU32(void)
 {
 	uint32 tmp;
-	read(&tmp, sizeof(uint32));
+	read32(&tmp, sizeof(uint32));
 	return tmp;
 }
 
@@ -786,7 +899,7 @@ float32
 Stream::readF32(void)
 {
 	float32 tmp;
-	read(&tmp, sizeof(float32));
+	read32(&tmp, sizeof(float32));
 	return tmp;
 }
 
@@ -798,7 +911,7 @@ StreamMemory::close(void)
 }
 
 uint32
-StreamMemory::write(const void *data, uint32 len)
+StreamMemory::write8(const void *data, uint32 len)
 {
 	if(this->eof())
 		return 0;
@@ -816,7 +929,7 @@ StreamMemory::write(const void *data, uint32 len)
 }
 
 uint32
-StreamMemory::read(void *data, uint32 len)
+StreamMemory::read8(void *data, uint32 len)
 {
 	if(this->eof())
 		return 0;
@@ -900,13 +1013,13 @@ StreamFile::close(void)
 }
 
 uint32
-StreamFile::write(const void *data, uint32 length)
+StreamFile::write8(const void *data, uint32 length)
 {
 	return (uint32)fwrite(data, 1, length, this->file);
 }
 
 uint32
-StreamFile::read(void *data, uint32 length)
+StreamFile::read8(void *data, uint32 length)
 {
 	return (uint32)fread(data, 1, length, this->file);
 }
@@ -936,7 +1049,7 @@ writeChunkHeader(Stream *s, int32 type, int32 size)
 		int32 type, size;
 		uint32 id;
 	} buf = { type, size, libraryIDPack(version, build) };
-	s->write(&buf, 12);
+	s->write32(&buf, 12);
 	return true;
 }
 
@@ -947,7 +1060,7 @@ readChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header)
 		int32 type, size;
 		uint32 id;
 	} buf;
-	s->read(&buf, 12);
+	s->read32(&buf, 12);
 	if(s->eof())
 		return false;
 	assert(header != nil);

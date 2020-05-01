@@ -116,7 +116,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	uint16 *indices;
 	Geometry *geo = (Geometry*)object;
 
-	stream->read(&mhs, sizeof(MeshHeaderStream));
+	stream->read32(&mhs, sizeof(MeshHeaderStream));
 	// Have to do this dance for War Drum's meshes
 	bool32 hasData = len > sizeof(MeshHeaderStream)+mhs.numMeshes*sizeof(MeshStream);
 	assert(geo->meshHeader == nil);
@@ -128,7 +128,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	mesh = mh->getMeshes();
 	indices = mesh->indices;
 	for(uint32 i = 0; i < mh->numMeshes; i++){
-		stream->read(&ms, sizeof(MeshStream));
+		stream->read32(&ms, sizeof(MeshStream));
 		mesh->numIndices = ms.numIndices;
 		mesh->material = geo->matList.materials[ms.matIndex];
 		if(geo->flags & Geometry::NATIVE){
@@ -136,7 +136,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 			if(hasData){
 				mesh->indices = indices;
 				indices += mesh->numIndices;
-				stream->read(mesh->indices,
+				stream->read16(mesh->indices,
 				            mesh->numIndices*2);
 			}
 		}else{
@@ -146,7 +146,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 			int32 numIndices = mesh->numIndices;
 			for(; numIndices > 0; numIndices -= 256){
 				int32 n = numIndices < 256 ? numIndices : 256;
-				stream->read(indbuf, n*4);
+				stream->read32(indbuf, n*4);
 				for(int32 j = 0; j < n; j++)
 					ind[j] = indbuf[j];
 				ind += n;
@@ -167,16 +167,16 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 	mhs.flags = geo->meshHeader->flags;
 	mhs.numMeshes = geo->meshHeader->numMeshes;
 	mhs.totalIndices = geo->meshHeader->totalIndices;
-	stream->write(&mhs, sizeof(MeshHeaderStream));
+	stream->write32(&mhs, sizeof(MeshHeaderStream));
 	Mesh *mesh = geo->meshHeader->getMeshes();
 	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
 		ms.numIndices = mesh->numIndices;
 		ms.matIndex = geo->matList.findIndex(mesh->material);
-		stream->write(&ms, sizeof(MeshStream));
+		stream->write32(&ms, sizeof(MeshStream));
 		if(geo->flags & Geometry::NATIVE){
 			assert(geo->instData != nil);
 			if(geo->instData->platform == PLATFORM_WDGL)
-				stream->write(mesh->indices,
+				stream->write16(mesh->indices,
 				            mesh->numIndices*2);
 		}else{
 			uint16 *ind = mesh->indices;
@@ -185,7 +185,7 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 				int32 n = numIndices < 256 ? numIndices : 256;
 				for(int32 j = 0; j < n; j++)
 					indbuf[j] = ind[j];
-				stream->write(indbuf, n*4);
+				stream->write32(indbuf, n*4);
 				ind += n;
 			}
 		}
