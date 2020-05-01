@@ -149,6 +149,16 @@ struct Image
 	static void setSearchPath(const char*);
 	static void printSearchPath(void);
 	static char *getFilename(const char*);
+	static Image *read(const char *imageName);
+
+
+	typedef Image *(*fileRead)(const char *afilename);
+	typedef void (*fileWrite)(Image *image, const char *filename);
+	static bool32 registerFileFormat(const char *ext, fileRead read, fileWrite write);
+
+#ifndef RWPUBLIC
+	static void registerModule(void);
+#endif
 };
 
 Image *readTGA(const char *filename);

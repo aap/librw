@@ -21,6 +21,24 @@ namespace rw {
 
 int32 Image::numAllocated;
 
+struct FileAssociation
+{
+	char *extension;
+	Image *(*read)(const char *afilename);
+	void (*write)(Image *image, const char *filename);
+};
+
+struct ImageGlobals
+{
+	char *searchPaths;
+	int numSearchPaths;
+	FileAssociation fileFormats[10];
+	int numFileFormats;
+};
+int32 imageModuleOffset;
+
+#define IMAGEGLOBAL(v) (PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset)->v)
+
 // Image formats are as follows:
 //  32 bit has 4 bytes: 8888 RGBA
 //  24 bit has 3 bytes: 888 RGB
@@ -474,9 +492,6 @@ Image::extractMask(void)
 	return img;
 }
 
-static char *searchPaths = nil;
-int numSearchPaths = 0;
-
 static char*
 rwstrdup(const char *s)
 {
@@ -492,19 +507,20 @@ void
 Image::setSearchPath(const char *path)
 {
 	char *p, *end;
-	rwFree(searchPaths);
-	numSearchPaths = 0;
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
+	rwFree(g->searchPaths);
+	g->numSearchPaths = 0;
 	if(path)
-		searchPaths = p = rwstrdup(path);
+		g->searchPaths = p = rwstrdup(path);
 	else{
-		searchPaths = nil;
+		g->searchPaths = nil;
 		return;
 	}
 	while(p && *p){
 		end = strchr(p, ';');
 		if(end)
 			*end++ = '\0';
-		numSearchPaths++;
+		g->numSearchPaths++;
 		p = end;
 	}
 }
@@ -512,8 +528,9 @@ Image::setSearchPath(const char *path)
 void
 Image::printSearchPath(void)
 {
-	char *p = searchPaths;
-	for(int i = 0; i < numSearchPaths; i++){
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
+	char *p = g->searchPaths;
+	for(int i = 0; i < g->numSearchPaths; i++){
 		printf("%s\n", p);
 		p += strlen(p) + 1;
 	}
@@ -522,19 +539,23 @@ Image::printSearchPath(void)
 char*
 Image::getFilename(const char *name)
 {
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
 	FILE *f;
-	char *s, *p = searchPaths;
+	char *s, *p = g->searchPaths;
 	size_t len = strlen(name)+1;
-	if(numSearchPaths == 0){
-		f = fopen(name, "rb");
+	if(g->numSearchPaths == 0){
+		s = rwstrdup(name);
+		makePath(s);
+		f = fopen(s, "rb");
 		if(f){
 			fclose(f);
-			printf("found %s\n", name);
-			return rwstrdup(name);
+			printf("found %s\n", s);
+			return s;
 		}
+		rwFree(s);
 		return nil;
 	}else
-		for(int i = 0; i < numSearchPaths; i++){
+		for(int i = 0; i < g->numSearchPaths; i++){
 			s = (char*)rwMalloc(strlen(p)+len, MEMDUR_EVENT | ID_IMAGE);
 			if(s == nil){
 				RWERROR((ERR_ALLOC, strlen(p)+len));
@@ -542,6 +563,7 @@ Image::getFilename(const char *name)
 			}
 			strcpy(s, p);
 			strcat(s, name);
+			makePath(s);
 			f = fopen(s, "r");
 			if(f){
 				fclose(f);
@@ -552,6 +574,82 @@ Image::getFilename(const char *name)
 			p += strlen(p) + 1;
 		}
 	return nil;
+}
+
+Image*
+Image::read(const char *imageName)
+{
+	int i;
+	char *filename, *ext, *found;
+	Image *img;
+
+	filename = rwNewT(char, strlen(imageName) + 20, MEMDUR_FUNCTION | ID_TEXTURE);
+	strcpy(filename, imageName);
+	ext = filename + strlen(filename);
+	*ext++ = '.';
+	// Try all supported extensions
+	for(i = 0; i < IMAGEGLOBAL(numFileFormats); i++){
+		if(IMAGEGLOBAL(fileFormats)[i].read == nil)
+			continue;
+		strncpy(ext, IMAGEGLOBAL(fileFormats)[i].extension, 19);
+		found = getFilename(filename);
+		// Found a file
+		if(found){
+			img = IMAGEGLOBAL(fileFormats)[i].read(found);
+			rwFree(found);
+			// It was a valid image of that format
+			if(img){
+				rwFree(filename);
+				return img;
+			}
+		}
+	}
+	rwFree(filename);
+	return nil;
+}
+
+bool32
+Image::registerFileFormat(const char *ext, fileRead read, fileWrite write)
+{
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
+	if(g->numFileFormats >= nelem(g->fileFormats))
+		return 0;
+	g->fileFormats[g->numFileFormats].extension = rwstrdup(ext);
+	g->fileFormats[g->numFileFormats].read = read;
+	g->fileFormats[g->numFileFormats].write = write;
+	g->numFileFormats++;
+	return 1;
+}
+
+static void*
+imageOpen(void *object, int32 offset, int32 size)
+{
+	imageModuleOffset = offset;
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
+	g->searchPaths = nil;
+	g->numSearchPaths = 0;
+	g->numFileFormats = 0;
+	return object;
+}
+
+static void*
+imageClose(void *object, int32 offset, int32 size)
+{
+	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
+	int i;
+	rwFree(g->searchPaths);
+	g->searchPaths = nil;
+	g->numSearchPaths = 0;
+	for(i = 0; i < g->numFileFormats; i++)
+		rwFree(g->fileFormats[i].extension);
+	g->numFileFormats = 0;
+	return object;
+}
+
+void
+Image::registerModule(void)
+{
+	Engine::registerPlugin(sizeof(ImageGlobals), ID_IMAGEMODULE, imageOpen, imageClose);
 }
 
 }

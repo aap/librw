@@ -299,23 +299,14 @@ defaultFindCB(const char *name)
 }
 
 
-// TODO: no hardcoded file endings
 // TODO: actually read the mask!
 static Texture*
 defaultReadCB(const char *name, const char *mask)
 {
 	Texture *tex;
 	Image *img;
-	char *n = (char*)rwMalloc(strlen(name) + 5, MEMDUR_FUNCTION | ID_TEXTURE);
-	strcpy(n, name);
-	strcat(n, ".tga");
-	img = readTGA(n);
-	if(img == nil){
-		strcpy(n, name);
-		strcat(n, ".bmp");
-		img = readBMP(n);
-	}
-	rwFree(n);
+
+	img = Image::read(name);
 	if(img){
 		tex = Texture::create(Raster::createFromImage(img));
 		strncpy(tex->name, name, 32);

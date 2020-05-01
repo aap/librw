@@ -596,9 +596,24 @@ enum PluginID
 enum CoreModuleID
 {
 	ID_NAMODULE      = MAKEPLUGINID(VEND_CRITERIONINT, 0x00),
+	// vector
+	// matrix
 	ID_FRAMEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x03),
+	// stream
+	// camera
+	ID_IMAGEMODULE   = MAKEPLUGINID(VEND_CRITERIONINT, 0x06),
 	ID_RASTERMODULE  = MAKEPLUGINID(VEND_CRITERIONINT, 0x07),
 	ID_TEXTUREMODULE = MAKEPLUGINID(VEND_CRITERIONINT, 0x08)
+	// pip
+	// immediate
+	// resources
+	// device
+	// color
+	// unused
+	// error
+	// metrics
+	// driver
+	// chunk group
 };
 
 #define ECODE(c, s) c

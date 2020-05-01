@@ -182,6 +182,7 @@ Engine::init(void)
 
 	// core plugin attach here
 	Frame::registerModule();
+	Image::registerModule();
 	Raster::registerModule();
 	Texture::registerModule();
 
@@ -278,6 +279,10 @@ Engine::start(void)
 		Driver::s_plglist[i].construct(rw::engine->driver[i]);
 
 	engine->device.system(DEVICEFINALIZE, nil, 0);
+
+	// Register some image formats. Or should we leave that to the user?
+	Image::registerFileFormat("tga", readTGA, writeTGA);
+	Image::registerFileFormat("bmp", readBMP, writeBMP);
 
 	Engine::state = Started;
 	return 1;
