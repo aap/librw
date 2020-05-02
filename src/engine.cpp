@@ -405,7 +405,7 @@ namespace null {
 void beginUpdate(Camera*) { }
 void endUpdate(Camera*) { }
 void clearCamera(Camera*,RGBA*,uint32) { }
-void showRaster(Raster*) { }
+void showRaster(Raster*,uint32) { }
 
 void   setRenderState(int32, void*) { }
 void  *getRenderState(int32) { return 0; }

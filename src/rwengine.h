@@ -45,7 +45,7 @@ struct Device
 	void  (*beginUpdate)(Camera*);
 	void  (*endUpdate)(Camera*);
 	void  (*clearCamera)(Camera*, RGBA *col, uint32 mode);
-	void  (*showRaster)(Raster *raster);
+	void  (*showRaster)(Raster *raster, uint32 flags);
 	bool32 (*rasterRenderFast)(Raster *raster, int32 x, int32 y);
 	void  (*setRenderState)(int32 state, void *value);
 	void *(*getRenderState)(int32 state);

@@ -356,9 +356,9 @@ Camera::clear(RGBA *col, uint32 mode)
 }
 
 void
-Camera::showRaster(void)
+Camera::showRaster(uint32 flags)
 {
-	engine->device.showRaster(this->frameBuffer);
+	this->frameBuffer->show(flags);
 }
 
 void

@@ -761,12 +761,16 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 }
 
 static void
-showRaster(Raster *raster)
+showRaster(Raster *raster, uint32 flags)
 {
 	// TODO: do this properly!
 #ifdef LIBRW_SDL2
 	SDL_GL_SwapWindow(glGlobals.window);
 #else
+	if(flags & Raster::FLIPWAITVSYNCH)
+		glfwSwapInterval(1);
+	else
+		glfwSwapInterval(0);
 	glfwSwapBuffers(glGlobals.window);
 #endif
 }

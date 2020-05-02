@@ -112,7 +112,7 @@ Draw(float timeDelta)
 	ImGui::Render();
 
 	Scene.camera->endUpdate();
-	Scene.camera->showRaster();
+	Scene.camera->showRaster(0);
 }
 
 

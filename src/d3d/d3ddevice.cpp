@@ -1034,9 +1034,15 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 }
 
 static void
-showRaster(Raster *raster)
+showRaster(Raster *raster, uint32 flag)
 {
-	// TODO: do this properly!
+	UINT interval = flag & Raster::FLIPWAITVSYNCH ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
+	if(d3d9Globals.present.PresentationInterval != interval){
+		d3d9Globals.present.PresentationInterval = interval;
+		releaseVideoMemory();
+		d3d::d3ddevice->Reset(&d3d9Globals.present);
+		restoreVideoMemory();
+	}
 
 	// not used but we want cameras to have rasters
 	assert(raster);
@@ -1294,8 +1300,8 @@ startD3D(void)
 	d3d9Globals.present.AutoDepthStencilFormat     = zformat;
 	d3d9Globals.present.Flags                      = 0;
 	d3d9Globals.present.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
-//	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+//	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
+	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
 
 	assert(d3d::d3ddevice == nil);
 

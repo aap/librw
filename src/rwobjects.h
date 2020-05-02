@@ -179,6 +179,8 @@ struct RasterLevels
 
 struct Raster
 {
+	enum { FLIPWAITVSYNCH = 1 };
+
 	PLUGINBASE
 	int32 platform;
 
@@ -218,6 +220,8 @@ struct Raster
 	int32 getNumLevels(void);
 	static int32 calculateNumLevels(int32 width, int32 height);
 	static bool formatHasAlpha(int32 format);
+
+	void show(uint32 flags);
 
 	static Raster *pushContext(Raster *raster);
 	static Raster *popContext(void);
@@ -698,7 +702,7 @@ struct Camera
 	void beginUpdate(void) { this->beginUpdateCB(this); }
 	void endUpdate(void) { this->endUpdateCB(this); }
 	void clear(RGBA *col, uint32 mode);
-	void showRaster(void);
+	void showRaster(uint32 flags);
 	void setNearPlane(float32);
 	void setFarPlane(float32);
 	void setViewWindow(const V2d *window);

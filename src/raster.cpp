@@ -182,6 +182,12 @@ Raster::toImage(void)
 	return engine->driver[this->platform]->rasterToImage(this);
 }
 
+void
+Raster::show(uint32 flags)
+{
+	engine->device.showRaster(this, flags);
+}
+
 Raster*
 Raster::pushContext(Raster *raster)
 {
