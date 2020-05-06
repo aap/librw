@@ -6,6 +6,7 @@
 #include "../rwbase.h"
 #include "../rwerror.h"
 #include "../rwplg.h"
+#include "../rwrender.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #include "../rwengine.h"
