@@ -84,7 +84,17 @@ void RenderPrimitive(PrimitiveType type, void *verts, int32 numVerts);
 
 namespace im3d {
 
-void Transform(void *vertices, int32 numVertices, Matrix *world);
+enum TransformFlags
+{
+	VERTEXUV      = 1,	// has tex Coords
+	ALLOPAQUE     = 2,	// no vertex alpha
+	NOCLIP        = 4,	// don't frustum clip
+	VERTEXXYZ     = 8,	// has position
+	VERTEXRGBA    = 16,	// has color
+	EVERYTHING = VERTEXUV|VERTEXXYZ|VERTEXRGBA
+};
+
+void Transform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
 void RenderPrimitive(PrimitiveType primType);
 void RenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 void End(void);

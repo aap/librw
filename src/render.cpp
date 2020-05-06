@@ -52,9 +52,9 @@ RenderPrimitive(PrimitiveType type, void *verts, int32 numVerts)
 namespace im3d {
 
 void
-Transform(void *vertices, int32 numVertices, Matrix *world)
+Transform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
-	engine->device.im3DTransform(vertices, numVertices, world);
+	engine->device.im3DTransform(vertices, numVertices, world, flags);
 }
 void
 RenderPrimitive(PrimitiveType primType)

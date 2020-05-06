@@ -349,7 +349,7 @@ im3dtest(void)
 	genIm3DRenderIndexed(rw::PRIMTYPETRILIST, indices, 12);
 	genIm3DEnd();
 */
-	rw::im3d::Transform(verts, 8, nil);
+	rw::im3d::Transform(verts, 8, nil, rw::im3d::EVERYTHING);
 	rw::im3d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST, indices, 12);
 	rw::im3d::End();
 }

@@ -252,12 +252,15 @@ closeIm3D(void)
 }
 
 void
-im3DTransform(void *vertices, int32 numVertices, Matrix *world)
+im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
 	if(world == nil)
 		uploadMatrices();
 	else
 		uploadMatrices(world);
+
+	if((flags & im3d::VERTEXUV) == 0)
+		SetRenderStatePtr(TEXTURERASTER, nil);
 
 	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
 	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);

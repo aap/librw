@@ -417,7 +417,7 @@ void im2DRenderTriangle(void*, int32, int32, int32, int32) { }
 void im2DRenderPrimitive(PrimitiveType, void*, int32) { }
 void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32) { }
 
-void im3DTransform(void *vertices, int32 numVertices, Matrix *world) { }
+void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags) { }
 void im3DRenderPrimitive(PrimitiveType primType) { }
 void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices) { }
 void im3DEnd(void) { }

@@ -208,7 +208,7 @@ closeIm3D(void)
 }
 
 void
-im3DTransform(void *vertices, int32 numVertices, Matrix *world)
+im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
 	if(world == nil){
 		Matrix ident;
@@ -217,6 +217,9 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world)
 	}
 	setWorldMatrix(world);
 	im3dShader->use();
+
+	if((flags & im3d::VERTEXUV) == 0)
+		SetRenderStatePtr(TEXTURERASTER, nil);
 
 	// TODO: fixed size
 	glBindBuffer(GL_ARRAY_BUFFER, im3DVbo);
