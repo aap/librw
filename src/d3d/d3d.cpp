@@ -519,11 +519,14 @@ rasterSetFormat(Raster *raster)
 
 
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	if(raster->format & (Raster::PAL4 | Raster::PAL8))
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		// TODO: do we even allow PAL4?
 		natras->format = D3DFMT_P8;
-	else
+		raster->depth = 8;
+	}else{
 		natras->format = formatInfoRW[(raster->format >> 8) & 0xF].d3dformat;
-	raster->depth = formatInfoRW[(raster->format >> 8) & 0xF].depth;
+		raster->depth = formatInfoRW[(raster->format >> 8) & 0xF].depth;
+	}
 	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
 }
 
