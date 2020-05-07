@@ -143,7 +143,7 @@ MatFX::getEffects(const Material *m)
 }
 
 MatFX*
-MatFX::get(Material *m)
+MatFX::get(const Material *m)
 {
 	return *PLUGINOFFSET(MatFX*, m, matFXGlobals.materialOffset);
 }
