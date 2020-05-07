@@ -134,7 +134,7 @@ MatFX::setEffects(Material *mat, uint32 type)
 }
 
 uint32
-MatFX::getEffects(Material *m)
+MatFX::getEffects(const Material *m)
 {
 	MatFX *fx = *PLUGINOFFSET(MatFX*, m, matFXGlobals.materialOffset);
 	if(fx)

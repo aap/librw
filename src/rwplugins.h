@@ -128,7 +128,7 @@ struct MatFX
 	uint32 type;
 
 	static void setEffects(Material *m, uint32 flags);
-	static uint32 getEffects(Material *m);
+	static uint32 getEffects(const Material *m);
 	static MatFX *get(Material *m);
 	int32 getEffectIndex(uint32 type);
 	// Bump
