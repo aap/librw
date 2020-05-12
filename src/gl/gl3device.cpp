@@ -106,7 +106,7 @@ const char *shaderDecl310es =
 #ifdef RW_GLES3
 const char *shaderDecl = shaderDecl310es;
 #else
-const char *vertShaderDecl = shaderDecl330;
+const char *shaderDecl = shaderDecl330;
 #endif
 
 static GLuint vao;
