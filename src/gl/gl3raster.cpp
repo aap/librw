@@ -350,7 +350,9 @@ rasterFromImage(Raster *raster, Image *image)
 			goto err;
 		break;
 	case 24:
-		if(raster->format == Raster::C888)
+		if(raster->format == Raster::C8888)
+			conv = conv_RGB888_to_RGBA8888;
+		else if(raster->format == Raster::C888)
 			conv = conv_RGB888_to_RGB888;
 		else
 			goto err;

@@ -1,6 +1,4 @@
 const char *simple_frag_src =
-"#version 330\n"
-
 "layout(std140) uniform State\n"
 "{\n"
 "	int   u_alphaTest;\n"

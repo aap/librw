@@ -97,6 +97,18 @@ struct UniformObject
 	UniformLight spotLights[MAX_LIGHTS];
 };
 
+const char *shaderDecl330 = "#version 330\n";
+const char *shaderDecl310es =
+"#version 310 es\n"\
+"precision highp float;\n"\
+"precision highp int;\n";
+
+#ifdef RW_GLES3
+const char *shaderDecl = shaderDecl310es;
+#else
+const char *vertShaderDecl = shaderDecl330;
+#endif
+
 static GLuint vao;
 static GLuint ubo_state, ubo_scene, ubo_object;
 static GLuint whitetex;
@@ -1019,10 +1031,17 @@ openGLFW(EngineOpenParams *openparams)
 		return 0;
 	}
 	glfwWindowHint(GLFW_SAMPLES, 0);
+#ifdef RW_GLES3
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#else
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
 
 	glGlobals.monitor = glfwGetMonitors(&glGlobals.numMonitors)[0];
 
@@ -1038,6 +1057,12 @@ closeGLFW(void)
 	return 1;
 }
 
+static void
+glfwerr(int error, const char *desc)
+{
+	fprintf(stderr, "GLFW Error: %s\n", desc);
+}
+
 static int
 startGLFW(void)
 {
@@ -1047,6 +1072,7 @@ startGLFW(void)
 
 	mode = &glGlobals.modes[glGlobals.currentMode];
 
+	glfwSetErrorCallback(glfwerr);
 	glfwWindowHint(GLFW_RED_BITS, mode->mode.redBits);
 	glfwWindowHint(GLFW_GREEN_BITS, mode->mode.greenBits);
 	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
@@ -1137,8 +1163,8 @@ initOpenGL(void)
 
 #include "shaders/default_vs_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"
-	const char *vs[] = { header_vert_src, default_vert_src, nil };
-	const char *fs[] = { simple_frag_src, nil };
+	const char *vs[] = { shaderDecl, header_vert_src, default_vert_src, nil };
+	const char *fs[] = { shaderDecl, simple_frag_src, nil };
 	defaultShader = Shader::create(vs, fs);
 	assert(defaultShader);
 

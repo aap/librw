@@ -42,8 +42,8 @@ matfxOpen(void *o, int32, int32)
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
 
 #include "shaders/matfx_gl3.inc"
-	const char *vs[] = { header_vert_src, matfx_env_vert_src, nil };
-	const char *fs[] = { matfx_env_frag_src, nil };
+	const char *vs[] = { shaderDecl, header_vert_src, matfx_env_vert_src, nil };
+	const char *fs[] = { shaderDecl, matfx_env_frag_src, nil };
 	envShader = Shader::create(vs, fs);
 	assert(envShader);
 

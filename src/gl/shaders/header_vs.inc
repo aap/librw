@@ -1,6 +1,4 @@
 const char *header_vert_src =
-"#version 330\n"
-
 "layout(std140) uniform State\n"
 "{\n"
 "	int   u_alphaTest;\n"
@@ -73,8 +71,8 @@ const char *header_vert_src =
 "	float pcos = dot(dir, L.direction.xyz);	// cos to point\n"
 "	float ccos = -L.minusCosAngle;\n"
 "	float falloff = (pcos-ccos)/(1.0-ccos);\n"
-"	if(falloff < 0)	// outside of cone\n"
-"		l = 0;\n"
+"	if(falloff < 0.0)	// outside of cone\n"
+"		l = 0.0;\n"
 "	l *= max(falloff, L.hardSpot);\n"
 "	return l*L.color.xyz*atten;\n"
 "}\n"
@@ -86,4 +84,5 @@ const char *header_vert_src =
 
 "#define DIRECTIONALS\n"
 "#define POINTLIGHTS\n"
-"#define SPOTLIGHTS\n";
+"#define SPOTLIGHTS\n"
+;

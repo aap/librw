@@ -53,8 +53,6 @@ const char *matfx_env_vert_src =
 "}\n"
 ;
 const char *matfx_env_frag_src =
-"#version 330\n"
-
 "layout(std140) uniform State\n"
 "{\n"
 "	int   u_alphaTest;\n"
@@ -71,6 +69,7 @@ const char *matfx_env_frag_src =
 "uniform sampler2D tex1;\n"
 
 "uniform float u_coefficient;\n"
+"uniform vec4 u_colorClamp;\n"
 
 "in vec4 v_color;\n"
 "in vec2 v_tex0;\n"

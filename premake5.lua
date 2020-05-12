@@ -49,6 +49,7 @@ workspace "librw"
 	filter { "system:linux" }
 		platforms { "linux-x86-null", "linux-x86-gl3",
 		"linux-amd64-null", "linux-amd64-gl3",
+		"linux-arm-null", "linux-arm-gl3",
 		"ps2" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
 			includedirs { "/usr/include/SDL2" }
@@ -85,6 +86,8 @@ workspace "librw"
 		architecture "x86_64"
 	filter { "platforms:*x86*" }
 		architecture "x86"
+	filter { "platforms:*arm*" }
+		architecture "ARM"
 
 	filter { "platforms:win*" }
 		system "windows"

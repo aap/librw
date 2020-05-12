@@ -158,6 +158,7 @@ enum
 	VSLIGHT_AMBIENT = 8,
 };
 
+extern const char *shaderDecl;	// #version stuff
 extern const char *header_vert_src;
 
 // per Scene

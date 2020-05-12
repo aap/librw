@@ -1,5 +1,3 @@
-#version 330
-
 layout(std140) uniform State
 {
 	int   u_alphaTest;
@@ -72,8 +70,8 @@ vec3 DoSpotLight(Light L, vec3 V, vec3 N)
 	float pcos = dot(dir, L.direction.xyz);	// cos to point
 	float ccos = -L.minusCosAngle;
 	float falloff = (pcos-ccos)/(1.0-ccos);
-	if(falloff < 0)	// outside of cone
-		l = 0;
+	if(falloff < 0.0)	// outside of cone
+		l = 0.0;
 	l *= max(falloff, L.hardSpot);
 	return l*L.color.xyz*atten;
 }
