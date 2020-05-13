@@ -97,6 +97,16 @@ struct UniformObject
 	UniformLight spotLights[MAX_LIGHTS];
 };
 
+struct {
+	float type;
+	float radius;
+	float minusCosAngle;
+	float hardSpot;
+} lightParams[MAX_LIGHTS];
+V4d lightPosition[MAX_LIGHTS];
+V4d lightDirection[MAX_LIGHTS];
+RGBAf lightColor[MAX_LIGHTS];
+
 const char *shaderDecl330 = "#version 330\n";
 const char *shaderDecl100es =
 "#version 100\n"\
@@ -140,7 +150,10 @@ int32 u_view;
 // Object
 int32 u_world;
 int32 u_ambLight;
-// TODO: lights!
+int32 u_lightParams;
+int32 u_lightPosition;
+int32 u_lightDirection;
+int32 u_lightColor;
 #endif
 
 int32 u_matColor;
@@ -681,6 +694,7 @@ setWorldMatrix(Matrix *mat)
 int32
 setLights(WorldLights *lightData)
 {
+#ifndef RW_GLES2
 	int i, np, ns;
 	Light *l;
 	int32 bits;
@@ -735,9 +749,70 @@ setLights(WorldLights *lightData)
 			break;
 		}
 	}
+#else
+	int i, n;
+	Light *l;
+	int32 bits;
 
+	uniformObject.ambLight = lightData->ambient;
+
+	bits = 0;
+
+	if(lightData->numAmbients)
+		bits |= VSLIGHT_AMBIENT;
+
+	n = 0;
+	for(i = 0; i < lightData->numDirectionals && i < 8; i++){
+		l = lightData->directionals[i];
+		lightParams[n].type = 1.0f;
+		lightColor[n] = l->color;
+		memcpy(&lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
+		bits |= VSLIGHT_POINT;
+		n++;
+		if(n >= MAX_LIGHTS)
+			goto out;
+	}
+
+	for(i = 0; i < lightData->numLocals; i++){
+		Light *l = lightData->locals[i];
+
+		switch(l->getType()){
+		case Light::POINT:
+			lightParams[n].type = 2.0f;
+			lightParams[n].radius = l->radius;
+			lightColor[n] = l->color;
+			memcpy(&lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
+			bits |= VSLIGHT_POINT;
+			n++;
+			if(n >= MAX_LIGHTS)
+				goto out;
+			break;
+		case Light::SPOT:
+		case Light::SOFTSPOT:
+			lightParams[n].type = 3.0f;
+			lightParams[n].minusCosAngle = l->minusCosAngle;
+			lightParams[n].radius = l->radius;
+			lightColor[n] = l->color;
+			memcpy(&lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
+			memcpy(&lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
+			// lower bound of falloff
+			if(l->getType() == Light::SOFTSPOT)
+				lightParams[n].hardSpot = 0.0f;
+			else
+				lightParams[n].hardSpot = 1.0f;
+			bits |= VSLIGHT_SPOT;
+			n++;
+			if(n >= MAX_LIGHTS)
+				goto out;
+			break;
+		}
+	}
+
+	lightParams[n].type = 0.0f;
+out:
+#endif
 	objectDirty = 1;
-	return 0;
+	return bits;
 }
 
 void
@@ -773,7 +848,10 @@ flushCache(void)
 	if(objectDirty){
 		glUniformMatrix4fv(U(u_world), 1, 0, (float*)&uniformObject.world);
 		glUniform4fv(U(u_ambLight), 1, (float*)&uniformObject.ambLight);
-		// TODO: lights somehow
+		glUniform4fv(U(u_lightParams), MAX_LIGHTS, (float*)lightParams);
+		glUniform4fv(U(u_lightPosition), MAX_LIGHTS, (float*)lightPosition);
+		glUniform4fv(U(u_lightDirection), MAX_LIGHTS, (float*)lightDirection);
+		glUniform4fv(U(u_lightColor), MAX_LIGHTS, (float*)lightColor);
 		objectDirty = 0;
 	}
 
@@ -1216,6 +1294,10 @@ initOpenGL(void)
 	u_view = registerUniform("u_view");
 	u_world = registerUniform("u_world");
 	u_ambLight = registerUniform("u_ambLight");
+	u_lightParams = registerUniform("u_lightParams");
+	u_lightPosition = registerUniform("u_lightPosition");
+	u_lightDirection = registerUniform("u_lightDirection");
+	u_lightColor = registerUniform("u_lightColor");
 	lastShaderUploaded = nil;
 #else
 	registerBlock("Scene");

@@ -22,29 +22,7 @@ main(void)
 
 	v_color = in_color;
 	v_color.rgb += u_ambLight.rgb*surfAmbient;
-
-#ifdef DIRECTIONALS
-	for(int i = 0; i < MAX_LIGHTS; i++){
-		if(u_directLights[i].enabled == 0.0)
-			break;
-		v_color.rgb += DoDirLight(u_directLights[i], N)*surfDiffuse;
-	}
-#endif
-#ifdef POINTLIGHTS
-	for(int i = 0; i < MAX_LIGHTS; i++){
-		if(u_pointLights[i].enabled == 0.0)
-			break;
-		v_color.rgb += DoPointLight(u_pointLights[i], V.xyz, N)*surfDiffuse;
-	}
-#endif
-#ifdef SPOTLIGHTS
-	for(int i = 0; i < MAX_LIGHTS; i++){
-		if(u_spotLights[i].enabled == 0.0)
-			break;
-		v_color.rgb += DoSpotLight(u_spotLights[i], V.xyz, N)*surfDiffuse;
-	}
-#endif
-
+	v_color.rgb += DoDynamicLight(V.xyz, N)*surfDiffuse;
 	v_color = clamp(v_color, 0.0f, 1.0);
 	v_color *= u_matColor;
 

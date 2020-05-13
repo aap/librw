@@ -16,10 +16,5 @@ main(void)
 	v_fog = DoFog(gl_Position.z);
 	gl_Position.xyz *= gl_Position.w;
 	v_color = in_color;
-//v_color.r = 0.0;
-//v_color.g = 0.0;
-//v_color.b = 0.0;
-//v_color.a = 1.0;
-//v_fog = 1.0;
 	v_tex0 = in_tex0;
 }

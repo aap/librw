@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "../rwbase.h"
 #include "../rwerror.h"
@@ -31,8 +32,10 @@ registerUniform(const char *name)
 	i = findUniform(name);
 	if(i >= 0) return i;
 	// TODO: print error
-	if(uniformRegistry.numUniforms+1 >= MAX_UNIFORMS)
+	if(uniformRegistry.numUniforms+1 >= MAX_UNIFORMS){
+		assert(0 && "no space for uniform");
 		return -1;
+	}
 	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = strdup(name);
 	return uniformRegistry.numUniforms++;
 }
@@ -199,7 +202,7 @@ Shader::create(const char **vsrc, const char **fsrc)
 	printf("\n");
 #endif
 
-#ifdef xxxRW_GLES2
+#ifdef RW_GLES2
 	int numAttribs;
 	glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &numAttribs);
 	for(i = 0; i < numAttribs; i++){
