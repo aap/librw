@@ -47,12 +47,16 @@ enum AttribIndices
 	ATTRIB_COLOR,
 	ATTRIB_TEXCOORDS0,
 	ATTRIB_TEXCOORDS1,
+#ifndef RW_GLES2
 	ATTRIB_TEXCOORDS2,
 	ATTRIB_TEXCOORDS3,
 	ATTRIB_TEXCOORDS4,
 	ATTRIB_TEXCOORDS5,
 	ATTRIB_TEXCOORDS6,
-	ATTRIB_TEXCOORDS7
+	ATTRIB_TEXCOORDS7,
+#endif
+	ATTRIB_WEIGHTS,
+	ATTRIB_INDICES
 };
 
 // default uniform indices
@@ -217,7 +221,7 @@ struct Gl3Raster
 	int32 internalFormat;
 	int32 type;
 	int32 format;
-	int32 bbp;	// bytes per pixel
+	int32 bpp;	// bytes per pixel
 	// texture object
 	uint32 texid;
 

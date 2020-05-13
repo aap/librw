@@ -259,4 +259,18 @@ conv_RGBA1555_to_RGBA5551(uint8 *out, uint8 *in)
 	out[1] = g>>2 | r<<3;
 }
 
+void
+conv_RGBA1555_to_RGBA8888(uint8 *out, uint8 *in)
+{
+	uint32 r, g, b, a;
+	a = (in[1]>>7) & 1;
+	r = (in[1]>>2) & 0x1F;
+	g = (in[1]&3)<<3 | (in[0]>>5)&7;
+	b = in[0] & 0x1F;
+	out[0] = r*0xFF/0x1f;
+	out[1] = g*0xFF/0x1f;
+	out[2] = b*0xFF/0x1f;
+	out[3] = a*0xFF;
+}
+
 }

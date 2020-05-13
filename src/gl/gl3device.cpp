@@ -98,6 +98,10 @@ struct UniformObject
 };
 
 const char *shaderDecl330 = "#version 330\n";
+const char *shaderDecl100es =
+"#version 100\n"\
+"precision highp float;\n"\
+"precision highp int;\n";
 const char *shaderDecl310es =
 "#version 310 es\n"\
 "precision highp float;\n"\
@@ -105,16 +109,39 @@ const char *shaderDecl310es =
 
 #ifdef RW_GLES3
 const char *shaderDecl = shaderDecl310es;
+#elif defined RW_GLES2
+const char *shaderDecl = shaderDecl100es;
 #else
 const char *shaderDecl = shaderDecl330;
 #endif
 
+#ifndef RW_GLES2
 static GLuint vao;
 static GLuint ubo_state, ubo_scene, ubo_object;
+#endif
 static GLuint whitetex;
 static UniformState uniformState;
 static UniformScene uniformScene;
 static UniformObject uniformObject;
+
+#ifdef RW_GLES2
+// State
+int32 u_alphaRef;
+int32 u_fogStart;
+int32 u_fogEnd;
+int32 u_fogRange;
+int32 u_fogDisable;
+int32 u_fogColor;
+
+// Scene
+int32 u_proj;
+int32 u_view;
+
+// Object
+int32 u_world;
+int32 u_ambLight;
+// TODO: lights!
+#endif
 
 int32 u_matColor;
 int32 u_surfProps;
@@ -727,9 +754,62 @@ setViewMatrix(float32 *mat)
 	sceneDirty = 1;
 }
 
+Shader *lastShaderUploaded;
+
 void
 flushCache(void)
 {
+#ifdef RW_GLES2
+#define U(i) currentShader->uniformLocations[i]
+
+	// TODO: this is probably a stupid way to do it with gl2
+	if(lastShaderUploaded != currentShader){
+		lastShaderUploaded = currentShader;
+		objectDirty = 1;
+		sceneDirty = 1;
+		stateDirty = 1;
+	}
+
+	if(objectDirty){
+		glUniformMatrix4fv(U(u_world), 1, 0, (float*)&uniformObject.world);
+		glUniform4fv(U(u_ambLight), 1, (float*)&uniformObject.ambLight);
+		// TODO: lights somehow
+		objectDirty = 0;
+	}
+
+	if(sceneDirty){
+		glUniformMatrix4fv(U(u_proj), 1, 0, uniformScene.proj);
+		glUniformMatrix4fv(U(u_view), 1, 0, uniformScene.view);
+		sceneDirty = 0;
+	}
+
+	if(stateDirty){
+		uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
+		uniformState.fogStart = rwStateCache.fogStart;
+		uniformState.fogEnd = rwStateCache.fogEnd;
+		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
+
+		switch(uniformState.alphaFunc){
+		case ALPHAALWAYS:
+		default:
+			glUniform2f(U(u_alphaRef), -1000.0f, 1000.0f);
+			break;
+		case ALPHAGREATEREQUAL:
+			glUniform2f(U(u_alphaRef), uniformState.alphaRef, 1000.0f);
+			break;
+		case ALPHALESS:
+			glUniform2f(U(u_alphaRef), -1000.0f, uniformState.alphaRef);
+			break;
+		}
+
+		glUniform1f(U(u_fogStart), uniformState.fogStart);
+		glUniform1f(U(u_fogEnd), uniformState.fogEnd);
+		glUniform1f(U(u_fogRange), uniformState.fogRange);
+		glUniform1f(U(u_fogDisable), uniformState.fogDisable);
+		glUniform4fv(U(u_fogColor), 1, (float*)&uniformState.fogColor);
+		stateDirty = 0;
+	}
+#else
 	if(objectDirty){
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformObject),
@@ -752,6 +832,7 @@ flushCache(void)
 				&uniformState);
 		stateDirty = 0;
 	}
+#endif
 }
 
 static void
@@ -1035,6 +1116,10 @@ openGLFW(EngineOpenParams *openparams)
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#elif defined RW_GLES2
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 #else
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -1087,6 +1172,7 @@ startGLFW(void)
 		return 0;
 	}
 	glfwMakeContextCurrent(win);
+printf("version %s\n", glGetString(GL_VERSION));
 
 	/* Init GLEW */
 	glewExperimental = GL_TRUE;
@@ -1119,9 +1205,23 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
+#ifdef RW_GLES2
+	u_alphaRef = registerUniform("u_alphaRef");
+	u_fogStart = registerUniform("u_fogStart");
+	u_fogEnd = registerUniform("u_fogEnd");
+	u_fogRange = registerUniform("u_fogRange");
+	u_fogDisable = registerUniform("u_fogDisable");
+	u_fogColor = registerUniform("u_fogColor");
+	u_proj = registerUniform("u_proj");
+	u_view = registerUniform("u_view");
+	u_world = registerUniform("u_world");
+	u_ambLight = registerUniform("u_ambLight");
+	lastShaderUploaded = nil;
+#else
 	registerBlock("Scene");
 	registerBlock("Object");
 	registerBlock("State");
+#endif
 	u_matColor = registerUniform("u_matColor");
 	u_surfProps = registerUniform("u_surfProps");
 
@@ -1137,6 +1237,7 @@ initOpenGL(void)
 
 	resetRenderState();
 
+#ifndef RW_GLES2
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
@@ -1160,9 +1261,15 @@ initOpenGL(void)
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), &uniformObject,
 	             GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+#endif
 
+#ifdef RW_GLES2
+#include "gl2_shaders/default_vs_gl2.inc"
+#include "gl2_shaders/simple_fs_gl2.inc"
+#else
 #include "shaders/default_vs_gl3.inc"
 #include "shaders/simple_fs_gl3.inc"
+#endif
 	const char *vs[] = { shaderDecl, header_vert_src, default_vert_src, nil };
 	const char *fs[] = { shaderDecl, simple_frag_src, nil };
 	defaultShader = Shader::create(vs, fs);

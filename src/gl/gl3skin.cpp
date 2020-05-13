@@ -37,8 +37,13 @@ skinOpen(void *o, int32, int32)
 	u_boneMatrices = registerUniform("u_boneMatrices");
 	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
 
+#ifdef RW_GLES2
+#include "gl2_shaders/simple_fs_gl2.inc"
+#include "gl2_shaders/skin_gl2.inc"
+#else
 #include "shaders/simple_fs_gl3.inc"
 #include "shaders/skin_gl3.inc"
+#endif
 	const char *vs[] = { shaderDecl, header_vert_src, skin_vert_src, nil };
 	const char *fs[] = { shaderDecl, simple_frag_src, nil };
 	skinShader = Shader::create(vs, fs);
@@ -59,12 +64,6 @@ initSkin(void)
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
 	                       skinOpen, skinClose);
 }
-
-enum
-{
-	ATTRIB_WEIGHTS = ATTRIB_TEXCOORDS7+1,
-	ATTRIB_INDICES
-};
 
 void
 skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)

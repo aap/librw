@@ -13,6 +13,7 @@ const char *im2d_vert_src =
 "main(void)\n"
 "{\n"
 "	gl_Position = in_pos;\n"
+"	gl_Position.w = 1.0;\n"
 "	gl_Position.xy = gl_Position.xy * u_xform.xy + u_xform.zw;\n"
 "	v_fog = DoFog(gl_Position.z);\n"
 "	gl_Position.xyz *= gl_Position.w;\n"

@@ -82,5 +82,5 @@ float DoFog(float w)
 }
 
 #define DIRECTIONALS
-#define POINTLIGHTS
-#define SPOTLIGHTS
+//#define POINTLIGHTS
+//#define SPOTLIGHTS

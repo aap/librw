@@ -33,7 +33,7 @@ rasterCreateTexture(Raster *raster)
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
-		natras->bbp = 4;
+		natras->bpp = 4;
 		raster->depth = 32;
 		break;
 	case Raster::C888:
@@ -41,7 +41,7 @@ rasterCreateTexture(Raster *raster)
 		natras->format = GL_RGB;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 0;
-		natras->bbp = 3;
+		natras->bpp = 3;
 		raster->depth = 24;
 		break;
 	case Raster::C1555:
@@ -49,7 +49,7 @@ rasterCreateTexture(Raster *raster)
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
 		natras->hasAlpha = 1;
-		natras->bbp = 2;
+		natras->bpp = 2;
 		raster->depth = 16;
 		break;
 	default:
@@ -57,7 +57,15 @@ rasterCreateTexture(Raster *raster)
 		return nil;
 	}
 
-	raster->stride = raster->width*natras->bbp;
+#ifdef RW_GLES
+	// glReadPixels only supports GL_RGBA
+	natras->internalFormat = GL_RGBA8;
+	natras->format = GL_RGBA;
+	natras->type = GL_UNSIGNED_BYTE;
+	natras->bpp = 4;
+#endif
+
+	raster->stride = raster->width*natras->bpp;
 
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
@@ -91,6 +99,7 @@ rasterCreateCameraTexture(Raster *raster)
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 1;
+		natras->bpp = 4;
 		break;
 	case Raster::C888:
 	default:
@@ -98,14 +107,26 @@ rasterCreateCameraTexture(Raster *raster)
 		natras->format = GL_RGB;
 		natras->type = GL_UNSIGNED_BYTE;
 		natras->hasAlpha = 0;
+		natras->bpp = 3;
 		break;
 	case Raster::C1555:
 		natras->internalFormat = GL_RGB5_A1;
 		natras->format = GL_RGBA;
 		natras->type = GL_UNSIGNED_SHORT_5_5_5_1;
 		natras->hasAlpha = 1;
+		natras->bpp = 2;
 		break;
 	}
+
+#ifdef RW_GLES
+	// glReadPixels only supports GL_RGBA
+//	natras->internalFormat = GL_RGBA8;
+//	natras->format = GL_RGBA;
+//	natras->type = GL_UNSIGNED_BYTE;
+//	natras->bpp = 4;
+#endif
+
+	raster->stride = raster->width*natras->bpp;
 
 	glGenTextures(1, &natras->texid);
 	glBindTexture(GL_TEXTURE_2D, natras->texid);
@@ -218,13 +239,28 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 	case Raster::TEXTURE:
 	case Raster::CAMERATEXTURE:
 		px = (uint8*)rwMalloc(raster->stride*raster->height, MEMDUR_EVENT | ID_DRIVER);
+memset(px, 0, raster->stride*raster->height);
 		assert(raster->pixels == nil);
 		raster->pixels = px;
 
 		if(lockMode & Raster::LOCKREAD || !(lockMode & Raster::LOCKNOFETCH)){
+#ifdef RW_GLES
+			GLuint fbo;
+GLenum e;
+			glGenFramebuffers(1, &fbo);
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, natras->texid, 0);
+			e = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+assert(natras->format == GL_RGBA);
+			glReadPixels(0, 0, raster->width, raster->height, natras->format, natras->type, px);
+//e = glGetError(); printf("GL err4 %x (%x)\n", e, natras->format);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glDeleteFramebuffers(1, &fbo);
+#else
 			uint32 prev = bindTexture(natras->texid);
 			glGetTexImage(GL_TEXTURE_2D, level, natras->format, natras->type, px);
 			bindTexture(prev);
+#endif
 		}
 
 		raster->privateFlags = lockMode;
@@ -342,26 +378,38 @@ rasterFromImage(Raster *raster, Image *image)
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
 	switch(image->depth){
 	case 32:
+#ifdef RW_GLES
+		conv = conv_RGBA8888_to_RGBA8888;
+#else
 		if(raster->format == Raster::C8888)
 			conv = conv_RGBA8888_to_RGBA8888;
 		else if(raster->format == Raster::C888)
 			conv = conv_RGB888_to_RGB888;
 		else
 			goto err;
+#endif
 		break;
 	case 24:
+#ifdef RW_GLES
+		conv = conv_RGB888_to_RGBA8888;
+#else
 		if(raster->format == Raster::C8888)
 			conv = conv_RGB888_to_RGBA8888;
 		else if(raster->format == Raster::C888)
 			conv = conv_RGB888_to_RGB888;
 		else
 			goto err;
+#endif
 		break;
 	case 16:
+#ifdef RW_GLES
+		conv = conv_RGBA1555_to_RGBA8888;
+#else
 		if(raster->format == Raster::C1555)
 			conv = conv_RGBA1555_to_RGBA5551;
 		else
 			goto err;
+#endif
 		break;
 
 	case 8:
@@ -387,7 +435,7 @@ rasterFromImage(Raster *raster, Image *image)
 		for(x = 0; x < image->width; x++){
 			conv(rasrow, imgrow);
 			imgrow += image->bpp;
-			rasrow += natras->bbp;
+			rasrow += natras->bpp;
 		}
 		imgpixels -= image->stride;
 		pixels += raster->stride;

@@ -6,9 +6,18 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// TODO: clean up the opengl defines
+//       and figure out what we even want here...
 #ifdef RW_GL3
 #define RW_OPENGL
 #define RWDEVICE gl3
+#endif
+
+#ifdef RW_GLES2
+#define RW_GLES
+#endif
+#ifdef RW_GLES3
+#define RW_GLES
 #endif
 
 #ifdef RW_D3D9

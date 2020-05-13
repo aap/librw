@@ -16,7 +16,11 @@
 namespace rw {
 namespace gl3 {
 
+#ifdef RW_GLES2
+#include "gl2_shaders/header_vs.inc"
+#else
 #include "shaders/header_vs.inc"
+#endif
 
 UniformRegistry uniformRegistry;
 
@@ -68,6 +72,27 @@ findBlock(const char *name)
 
 Shader *currentShader;
 
+static void
+printShaderSource(const char **src)
+{
+	int f, l;
+	const char *file;
+	bool printline;
+	int line = 1;
+	for(f = 0; src[f]; f++){
+		char c;
+		file = src[f];
+		printline = true;
+		while(c = *file++, c != '\0'){
+			if(printline)
+				printf("%.4d: ", line++);
+			putchar(c);
+			printline = c == '\n';
+		}
+		putchar('\n');
+	}
+}
+
 static int
 compileshader(GLenum type, const char **src, GLuint *shader)
 {
@@ -83,6 +108,7 @@ compileshader(GLenum type, const char **src, GLuint *shader)
 	glCompileShader(shdr);
 	glGetShaderiv(shdr, GL_COMPILE_STATUS, &success);
 	if(!success){
+		printShaderSource(src);
 		fprintf(stderr, "Error in %s shader\n",
 		  type == GL_VERTEX_SHADER ? "vertex" : "fragment");
 		glGetShaderiv(shdr, GL_INFO_LOG_LENGTH, &len);
@@ -104,6 +130,16 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 	char *log;
 
 	prog = glCreateProgram();
+
+#ifdef RW_GLES2
+	// TODO: perhaps just do this always and get rid of the layout stuff?
+	glBindAttribLocation(prog, ATTRIB_POS, "in_pos");
+	glBindAttribLocation(prog, ATTRIB_NORMAL, "in_normal");
+	glBindAttribLocation(prog, ATTRIB_COLOR, "in_color");
+	glBindAttribLocation(prog, ATTRIB_TEXCOORDS0, "in_tex0");
+	glBindAttribLocation(prog, ATTRIB_WEIGHTS, "in_weights");
+	glBindAttribLocation(prog, ATTRIB_INDICES, "in_indices");
+#endif
 
 	glAttachShader(prog, vs);
 	glAttachShader(prog, fs);
@@ -149,6 +185,33 @@ Shader::create(const char **vsrc, const char **fsrc)
 	glDeleteProgram(fs);
 
 	Shader *sh = rwNewT(Shader, 1, MEMDUR_EVENT | ID_DRIVER);	 // or global?
+
+#ifdef xxxRW_GLES2
+	int numUniforms;
+	glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &numUniforms);
+	for(i = 0; i < numUniforms; i++){
+		GLint size;
+		GLenum type;
+		char name[100];
+		glGetActiveUniform(program, i, 100, nil, &size, &type, name);
+		printf("%d %d %s\n", size, type, name);
+	}
+	printf("\n");
+#endif
+
+#ifdef xxxRW_GLES2
+	int numAttribs;
+	glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &numAttribs);
+	for(i = 0; i < numAttribs; i++){
+		GLint size;
+		GLenum type;
+		char name[100];
+		glGetActiveAttrib(program, i, 100, nil, &size, &type, name);
+		GLint bind = glGetAttribLocation(program, name);
+		printf("%d %d %s. %d\n", size, type, name, bind);
+	}
+	printf("\n");
+#endif
 
 	// set uniform block binding
 	for(i = 0; i < uniformRegistry.numBlocks; i++){
