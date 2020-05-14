@@ -1,9 +1,11 @@
 // State
-uniform float u_fogStart;
-uniform float u_fogEnd;
-uniform float u_fogRange;
-uniform float u_fogDisable;
+uniform vec4  u_fogData;
 //uniform vec4  u_fogColor;
+
+#define u_fogStart (u_fogData.x)
+#define u_fogEnd (u_fogData.y)
+#define u_fogRange (u_fogData.z)
+#define u_fogDisable (u_fogData.w)
 
 // Scene
 uniform mat4 u_proj;

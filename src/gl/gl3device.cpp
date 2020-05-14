@@ -65,12 +65,12 @@ struct UniformState
 {
 	float32 alphaRefLow;
 	float32 alphaRefHigh;
+	int32   pad[2];
+
 	float32 fogStart;
 	float32 fogEnd;
-
 	float32 fogRange;
 	float32 fogDisable;
-	int32   pad[2];
 
 	RGBAf   fogColor;
 };
@@ -133,10 +133,11 @@ static UniformObject uniformObject;
 #ifndef RW_GL_USE_UBOS
 // State
 int32 u_alphaRef;
-int32 u_fogStart;
-int32 u_fogEnd;
-int32 u_fogRange;
-int32 u_fogDisable;
+int32 u_fogData;
+//int32 u_fogStart;
+//int32 u_fogEnd;
+//int32 u_fogRange;
+//int32 u_fogDisable;
 int32 u_fogColor;
 
 // Scene
@@ -193,6 +194,44 @@ struct RwStateCache {
 };
 static RwStateCache rwStateCache;
 
+enum
+{
+	// actual gl states
+	RWGL_BLEND,
+	RWGL_SRCBLEND,
+	RWGL_DESTBLEND,
+	RWGL_DEPTHTEST,
+	RWGL_DEPTHFUNC,
+	RWGL_DEPTHMASK,
+	RWGL_CULL,
+	RWGL_CULLFACE,
+
+	// uniforms
+	RWGL_ALPHAFUNC,
+	RWGL_ALPHAREF,
+	RWGL_FOG,
+	RWGL_FOGSTART,
+	RWGL_FOGEND,
+	RWGL_FOGCOLOR,
+
+	RWGL_NUM_STATES
+};
+static bool uniformStateDirty[RWGL_NUM_STATES];
+
+struct GlState {
+	bool32 blendEnable;
+	uint32 srcblend, destblend;
+
+	bool32 depthTest;
+	uint32 depthFunc;
+
+	uint32 depthMask;
+
+	bool32 cullEnable;
+	uint32 cullFace;
+};
+static GlState curGlState, oldGlState;
+
 static int32 activeTexture;
 static uint32 boundTexture[MAXNUMSTAGES];
 
@@ -211,12 +250,71 @@ static uint32 blendMap[] = {
 	GL_SRC_ALPHA_SATURATE,
 };
 
+/*
+ * GL state cache
+ */
+
+void
+setGlRenderState(uint32 state, uint32 value)
+{
+	switch(state){
+	case RWGL_BLEND: curGlState.blendEnable = value; break;
+	case RWGL_SRCBLEND: curGlState.srcblend = value; break;
+	case RWGL_DESTBLEND: curGlState.destblend = value; break;
+	case RWGL_DEPTHTEST: curGlState.depthTest = value; break;
+	case RWGL_DEPTHFUNC: curGlState.depthFunc = value; break;
+	case RWGL_DEPTHMASK: curGlState.depthMask = value; break;
+	case RWGL_CULL: curGlState.cullEnable = value; break;
+	case RWGL_CULLFACE: curGlState.cullFace = value; break;
+	}
+}
+
+void
+flushGlRenderState(void)
+{
+	if(oldGlState.blendEnable != curGlState.blendEnable){
+		oldGlState.blendEnable = curGlState.blendEnable;
+		(oldGlState.blendEnable ? glEnable : glDisable)(GL_BLEND);
+	}
+
+	if(oldGlState.srcblend != curGlState.srcblend ||
+	   oldGlState.destblend != curGlState.destblend){
+		oldGlState.srcblend = curGlState.srcblend;
+		oldGlState.destblend = curGlState.destblend;
+		glBlendFunc(oldGlState.srcblend, oldGlState.destblend);
+	}
+
+	if(oldGlState.depthTest != curGlState.depthTest){
+		oldGlState.depthTest = curGlState.depthTest;
+		(oldGlState.depthTest ? glEnable : glDisable)(GL_DEPTH_TEST);
+	}
+	if(oldGlState.depthFunc != curGlState.depthFunc){
+		oldGlState.depthFunc = curGlState.depthFunc;
+		glDepthFunc(oldGlState.depthFunc);
+	}
+	if(oldGlState.depthMask != curGlState.depthMask){
+		oldGlState.depthMask = curGlState.depthMask;
+		glDepthMask(oldGlState.depthMask);
+	}
+
+	if(oldGlState.cullEnable != curGlState.cullEnable){
+		oldGlState.cullEnable = curGlState.cullEnable;
+		(oldGlState.cullEnable ? glEnable : glDisable)(GL_CULL_FACE);
+	}
+	if(oldGlState.cullFace != curGlState.cullFace){
+		oldGlState.cullFace = curGlState.cullFace;
+		glCullFace(oldGlState.cullFace);
+	}
+}
+
+
+
 void
 setAlphaBlend(bool32 enable)
 {
 	if(rwStateCache.blendEnable != enable){
 		rwStateCache.blendEnable = enable;
-		(enable ? glEnable : glDisable)(GL_BLEND);
+		setGlRenderState(RWGL_BLEND, true);
 	}
 }
 
@@ -233,14 +331,11 @@ setDepthTest(bool32 enable)
 		rwStateCache.ztest = enable;
 		if(rwStateCache.zwrite && !enable){
 			// If we still want to write, enable but set mode to always
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_ALWAYS);
+			setGlRenderState(RWGL_DEPTHTEST, true);
+			setGlRenderState(RWGL_DEPTHFUNC, GL_ALWAYS);
 		}else{
-			if(rwStateCache.ztest)
-				glEnable(GL_DEPTH_TEST);
-			else
-				glDisable(GL_DEPTH_TEST);
-			glDepthFunc(GL_LEQUAL);
+			setGlRenderState(RWGL_DEPTHTEST, rwStateCache.ztest);
+			setGlRenderState(RWGL_DEPTHFUNC, GL_LEQUAL);
 		}
 	}
 }
@@ -253,10 +348,10 @@ setDepthWrite(bool32 enable)
 		rwStateCache.zwrite = enable;
 		if(enable && !rwStateCache.ztest){
 			// Have to switch on ztest so writing can work
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_ALWAYS);
+			setGlRenderState(RWGL_DEPTHTEST, true);
+			setGlRenderState(RWGL_DEPTHFUNC, GL_ALWAYS);
 		}
-		glDepthMask(rwStateCache.zwrite);
+		setGlRenderState(RWGL_DEPTHMASK, rwStateCache.zwrite);
 	}
 }
 
@@ -269,6 +364,7 @@ setAlphaTest(bool32 enable)
 		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
 		if(alphaFunc != shaderfunc){
 			alphaFunc = shaderfunc;
+			uniformStateDirty[RWGL_ALPHAFUNC] = true;
 			stateDirty = 1;
 		}
 	}
@@ -283,6 +379,7 @@ setAlphaTestFunction(uint32 function)
 		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
 		if(alphaFunc != shaderfunc){
 			alphaFunc = shaderfunc;
+			uniformStateDirty[RWGL_ALPHAFUNC] = true;
 			stateDirty = 1;
 		}
 	}
@@ -401,10 +498,6 @@ setRasterStageOnly(uint32 stage, Raster *raster)
 			alpha = natras->hasAlpha;
 		}else{
 			bindTexture(whitetex);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 			alpha = 0;
 		}
 
@@ -450,10 +543,6 @@ setRasterStage(uint32 stage, Raster *raster)
 			alpha = natras->hasAlpha;
 		}else{
 			bindTexture(whitetex);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 			alpha = 0;
 		}
 
@@ -509,13 +598,13 @@ setRenderState(int32 state, void *pvalue)
 	case SRCBLEND:
 		if(rwStateCache.srcblend != value){
 			rwStateCache.srcblend = value;
-			glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
+			setGlRenderState(RWGL_SRCBLEND, blendMap[rwStateCache.srcblend]);
 		}
 		break;
 	case DESTBLEND:
 		if(rwStateCache.destblend != value){
 			rwStateCache.destblend = value;
-			glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
+			setGlRenderState(RWGL_DESTBLEND, blendMap[rwStateCache.destblend]);
 		}
 		break;
 	case ZTESTENABLE:
@@ -527,6 +616,7 @@ setRenderState(int32 state, void *pvalue)
 	case FOGENABLE:
 		if(rwStateCache.fogEnable != value){
 			rwStateCache.fogEnable = value;
+			uniformStateDirty[RWGL_FOG] = true;
 			stateDirty = 1;
 		}
 		break;
@@ -538,16 +628,17 @@ setRenderState(int32 state, void *pvalue)
 		c.blue = value>>16;
 		c.alpha = value>>24;
 		convColor(&uniformState.fogColor, &c);
+		uniformStateDirty[RWGL_FOGCOLOR] = true;
 		stateDirty = 1;
 		break;
 	case CULLMODE:
 		if(rwStateCache.cullmode != value){
 			rwStateCache.cullmode = value;
 			if(rwStateCache.cullmode == CULLNONE)
-				glDisable(GL_CULL_FACE);
+				setGlRenderState(RWGL_CULL, false);
 			else{
-				glEnable(GL_CULL_FACE);
-				glCullFace(rwStateCache.cullmode == CULLBACK ? GL_BACK : GL_FRONT);
+				setGlRenderState(RWGL_CULL, true);
+				setGlRenderState(RWGL_CULLFACE, rwStateCache.cullmode == CULLBACK ? GL_BACK : GL_FRONT);
 			}
 		}
 		break;
@@ -558,6 +649,7 @@ setRenderState(int32 state, void *pvalue)
 	case ALPHATESTREF:
 		if(alphaRef != value/255.0f){
 			alphaRef = value/255.0f;
+			uniformStateDirty[RWGL_ALPHAREF] = true;
 			stateDirty = 1;
 		}
 		break;
@@ -656,21 +748,25 @@ resetRenderState(void)
 	rwStateCache.textureAlpha = 0;
 	rwStateCache.alphaTestEnable = 0;
 
+	memset(&oldGlState, 0xFF, sizeof(oldGlState));
+
 	rwStateCache.blendEnable = 0;
-	glDisable(GL_BLEND);
+	setGlRenderState(RWGL_BLEND, false);
 	rwStateCache.srcblend = BLENDSRCALPHA;
 	rwStateCache.destblend = BLENDINVSRCALPHA;
-	glBlendFunc(blendMap[rwStateCache.srcblend], blendMap[rwStateCache.destblend]);
+	setGlRenderState(RWGL_SRCBLEND, blendMap[rwStateCache.srcblend]);
+	setGlRenderState(RWGL_DESTBLEND, blendMap[rwStateCache.destblend]);
 
 	rwStateCache.zwrite = GL_TRUE;
-	glDepthMask(rwStateCache.zwrite);
+	setGlRenderState(RWGL_DEPTHMASK, rwStateCache.zwrite);
 
 	rwStateCache.ztest = 1;
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL);
+	setGlRenderState(RWGL_DEPTHTEST, true);
+	setGlRenderState(RWGL_DEPTHFUNC, GL_LEQUAL);
 
 	rwStateCache.cullmode = CULLNONE;
-	glDisable(GL_CULL_FACE);
+	setGlRenderState(RWGL_CULL, false);
+	setGlRenderState(RWGL_CULLFACE, GL_BACK);
 
 	activeTexture = -1;
 	for(int i = 0; i < MAXNUMSTAGES; i++){
@@ -773,6 +869,8 @@ Shader *lastShaderUploaded;
 void
 flushCache(void)
 {
+	flushGlRenderState();
+
 #ifndef RW_GL_USE_UBOS
 #define U(i) currentShader->uniformLocations[i]
 
@@ -782,6 +880,16 @@ flushCache(void)
 		objectDirty = 1;
 		sceneDirty = 1;
 		stateDirty = 1;
+
+		int i;
+		for(i = 0; i < RWGL_NUM_STATES; i++)
+			uniformStateDirty[i] = true;
+	}
+
+	if(sceneDirty){
+		glUniformMatrix4fv(U(u_proj), 1, 0, uniformScene.proj);
+		glUniformMatrix4fv(U(u_view), 1, 0, uniformScene.view);
+		sceneDirty = 0;
 	}
 
 	if(objectDirty){
@@ -794,38 +902,52 @@ flushCache(void)
 		objectDirty = 0;
 	}
 
-	if(sceneDirty){
-		glUniformMatrix4fv(U(u_proj), 1, 0, uniformScene.proj);
-		glUniformMatrix4fv(U(u_view), 1, 0, uniformScene.view);
-		sceneDirty = 0;
-	}
+//	if(stateDirty){
 
-	if(stateDirty){
 		uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
 		uniformState.fogStart = rwStateCache.fogStart;
 		uniformState.fogEnd = rwStateCache.fogEnd;
 		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 
-		switch(alphaFunc){
-		case ALPHAALWAYS:
-		default:
-			glUniform2f(U(u_alphaRef), -1000.0f, 1000.0f);
-			break;
-		case ALPHAGREATEREQUAL:
-			glUniform2f(U(u_alphaRef), alphaRef, 1000.0f);
-			break;
-		case ALPHALESS:
-			glUniform2f(U(u_alphaRef), -1000.0f, alphaRef);
-			break;
+		if(uniformStateDirty[RWGL_ALPHAFUNC] || uniformStateDirty[RWGL_ALPHAREF]){
+			switch(alphaFunc){
+			case ALPHAALWAYS:
+			default:
+				glUniform2f(U(u_alphaRef), -1000.0f, 1000.0f);
+				break;
+			case ALPHAGREATEREQUAL:
+				glUniform2f(U(u_alphaRef), alphaRef, 1000.0f);
+				break;
+			case ALPHALESS:
+				glUniform2f(U(u_alphaRef), -1000.0f, alphaRef);
+				break;
+			}
+			uniformStateDirty[RWGL_ALPHAFUNC] = false;
+			uniformStateDirty[RWGL_ALPHAREF] = false;
 		}
 
-		glUniform1f(U(u_fogStart), uniformState.fogStart);
-		glUniform1f(U(u_fogEnd), uniformState.fogEnd);
-		glUniform1f(U(u_fogRange), uniformState.fogRange);
-		glUniform1f(U(u_fogDisable), uniformState.fogDisable);
-		glUniform4fv(U(u_fogColor), 1, (float*)&uniformState.fogColor);
-		stateDirty = 0;
-	}
+		if(uniformStateDirty[RWGL_FOG] ||
+		   uniformStateDirty[RWGL_FOGSTART] ||
+		   uniformStateDirty[RWGL_FOGEND]){
+			float fogData[4] = {
+				uniformState.fogStart,
+				uniformState.fogEnd,
+				uniformState.fogRange,
+				uniformState.fogDisable
+			};
+			glUniform4fv(U(u_fogData), 1, fogData);
+			uniformStateDirty[RWGL_FOG] = false;
+			uniformStateDirty[RWGL_FOGSTART] = false;
+			uniformStateDirty[RWGL_FOGEND] = false;
+		}
+
+		if(uniformStateDirty[RWGL_FOGCOLOR]){
+			glUniform4fv(U(u_fogColor), 1, (float*)&uniformState.fogColor);
+			uniformStateDirty[RWGL_FOGCOLOR] = false;
+		}
+
+//		stateDirty = 0;
+//	}
 #else
 	if(objectDirty){
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
@@ -991,10 +1113,12 @@ beginUpdate(Camera *cam)
 
 	if(rwStateCache.fogStart != cam->fogPlane){
 		rwStateCache.fogStart = cam->fogPlane;
+		uniformStateDirty[RWGL_FOGSTART] = true;
 		stateDirty = 1;
 	}
 	if(rwStateCache.fogEnd != cam->farPlane){
 		rwStateCache.fogEnd = cam->farPlane;
+		uniformStateDirty[RWGL_FOGEND] = true;
 		stateDirty = 1;
 	}
 
@@ -1239,10 +1363,11 @@ initOpenGL(void)
 {
 #ifndef RW_GL_USE_UBOS
 	u_alphaRef = registerUniform("u_alphaRef");
-	u_fogStart = registerUniform("u_fogStart");
-	u_fogEnd = registerUniform("u_fogEnd");
-	u_fogRange = registerUniform("u_fogRange");
-	u_fogDisable = registerUniform("u_fogDisable");
+	u_fogData = registerUniform("u_fogData");
+//	u_fogStart = registerUniform("u_fogStart");
+//	u_fogEnd = registerUniform("u_fogEnd");
+//	u_fogRange = registerUniform("u_fogRange");
+//	u_fogDisable = registerUniform("u_fogDisable");
 	u_fogColor = registerUniform("u_fogColor");
 	u_proj = registerUniform("u_proj");
 	u_view = registerUniform("u_view");
@@ -1266,8 +1391,10 @@ initOpenGL(void)
 	byte whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 	glGenTextures(1, &whitetex);
 	glBindTexture(GL_TEXTURE_2D, whitetex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
 	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
 

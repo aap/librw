@@ -1,10 +1,12 @@
 const char *header_vert_src =
 "// State\n"
-"uniform float u_fogStart;\n"
-"uniform float u_fogEnd;\n"
-"uniform float u_fogRange;\n"
-"uniform float u_fogDisable;\n"
+"uniform vec4  u_fogData;\n"
 "//uniform vec4  u_fogColor;\n"
+
+"#define u_fogStart (u_fogData.x)\n"
+"#define u_fogEnd (u_fogData.y)\n"
+"#define u_fogRange (u_fogData.z)\n"
+"#define u_fogDisable (u_fogData.w)\n"
 
 "// Scene\n"
 "uniform mat4 u_proj;\n"
