@@ -45,7 +45,7 @@ skinOpen(void *o, int32, int32)
 #include "shaders/skin_gl3.inc"
 #endif
 	const char *vs[] = { shaderDecl, header_vert_src, skin_vert_src, nil };
-	const char *fs[] = { shaderDecl, simple_frag_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	skinShader = Shader::create(vs, fs);
 	assert(skinShader);
 

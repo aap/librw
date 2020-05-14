@@ -58,20 +58,18 @@ openIm2D(void)
 #include "shaders/simple_fs_gl3.inc"
 #endif
 	const char *vs[] = { shaderDecl, header_vert_src, im2d_vert_src, nil };
-	const char *fs[] = { shaderDecl, simple_frag_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	im2dShader = Shader::create(vs, fs);
 	assert(im2dShader);
 
 	glGenBuffers(1, &im2DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im2DIbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2,
-			nil, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &im2DVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
-	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex),
-			nil, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -113,8 +111,8 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	cam = (Camera*)engine->currentCamera;
 
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
-	glBufferData(GL_ARRAY_BUFFER, numVertices*sizeof(Im2DVertex),
-			vertices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im2DVertex), vertices);
 
 	xform[0] = 2.0f/cam->frameBuffer->width;
 	xform[1] = -2.0f/cam->frameBuffer->height;
@@ -142,12 +140,12 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 
 	// TODO: fixed size
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im2DIbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices*2,
-			indices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, numIndices*2, indices);
 
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
-	glBufferData(GL_ARRAY_BUFFER, numVertices*sizeof(Im2DVertex),
-			vertices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im2DVertex), vertices);
 
 	xform[0] = 2.0f/cam->frameBuffer->width;
 	xform[1] = -2.0f/cam->frameBuffer->height;
@@ -192,20 +190,18 @@ openIm3D(void)
 #include "shaders/simple_fs_gl3.inc"
 #endif
 	const char *vs[] = { shaderDecl, header_vert_src, im3d_vert_src, nil };
-	const char *fs[] = { shaderDecl, simple_frag_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	im3dShader = Shader::create(vs, fs);
 	assert(im3dShader);
 
 	glGenBuffers(1, &im3DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2,
-			nil, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &im3DVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, im3DVbo);
-	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex),
-			nil, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex), nil, GL_STREAM_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -234,8 +230,8 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 
 	// TODO: fixed size
 	glBindBuffer(GL_ARRAY_BUFFER, im3DVbo);
-	glBufferData(GL_ARRAY_BUFFER, numVertices*sizeof(Im3DVertex),
-			vertices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex), nil, GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im3DVertex), vertices);
 	setAttribPointers(im3dattribDesc, 3);
 	num3DVertices = numVertices;
 }
@@ -248,21 +244,19 @@ im3DRenderPrimitive(PrimitiveType primType)
 	flushCache();
 	glDrawArrays(primTypeMap[primType], 0, num3DVertices);
 	disableAttribPointers(im3dattribDesc, 3);
-
 }
 
 void
 im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
 {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices*2,
-			indices, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, numIndices*2, indices);
 
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,
 	               GL_UNSIGNED_SHORT, nil);
 	disableAttribPointers(im3dattribDesc, 3);
-
 }
 
 void

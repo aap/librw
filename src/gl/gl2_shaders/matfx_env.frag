@@ -1,11 +1,3 @@
-uniform vec2 u_alphaRef;
-
-uniform float u_fogStart;
-uniform float u_fogEnd;
-uniform float u_fogRange;
-uniform float u_fogDisable;
-uniform vec4  u_fogColor;
-
 uniform sampler2D tex0;
 uniform sampler2D tex1;
 
@@ -34,22 +26,7 @@ main(void)
 	color.rgb = pass1.rgb*pass1.a + pass2.rgb;
 	color.a = pass1.a;
 
-	if(color.a < u_alphaRef.x || color.a >= u_alphaRef.y)
-		discard;
-/*
-	switch(u_alphaTest){
-	default:
-	case 0: break;
-	case 1:
-		if(color.a < u_alphaRef)
-			discard;
-		break;
-	case 2:
-		if(color.a >= u_alphaRef)
-			discard;
-		break;
-	}
-*/
+	DoAlphaTest(color.a);
 
 	gl_FragColor = color;
 }

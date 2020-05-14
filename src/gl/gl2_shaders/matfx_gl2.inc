@@ -31,14 +31,6 @@ const char *matfx_env_vert_src =
 "}\n"
 ;
 const char *matfx_env_frag_src =
-"uniform vec2 u_alphaRef;\n"
-
-"uniform float u_fogStart;\n"
-"uniform float u_fogEnd;\n"
-"uniform float u_fogRange;\n"
-"uniform float u_fogDisable;\n"
-"uniform vec4  u_fogColor;\n"
-
 "uniform sampler2D tex0;\n"
 "uniform sampler2D tex1;\n"
 
@@ -67,22 +59,7 @@ const char *matfx_env_frag_src =
 "	color.rgb = pass1.rgb*pass1.a + pass2.rgb;\n"
 "	color.a = pass1.a;\n"
 
-"	if(color.a < u_alphaRef.x || color.a >= u_alphaRef.y)\n"
-"		discard;\n"
-"/*\n"
-"	switch(u_alphaTest){\n"
-"	default:\n"
-"	case 0: break;\n"
-"	case 1:\n"
-"		if(color.a < u_alphaRef)\n"
-"			discard;\n"
-"		break;\n"
-"	case 2:\n"
-"		if(color.a >= u_alphaRef)\n"
-"			discard;\n"
-"		break;\n"
-"	}\n"
-"*/\n"
+"	DoAlphaTest(color.a);\n"
 
 "	gl_FragColor = color;\n"
 "}\n"

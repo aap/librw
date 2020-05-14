@@ -164,6 +164,7 @@ enum
 
 extern const char *shaderDecl;	// #version stuff
 extern const char *header_vert_src;
+extern const char *header_frag_src;
 
 // per Scene
 void setProjectionMatrix(float32*);

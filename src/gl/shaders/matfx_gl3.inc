@@ -23,29 +23,7 @@ const char *matfx_env_vert_src =
 
 "	v_color = in_color;\n"
 "	v_color.rgb += u_ambLight.rgb*surfAmbient;\n"
-
-"#ifdef DIRECTIONALS\n"
-"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
-"		if(u_directLights[i].enabled == 0.0)\n"
-"			break;\n"
-"		v_color.rgb += DoDirLight(u_directLights[i], N)*surfDiffuse;\n"
-"	}\n"
-"#endif\n"
-"#ifdef POINTLIGHTS\n"
-"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
-"		if(u_pointLights[i].enabled == 0.0)\n"
-"			break;\n"
-"		v_color.rgb += DoPointLight(u_pointLights[i], V.xyz, N)*surfDiffuse;\n"
-"	}\n"
-"#endif\n"
-"#ifdef SPOTLIGHTS\n"
-"	for(int i = 0; i < MAX_LIGHTS; i++){\n"
-"		if(u_spotLights[i].enabled == 0.0)\n"
-"			break;\n"
-"		v_color.rgb += DoSpotLight(u_spotLights[i], V.xyz, N)*surfDiffuse;\n"
-"	}\n"
-"#endif\n"
-
+"	v_color.rgb += DoDynamicLight(V.xyz, N)*surfDiffuse;\n"
 "	v_color = clamp(v_color, 0.0f, 1.0);\n"
 "	v_color *= u_matColor;\n"
 
@@ -53,18 +31,6 @@ const char *matfx_env_vert_src =
 "}\n"
 ;
 const char *matfx_env_frag_src =
-"layout(std140) uniform State\n"
-"{\n"
-"	int   u_alphaTest;\n"
-"	float u_alphaRef;\n"
-
-"	float u_fogStart;\n"
-"	float u_fogEnd;\n"
-"	float u_fogRange;\n"
-"	float u_fogDisable;\n"
-"	vec4  u_fogColor;\n"
-"};\n"
-
 "uniform sampler2D tex0;\n"
 "uniform sampler2D tex1;\n"
 
@@ -93,17 +59,6 @@ const char *matfx_env_frag_src =
 "	color.rgb = pass1.rgb*pass1.a + pass2.rgb;\n"
 "	color.a = pass1.a;\n"
 
-"	switch(u_alphaTest){\n"
-"	default:\n"
-"	case 0: break;\n"
-"	case 1:\n"
-"		if(color.a < u_alphaRef)\n"
-"			discard;\n"
-"		break;\n"
-"	case 2:\n"
-"		if(color.a >= u_alphaRef)\n"
-"			discard;\n"
-"		break;\n"
-"	}\n"
+"	DoAlphaTest(color.a);\n"
 "}\n"
 ;

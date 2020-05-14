@@ -1,0 +1,30 @@
+const char *header_frag_src =
+"#ifdef USE_UBOS\n"
+"layout(std140) uniform State\n"
+"{\n"
+"	vec2 u_alphaRef;\n"
+
+"	float u_fogStart;\n"
+"	float u_fogEnd;\n"
+"	float u_fogRange;\n"
+"	float u_fogDisable;\n"
+"	vec4  u_fogColor;\n"
+"};\n"
+"#else\n"
+"//uniform int   u_alphaTest;\n"
+"//uniform float u_alphaRef;\n"
+"uniform vec2 u_alphaRef;\n"
+
+"uniform float u_fogStart;\n"
+"uniform float u_fogEnd;\n"
+"uniform float u_fogRange;\n"
+"uniform float u_fogDisable;\n"
+"uniform vec4  u_fogColor;\n"
+"#endif\n"
+
+"void DoAlphaTest(float a)\n"
+"{\n"
+"	if(a < u_alphaRef.x || a >= u_alphaRef.y)\n"
+"		discard;\n"
+"}\n"
+;

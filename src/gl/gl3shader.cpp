@@ -19,8 +19,10 @@ namespace gl3 {
 
 #ifdef RW_GLES2
 #include "gl2_shaders/header_vs.inc"
+#include "gl2_shaders/header_fs.inc"
 #else
 #include "shaders/header_vs.inc"
+#include "shaders/header_fs.inc"
 #endif
 
 UniformRegistry uniformRegistry;
@@ -202,7 +204,7 @@ Shader::create(const char **vsrc, const char **fsrc)
 	printf("\n");
 #endif
 
-#ifdef RW_GLES2
+#ifdef xxxRW_GLES2
 	int numAttribs;
 	glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &numAttribs);
 	for(i = 0; i < numAttribs; i++){

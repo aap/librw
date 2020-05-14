@@ -58,10 +58,13 @@ struct GlGlobals
 	const char *winTitle;
 } glGlobals;
 
+int32   alphaFunc;
+float32 alphaRef;
+
 struct UniformState
 {
-	int32   alphaFunc;
-	float32 alphaRef;
+	float32 alphaRefLow;
+	float32 alphaRefHigh;
 	float32 fogStart;
 	float32 fogEnd;
 
@@ -78,34 +81,22 @@ struct UniformScene
 	float32 view[16];
 };
 
-struct UniformLight
-{
-	float32 enabled, radius, minusCosAngle, hardSpot;
-	V3d position; int32 pad0;
-	V3d direction; int32 pad1;
-	RGBAf color;
-};
-
 #define MAX_LIGHTS 8
 
 struct UniformObject
 {
 	RawMatrix    world;
 	RGBAf        ambLight;
-	UniformLight directLights[MAX_LIGHTS];
-	UniformLight pointLights[MAX_LIGHTS];
-	UniformLight spotLights[MAX_LIGHTS];
+	struct {
+		float type;
+		float radius;
+		float minusCosAngle;
+		float hardSpot;
+	} lightParams[MAX_LIGHTS];
+	V4d lightPosition[MAX_LIGHTS];
+	V4d lightDirection[MAX_LIGHTS];
+	RGBAf lightColor[MAX_LIGHTS];
 };
-
-struct {
-	float type;
-	float radius;
-	float minusCosAngle;
-	float hardSpot;
-} lightParams[MAX_LIGHTS];
-V4d lightPosition[MAX_LIGHTS];
-V4d lightDirection[MAX_LIGHTS];
-RGBAf lightColor[MAX_LIGHTS];
 
 const char *shaderDecl330 = "#version 330\n";
 const char *shaderDecl100es =
@@ -125,8 +116,13 @@ const char *shaderDecl = shaderDecl100es;
 const char *shaderDecl = shaderDecl330;
 #endif
 
+// this needs a define in the shaders as well!
+//#define RW_GL_USE_UBOS
+
 #ifndef RW_GLES2
 static GLuint vao;
+#endif
+#ifdef RW_GL_USE_UBOS
 static GLuint ubo_state, ubo_scene, ubo_object;
 #endif
 static GLuint whitetex;
@@ -134,7 +130,7 @@ static UniformState uniformState;
 static UniformScene uniformScene;
 static UniformObject uniformObject;
 
-#ifdef RW_GLES2
+#ifndef RW_GL_USE_UBOS
 // State
 int32 u_alphaRef;
 int32 u_fogStart;
@@ -271,8 +267,8 @@ setAlphaTest(bool32 enable)
 	if(rwStateCache.alphaTestEnable != enable){
 		rwStateCache.alphaTestEnable = enable;
 		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
-		if(uniformState.alphaFunc != shaderfunc){
-			uniformState.alphaFunc = shaderfunc;
+		if(alphaFunc != shaderfunc){
+			alphaFunc = shaderfunc;
 			stateDirty = 1;
 		}
 	}
@@ -285,8 +281,8 @@ setAlphaTestFunction(uint32 function)
 	if(rwStateCache.alphaFunc != function){
 		rwStateCache.alphaFunc = function;
 		shaderfunc = rwStateCache.alphaTestEnable ? rwStateCache.alphaFunc : ALPHAALWAYS;
-		if(uniformState.alphaFunc != shaderfunc){
-			uniformState.alphaFunc = shaderfunc;
+		if(alphaFunc != shaderfunc){
+			alphaFunc = shaderfunc;
 			stateDirty = 1;
 		}
 	}
@@ -560,8 +556,8 @@ setRenderState(int32 state, void *pvalue)
 		setAlphaTestFunction(value);
 		break;
 	case ALPHATESTREF:
-		if(uniformState.alphaRef != value/255.0f){
-			uniformState.alphaRef = value/255.0f;
+		if(alphaRef != value/255.0f){
+			alphaRef = value/255.0f;
 			stateDirty = 1;
 		}
 		break;
@@ -627,7 +623,7 @@ getRenderState(int32 state)
 		val = rwStateCache.alphaFunc;
 		break;
 	case ALPHATESTREF:
-		val = (uint32)(uniformState.alphaRef*255.0f);
+		val = (uint32)(alphaRef*255.0f);
 		break;
 	case GSALPHATEST:
 		val = rwStateCache.gsalpha;
@@ -645,8 +641,8 @@ static void
 resetRenderState(void)
 {	
 	rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
-	uniformState.alphaFunc = 0;
-	uniformState.alphaRef = 10.0f/255.0f;
+	alphaFunc = 0;
+	alphaRef = 10.0f/255.0f;
 	uniformState.fogDisable = 1.0f;
 	uniformState.fogStart = 0.0f;
 	uniformState.fogEnd = 0.0f;
@@ -694,62 +690,6 @@ setWorldMatrix(Matrix *mat)
 int32
 setLights(WorldLights *lightData)
 {
-#ifndef RW_GLES2
-	int i, np, ns;
-	Light *l;
-	int32 bits;
-
-	uniformObject.ambLight = lightData->ambient;
-	memset(uniformObject.directLights, 0, sizeof(uniformObject.directLights));
-	memset(uniformObject.pointLights, 0, sizeof(uniformObject.pointLights));
-	memset(uniformObject.spotLights, 0, sizeof(uniformObject.spotLights));
-
-	bits = 0;
-
-	for(i = 0; i < lightData->numDirectionals && i < 8; i++){
-		l = lightData->directionals[i];
-		uniformObject.directLights[i].enabled = 1.0f;
-		uniformObject.directLights[i].color = l->color;
-		uniformObject.directLights[i].direction = l->getFrame()->getLTM()->at;
-		bits |= VSLIGHT_POINT;
-	}
-
-	np = 0;
-	ns = 0;
-	for(i = 0; i < lightData->numLocals; i++){
-		l = lightData->locals[i];
-		switch(l->getType()){
-		case Light::POINT:
-			if(np >= 8)
-				continue;
-			uniformObject.pointLights[np].enabled = 1.0f;
-			uniformObject.pointLights[np].color = l->color;
-			uniformObject.pointLights[np].position = l->getFrame()->getLTM()->pos;
-			uniformObject.pointLights[np].radius = l->radius;
-			np++;
-			bits |= VSLIGHT_POINT;
-			break;
-
-		case Light::SPOT:
-		case Light::SOFTSPOT:
-			if(np >= 8)
-				continue;
-			uniformObject.spotLights[ns].enabled = 1.0f;
-			uniformObject.spotLights[ns].color = l->color;
-			uniformObject.spotLights[ns].position = l->getFrame()->getLTM()->pos;
-			uniformObject.spotLights[ns].direction = l->getFrame()->getLTM()->at;
-			uniformObject.spotLights[ns].radius = l->radius;
-			uniformObject.spotLights[ns].minusCosAngle = l->minusCosAngle;
-			if(l->getType() == Light::SOFTSPOT)
-				uniformObject.spotLights[ns].hardSpot = 0.0f;
-			else
-				uniformObject.spotLights[ns].hardSpot = 1.0f;
-			ns++;
-			bits |= VSLIGHT_SPOT;
-			break;
-		}
-	}
-#else
 	int i, n;
 	Light *l;
 	int32 bits;
@@ -764,9 +704,9 @@ setLights(WorldLights *lightData)
 	n = 0;
 	for(i = 0; i < lightData->numDirectionals && i < 8; i++){
 		l = lightData->directionals[i];
-		lightParams[n].type = 1.0f;
-		lightColor[n] = l->color;
-		memcpy(&lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
+		uniformObject.lightParams[n].type = 1.0f;
+		uniformObject.lightColor[n] = l->color;
+		memcpy(&uniformObject.lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
 		bits |= VSLIGHT_POINT;
 		n++;
 		if(n >= MAX_LIGHTS)
@@ -778,10 +718,10 @@ setLights(WorldLights *lightData)
 
 		switch(l->getType()){
 		case Light::POINT:
-			lightParams[n].type = 2.0f;
-			lightParams[n].radius = l->radius;
-			lightColor[n] = l->color;
-			memcpy(&lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
+			uniformObject.lightParams[n].type = 2.0f;
+			uniformObject.lightParams[n].radius = l->radius;
+			uniformObject.lightColor[n] = l->color;
+			memcpy(&uniformObject.lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
 			bits |= VSLIGHT_POINT;
 			n++;
 			if(n >= MAX_LIGHTS)
@@ -789,17 +729,17 @@ setLights(WorldLights *lightData)
 			break;
 		case Light::SPOT:
 		case Light::SOFTSPOT:
-			lightParams[n].type = 3.0f;
-			lightParams[n].minusCosAngle = l->minusCosAngle;
-			lightParams[n].radius = l->radius;
-			lightColor[n] = l->color;
-			memcpy(&lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
-			memcpy(&lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
+			uniformObject.lightParams[n].type = 3.0f;
+			uniformObject.lightParams[n].minusCosAngle = l->minusCosAngle;
+			uniformObject.lightParams[n].radius = l->radius;
+			uniformObject.lightColor[n] = l->color;
+			memcpy(&uniformObject.lightPosition[n], &l->getFrame()->getLTM()->pos, sizeof(V3d));
+			memcpy(&uniformObject.lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
 			// lower bound of falloff
 			if(l->getType() == Light::SOFTSPOT)
-				lightParams[n].hardSpot = 0.0f;
+				uniformObject.lightParams[n].hardSpot = 0.0f;
 			else
-				lightParams[n].hardSpot = 1.0f;
+				uniformObject.lightParams[n].hardSpot = 1.0f;
 			bits |= VSLIGHT_SPOT;
 			n++;
 			if(n >= MAX_LIGHTS)
@@ -808,9 +748,8 @@ setLights(WorldLights *lightData)
 		}
 	}
 
-	lightParams[n].type = 0.0f;
+	uniformObject.lightParams[n].type = 0.0f;
 out:
-#endif
 	objectDirty = 1;
 	return bits;
 }
@@ -834,10 +773,10 @@ Shader *lastShaderUploaded;
 void
 flushCache(void)
 {
-#ifdef RW_GLES2
+#ifndef RW_GL_USE_UBOS
 #define U(i) currentShader->uniformLocations[i]
 
-	// TODO: this is probably a stupid way to do it with gl2
+	// TODO: this is probably a stupid way to do it without UBOs
 	if(lastShaderUploaded != currentShader){
 		lastShaderUploaded = currentShader;
 		objectDirty = 1;
@@ -848,10 +787,10 @@ flushCache(void)
 	if(objectDirty){
 		glUniformMatrix4fv(U(u_world), 1, 0, (float*)&uniformObject.world);
 		glUniform4fv(U(u_ambLight), 1, (float*)&uniformObject.ambLight);
-		glUniform4fv(U(u_lightParams), MAX_LIGHTS, (float*)lightParams);
-		glUniform4fv(U(u_lightPosition), MAX_LIGHTS, (float*)lightPosition);
-		glUniform4fv(U(u_lightDirection), MAX_LIGHTS, (float*)lightDirection);
-		glUniform4fv(U(u_lightColor), MAX_LIGHTS, (float*)lightColor);
+		glUniform4fv(U(u_lightParams), MAX_LIGHTS, (float*)uniformObject.lightParams);
+		glUniform4fv(U(u_lightPosition), MAX_LIGHTS, (float*)uniformObject.lightPosition);
+		glUniform4fv(U(u_lightDirection), MAX_LIGHTS, (float*)uniformObject.lightDirection);
+		glUniform4fv(U(u_lightColor), MAX_LIGHTS, (float*)uniformObject.lightColor);
 		objectDirty = 0;
 	}
 
@@ -867,16 +806,16 @@ flushCache(void)
 		uniformState.fogEnd = rwStateCache.fogEnd;
 		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 
-		switch(uniformState.alphaFunc){
+		switch(alphaFunc){
 		case ALPHAALWAYS:
 		default:
 			glUniform2f(U(u_alphaRef), -1000.0f, 1000.0f);
 			break;
 		case ALPHAGREATEREQUAL:
-			glUniform2f(U(u_alphaRef), uniformState.alphaRef, 1000.0f);
+			glUniform2f(U(u_alphaRef), alphaRef, 1000.0f);
 			break;
 		case ALPHALESS:
-			glUniform2f(U(u_alphaRef), -1000.0f, uniformState.alphaRef);
+			glUniform2f(U(u_alphaRef), -1000.0f, alphaRef);
 			break;
 		}
 
@@ -890,24 +829,39 @@ flushCache(void)
 #else
 	if(objectDirty){
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformObject),
-				&uniformObject);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), nil, GL_STREAM_DRAW);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), &uniformObject, GL_STREAM_DRAW);
 		objectDirty = 0;
 	}
 	if(sceneDirty){
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_scene);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformScene),
-				&uniformScene);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformScene), nil, GL_STREAM_DRAW);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformScene), &uniformScene, GL_STREAM_DRAW);
 		sceneDirty = 0;
 	}
 	if(stateDirty){
+		switch(alphaFunc){
+		case ALPHAALWAYS:
+		default:
+			uniformState.alphaRefLow = -1000.0f;
+			uniformState.alphaRefHigh = 1000.0f;
+			break;
+		case ALPHAGREATEREQUAL:
+			uniformState.alphaRefLow = alphaRef;
+			uniformState.alphaRefHigh = 1000.0f;
+			break;
+		case ALPHALESS:
+			uniformState.alphaRefLow = -1000.0f;
+			uniformState.alphaRefHigh = alphaRef;
+			break;
+		}
 		uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
 		uniformState.fogStart = rwStateCache.fogStart;
 		uniformState.fogEnd = rwStateCache.fogEnd;
 		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
-		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(UniformState),
-				&uniformState);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformState), nil, GL_STREAM_DRAW);
+		glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformState), &uniformState, GL_STREAM_DRAW);
 		stateDirty = 0;
 	}
 #endif
@@ -1283,7 +1237,7 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
-#ifdef RW_GLES2
+#ifndef RW_GL_USE_UBOS
 	u_alphaRef = registerUniform("u_alphaRef");
 	u_fogStart = registerUniform("u_fogStart");
 	u_fogEnd = registerUniform("u_fogEnd");
@@ -1322,26 +1276,28 @@ initOpenGL(void)
 #ifndef RW_GLES2
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
+#endif
 
+#ifdef RW_GL_USE_UBOS
 	glGenBuffers(1, &ubo_state);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_state);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("State"), ubo_state);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformState), &uniformState,
-	             GL_DYNAMIC_DRAW);
+	             GL_STREAM_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	glGenBuffers(1, &ubo_scene);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_scene);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("Scene"), ubo_scene);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformScene), &uniformScene,
-	             GL_DYNAMIC_DRAW);
+	             GL_STREAM_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	glGenBuffers(1, &ubo_object);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
 	glBindBufferBase(GL_UNIFORM_BUFFER, gl3::findBlock("Object"), ubo_object);
 	glBufferData(GL_UNIFORM_BUFFER, sizeof(UniformObject), &uniformObject,
-	             GL_DYNAMIC_DRAW);
+	             GL_STREAM_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 #endif
 
@@ -1353,7 +1309,7 @@ initOpenGL(void)
 #include "shaders/simple_fs_gl3.inc"
 #endif
 	const char *vs[] = { shaderDecl, header_vert_src, default_vert_src, nil };
-	const char *fs[] = { shaderDecl, simple_frag_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	defaultShader = Shader::create(vs, fs);
 	assert(defaultShader);
 
