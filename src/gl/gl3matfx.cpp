@@ -118,6 +118,7 @@ uploadEnvMatrix(Frame *frame)
 		RawMatrix invMtx;
 		Matrix::invert(&invMat, frame->getLTM());
 		convMatrix(&invMtx, &invMat);
+		invMtx.pos.set(0.0f, 0.0f, 0.0f);
 		RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	}
 	glUniformMatrix4fv(U(u_texMatrix), 1, GL_FALSE, (float*)&envMtx);

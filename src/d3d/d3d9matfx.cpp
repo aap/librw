@@ -86,6 +86,7 @@ uploadEnvMatrix(Frame *frame)
 	RawMatrix envMtx, invMtx;
 	Matrix::invert(&invMat, frame->getLTM());
 	convMatrix(&invMtx, &invMat);
+	invMtx.pos.set(0.0f, 0.0f, 0.0f);
 	RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	d3ddevice->SetVertexShaderConstantF(VSLOC_texMat, (float*)&envMtx, 4);
 }
