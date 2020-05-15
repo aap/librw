@@ -20,6 +20,9 @@ namespace rw {
 namespace gl3 {
 
 uint32 im2DVbo, im2DIbo;
+#ifdef RW_GL_USE_VAOS
+uint32 im2DVao;
+#endif
 static int32 u_xform;
 
 #define STARTINDICES 10000
@@ -65,12 +68,16 @@ openIm2D(void)
 	glGenBuffers(1, &im2DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im2DIbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &im2DVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+#ifdef RW_GL_USE_VAOS
+	glGenVertexArrays(1, &im2DVao);
+	glBindVertexArray(im2DVao);
+	setAttribPointers(im2dattribDesc, 3);
+#endif
 }
 
 void
@@ -110,6 +117,10 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	Camera *cam;
 	cam = (Camera*)engine->currentCamera;
 
+#ifdef RW_GL_USE_VAOS
+	glBindVertexArray(im2DVao);
+#endif
+
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im2DVertex), vertices);
@@ -120,13 +131,17 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	xform[3] = 1.0f;
 
 	im2dShader->use();
+#ifndef RW_GL_USE_VAOS
 	setAttribPointers(im2dattribDesc, 3);
+#endif
 
 	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
 
 	flushCache();
 	glDrawArrays(primTypeMap[primType], 0, numVertices);
+#ifndef RW_GL_USE_VAOS
 	disableAttribPointers(im2dattribDesc, 3);
+#endif
 }
 
 void
@@ -138,7 +153,10 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	Camera *cam;
 	cam = (Camera*)engine->currentCamera;
 
-	// TODO: fixed size
+#ifdef RW_GL_USE_VAOS
+	glBindVertexArray(im2DVao);
+#endif
+
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im2DIbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, numIndices*2, indices);
@@ -153,14 +171,18 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	xform[3] = 1.0f;
 
 	im2dShader->use();
+#ifndef RW_GL_USE_VAOS
 	setAttribPointers(im2dattribDesc, 3);
+#endif
 
 	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
 
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,
 	               GL_UNSIGNED_SHORT, nil);
+#ifndef RW_GL_USE_VAOS
 	disableAttribPointers(im2dattribDesc, 3);
+#endif
 }
 
 
@@ -177,6 +199,9 @@ static AttribDesc im3dattribDesc[3] = {
 		sizeof(Im3DVertex), offsetof(Im3DVertex, u) },
 };
 static uint32 im3DVbo, im3DIbo;
+#ifdef RW_GL_USE_VAOS
+static uint32 im3DVao;
+#endif
 static int32 num3DVertices;	// not actually needed here
 
 void
@@ -197,12 +222,16 @@ openIm3D(void)
 	glGenBuffers(1, &im3DIbo);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, im3DIbo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, STARTINDICES*2, nil, GL_STREAM_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	glGenBuffers(1, &im3DVbo);
 	glBindBuffer(GL_ARRAY_BUFFER, im3DVbo);
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex), nil, GL_STREAM_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+#ifdef RW_GL_USE_VAOS
+	glGenVertexArrays(1, &im3DVao);
+	glBindVertexArray(im3DVao);
+	setAttribPointers(im3dattribDesc, 3);
+#endif
 }
 
 void
@@ -228,11 +257,16 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	if((flags & im3d::VERTEXUV) == 0)
 		SetRenderStatePtr(TEXTURERASTER, nil);
 
-	// TODO: fixed size
+#ifdef RW_GL_USE_VAOS
+	glBindVertexArray(im2DVao);
+#endif
+
 	glBindBuffer(GL_ARRAY_BUFFER, im3DVbo);
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex), nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im3DVertex), vertices);
+#ifndef RW_GL_USE_VAOS
 	setAttribPointers(im3dattribDesc, 3);
+#endif
 	num3DVertices = numVertices;
 }
 
@@ -243,7 +277,6 @@ im3DRenderPrimitive(PrimitiveType primType)
 
 	flushCache();
 	glDrawArrays(primTypeMap[primType], 0, num3DVertices);
-	disableAttribPointers(im3dattribDesc, 3);
 }
 
 void
@@ -256,12 +289,14 @@ im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndic
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,
 	               GL_UNSIGNED_SHORT, nil);
-	disableAttribPointers(im3dattribDesc, 3);
 }
 
 void
 im3DEnd(void)
 {
+#ifndef RW_GL_USE_VAOS
+	disableAttribPointers(im3dattribDesc, 3);
+#endif
 }
 
 }

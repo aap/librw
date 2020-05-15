@@ -128,9 +128,13 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	setWorldMatrix(atomic->getFrame()->getLTM());
 	lightingCB(atomic);
 
-	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
+#ifdef RW_GL_USE_VAOS
+	glBindVertexArray(header->vao);
+#else
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, header->ibo);
+	glBindBuffer(GL_ARRAY_BUFFER, header->vbo);
 	setAttribPointers(header->attribDesc, header->numAttribs);
+#endif
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
@@ -156,7 +160,9 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		drawInst(header, inst);
 		inst++;
 	}
+#ifndef RW_GL_USE_VAOS
 	disableAttribPointers(header->attribDesc, header->numAttribs);
+#endif
 }
 
 

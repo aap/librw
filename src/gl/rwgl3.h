@@ -76,7 +76,7 @@ struct InstanceData
 
 struct InstanceDataHeader : rw::InstanceDataHeader
 {
-	uint32      serialNumber;	// not really needed right now
+	uint32      serialNumber;
 	uint32      numMeshes;
 	uint16     *indexBuffer;
 	uint32      primType;
@@ -88,6 +88,9 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 
 	uint32      ibo;
 	uint32      vbo;		// or 2?
+#ifdef RW_GL_USE_VAOS
+	uint32      vao;
+#endif
 
 	InstanceData *inst;
 };
