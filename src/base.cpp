@@ -398,8 +398,9 @@ Matrix::scale(const V3d *scale, CombineOp op)
 	Matrix tmp;
 	Matrix scl = identMat;
 	scl.right.x = scale->x;
-	scl.right.y = scale->y;
-	scl.right.z = scale->z;
+	scl.up.y = scale->y;
+	scl.at.z = scale->z;
+	scl.flags &= ~IDENTITY;
 	switch(op){
 	case COMBINEREPLACE:
 		*this = scl;
