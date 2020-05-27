@@ -30,14 +30,14 @@ namespace gl3 {
 
 static Shader *envShader;
 static int32 u_texMatrix;
-static int32 u_coefficient;
+static int32 u_fxparams;
 static int32 u_colorClamp;
 
 static void*
 matfxOpen(void *o, int32, int32)
 {
 	u_texMatrix = registerUniform("u_texMatrix");
-	u_coefficient = registerUniform("u_coefficient");
+	u_fxparams = registerUniform("u_fxparams");
 	u_colorClamp = registerUniform("u_colorClamp");
 	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
 
@@ -152,7 +152,11 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 	surfProps[3] = 0.0f;
 	glUniform4fv(U(u_surfProps), 1, surfProps);
 
-	glUniform1fv(U(u_coefficient), 1, &env->coefficient);
+	float fxparams[2];
+	fxparams[0] = env->coefficient;
+	fxparams[1] = env->fbAlpha ? 0.0f : 1.0f;
+
+	glUniform2fv(U(u_fxparams), 1, fxparams);
 	static float zero[4];
 	static float one[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	// This clamps the vertex color below. With it we can achieve both PC and PS2 style matfx

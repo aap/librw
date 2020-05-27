@@ -34,8 +34,11 @@ const char *matfx_env_frag_src =
 "uniform sampler2D tex0;\n"
 "uniform sampler2D tex1;\n"
 
-"uniform float u_coefficient;\n"
+"uniform vec2 u_fxparams;\n"
 "uniform vec4 u_colorClamp;\n"
+
+"#define shininess (u_fxparams.x)\n"
+"#define disableFBA (u_fxparams.y)\n"
 
 "in vec4 v_color;\n"
 "in vec2 v_tex0;\n"
@@ -48,15 +51,16 @@ const char *matfx_env_frag_src =
 "main(void)\n"
 "{\n"
 "	vec4 pass1 = v_color;\n"
-"	vec4 envColor = pass1;	// TODO: colorClamp\n"
+"	vec4 envColor = max(pass1, u_colorClamp);\n"
 "	pass1 *= texture(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));\n"
 
-"	vec4 pass2 = envColor*u_coefficient*texture(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));\n"
+"	vec4 pass2 = envColor*shininess*texture(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));\n"
 
 "	pass1.rgb = mix(u_fogColor.rgb, pass1.rgb, v_fog);\n"
 "	pass2.rgb = mix(vec3(0.0, 0.0, 0.0), pass2.rgb, v_fog);\n"
 
-"	color.rgb = pass1.rgb*pass1.a + pass2.rgb;\n"
+"	float fba = max(pass1.a, disableFBA);\n"
+"	color.rgb = pass1.rgb*pass1.a + pass2.rgb*fba;\n"
 "	color.a = pass1.a;\n"
 
 "	DoAlphaTest(color.a);\n"

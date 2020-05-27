@@ -104,13 +104,18 @@ matfxRender_EnvMap(InstanceDataHeader *header, InstanceData *inst, int32 lightBi
 	d3d::setTexture(1, env->tex);
 	uploadEnvMatrix(env->frame);
 
-	d3ddevice->SetPixelShaderConstantF(PSLOC_shininess, &env->coefficient, 1);
-
 	SetRenderState(SRCBLEND, BLENDONE);
 
 	static float zero[4];
 	static float one[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	d3ddevice->SetPixelShaderConstantF(PSLOC_shininess, &env->coefficient, 1);
+	struct  {
+		float shininess;
+		float disableFBA;
+		float unused[2];
+	} fxparams;
+	fxparams.shininess = env->coefficient;
+	fxparams.disableFBA = env->fbAlpha ? 0.0f : 1.0f;
+	d3ddevice->SetPixelShaderConstantF(PSLOC_shininess, (float*)&fxparams, 1);
 	// This clamps the vertex color below. With it we can achieve both PC and PS2 style matfx
 	if(MatFX::modulateEnvMap)
 		d3ddevice->SetPixelShaderConstantF(PSLOC_colorClamp, zero, 1);

@@ -10,8 +10,11 @@ sampler2D envTex : register(s1);
 
 float4 fogColor : register(c0);
 
-float shininess : register(c1);
+float4 fxparams : register(c1);
 float4 colorClamp : register(c2);
+
+#define shininess (fxparams.x)
+#define disableFBA (fxparams.y)
 
 float4 main(VS_out input) : COLOR
 {
@@ -29,8 +32,11 @@ float4 main(VS_out input) : COLOR
 	// We simulate drawing this in two passes.
 	// First pass with standard blending, second with addition
 	// We premultiply alpha so render state should be one.
+	// For FB alpha rendering assume that diffuse alpha (pass1.a) was
+	// written to framebuffer, so just multiply pass2 by it as well then.
+	float fba = max(pass1.a, disableFBA);
 	float4 color;
-	color.rgb = pass1.rgb*pass1.a + pass2.rgb;
+	color.rgb = pass1.rgb*pass1.a + pass2.rgb*fba;
 	color.a = pass1.a;
 
 	return color;
