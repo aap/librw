@@ -140,9 +140,11 @@ struct MatFX
 	void setEnvTexture(Texture *t);
 	void setEnvFrame(Frame *f);
 	void setEnvCoefficient(float32 coef);
+	void setEnvFBAlpha(bool32 useFBAlpha);
 	Texture *getEnvTexture(void);
 	Frame *getEnvFrame(void);
 	float32 getEnvCoefficient(void);
+	bool32 getEnvFBAlpha(void);
 	// Dual
 	void setDualTexture(Texture *t);
 	void setDualSrcBlend(int32 blend);
