@@ -211,7 +211,7 @@ inline V2d neg(const V2d &a) { return makeV2d(-a.x, -a.y); }
 inline V2d add(const V2d &a, const V2d &b) { return makeV2d(a.x+b.x, a.y+b.y); }
 inline V2d sub(const V2d &a, const V2d &b) { return makeV2d(a.x-b.x, a.y-b.y); }
 inline V2d scale(const V2d &a, float32 r) { return makeV2d(a.x*r, a.y*r); }
-inline float32 length(const V2d &v) { return sqrt(v.x*v.x + v.y*v.y); }
+inline float32 length(const V2d &v) { return sqrtf(v.x*v.x + v.y*v.y); }
 inline V2d normalize(const V2d &v) { return scale(v, 1.0f/length(v)); }
 
 struct V3d
@@ -229,7 +229,7 @@ inline V3d neg(const V3d &a) { return makeV3d(-a.x, -a.y, -a.z); }
 inline V3d add(const V3d &a, const V3d &b) { return makeV3d(a.x+b.x, a.y+b.y, a.z+b.z); }
 inline V3d sub(const V3d &a, const V3d &b) { return makeV3d(a.x-b.x, a.y-b.y, a.z-b.z); }
 inline V3d scale(const V3d &a, float32 r) { return makeV3d(a.x*r, a.y*r, a.z*r); }
-inline float32 length(const V3d &v) { return sqrt(v.x*v.x + v.y*v.y + v.z*v.z); }
+inline float32 length(const V3d &v) { return sqrtf(v.x*v.x + v.y*v.y + v.z*v.z); }
 inline V3d normalize(const V3d &v) { return scale(v, 1.0f/length(v)); }
 inline V3d setlength(const V3d &v, float32 l) { return scale(v, l/length(v)); }
 V3d cross(const V3d &a, const V3d &b);
@@ -263,7 +263,7 @@ struct Quat
 	float32 x, y, z, w;
 
 	static Quat rotation(float32 angle, const V3d &axis){
-		return makeQuat(cos(angle/2.0f), scale(normalize(axis), sin(angle/2.0f))); }
+		return makeQuat(cosf(angle/2.0f), scale(normalize(axis), sinf(angle/2.0f))); }
 	void set(float32 w, float32 x, float32 y, float32 z){
 		this->w = w; this->x = x; this->y = y; this->z = z; }
 	V3d vec(void){ return makeV3d(x, y, z); }
@@ -278,7 +278,7 @@ inline Quat sub(const Quat &q, const Quat &p) { return makeQuat(q.w-p.w, q.x-p.x
 inline Quat negate(const Quat &q) { return makeQuat(-q.w, -q.x, -q.y, -q.z); }
 inline float32 dot(const Quat &q, const Quat &p) { return q.w*p.w + q.x*p.x + q.y*p.y + q.z*p.z; }
 inline Quat scale(const Quat &q, float32 r) { return makeQuat(q.w*r, q.x*r, q.y*r, q.z*r); }
-inline float32 length(const Quat &q) { return sqrt(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z); }
+inline float32 length(const Quat &q) { return sqrtf(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z); }
 inline Quat normalize(const Quat &q) { return scale(q, 1.0f/length(q)); }
 inline Quat conj(const Quat &q) { return makeQuat(q.w, -q.x, -q.y, -q.z); }
 Quat mult(const Quat &q, const Quat &p);

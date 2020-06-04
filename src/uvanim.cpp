@@ -227,7 +227,7 @@ uvAnimParamApplyCB(void *result, void *frame)
 	static V3d xlat2 = {  0.5f,  0.5f, 0.0f };
 	static V3d axis = { 0.0f, 0.0f, 1.0f };
 	m->translate(&xlat1, COMBINEPOSTCONCAT);
-	m->rotate(&axis, p->theta*180.0f/M_PI, COMBINEPOSTCONCAT);
+	m->rotate(&axis, p->theta*180.0f/(float)M_PI, COMBINEPOSTCONCAT);
 	m->translate(&xlat2, COMBINEPOSTCONCAT);
 }
 

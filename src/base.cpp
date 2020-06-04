@@ -127,7 +127,7 @@ slerp(const Quat &q, const Quat &p, float32 a)
 		c = -c;
 		q1 = negate(q1);
 	}
-	float32 phi = acos(c);
+	float32 phi = acosf(c);
 	if(phi > 0.00001f){
 		float32 s = sinf(phi);
 		return add(scale(q1, sinf((1.0f-a)*phi)/s),
@@ -561,8 +561,8 @@ Matrix::makeRotation(Matrix *dst, const V3d *axis, float32 angle)
 	if(len != 0.0f) len = 1.0f/sqrtf(len);
 	V3d v = rw::scale(*axis, len);
 	angle = angle*(float)M_PI/180.0f;
-	float32 s = sin(angle);
-	float32 c = cos(angle);
+	float32 s = sinf(angle);
+	float32 c = cosf(angle);
 	float32 t = 1.0f - c;
 
 	dst->right.x = c + v.x*v.x*t;
@@ -743,7 +743,7 @@ memLittle16_func(void *data, uint32 size)
 	size >>= 1;
 	while(size--){
 		w = *words++;
-		*bytes++ = w;
+		*bytes++ = (uint8)w;
 		*bytes++ = w >> 8;
 	}
 }

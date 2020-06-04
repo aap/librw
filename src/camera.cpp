@@ -500,8 +500,8 @@ Camera::setFOV(float32 hfov, float32 ratio)
 	V2d v;
 	float w, h;
 
-	w = this->frameBuffer->width;
-	h = this->frameBuffer->height;
+	w = (float)this->frameBuffer->width;
+	h = (float)this->frameBuffer->height;
 	if(w < 1 || h < 1){
 		w = 1;
 		h = 1;
@@ -513,7 +513,7 @@ Camera::setFOV(float32 hfov, float32 ratio)
 	float vfov = atanf(tanf(hfov/2) / ar1) *2;
 	hfov = atanf(tanf(vfov/2) * ar2) *2;
 
-	float32 a = tan(hfov);
+	float32 a = tanf(hfov);
 	v.set(a, a/ratio);
 	this->setViewWindow(&v);
 	v.set(0.0f, 0.0f);

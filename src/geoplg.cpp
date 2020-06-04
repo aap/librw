@@ -118,7 +118,7 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 
 	stream->read32(&mhs, sizeof(MeshHeaderStream));
 	// Have to do this dance for War Drum's meshes
-	bool32 hasData = len > sizeof(MeshHeaderStream)+mhs.numMeshes*sizeof(MeshStream);
+	bool32 hasData = len > int32(sizeof(MeshHeaderStream)+mhs.numMeshes*sizeof(MeshStream));
 	assert(geo->meshHeader == nil);
 	geo->meshHeader = nil;
 	mh = geo->allocateMeshes(mhs.numMeshes, mhs.totalIndices, 
