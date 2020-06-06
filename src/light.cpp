@@ -76,13 +76,13 @@ Light::destroy(void)
 void
 Light::setAngle(float32 angle)
 {
-	this->minusCosAngle = -cos(angle);
+	this->minusCosAngle = -cosf(angle);
 }
 
 float32
 Light::getAngle(void)
 {
-	return acos(-this->minusCosAngle);
+	return acosf(-this->minusCosAngle);
 }
 
 void
@@ -123,7 +123,7 @@ Light::streamRead(Stream *stream)
 		light->minusCosAngle = a;
 	else
 		// tan -> -cos
-		light->minusCosAngle = -1.0f/sqrt(a*a+1.0f);
+		light->minusCosAngle = -1.0f/sqrtf(a*a+1.0f);
 	light->object.object.flags = (uint8)buf.type_flags;
 	if(s_plglist.streamRead(stream, light))
 		return light;
@@ -144,7 +144,7 @@ Light::streamWrite(Stream *stream)
 	if(version >= 0x30300)
 		buf.minusCosAngle = this->minusCosAngle;
 	else
-		buf.minusCosAngle = tan(acos(-this->minusCosAngle));
+		buf.minusCosAngle = tanf(acosf(-this->minusCosAngle));
 	buf.type_flags = (uint32)this->object.object.flags |
 		(uint32)this->object.object.subType << 16;
 	stream->write32(&buf, sizeof(LightChunkData));

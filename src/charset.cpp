@@ -162,8 +162,8 @@ Charset::printChar(int32 c, int32 x, int32 y)
 	du = this->desc.width_internal/(float32)this->raster->width;
 	dv = this->desc.height_internal/(float32)this->raster->height;
 
-	vert->setScreenX(x);
-	vert->setScreenY(y);
+	vert->setScreenX((float)x);
+	vert->setScreenY((float)y);
 	vert->setScreenZ(rw::im2d::GetNearZ());
 	vert->setCameraZ(cam->nearPlane);
 	vert->setRecipCameraZ(recipZ);
@@ -172,8 +172,8 @@ Charset::printChar(int32 c, int32 x, int32 y)
 	vert->setV(v, recipZ);
 	vert++;
 
-	vert->setScreenX(x+this->desc.width_internal);
-	vert->setScreenY(y);
+	vert->setScreenX(float(x+this->desc.width_internal));
+	vert->setScreenY((float)y);
 	vert->setScreenZ(rw::im2d::GetNearZ());
 	vert->setCameraZ(cam->nearPlane);
 	vert->setRecipCameraZ(recipZ);
@@ -182,8 +182,8 @@ Charset::printChar(int32 c, int32 x, int32 y)
 	vert->setV(v, recipZ);
 	vert++;
 	
-	vert->setScreenX(x);
-	vert->setScreenY(y+this->desc.height_internal);
+	vert->setScreenX((float)x);
+	vert->setScreenY(float(y+this->desc.height_internal));
 	vert->setScreenZ(rw::im2d::GetNearZ());
 	vert->setCameraZ(cam->nearPlane);
 	vert->setRecipCameraZ(recipZ);
@@ -192,8 +192,8 @@ Charset::printChar(int32 c, int32 x, int32 y)
 	vert->setV(v+dv, recipZ);
 	vert++;
 
-	vert->setScreenX(x+this->desc.width_internal);
-	vert->setScreenY(y+this->desc.height_internal);
+	vert->setScreenX(float(x+this->desc.width_internal));
+	vert->setScreenY(float(y+this->desc.height_internal));
 	vert->setScreenZ(rw::im2d::GetNearZ());
 	vert->setCameraZ(cam->nearPlane);
 	vert->setRecipCameraZ(recipZ);
