@@ -1236,7 +1236,7 @@ makeVideoModeList(void)
 
 	modes = glfwGetVideoModes(glGlobals.monitor, &num);
 	rwFree(glGlobals.modes);
-	glGlobals.modes = rwNewT(DisplayMode, num, ID_DRIVER | MEMDUR_EVENT);
+	glGlobals.modes = rwNewT(DisplayMode, num+1, ID_DRIVER | MEMDUR_EVENT);
 
 	glGlobals.modes[0].mode = *glfwGetVideoMode(glGlobals.monitor);
 	glGlobals.modes[0].flags = 0;
