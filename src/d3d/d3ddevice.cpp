@@ -791,6 +791,8 @@ beginUpdate(Camera *cam)
 	d3dShaderState.fogData.start = cam->fogPlane;
 	d3dShaderState.fogData.end = cam->farPlane;
 	d3dShaderState.fogData.range = 1.0f/(cam->fogPlane - cam->farPlane);
+	// TODO: not quite sure this is the right place to do this...
+	d3dShaderState.fogData.disable = rwStateCache.fogenable ? 0.0f : 1.0f;
 	d3dShaderState.fogDisable.start = 0.0f;
 	d3dShaderState.fogDisable.end = 0.0f;
 	d3dShaderState.fogDisable.range = 0.0f;
