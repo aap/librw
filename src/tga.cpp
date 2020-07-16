@@ -73,19 +73,14 @@ TGAHeader::write(Stream *stream)
 }
 
 Image*
-readTGA(const char *afilename)
+readTGA(const char *filename)
 {
 	TGAHeader header;
 	Image *image;
-	char *filename;
 	int depth = 0, palDepth = 0;
-	filename = Image::getFilename(afilename);
-	if(filename == nil)
-		return nil;
 	uint32 length;
 	uint8 *data = getFileContents(filename, &length);
 	assert(data != nil);
-	rwFree(filename);
 	StreamMemory file;
 	file.open(data, length);
 	header.read(&file);

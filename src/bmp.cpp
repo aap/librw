@@ -73,11 +73,10 @@ BMPheader::write(Stream *stream)
 }
 
 Image*
-readBMP(const char *afilename)
+readBMP(const char *filename)
 {
 	ASSERTLITTLE;
 	Image *image;
-	char *filename;
 	uint32 length;
 	uint8 *data;
 	StreamMemory file;
@@ -86,11 +85,7 @@ readBMP(const char *afilename)
 	bool32 noalpha;
 	int pad;
 
-	filename = Image::getFilename(afilename);
-	if(filename == nil)
-		return nil;
 	data = getFileContents(filename, &length);
-	rwFree(filename);
 	if(data == nil)
 		return nil;
 	file.open(data, length);

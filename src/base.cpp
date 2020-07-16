@@ -1102,7 +1102,7 @@ findPointer(void *p, void **list, int32 num)
 }
 
 uint8*
-getFileContents(char *name, uint32 *len)
+getFileContents(const char *name, uint32 *len)
 {
 	FILE *cf = fopen(name, "rb");
 	assert(cf != nil);

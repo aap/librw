@@ -695,5 +695,5 @@ bool readChunkHeaderInfo(Stream *s, ChunkHeaderInfo *header);
 bool findChunk(Stream *s, uint32 type, uint32 *length, uint32 *version);
 
 int32 findPointer(void *p, void **list, int32 num);
-uint8 *getFileContents(char *name, uint32 *len);
+uint8 *getFileContents(const char *name, uint32 *len);
 }
