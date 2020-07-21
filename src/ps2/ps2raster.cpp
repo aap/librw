@@ -1386,7 +1386,7 @@ unswizzleRaster(Raster *raster)
 	h = max(raster->height, minh);
 	px = raster->pixels;
 	logw = 0;
-	for(i = 1; i < raster->width; i *= 2) logw++;
+	for(i = 1; i < w; i *= 2) logw++;
 	mask = (1<<logw+2)-1;
 
 	if(raster->format & Raster::PAL4 && natras->flags & Ps2Raster::SWIZZLED4){
