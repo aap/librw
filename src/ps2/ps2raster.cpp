@@ -1566,31 +1566,31 @@ rasterUnlockPalette(Raster *raster)
 }
 
 void
-expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+expandPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
 {
 	int32 x, y;
 	for(y = 0; y < h; y++)
 		for(x = 0; x < w/2; x++){
-			dst[y*w + x*2 + 0] = src[y*srcw/2 + x] & 0xF;
-			dst[y*w + x*2 + 1] = src[y*srcw/2 + x] >> 4;
+			dst[y*dststride + x*2 + 0] = src[y*srcstride + x] & 0xF;
+			dst[y*dststride + x*2 + 1] = src[y*srcstride + x] >> 4;
 		}
 }
 void
-compressPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+compressPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
 {
 	int32 x, y;
 	for(y = 0; y < h; y++)
 		for(x = 0; x < w/2; x++)
-			dst[y*srcw/2 + x] = src[y*w + x*2 + 0] | src[y*w + x*2 + 1] << 4;
+			dst[y*dststride + x] = src[y*srcstride + x*2 + 0] | src[y*srcstride + x*2 + 1] << 4;
 }
 
 void
-copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw)
+copyPSMT8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
 {
 	int32 x, y;
 	for(y = 0; y < h; y++)
 		for(x = 0; x < w; x++)
-			dst[y*w + x] = src[y*srcw + x];
+			dst[y*dststride + x] = src[y*srcstride + x];
 }
 
 // Almost the same as d3d9 and gl3 function
@@ -1691,23 +1691,22 @@ rasterFromImage(Raster *raster, Image *image)
 	int tw;
 	transferMinSize(image->depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
 	tw = max(image->width, minw);
-	in = image->pixels;
+	uint8 *src = image->pixels;
 	out = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	if(image->depth == 4){
-		compressPSMT4(out, in, image->width, image->height, tw);
+		compressPSMT4(out, tw/2, src, image->stride, image->width, image->height);
 	}else if(image->depth == 8){
-		copyPSMT8(out, in, image->width, image->height, tw);
+		copyPSMT8(out, tw, src, image->stride, image->width, image->height);
 	}else{
-		// TODO: stride
-		for(int32 y = 0; y < image->height; y++)
-			for(int32 x = 0; x < image->width; x++)
+		for(int32 y = 0; y < image->height; y++){
+			in = src;
+			for(int32 x = 0; x < image->width; x++){
 				switch(raster->format & 0xF00){
 				case Raster::C8888:
 					out[0] = in[0];
 					out[1] = in[1];
 					out[2] = in[2];
 					out[3] = in[3]*128/255;
-					in += 4;
 					out += 4;
 					break;
 				case Raster::C888:
@@ -1715,19 +1714,20 @@ rasterFromImage(Raster *raster, Image *image)
 					out[1] = in[1];
 					out[2] = in[2];
 					out[3] = 0x80;
-					in += 3;
 					out += 4;
 					break;
 				case Raster::C1555:
-					out[0] = in[0];
-					out[1] = in[1];
-					in += 2;
+					conv_ARGB1555_from_ABGR1555(out, in);
 					out += 2;
 					break;
 				default:
 					assert(0 && "unknown ps2 raster format");
 					break;
 				}
+				in += image->bpp;
+			}
+			src += image->stride;
+		}
 	}
 	raster->unlock(0);
 	return 1;
@@ -1792,16 +1792,16 @@ rasterToImage(Raster *raster)
 	int tw;
 	transferMinSize(depth == 4 ? PSMT4 : PSMT8, natras->flags, &minw, &minh);
 	tw = max(raster->width, minw);
-	out = image->pixels;
+	uint8 *dst = image->pixels;
 	in = raster->lock(0, Raster::LOCKREAD);
 	if(depth == 4){
-		expandPSMT4(out, in, raster->width, raster->height, tw);
+		expandPSMT4(dst, image->stride, in, tw/2, raster->width, raster->height);
 	}else if(depth == 8){
-		copyPSMT8(out, in, raster->width, raster->height, tw);
-	}else
-		// TODO: stride
-		for(int32 y = 0; y < image->height; y++)
-			for(int32 x = 0; x < image->width; x++)
+		copyPSMT8(dst, image->stride, in, tw, raster->width, raster->height);
+	}else{
+		for(int32 y = 0; y < image->height; y++){
+			out = dst;
+			for(int32 x = 0; x < image->width; x++){
 				switch(raster->format & 0xF00){
 				case Raster::C8888:
 					out[0] = in[0];
@@ -1809,31 +1809,31 @@ rasterToImage(Raster *raster)
 					out[2] = in[2];
 					out[3] = in[3]*255/128;
 					in += 4;
-					out += 4;
 					break;
 				case Raster::C888:
 					out[0] = in[0];
 					out[1] = in[1];
 					out[2] = in[2];
 					in += 4;
-					out += 3;
 					break;
 				case Raster::C1555:
-					out[0] = in[0];
-					out[1] = in[1];
+					conv_ARGB1555_from_ABGR1555(out, in);
 					in += 2;
-					out += 2;
 					break;
 				case Raster::C555:
-					out[0] = in[0];
-					out[1] = in[1] | 0x80;
+					conv_ARGB1555_from_ABGR1555(out, in);
+					out[1] |= 0x80;
 					in += 2;
-					out += 2;
 					break;
 				default:
 					assert(0 && "unknown ps2 raster format");
 					break;
 				}
+				out += image->bpp;
+			}
+			dst += image->stride;
+		}
+	}
 	raster->unlock(0);
 
 	return image;

@@ -371,7 +371,7 @@ rasterFromImage(Raster *raster, Image *image)
 		truecolimg->pixels = image->pixels;
 		truecolimg->stride = image->stride;
 		truecolimg->palette = image->palette;
-		truecolimg->unindex();
+		truecolimg->unpalettize();
 		image = truecolimg;
 	}
 
@@ -379,34 +379,34 @@ rasterFromImage(Raster *raster, Image *image)
 	switch(image->depth){
 	case 32:
 #ifdef RW_GLES
-		conv = conv_RGBA8888_to_RGBA8888;
+		conv = conv_RGBA8888_from_RGBA8888;
 #else
 		if(raster->format == Raster::C8888)
-			conv = conv_RGBA8888_to_RGBA8888;
+			conv = conv_RGBA8888_from_RGBA8888;
 		else if(raster->format == Raster::C888)
-			conv = conv_RGB888_to_RGB888;
+			conv = conv_RGB888_from_RGB888;
 		else
 			goto err;
 #endif
 		break;
 	case 24:
 #ifdef RW_GLES
-		conv = conv_RGB888_to_RGBA8888;
+		conv = conv_RGB888_from_RGBA8888;
 #else
 		if(raster->format == Raster::C8888)
-			conv = conv_RGB888_to_RGBA8888;
+			conv = conv_RGBA8888_from_RGB888;
 		else if(raster->format == Raster::C888)
-			conv = conv_RGB888_to_RGB888;
+			conv = conv_RGB888_from_RGB888;
 		else
 			goto err;
 #endif
 		break;
 	case 16:
 #ifdef RW_GLES
-		conv = conv_RGBA1555_to_RGBA8888;
+		conv = conv_RGBA8888_from_ARGB1555;
 #else
 		if(raster->format == Raster::C1555)
-			conv = conv_RGBA1555_to_RGBA5551;
+			conv = conv_RGBA5551_from_ARGB1555;
 		else
 			goto err;
 #endif

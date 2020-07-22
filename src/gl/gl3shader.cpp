@@ -80,7 +80,7 @@ Shader *currentShader;
 static void
 printShaderSource(const char **src)
 {
-	int f, l;
+	int f;
 	const char *file;
 	bool printline;
 	int line = 1;

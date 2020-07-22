@@ -85,7 +85,7 @@ Image::allocate(void)
 	}
 	if(this->palette == nil){
 		if(this->depth == 4 || this->depth == 8)
-			this->palette = rwNewT(uint8, (this->depth==4? 16 : 256)*4, MEMDUR_EVENT | ID_IMAGE);
+			this->palette = rwNewT(uint8, (1 << this->depth)*4, MEMDUR_EVENT | ID_IMAGE);
 		this->flags |= 2;
 	}
 }
@@ -101,6 +101,7 @@ Image::free(void)
 		rwFree(this->palette);
 		this->palette = nil;
 	}
+	this->flags = 0;
 }
 
 void
@@ -350,8 +351,6 @@ Image::hasAlpha(void)
 {
 	uint8 ret = 0xFF;
 	uint8 *pixels = this->pixels;
-	if(this->depth == 24)
-		return 0;
 	if(this->depth == 32){
 		for(int y = 0; y < this->height; y++){
 			uint8 *line = pixels;
@@ -361,6 +360,18 @@ Image::hasAlpha(void)
 			}
 			pixels += this->stride;
 		}
+	}else if(this->depth == 24){
+		return 0;
+	}else if(this->depth == 16){
+		for(int y = 0; y < this->height; y++){
+			uint8 *line = pixels;
+			for(int x = 0; x < this->width; x++){
+				ret &= line[1] & 0x80;
+				line += 2;
+			}
+			pixels += this->stride;
+		}
+		return ret != 0x80;
 	}else if(this->depth <= 8){
 		for(int y = 0; y < this->height; y++){
 			uint8 *line = pixels;
@@ -375,14 +386,92 @@ Image::hasAlpha(void)
 }
 
 void
-Image::unindex(void)
+Image::convertTo32(void)
+{
+	assert(this->pixels);
+	uint8 *pixels = this->pixels;
+	int32 newstride = this->width*4;
+	uint8 *newpixels;
+
+	void (*fun)(uint8 *out, uint8 *in) = nil;
+	switch(this->depth){
+	case 4:
+	case 8:
+		assert(this->palette);
+		this->unpalettize(true);
+		return;
+	case 16:
+		fun = conv_RGBA8888_from_ARGB1555;
+		break;
+	case 24:
+		fun = conv_RGBA8888_from_RGB888;
+		break;
+	default:
+		return;
+	}
+
+	newpixels = rwNewT(uint8, newstride*this->height, MEMDUR_EVENT | ID_IMAGE);
+	for(int y = 0; y < this->height; y++){
+		uint8 *line = pixels;
+		uint8 *newline = newpixels;
+		for(int x = 0; x < this->width; x++){
+			fun(newline, line);
+			line += this->bpp;
+			newline += 4;
+		}
+		pixels += this->stride;
+		newpixels += newstride;
+	}
+
+	this->free();
+	this->depth = 32;
+	this->bpp = 4;
+	this->stride = newstride;
+	this->pixels = nil;
+	this->palette = nil;
+	this->setPixels(newpixels);
+}
+
+void
+Image::palettize(int32 depth)
+{
+	RGBA colors[256];
+	ColorQuant quant;
+	uint8 *newpixels;
+	uint32 newstride;
+
+	quant.init();
+	quant.addImage(this);
+	assert(depth <= 8);
+	quant.makePalette(1<<depth, colors);
+
+	newstride = this->width;
+	newpixels = rwNewT(uint8, newstride*this->height, MEMDUR_EVENT | ID_IMAGE);
+	// TODO: maybe do floyd-steinberg dithering?
+	quant.matchImage(newpixels, newstride, this);
+
+	this->free();
+	this->depth = depth;
+	this->bpp = depth < 8 ? 1 : depth/8;
+	this->stride = newstride;
+	this->pixels = nil;
+	this->palette = nil;
+	this->setPixels(newpixels);
+	this->allocate();
+	memcpy(this->palette, colors, 4*(1<<depth));
+
+	quant.destroy();
+}
+
+void
+Image::unpalettize(bool forceAlpha)
 {
 	if(this->depth > 8)
 		return;
 	assert(this->pixels);
 	assert(this->palette);
 
-	int32 ndepth = this->hasAlpha() ? 32 : 24;
+	int32 ndepth = (forceAlpha || this->hasAlpha()) ? 32 : 24;
 	int32 nstride = this->width*ndepth/8;
 	uint8 *npixels = rwNewT(uint8, nstride*this->height, MEMDUR_EVENT | ID_IMAGE);
 
@@ -411,14 +500,89 @@ Image::unindex(void)
 	this->setPixels(npixels);
 }
 
+// Copy the biggest channel value to alpha
+void
+Image::makeMask(void)
+{
+	int32 maxcol;
+	switch(this->depth){
+	case 4:
+	case 8: {
+		assert(this->palette);
+		int32 pallen = 1 << this->depth;
+		for(int32 i = 0; i < pallen; i++){
+			maxcol = this->palette[i*4+0];
+			if(this->palette[i*4+1] > maxcol) maxcol = this->palette[i*4+1];
+			if(this->palette[i*4+2] > maxcol) maxcol = this->palette[i*4+2];
+			this->palette[i*4+3] = maxcol;
+		}
+		break;
+	}
+
+	case 16:
+	case 24:
+		this->convertTo32();
+		// fallthrough
+
+	case 32: {
+		assert(this->pixels);
+		uint8 *line = this->pixels;
+		uint8 *p;
+		for(int32 y = 0; y < this->height; y++){
+			p = line;
+			for(int32 x = 0; x < this->width; x++){
+				maxcol = p[0];
+				if(p[1] > maxcol) maxcol = p[1];
+				if(p[2] > maxcol) maxcol = p[2];
+				p[3] = maxcol;
+				p += this->bpp;
+			}
+			line += this->stride;
+		}
+		break;
+	}
+	}
+}
+
+void
+Image::applyMask(Image *mask)
+{
+	if(this->width != mask->width || this->height != mask->height)
+		return;	// TODO: set an error
+	// we could use alpha with 16 bits but what's the point?
+	if(mask->depth == 16 || mask->depth == 24)
+		return;
+
+	this->convertTo32();
+	assert(this->depth == 32);
+
+	uint8 *line = this->pixels;
+	uint8 *mline = mask->pixels;
+	uint8 *p, *m;
+	for(int32 y = 0; y < this->height; y++){
+		p = line;
+		m = mline;
+		for(int32 x = 0; x < this->width; x++){
+			if(mask->depth == 32)
+				p[3] = m[3];
+			else if(mask->depth <= 8)
+				p[3] = mask->palette[m[0]*4+3];
+			p += this->bpp;
+			m += mask->bpp;
+		}
+		line += this->stride;
+		mline += mask->stride;
+	}
+}
+
 void
 Image::removeMask(void)
 {
 	if(this->depth <= 8){
 		assert(this->palette);
-		int32 pallen = 4*(this->depth == 4 ? 16 : 256);
+		int32 pallen = 4*(1 << this->depth);
 		for(int32 i = 0; i < pallen; i += 4)
-			this->palette[i] = 0xFF;
+			this->palette[i+3] = 0xFF;
 		return;
 	}
 	if(this->depth == 24)
@@ -577,13 +741,35 @@ Image::getFilename(const char *name)
 }
 
 Image*
+Image::readMasked(const char *imageName, const char *maskName)
+{
+	Image *img, *mask;
+
+	img = read(imageName);
+	if(img == nil)
+		return nil;
+	if(maskName && maskName[0]){
+		mask = read(maskName);
+		if(mask == nil)
+			return img;
+		mask->makeMask();
+		int32 origDepth = img->depth;
+		img->applyMask(mask);
+		mask->destroy();
+		if(origDepth <= 8 && img->depth != origDepth)
+			img->palettize(origDepth);
+	}
+	return img;
+}
+
+Image*
 Image::read(const char *imageName)
 {
 	int i;
 	char *filename, *ext, *found;
 	Image *img;
 
-	filename = rwNewT(char, strlen(imageName) + 20, MEMDUR_FUNCTION | ID_TEXTURE);
+	filename = rwNewT(char, strlen(imageName) + 20, MEMDUR_FUNCTION | ID_IMAGE);
 	strcpy(filename, imageName);
 	ext = filename + strlen(filename);
 	*ext++ = '.';
@@ -651,5 +837,261 @@ Image::registerModule(void)
 {
 	Engine::registerPlugin(sizeof(ImageGlobals), ID_IMAGEMODULE, imageOpen, imageClose);
 }
+
+
+
+/*
+ * Color Quantization
+ */
+
+// An address for a single level is 4 bits.
+// Since we have 8 bpp that is 32 bits to address any tree node.
+// The lower bits address the higher level tree nodes.
+// This is essentially a bit reverse and swizzle.
+static uint32
+makeTreeAddr(RGBA color)
+{
+	int32 i;
+	uint32 addr = 0;
+	uint32 r = 1;
+	uint32 g = 2;
+	uint32 b = 4;
+	uint32 a = 8;
+	for(i = 0; i < 8; i++){
+		uint32 mask = 0x80>>i;
+		if(color.red & mask) addr |= r;
+		if(color.green & mask) addr |= g;
+		if(color.blue & mask) addr |= b;
+		if(color.alpha & mask) addr |= a;
+		r <<= 4;
+		g <<= 4;
+		b <<= 4;
+		a <<= 4;
+	}
+	return addr;
+}
+
+void
+ColorQuant::Node::destroy(void)
+{
+	int i;
+	for(i = 0; i < 16; i++)
+		if(this->children[i])
+			this->children[i]->destroy();
+	if(this->link.next)
+		this->link.remove();
+	rwFree(this);
+}
+
+ColorQuant::Node*
+ColorQuant::createNode(int32 level)
+{
+	int i;
+	ColorQuant::Node *node = rwNewT(ColorQuant::Node, 1, MEMDUR_EVENT | ID_IMAGE);
+	node->parent = nil;
+	for(i = 0; i < 16; i++)
+		node->children[i] = nil;
+	node->r = 0;
+	node->g = 0;
+	node->b = 0;
+	node->a = 0;
+	node->numPixels = 0;
+	node->link.init();
+
+	if(level == 0)
+		this->leaves.append(&node->link);
+
+	return node;
+}
+
+ColorQuant::Node*
+ColorQuant::getNode(ColorQuant::Node *root, uint32 addr, int32 level)
+{
+	if(level == 0)
+		return root;
+
+	uint32 a = addr & 0xF;
+	if(root->children[a] == nil){
+		root->children[a] = this->createNode(level-1);
+		root->children[a]->parent = root;
+	}
+
+	return this->getNode(root->children[a], addr>>4, level-1);
+}
+
+ColorQuant::Node*
+ColorQuant::findNode(ColorQuant::Node *root, uint32 addr, int32 level)
+{
+	if(level == 0)
+		return root;
+
+	uint32 a = addr & 0xF;
+	if(root->children[a] == nil)
+		return root;
+
+	return this->findNode(root->children[a], addr>>4, level-1);
+}
+
+void
+ColorQuant::reduceNode(Node *node)
+{
+	int i;
+	assert(node->numPixels == 0);
+	for(i = 0; i < 16; i++)
+		if(node->children[i]){
+			node->r += node->children[i]->r;
+			node->g += node->children[i]->g;
+			node->b += node->children[i]->b;
+			node->a += node->children[i]->a;
+			node->numPixels += node->children[i]->numPixels;
+			node->children[i]->destroy();
+			node->children[i] = nil;
+		}
+	assert(node->link.next == nil);
+	assert(node->link.prev == nil);
+	this->leaves.append(&node->link);
+}
+
+void
+ColorQuant::Node::addColor(RGBA color)
+{
+	this->r += color.red;
+	this->g += color.green;
+	this->b += color.blue;
+	this->a += color.alpha;
+	this->numPixels++;
+}
+
+void
+ColorQuant::init(void)
+{
+	this->leaves.init();
+	this->root = this->createNode(QUANTDEPTH);
+}
+
+void
+ColorQuant::destroy(void)
+{
+	this->root->destroy();
+}
+
+void
+ColorQuant::addColor(RGBA color)
+{
+	uint32 addr = makeTreeAddr(color);
+	ColorQuant::Node *node = this->getNode(root, addr, QUANTDEPTH);
+	node->addColor(color);
+}
+
+uint8
+ColorQuant::findColor(RGBA color)
+{
+	uint32 addr = makeTreeAddr(color);
+	ColorQuant::Node *node = this->findNode(root, addr, QUANTDEPTH);
+	return node->numPixels;
+}
+
+void
+ColorQuant::addImage(Image *img)
+{
+	RGBA col;
+	uint8 rgba[4];
+	uint8 *pixels = img->pixels;
+	for(int y = 0; y < img->height; y++){
+		uint8 *line = pixels;
+		for(int x = 0; x < img->width; x++){
+			uint8 *p = line;
+			switch(img->depth){
+			case 4: case 8:
+				conv_RGBA8888_from_RGBA8888(rgba, &img->palette[p[0]*4]);
+				break;
+			case 32:
+				conv_RGBA8888_from_RGBA8888(rgba, p);
+				break;
+			case 24:
+				conv_RGBA8888_from_RGB888(rgba, p);
+				break;
+			case 16:
+				conv_RGBA8888_from_ARGB1555(rgba, p);
+				break;
+			default: assert(0 && "invalid depth");
+			}
+			col.red = rgba[0];
+			col.green = rgba[1];
+			col.blue = rgba[2];
+			col.alpha = rgba[3];
+			this->addColor(col);
+			line += img->bpp;
+		}
+		pixels += img->stride;
+	}
+}
+
+void
+ColorQuant::makePalette(int32 numColors, RGBA *colors)
+{
+	while(this->leaves.count() > numColors){
+		Node *n = LLLinkGetData(this->leaves.link.next, Node, link);
+		this->reduceNode(n->parent);
+	}
+
+	int i = 0;
+	FORLIST(lnk, this->leaves){
+		Node *n = LLLinkGetData(lnk, Node, link);
+		n->r /= n->numPixels;
+		n->g /= n->numPixels;
+		n->b /= n->numPixels;
+		n->a /= n->numPixels;
+		colors[i].red = n->r;
+		colors[i].green = n->g;
+		colors[i].blue = n->b;
+		colors[i].alpha = n->a;
+		n->numPixels = i++;
+	}
+}
+
+void
+ColorQuant::matchImage(uint8 *dstPixels, uint32 dstStride, Image *img)
+{
+	RGBA col;
+	uint8 rgba[4];
+	uint8 *pixels = img->pixels;
+	for(int y = 0; y < img->height; y++){
+		uint8 *line = pixels;
+		uint8 *dline = dstPixels;
+		for(int x = 0; x < img->width; x++){
+			uint8 *p = line;
+			uint8 *d = dline;
+			switch(img->depth){
+			case 4: case 8:
+				conv_RGBA8888_from_RGBA8888(rgba, &img->palette[p[0]*4]);
+				break;
+			case 32:
+				conv_RGBA8888_from_RGBA8888(rgba, p);
+				break;
+			case 24:
+				conv_RGBA8888_from_RGB888(rgba, p);
+				break;
+			case 16:
+				conv_RGBA8888_from_ARGB1555(rgba, p);
+				break;
+			default: assert(0 && "invalid depth");
+			}
+			
+			col.red = rgba[0];
+			col.green = rgba[1];
+			col.blue = rgba[2];
+			col.alpha = rgba[3];
+			*d = this->findColor(col);
+
+			line += img->bpp;
+			dline++;
+		}
+		pixels += img->stride;
+		dstPixels += dstStride;
+	}
+}
+
+
 
 }

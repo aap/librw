@@ -299,14 +299,13 @@ defaultFindCB(const char *name)
 }
 
 
-// TODO: actually read the mask!
 static Texture*
 defaultReadCB(const char *name, const char *mask)
 {
 	Texture *tex;
 	Image *img;
 
-	img = Image::read(name);
+	img = Image::readMasked(name, mask);
 	if(img){
 		tex = Texture::create(Raster::createFromImage(img));
 		strncpy(tex->name, name, 32);

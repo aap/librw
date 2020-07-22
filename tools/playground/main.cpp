@@ -27,6 +27,9 @@ void genIm3DEnd(void);
 void initFont(void);
 void printScreen(const char *s, float x, float y);
 
+void initsplines(void);
+void rendersplines(void);
+
 rw::Charset *testfont;
 
 //#include <Windows.h>
@@ -236,7 +239,7 @@ InitRW(void)
 	Scene.camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
 	camera->m_rwcam = Scene.camera;
 	camera->m_aspectRatio = 640.0f/448.0f;
-	camera->m_near = 5.0f;
+	camera->m_near = 0.5f;
 //	camera->m_far = 450.0f;
 	camera->m_far = 15.0f;
 	camera->m_target.set(0.0f, 0.0f, 0.0f);
@@ -247,6 +250,8 @@ InitRW(void)
 	camera->update();
 
 	Scene.world->addCamera(camera->m_rwcam);
+
+	initsplines();
 
 	return true;
 }
@@ -382,7 +387,7 @@ Draw(float timeDelta)
 {
 	getFrontBuffer();
 
-	static rw::RGBA clearcol = { 0x60, 0x60, 0x60, 0xFF };
+	static rw::RGBA clearcol = { 161, 161, 161, 0xFF };
 	camera->m_rwcam->clear(&clearcol, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
 	camera->update();
 	camera->m_rwcam->beginUpdate();
@@ -401,10 +406,12 @@ extern void endSoftras(void);
 	//	im2dtest();
 
 //	Scene.clump->render();
-	im3dtest();
+//	im3dtest();
 //	printScreen("Hello, World!", 10, 10);
 
-	testfont->print("foo ABC", 200, 200, true);
+//	testfont->print("foo ABC", 200, 200, true);
+
+	rendersplines();
 
 	camera->m_rwcam->endUpdate();
 

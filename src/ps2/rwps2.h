@@ -223,8 +223,9 @@ Texture *readNativeTexture(Stream *stream);
 void writeNativeTexture(Texture *tex, Stream *stream);
 uint32 getSizeNativeTexture(Texture *tex);
 
-void expandPSMT4(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw);
-void copyPSMT8(uint8 *dst, uint8 *src, int32 w, int32 h, int32 srcw);
+void expandPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void compressPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void copyPSMT8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
 
 }
 }

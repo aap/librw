@@ -741,7 +741,7 @@ rasterFromImage(Raster *raster, Image *image)
 		truecolimg->pixels = image->pixels;
 		truecolimg->stride = image->stride;
 		truecolimg->palette = image->palette;
-		truecolimg->unindex();
+		truecolimg->unpalettize();
 		image = truecolimg;
 	}
 

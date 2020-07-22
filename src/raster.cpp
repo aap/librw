@@ -222,7 +222,7 @@ Raster::renderFast(int32 x, int32 y)
 }
 
 void
-conv_RGBA8888_to_RGBA8888(uint8 *out, uint8 *in)
+conv_RGBA8888_from_RGBA8888(uint8 *out, uint8 *in)
 {
 	out[0] = in[0];
 	out[1] = in[1];
@@ -231,7 +231,7 @@ conv_RGBA8888_to_RGBA8888(uint8 *out, uint8 *in)
 }
 
 void
-conv_RGB888_to_RGBA8888(uint8 *out, uint8 *in)
+conv_RGBA8888_from_RGB888(uint8 *out, uint8 *in)
 {
 	out[0] = in[0];
 	out[1] = in[1];
@@ -240,7 +240,7 @@ conv_RGB888_to_RGBA8888(uint8 *out, uint8 *in)
 }
 
 void
-conv_RGB888_to_RGB888(uint8 *out, uint8 *in)
+conv_RGB888_from_RGB888(uint8 *out, uint8 *in)
 {
 	out[0] = in[0];
 	out[1] = in[1];
@@ -248,7 +248,7 @@ conv_RGB888_to_RGB888(uint8 *out, uint8 *in)
 }
 
 void
-conv_RGBA1555_to_RGBA5551(uint8 *out, uint8 *in)
+conv_RGBA5551_from_ARGB1555(uint8 *out, uint8 *in)
 {
 	uint32 r, g, b, a;
 	a = (in[1]>>7) & 1;
@@ -260,7 +260,7 @@ conv_RGBA1555_to_RGBA5551(uint8 *out, uint8 *in)
 }
 
 void
-conv_RGBA1555_to_RGBA8888(uint8 *out, uint8 *in)
+conv_RGBA8888_from_ARGB1555(uint8 *out, uint8 *in)
 {
 	uint32 r, g, b, a;
 	a = (in[1]>>7) & 1;
@@ -271,6 +271,16 @@ conv_RGBA1555_to_RGBA8888(uint8 *out, uint8 *in)
 	out[1] = g*0xFF/0x1f;
 	out[2] = b*0xFF/0x1f;
 	out[3] = a*0xFF;
+}
+
+void
+conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in)
+{
+	uint32 r, b;
+	r = (in[1]>>2) & 0x1F;
+	b = in[0] & 0x1F;
+	out[1] = in[1]&0x83 | b<<2;
+	out[0] = in[0]&0xE0 | r;
 }
 
 }

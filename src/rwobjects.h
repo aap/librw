@@ -142,7 +142,11 @@ struct Image
 	void setPixelsDXT(int32 type, uint8 *pixels);
 	void setPalette(uint8 *palette);
 	bool32 hasAlpha(void);
-	void unindex(void);
+	void convertTo32(void);
+	void palettize(int32 depth);
+	void unpalettize(bool forceAlpha = false);
+	void makeMask(void);
+	void applyMask(Image *mask);
 	void removeMask(void);
 	Image *extractMask(void);
 
@@ -150,6 +154,7 @@ struct Image
 	static void printSearchPath(void);
 	static char *getFilename(const char*);
 	static Image *read(const char *imageName);
+	static Image *readMasked(const char *imageName, const char *maskName);
 
 
 	typedef Image *(*fileRead)(const char *afilename);
@@ -165,6 +170,38 @@ Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
 Image *readBMP(const char *filename);
 void writeBMP(Image *image, const char *filename);
+
+enum { QUANTDEPTH = 8 };
+
+struct ColorQuant
+{
+	struct Node {
+		uint32 r, g, b, a;
+		int32 numPixels;
+		Node *parent;
+		Node *children[16];
+		LLLink link;
+
+		void destroy(void);
+		void addColor(RGBA color);
+		bool isLeaf(void) { for(int32 i = 0; i < 16; i++) if(this->children[i]) return false; return true; }
+	};
+
+	Node *root;
+	LinkList leaves;
+
+	void init(void);
+	void destroy(void);
+	Node *createNode(int32 level);
+	Node *getNode(Node *root, uint32 addr, int32 level);
+	Node *findNode(Node *root, uint32 addr, int32 level);
+	void reduceNode(Node *node);
+	void addColor(RGBA color);
+	uint8 findColor(RGBA color);
+	void addImage(Image *img);
+	void makePalette(int32 numColors, RGBA *colors);
+	void matchImage(uint8 *dstPixels, uint32 dstStride, Image *src);
+};
 
 // used to emulate d3d and xbox textures
 struct RasterLevels
@@ -265,11 +302,13 @@ struct Raster
 	};
 };
 
-void conv_RGBA8888_to_RGBA8888(uint8 *out, uint8 *in);
-void conv_RGB888_to_RGBA8888(uint8 *out, uint8 *in);
-void conv_RGB888_to_RGB888(uint8 *out, uint8 *in);
-void conv_RGBA1555_to_RGBA5551(uint8 *out, uint8 *in);
-void conv_RGBA1555_to_RGBA8888(uint8 *out, uint8 *in);
+void conv_RGBA8888_from_RGBA8888(uint8 *out, uint8 *in);
+void conv_RGBA8888_from_RGB888(uint8 *out, uint8 *in);
+void conv_RGB888_from_RGB888(uint8 *out, uint8 *in);
+void conv_RGBA5551_from_ARGB1555(uint8 *out, uint8 *in);
+void conv_RGBA8888_from_ARGB1555(uint8 *out, uint8 *in);
+void conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in);
+inline void conv_ARGB1555_from_ABGR1555(uint8 *out, uint8 *in) { conv_ABGR1555_from_ARGB1555(out, in); }
 
 
 #define IGNORERASTERIMP 0
