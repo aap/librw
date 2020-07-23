@@ -170,6 +170,8 @@ Image *readTGA(const char *filename);
 void writeTGA(Image *image, const char *filename);
 Image *readBMP(const char *filename);
 void writeBMP(Image *image, const char *filename);
+Image *readPNG(const char *filename);
+void writePNG(Image *image, const char *filename);
 
 enum { QUANTDEPTH = 8 };
 
@@ -309,6 +311,13 @@ void conv_RGBA5551_from_ARGB1555(uint8 *out, uint8 *in);
 void conv_RGBA8888_from_ARGB1555(uint8 *out, uint8 *in);
 void conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in);
 inline void conv_ARGB1555_from_ABGR1555(uint8 *out, uint8 *in) { conv_ABGR1555_from_ARGB1555(out, in); }
+
+void expandPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void compressPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void expandPal4_BE(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void compressPal4_BE(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+void copyPal8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
+
 
 
 #define IGNORERASTERIMP 0

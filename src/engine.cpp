@@ -283,6 +283,7 @@ Engine::start(void)
 	// Register some image formats. Or should we leave that to the user?
 	Image::registerFileFormat("tga", readTGA, writeTGA);
 	Image::registerFileFormat("bmp", readBMP, writeBMP);
+	Image::registerFileFormat("png", readPNG, writePNG);
 
 	Engine::state = Started;
 	return 1;

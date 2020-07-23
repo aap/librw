@@ -283,4 +283,52 @@ conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in)
 	out[0] = in[0]&0xE0 | r;
 }
 
+void
+expandPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++){
+			dst[y*dststride + x*2 + 0] = src[y*srcstride + x] & 0xF;
+			dst[y*dststride + x*2 + 1] = src[y*srcstride + x] >> 4;
+		}
+}
+void
+compressPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++)
+			dst[y*dststride + x] = src[y*srcstride + x*2 + 0] | src[y*srcstride + x*2 + 1] << 4;
+}
+
+void
+expandPal4_BE(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++){
+			dst[y*dststride + x*2 + 1] = src[y*srcstride + x] & 0xF;
+			dst[y*dststride + x*2 + 0] = src[y*srcstride + x] >> 4;
+		}
+}
+void
+compressPal4_BE(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w/2; x++)
+			dst[y*dststride + x] = src[y*srcstride + x*2 + 1] | src[y*srcstride + x*2 + 0] << 4;
+}
+
+void
+copyPal8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
+{
+	int32 x, y;
+	for(y = 0; y < h; y++)
+		for(x = 0; x < w; x++)
+			dst[y*dststride + x] = src[y*srcstride + x];
+}
+
+
 }

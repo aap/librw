@@ -1565,34 +1565,6 @@ rasterUnlockPalette(Raster *raster)
 	raster->privateFlags &= ~(PS2LOCK_READ_PALETTE|PS2LOCK_WRITE_PALETTE);
 }
 
-void
-expandPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w/2; x++){
-			dst[y*dststride + x*2 + 0] = src[y*srcstride + x] & 0xF;
-			dst[y*dststride + x*2 + 1] = src[y*srcstride + x] >> 4;
-		}
-}
-void
-compressPSMT4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w/2; x++)
-			dst[y*dststride + x] = src[y*srcstride + x*2 + 0] | src[y*srcstride + x*2 + 1] << 4;
-}
-
-void
-copyPSMT8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
-{
-	int32 x, y;
-	for(y = 0; y < h; y++)
-		for(x = 0; x < w; x++)
-			dst[y*dststride + x] = src[y*srcstride + x];
-}
-
 // Almost the same as d3d9 and gl3 function
 bool32
 imageFindRasterFormat(Image *img, int32 type,
@@ -1694,9 +1666,9 @@ rasterFromImage(Raster *raster, Image *image)
 	uint8 *src = image->pixels;
 	out = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 	if(image->depth == 4){
-		compressPSMT4(out, tw/2, src, image->stride, image->width, image->height);
+		compressPal4(out, tw/2, src, image->stride, image->width, image->height);
 	}else if(image->depth == 8){
-		copyPSMT8(out, tw, src, image->stride, image->width, image->height);
+		copyPal8(out, tw, src, image->stride, image->width, image->height);
 	}else{
 		for(int32 y = 0; y < image->height; y++){
 			in = src;
@@ -1795,9 +1767,9 @@ rasterToImage(Raster *raster)
 	uint8 *dst = image->pixels;
 	in = raster->lock(0, Raster::LOCKREAD);
 	if(depth == 4){
-		expandPSMT4(dst, image->stride, in, tw/2, raster->width, raster->height);
+		expandPal4(dst, image->stride, in, tw/2, raster->width, raster->height);
 	}else if(depth == 8){
-		copyPSMT8(dst, image->stride, in, tw, raster->width, raster->height);
+		copyPal8(dst, image->stride, in, tw, raster->width, raster->height);
 	}else{
 		for(int32 y = 0; y < image->height; y++){
 			out = dst;
