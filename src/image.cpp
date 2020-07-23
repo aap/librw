@@ -411,6 +411,7 @@ Image::convertTo32(void)
 	}
 
 	newpixels = rwNewT(uint8, newstride*this->height, MEMDUR_EVENT | ID_IMAGE);
+	uint8 *pixels32 = newpixels;
 	for(int y = 0; y < this->height; y++){
 		uint8 *line = pixels;
 		uint8 *newline = newpixels;
@@ -429,7 +430,7 @@ Image::convertTo32(void)
 	this->stride = newstride;
 	this->pixels = nil;
 	this->palette = nil;
-	this->setPixels(newpixels);
+	this->setPixels(pixels32);
 }
 
 void

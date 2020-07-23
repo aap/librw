@@ -94,7 +94,7 @@ readTGA(const char *filename)
 		assert(palDepth == 24 || palDepth == 32);
 	}else{
 		depth = header.depth;
-		assert(depth == 24 || depth == 32);
+		assert(depth == 16 || depth == 24 || depth == 32);
 	}
 
 	image = Image::create(header.width, header.height, depth);
@@ -125,16 +125,28 @@ readTGA(const char *filename)
 	for(int y = 0; y < image->height; y++){
 		uint8 *line = pixels;
 		for(int x = 0; x < image->width; x++){
-			if(palette)
-				*line++ = file.readU8();
-			else{
+			switch(image->depth){
+			case 4:
+			case 8:
+				line[0] = file.readU8();
+				break;
+			case 16:
+				line[0] = file.readU8();
+				line[1] = file.readU8();
+				break;
+			case 24:
 				line[2] = file.readU8();
 				line[1] = file.readU8();
 				line[0] = file.readU8();
-				line += 3;
-				if(depth == 32)
-					*line++ = file.readU8();
+				break;
+			case 32:
+				line[2] = file.readU8();
+				line[1] = file.readU8();
+				line[0] = file.readU8();
+				line[3] = file.readU8();
+				break;
 			}
+			line += image->bpp;
 		}
 		pixels += (header.descriptor&0x20) ?
 		              image->stride : -image->stride;
@@ -187,26 +199,25 @@ writeTGA(Image *image, const char *filename)
 			switch(image->depth){
 			case 4:
 			case 8:
-				file.writeU8(*p++);
+				file.writeU8(p[0]);
 				break;
 			case 16:
 				file.writeU8(p[0]);
 				file.writeU8(p[1]);
-				p += 2;
 				break;
 			case 24:
 				file.writeU8(p[2]);
 				file.writeU8(p[1]);
 				file.writeU8(p[0]);
-				p += 3;
 				break;
 			case 32:
 				file.writeU8(p[2]);
 				file.writeU8(p[1]);
 				file.writeU8(p[0]);
 				file.writeU8(p[3]);
-				p += 4;
+				break;
 			}
+			p += image->bpp;
 		}
 		line += image->stride;
 	}
