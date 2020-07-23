@@ -141,6 +141,7 @@ struct Image
 	void setPixels(uint8 *pixels);
 	void setPixelsDXT(int32 type, uint8 *pixels);
 	void setPalette(uint8 *palette);
+	void compressPalette(void);	// turn 8 bit into 4 bit if possible
 	bool32 hasAlpha(void);
 	void convertTo32(void);
 	void palettize(int32 depth);

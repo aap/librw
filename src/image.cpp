@@ -346,6 +346,23 @@ Image::setPalette(uint8 *palette)
 	this->flags |= 2;
 }
 
+void
+Image::compressPalette(void)
+{
+	if(this->depth != 8)
+		return;
+	uint8 *pixels = this->pixels;
+	for(int y = 0; y < this->height; y++){
+		uint8 *line = pixels;
+		for(int x = 0; x < this->width; x++){
+			if(*line > 0xF) return;
+			line += this->bpp;
+		}
+		pixels += this->stride;
+	}
+	this->depth = 4;
+}
+
 bool32
 Image::hasAlpha(void)
 {
@@ -356,7 +373,7 @@ Image::hasAlpha(void)
 			uint8 *line = pixels;
 			for(int x = 0; x < this->width; x++){
 				ret &= line[3];
-				line += 4;
+				line += this->bpp;
 			}
 			pixels += this->stride;
 		}
@@ -367,7 +384,7 @@ Image::hasAlpha(void)
 			uint8 *line = pixels;
 			for(int x = 0; x < this->width; x++){
 				ret &= line[1] & 0x80;
-				line += 2;
+				line += this->bpp;
 			}
 			pixels += this->stride;
 		}
@@ -377,7 +394,7 @@ Image::hasAlpha(void)
 			uint8 *line = pixels;
 			for(int x = 0; x < this->width; x++){
 				ret &= this->palette[*line*4+3];
-				line++;
+				line += this->bpp;
 			}
 			pixels += this->stride;
 		}

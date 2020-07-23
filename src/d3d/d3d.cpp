@@ -907,14 +907,14 @@ rasterToImage(Raster *raster)
 		}
 	}
 
-	out = image->pixels;
+	uint8 *dst = image->pixels;
 	in = raster->lock(0, Raster::LOCKREAD);
 	if(pallength)
-		memcpy(out, in, raster->width*raster->height);
-	else
-		// TODO: stride
-		for(int32 y = 0; y < image->height; y++)
-			for(int32 x = 0; x < image->width; x++)
+		memcpy(dst, in, raster->width*raster->height);
+	else{
+		for(int32 y = 0; y < image->height; y++){
+			out = dst;
+			for(int32 x = 0; x < image->width; x++){
 				switch(raster->format & 0xF00){
 				case Raster::C8888:
 					out[0] = in[2];
@@ -922,29 +922,32 @@ rasterToImage(Raster *raster)
 					out[2] = in[0];
 					out[3] = in[3];
 					in += 4;
-					out += 4;
 					break;
 				case Raster::C888:
 					out[0] = in[2];
 					out[1] = in[1];
 					out[2] = in[0];
 					in += 4;
-					out += 3;
 					break;
 				case Raster::C1555:
 					out[0] = in[0];
 					out[1] = in[1];
 					in += 2;
-					out += 2;
 					break;
 				case Raster::C555:
 					out[0] = in[0];
 					out[1] = in[1] | 0x80;
 					in += 2;
-					out += 2;
 					break;
 				}
+				out += image->bpp;
+			}
+			dst += image->stride;
+		}
+	}
 	raster->unlock(0);
+
+	image->compressPalette();
 
 	return image;
 }

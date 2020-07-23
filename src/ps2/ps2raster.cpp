@@ -184,9 +184,10 @@ getRasterFormat(Raster *raster)
 				palformat = Raster::PAL8;
 				break;
 			case 24:
-				pixelformat = Raster::C888;
-				palformat = 0;
-				break;
+			// unsafe
+			//	pixelformat = Raster::C888;
+			//	palformat = 0;
+			//	break;
 			case 32:
 				pixelformat = Raster::C8888;
 				palformat = 0;
@@ -236,6 +237,7 @@ getRasterFormat(Raster *raster)
 			}
 			raster->depth = 32;
 		}else if(pixelformat == Raster::C888){
+			assert(0 && "24 bit rasters not supported");
 			if(raster->depth && raster->depth != 24){
 				RWERROR((ERR_INVRASTER));
 				return 0;
@@ -805,7 +807,13 @@ rasterCreateTexture(Raster *raster)
 	width = raster->width;
 	height = raster->height;
 	depth = raster->depth;
+	// RW's code does not seem to quite work with 24 bit rasters
+	// so make sure we're not generating them for safety
+	assert(depth != 24);
 
+	ras->flags = 0;
+	ras->data = nil;
+	ras->dataSize = 0;
 
 	// RW doesn't seem to check this, hm...
 	if(raster->flags & Raster::DONTALLOCATE)
@@ -999,10 +1007,11 @@ rasterCreateTexture(Raster *raster)
 			// If there is still room, use it!
 			// If dimensions don't fill a page, we have at least
 			// half a page left, enough for any palette
+//TODO: this was not always done it seems but even gta3's 3.1 seems to??
 			if(pageWidth*nPagW > width ||
-			   pageHeight*nPagH > height)
+			   pageHeight*nPagH > height){
 				ras->paletteBase = (ras->totalSize - 256) / WD2BLK;
-			else{
+			}else{
 				// Otherwise allocate more space...
 				ras->paletteBase = ras->totalSize / WD2BLK;
 				// ...using the same calculation as above.
@@ -1069,6 +1078,7 @@ rasterCreateTexture(Raster *raster)
 			if(rw::version > 0x31000){
 				ras->flags |= Ps2Raster::SWIZZLED4;
 				// Where can this come from? if anything we're using PSMCT16S
+				// Looks like they wanted to swizzle palettes too...
 				if(cpsm == PSMCT16){
 					// unswizzle the starting block of the last buffer and palette
 					uint32 bufbase_B = bufferBase[numLevels-1]&~0x1F | (uint64)blockmaprev_PSMCT16[bufferBase[numLevels-1]&0x1F];
@@ -1464,6 +1474,7 @@ uint8*
 rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
 	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	assert(raster->depth != 24);
 
 	if(level > 0){
 		int32 minw, minh;
@@ -1581,15 +1592,10 @@ imageFindRasterFormat(Image *img, int32 type,
 
 	switch(depth){
 	case 32:
-		if(img->hasAlpha())
-			format = Raster::C8888;
-		else{
-			format = Raster::C888;
-			depth = 24;
-		}
-		break;
 	case 24:
-		format = Raster::C888;
+		// C888 24 bit is unsafe
+		format = Raster::C8888;
+		depth = 32;
 		break;
 	case 16:
 		format = Raster::C1555;
@@ -1622,13 +1628,11 @@ rasterFromImage(Raster *raster, Image *image)
 
 	int32 pallength = 0;
 	switch(image->depth){
+	case 24:
 	case 32:
 		if(raster->format != Raster::C8888 &&
-		   raster->format != Raster::C888)
+		   raster->format != Raster::C888)	// unsafe already
 			goto err;
-		break;
-	case 24:
-		if(raster->format != Raster::C888) goto err;
 		break;
 	case 16:
 		if(raster->format != Raster::C1555) goto err;
@@ -1643,6 +1647,12 @@ rasterFromImage(Raster *raster, Image *image)
 		break;
 	default:
 	err:
+		RWERROR((ERR_INVRASTER));
+		return 0;
+	}
+
+	// unsafe
+	if((raster->format&0xF00) == Raster::C888){
 		RWERROR((ERR_INVRASTER));
 		return 0;
 	}
@@ -1673,27 +1683,24 @@ rasterFromImage(Raster *raster, Image *image)
 		for(int32 y = 0; y < image->height; y++){
 			in = src;
 			for(int32 x = 0; x < image->width; x++){
-				switch(raster->format & 0xF00){
-				case Raster::C8888:
-					out[0] = in[0];
-					out[1] = in[1];
-					out[2] = in[2];
-					out[3] = in[3]*128/255;
-					out += 4;
+				switch(image->depth){
+				case 16:
+					conv_ARGB1555_from_ABGR1555(out, in);
+					out += 2;
 					break;
-				case Raster::C888:
+				case 24:
 					out[0] = in[0];
 					out[1] = in[1];
 					out[2] = in[2];
 					out[3] = 0x80;
 					out += 4;
 					break;
-				case Raster::C1555:
-					conv_ARGB1555_from_ABGR1555(out, in);
-					out += 2;
-					break;
-				default:
-					assert(0 && "unknown ps2 raster format");
+				case 32:
+					out[0] = in[0];
+					out[1] = in[1];
+					out[2] = in[2];
+					out[3] = in[3]*128/255;
+					out += 4;
 					break;
 				}
 				in += image->bpp;
@@ -1990,7 +1997,7 @@ struct StreamRasterExt
 	int32 height;
 	int32 depth;
 	uint16 rasterFormat;
-	int16  type;
+	int16  version;
 	uint64 tex0;
 	uint32 paletteOffset;
 	uint32 tex1low;
@@ -2054,7 +2061,7 @@ streamExt.width,
 streamExt.height,
 streamExt.depth,
 streamExt.rasterFormat,
-streamExt.type,
+streamExt.version,
 streamExt.tex0,
 streamExt.paletteOffset,
 streamExt.tex1low,
@@ -2065,7 +2072,7 @@ streamExt.paletteSize,
 streamExt.totalSize,
 streamExt.mipmapVal);
 */
-	noNewStyleRasters = streamExt.type < 2;
+	noNewStyleRasters = streamExt.version < 2;
 	rw::version = version;
 	raster = Raster::create(streamExt.width, streamExt.height,
 	                        streamExt.depth, streamExt.rasterFormat,
@@ -2088,8 +2095,12 @@ streamExt.mipmapVal);
 	assert(natras->pixelSize >= streamExt.pixelSize);
 	assert(natras->paletteSize >= streamExt.paletteSize);
 
-//if(natras->tex0 != streamExt.tex0)
+//if(natras->tex0 != streamExt.tex0){
 //printf("TEX0: %016llX\n      %016llX\n", natras->tex0, streamExt.tex0);
+//printTEX0(natras->tex0);
+//printTEX0(streamExt.tex0);
+//fflush(stdout);
+//}
 //if(natras->tex1low != streamExt.tex1low)
 //printf("TEX1: %08X\n      %08X\n", natras->tex1low, streamExt.tex1low);
 //if(natras->miptbp1 != streamExt.miptbp1)
@@ -2104,13 +2115,26 @@ streamExt.mipmapVal);
 //printf("PLS: %08X\n     %08X\n", natras->paletteSize, streamExt.paletteSize);
 //if(natras->totalSize != streamExt.totalSize)
 //printf("TSZ: %08X\n     %08X\n", natras->totalSize, streamExt.totalSize);
+
+	// junk addresses, no need to store them
+	streamExt.tex0 &= ~0x3FFFULL;
+	streamExt.tex0 &= ~(0x3FFFULL << 37);
+
+	assert(natras->tex0 == streamExt.tex0);
 	natras->tex0 = streamExt.tex0;
+	assert(natras->paletteBase == streamExt.paletteOffset);
 	natras->paletteBase = streamExt.paletteOffset;
+	assert(natras->tex1low == streamExt.tex1low);
 	natras->tex1low = streamExt.tex1low;
+	assert(natras->miptbp1 == streamExt.miptbp1);
 	natras->miptbp1 = streamExt.miptbp1;
+	assert(natras->miptbp2 == streamExt.miptbp2);
 	natras->miptbp2 = streamExt.miptbp2;
+	assert(natras->pixelSize == streamExt.pixelSize);
 	natras->pixelSize = streamExt.pixelSize;
+	assert(natras->paletteSize == streamExt.paletteSize);
 	natras->paletteSize = streamExt.paletteSize;
+	assert(natras->totalSize == streamExt.totalSize);
 	natras->totalSize = streamExt.totalSize;
 	natras->kl = streamExt.mipmapVal;
 //printf("%X %X\n", natras->paletteBase, natras->tex1low);
@@ -2122,11 +2146,28 @@ streamExt.mipmapVal);
 	calcTEX1(raster, &tex1, tex->filterAddressing & 0xF);
 //	printTEX1(tex1);
 
+	// this is weird stuff
+	if(streamExt.version < 2){
+		if(streamExt.version == 1){
+			// Version 1 has swizzled 8 bit textures
+			if(!(natras->flags & Ps2Raster::NEWSTYLE))
+				natras->flags |= Ps2Raster::SWIZZLED8;
+			else
+				assert(0 && "can't happen");
+		}else{
+			// Version 0 has no swizzling at all
+			if(!(natras->flags & Ps2Raster::NEWSTYLE))
+				natras->flags &= ~Ps2Raster::SWIZZLED8;
+			else
+				assert(0 && "can't happen");
+		}
+	}
+
 	if(!findChunk(stream, ID_STRUCT, &length, nil)){
 		RWERROR((ERR_CHUNK, "STRUCT"));
 		goto fail;
 	}
-	if(streamExt.type < 2){
+	if(streamExt.version < 2){
 		stream->read8(raster->pixels, length);
 	}else{
 		stream->read8(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, natras->pixelSize);
@@ -2163,11 +2204,11 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	streamExt.height = raster->height;
 	streamExt.depth = raster->depth;
 	streamExt.rasterFormat = raster->format | raster->type;
-	streamExt.type = 0;
+	streamExt.version = 0;
 	if(ras->flags == Ps2Raster::SWIZZLED8 && raster->depth == 8)
-		streamExt.type = 1;
+		streamExt.version = 1;
 	if(ras->flags & Ps2Raster::NEWSTYLE)
-		streamExt.type = 2;
+		streamExt.version = 2;
 	streamExt.tex0 = ras->tex0;
 	streamExt.paletteOffset = ras->paletteBase;
 	streamExt.tex1low = ras->tex1low;
@@ -2181,7 +2222,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	stream->write8(&streamExt, 64);
 
 	writeChunkHeader(stream, ID_STRUCT, sz);
-	if(streamExt.type < 2){
+	if(streamExt.version < 2){
 		stream->write8(raster->pixels, sz);
 	}else{
 		stream->write8(((Ps2Raster::PixelPtr*)raster->originalPixels)->pixels, ras->pixelSize);
