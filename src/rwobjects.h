@@ -378,6 +378,10 @@ struct Texture
 	static Texture *(*readCB)(const char *name, const char *mask);
 	static void setLoadTextures(bool32);	// default: true
 	static void setCreateDummies(bool32);	// default: false
+	static void setMipmapping(bool32);	// default: false
+	static void setAutoMipmapping(bool32);	// default: false
+	static bool32 getMipmapping(void);
+	static bool32 getAutoMipmapping(void);
 
 #ifndef RWPUBLIC
 	static void registerModule(void);

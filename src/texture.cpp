@@ -35,6 +35,8 @@ struct TextureGlobals
 	bool32 loadTextures;
 	// create dummy textures to store just names
 	bool32 makeDummies;
+	bool32 mipmapping;
+	bool32 autoMipmapping;
 	LinkList texDicts;
 
 	LinkList textures;
@@ -55,6 +57,8 @@ textureOpen(void *object, int32 offset, int32 size)
 	TexDictionary::setCurrent(texdict);
 	TEXTUREGLOBAL(loadTextures) = 1;
 	TEXTUREGLOBAL(makeDummies) = 0;
+	TEXTUREGLOBAL(mipmapping) = 0;
+	TEXTUREGLOBAL(autoMipmapping) = 0;
 	return object;
 }
 static void*
@@ -91,6 +95,11 @@ Texture::setCreateDummies(bool32 b)
 {
 	TEXTUREGLOBAL(makeDummies) = b;
 }
+
+void Texture::setMipmapping(bool32 b) { TEXTUREGLOBAL(mipmapping) = b; }
+void Texture::setAutoMipmapping(bool32 b) { TEXTUREGLOBAL(autoMipmapping) = b; }
+bool32 Texture::getMipmapping(void) { return TEXTUREGLOBAL(mipmapping); }
+bool32 Texture::getAutoMipmapping(void) { return TEXTUREGLOBAL(autoMipmapping); }
 
 //
 // TexDictionary
@@ -361,7 +370,10 @@ Texture::streamRead(Stream *stream)
 		return nil;
 	}
 	uint32 filterAddressing = stream->readU32();
-	// TODO: if V addressing is 0, copy U
+	// if V addressing is 0, copy U
+	if((filterAddressing & 0xF000) == 0)
+		filterAddressing |= (filterAddressing&0xF00) << 4;
+
 	// if using mipmap filter mode, set automipmapping,
 	// if 0x10000 is set, set mipmapping
 
@@ -377,13 +389,29 @@ Texture::streamRead(Stream *stream)
 	}
 	stream->read8(mask, length);
 
+	bool32 mipState = getMipmapping();
+	bool32 autoMipState = getAutoMipmapping();
+	int32 filter = filterAddressing&0xFF;
+	if(filter == MIPNEAREST || filter == MIPLINEAR ||
+	   filter == LINEARMIPNEAREST || filter == LINEARMIPLINEAR){
+		setMipmapping(1);
+		setAutoMipmapping((filterAddressing&0x10000) == 0);
+	}else{
+		setMipmapping(0);
+		setAutoMipmapping(0);
+	}
+
 	Texture *tex = Texture::read(name, mask);
+
+	setMipmapping(mipState);
+	setAutoMipmapping(autoMipState);
+
 	if(tex == nil){
 		s_plglist.streamSkip(stream);
 		return nil;
 	}
 	if(tex->refCount == 1)
-		tex->filterAddressing = filterAddressing;
+		tex->filterAddressing = filterAddressing&0xFFFF;
 
 	if(s_plglist.streamRead(stream, tex))
 		return tex;
@@ -399,7 +427,10 @@ Texture::streamWrite(Stream *stream)
 	char buf[36];
 	writeChunkHeader(stream, ID_TEXTURE, this->streamGetSize());
 	writeChunkHeader(stream, ID_STRUCT, 4);
-	stream->writeU32(this->filterAddressing);
+	uint32 filterAddressing = this->filterAddressing;
+	if(this->raster && (raster->format & Raster::AUTOMIPMAP) == 0)
+		filterAddressing |= 0x10000;
+	stream->writeU32(filterAddressing);
 
 	memset(buf, 0, 36);
 	strncpy(buf, this->name, 32);
