@@ -798,18 +798,18 @@ rastest_renderTriangles(RWDEVICE::Im2DVertex *scrverts, int32 numVerts, uint16 *
 	while(numTris--){
 		for(i = 0; i < 3; i++){
 			iv = &scrverts[indices[i]];
-			v[i].x = iv->x * 16.0f;
-			v[i].y = iv->y * 16.0f;
-			v[i].z = 16777216*(1.0f-iv->z);
-			v[i].q = iv->w;
+			v[i].x = iv->getScreenX() * 16.0f;
+			v[i].y = iv->getScreenY() * 16.0f;
+			v[i].z = 16777216*(1.0f-iv->getScreenZ());
+			v[i].q = iv->getRecipCameraZ();
 			col = iv->getColor();
 			v[i].r = col.red;
 			v[i].g = col.green;
 			v[i].b = col.blue;
 			v[i].a = col.alpha;
 			v[i].f = 0;
-			v[i].s = iv->u*iv->w;
-			v[i].t = iv->v*iv->w;
+			v[i].s = iv->u*iv->getRecipCameraZ();
+			v[i].t = iv->v*iv->getRecipCameraZ();
 		}
 		drawTriangle(rs::canvas, v[0], v[1], v[2]);
 

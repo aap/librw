@@ -143,6 +143,7 @@ struct Im2DVertex
 	float getScreenY(void) { return this->y; }
 	float getScreenZ(void) { return this->z; }
 	float getCameraZ(void) { return this->w; }
+	float getRecipCameraZ(void) { return 1.0f/this->w; }
 	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
 	float getU(void) { return this->u; }
 	float getV(void) { return this->v; }

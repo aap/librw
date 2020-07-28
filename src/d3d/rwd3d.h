@@ -64,7 +64,7 @@ struct Im3DVertex
 struct Im2DVertex
 {
 	float32 x, y, z;
-	float32 w;
+	float32 q;
 	uint32 color;
 	float32 u, v;
 
@@ -72,7 +72,7 @@ struct Im2DVertex
 	void setScreenY(float32 y) { this->y = y; }
 	void setScreenZ(float32 z) { this->z = z; }
 	void setCameraZ(float32 z) { }
-	void setRecipCameraZ(float32 recipz) { this->w = recipz; }
+	void setRecipCameraZ(float32 recipz) { this->q = recipz; }
 	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) { this->color = COLOR_ARGB(a, r, g, b); }
 	void setU(float32 u, float recipZ) { this->u = u; }
 	void setV(float32 v, float recipZ) { this->v = v; }
@@ -80,7 +80,8 @@ struct Im2DVertex
 	float getScreenX(void) { return this->x; }
 	float getScreenY(void) { return this->y; }
 	float getScreenZ(void) { return this->z; }
-	float getCameraZ(void) { return this->w; }
+	float getCameraZ(void) { return 1.0f/this->q; }
+	float getRecipCameraZ(void) { return this->q; }
 	RGBA getColor(void) { return makeRGBA(this->color>>16 & 0xFF, this->color>>8 & 0xFF,
 		this->color & 0xFF, this->color>>24 & 0xFF); }
 	float getU(void) { return this->u; }

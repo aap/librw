@@ -12,6 +12,33 @@ void registerPlatformPlugins(void);
 
 extern Device renderdevice;
 
+struct Im2DVertex
+{
+	float32 x, y, z, w;
+	uint32  r, g, b, a;
+	float32 u, v, q, PAD;
+
+	void setScreenX(float32 x) { this->x = x; }
+	void setScreenY(float32 y) { this->y = y; }
+	void setScreenZ(float32 z) { this->z = z; }
+	void setCameraZ(float32 z) { this->w = z; }
+	void setRecipCameraZ(float32 recipz) { this->q = recipz; }
+	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
+		this->r = r; this->g = g; this->b = b; this->a = a; }
+	void setU(float32 u, float recipz) { this->u = u; }
+	void setV(float32 v, float recipz) { this->v = v; }
+
+	float getScreenX(void) { return this->x; }
+	float getScreenY(void) { return this->y; }
+	float getScreenZ(void) { return this->z; }
+	float getCameraZ(void) { return this->w; }
+	float getRecipCameraZ(void) { return this->q; }
+	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
+	float getU(void) { return this->u; }
+	float getV(void) { return this->v; }
+};
+
+
 struct InstanceData
 {
 	uint32 dataSize;
