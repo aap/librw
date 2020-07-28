@@ -237,7 +237,7 @@ project "ps2test"
 	libdirs { "$(PS2SDK)/ee/lib" }
 	links { "librw" }
 	-- "c -lc" is a hack because we need -lc twice for some reason
-	links { "c", "kernel", "mf" }
+	links { "c -lc", "kernel", "mf" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"

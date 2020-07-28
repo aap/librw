@@ -96,7 +96,7 @@ Texture *readNativeTexture(Stream *stream);
 void writeNativeTexture(Texture *tex, Stream *stream);
 uint32 getSizeNativeTexture(Texture *tex);
 
-enum : uint32 {
+enum {
 	D3DFMT_UNKNOWN              = 0xFFFFFFFF,
 
 	/* Swizzled formats */
