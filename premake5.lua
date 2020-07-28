@@ -120,6 +120,7 @@ project "librw"
 	kind "StaticLib"
 	targetname "rw"
 	targetdir (Libdir)
+	defines { "LODEPNG_NO_COMPILE_CPP" }
 	files { "src/*.*" }
 	files { "src/*/*.*" }
 
