@@ -30,13 +30,14 @@ readPNG(const char *filename)
 	uint8 *data = getFileContents(filename, &length);
 	assert(data != nil);
 
-	lodepng::State state;
-	std::vector<uint8> raw;
+	LodePNGState state;
+	lodepng_state_init(&state);
+	uint8 *raw = nil;
 	uint32 w, h;
 
 	// First try: decode without conversion to see if we understand the format
 	state.decoder.color_convert = 0;
-	uint32 error = lodepng::decode(raw, w, h, state, data, length);
+	uint32 error = lodepng_decode(&raw, &w, &h, &state, data, length);
 	if(error){
 		RWERROR((ERR_GENERAL, lodepng_error_text(error)));
 		return nil;
@@ -46,24 +47,25 @@ readPNG(const char *filename)
 		image = Image::create(w, h, 4);
 		image->allocate();
 		memcpy(image->palette, state.info_raw.palette, state.info_raw.palettesize*4);
-		expandPal4_BE(image->pixels, image->stride, &raw[0], w/2, w, h);
+		expandPal4_BE(image->pixels, image->stride, raw, w/2, w, h);
 	}else if(state.info_raw.bitdepth == 8){
 		switch(state.info_raw.colortype){
 		case LCT_PALETTE:
 			image = Image::create(w, h, state.info_raw.palettesize <= 16 ? 4 : 8);
 			image->allocate();
 			memcpy(image->palette, state.info_raw.palette, state.info_raw.palettesize*4);
-			memcpy(image->pixels, &raw[0], w*h);
+			memcpy(image->pixels, raw, w*h);
 			break;
 		case LCT_RGB:
 			image = Image::create(w, h, 24);
 			image->allocate();
-			memcpy(image->pixels, &raw[0], w*h*3);
+			memcpy(image->pixels, raw, w*h*3);
 			break;
 		default:
 			// Second try: just load as 32 bit
+			free(raw);
 			lodepng_state_init(&state);
-			error = lodepng::decode(raw, w, h, state, data, length);
+			error = lodepng_decode(&raw, &w, &h, &state, data, length);
 			if(error){
 				RWERROR((ERR_GENERAL, lodepng_error_text(error)));
 				return nil;
@@ -72,10 +74,12 @@ readPNG(const char *filename)
 		case LCT_RGBA:
 			image = Image::create(w, h, 32);
 			image->allocate();
-			memcpy(image->pixels, &raw[0], w*h*4);
+			memcpy(image->pixels, raw, w*h*4);
 			break;
 		}
 	}
+
+	free(raw);	// TODO: maybe override lodepng allocator
 
 	return image;
 }
@@ -90,9 +94,11 @@ writePNG(Image *image, const char *filename)
 		return;
 	}
 
-	std::vector<uint8> raw;
+	size_t rawsize;
+	uint8 *raw = nil;
 	uint8 *pixels;
-	lodepng::State state;
+	LodePNGState state;
+	lodepng_state_init(&state);
 
 	pixels = image->pixels;
 	switch(image->depth){
@@ -135,15 +141,16 @@ writePNG(Image *image, const char *filename)
 		break;
 	}
 
-	uint32 error = lodepng::encode(raw, pixels, image->width, image->height, state);
+	uint32 error = lodepng_encode(&raw, &rawsize, pixels, image->width, image->height, &state);
 	if(error){
 		RWERROR((ERR_GENERAL, lodepng_error_text(error)));
 		return;
 	}
 	if(pixels != image->pixels)
 		rwFree(pixels);
-	file.write8(&raw[0], raw.size());
+	file.write8(raw, rawsize);
 	file.close();
+	free(raw);
 }
 
 }
