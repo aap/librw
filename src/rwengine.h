@@ -210,10 +210,12 @@ namespace null {
 	void beginUpdate(Camera*);
 	void endUpdate(Camera*);
 	void clearCamera(Camera*, RGBA *col, uint32 mode);
-	void showRaster(Raster*);
+	void showRaster(Raster*, uint32 flags);
 
 	void   setRenderState(int32 state, void *value);
 	void  *getRenderState(int32 state);
+
+	bool32 rasterRenderFast(Raster *raster, int32 x, int32 y);
 
 	Raster *rasterCreate(Raster*);
 	uint8 *rasterLock(Raster*, int32 level, int32 lockMode);
@@ -226,17 +228,17 @@ namespace null {
 	bool32 rasterFromImage(Raster*, Image*);
 	Image *rasterToImage(Raster*);
 
-	void   im2DRenderLine(void*, int32, int32, int32);
-	void   im2DRenderTriangle(void*, int32, int32, int32, int32);
-	void   im2DRenderPrimitive(PrimitiveType, void*, int32);
-	void   im2DRenderIndexedPrimitive(PrimitiveType,
-	                                  void*, int32, void*, int32);
+	void im2DRenderLine(void*, int32, int32, int32);
+	void im2DRenderTriangle(void*, int32, int32, int32, int32);
+	void im2DRenderPrimitive(PrimitiveType, void*, int32);
+	void im2DRenderIndexedPrimitive(PrimitiveType, void*, int32, void*, int32);
 
-	void im3DTransform(void *vertices, int32 numVertices, Matrix *world);
-	void im3DRenderIndexed(PrimitiveType primType, void *indices, int32 numIndices);
+	void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
+	void im3DRenderPrimitive(PrimitiveType primType);
+	void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 	void im3DEnd(void);
 
-	int deviceSystem(DeviceReq req, void*);
+	int deviceSystem(DeviceReq req, void *arg0, int32 n);
 
 	extern Device renderdevice;
 }
