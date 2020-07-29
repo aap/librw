@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <cassert>
 
+#define PAL
+
 #include <rw.h>
 using rw::uint8;
 using rw::uint16;
@@ -17,7 +19,13 @@ typedef uint16 ushort;
 typedef uint32 uint;
 
 #define WIDTH 640
+#ifdef PAL
+#define HEIGHT 512
+#define VMODE GS_PAL
+#else
 #define HEIGHT 448
+#define VMODE GS_NTSC
+#endif
 
 #include "ps2.h"
 
@@ -210,7 +218,8 @@ GsInitDispCtx(GsDispCtx *disp, int width, int height, int psm)
 	}
 
 	disp->pmode.d = GS_MAKE_PMODE(0, 1, 1, 1, 0, 0x00);
-	disp->bgcolor.d = 0x404040;
+//	disp->bgcolor.d = 0x404040;
+	disp->bgcolor.d = 0x000000;
 	disp->dispfb1.d = 0;
 	disp->dispfb2.d = GS_MAKE_DISPFB(0, width/64, psm, 0, 0);
 	disp->display1.d = 0;
@@ -254,7 +263,7 @@ GsInitDrawCtx(GsDrawCtx *draw, int width, int height, int psm, int zpsm)
 void
 GsPutDrawCtx(GsDrawCtx *draw)
 {
-	printquad(*(uint128*)&draw->frame1);
+//	printquad(*(uint128*)&draw->frame1);
 	toGIF(draw, 9);
 }
 
@@ -303,8 +312,8 @@ clearscreen(int r, int g, int b)
 	uint128 *p, tmp;
 	p = packetbuf;
 
-	x = (2048 + 640)<<4;
-	y = (2048 + 448)<<4;
+	x = (2048 + WIDTH)<<4;
+	y = (2048 + HEIGHT)<<4;
 
 	MAKE128(tmp, 0xe, GIF_MAKE_TAG(5, 1, 0, 0, GIF_PACKED, 1));
 	*p++ = tmp;
@@ -595,8 +604,8 @@ drawAtomic(rw::Atomic *atomic)
 	}
 	MAKEQ(tmp, DMAend, 0, 0, 0);
 	*curVifPtr++ = tmp;
-	for(lp = packetbuf; lp < curVifPtr; lp++)
-		printquad4(*lp);
+//	for(lp = packetbuf; lp < curVifPtr; lp++)
+//		printquad4(*lp);
 	toVIF1chain(packetbuf);
 }
 
@@ -665,6 +674,8 @@ initrw(void)
 
 	world = rw::World::create();
 	camera = rw::Camera::create();
+	camera->frameBuffer = rw::Raster::create(WIDTH, HEIGHT, 0, rw::Raster::CAMERA);
+	camera->zBuffer = rw::Raster::create(WIDTH, HEIGHT, 0, rw::Raster::ZBUFFER);
 	camera->setFrame(rw::Frame::create());
 	rw::V3d t = { 0.0f, 0.0f, -4.0f };
 //	rw::V3d t = { 0.0f, 0.0f, -40.0f };
@@ -678,9 +689,12 @@ initrw(void)
 	return 1;
 }
 
+int vsynchInt = 0;
+
 int
 vsynch(int id)
 {
+	vsynchInt = 1;
 	frames++;
 	ExitHandler();
 	return 0;
@@ -715,7 +729,7 @@ main()
 //	GsResetCrt(GS_INTERLACED, GS_NTSC, GS_FRAME);
 //	GsInitCtx(&gsCtx, 640, 224, GS_PSMCT32, GS_PSMZ32);
 
-	GsResetCrt(GS_INTERLACED, GS_NTSC, GS_FIELD);
+	GsResetCrt(GS_INTERLACED, VMODE, GS_FIELD);
 	GsInitCtx(&gsCtx, WIDTH, HEIGHT, GS_PSMCT32, GS_PSMZ32);
 
 	initrender();
@@ -731,6 +745,33 @@ main()
 //	drawtest();
 //	drawtri();
 
+	float angle = 40.0f;
+	int drawbuf = 0;
+	int dispbuf = 1;
+	for(;;){
+		clearscreen(0x80, 0x80, 0x80);
+
+		rw::V3d t = { 0.0f, 0.0f, -4.0f };
+		camera->getFrame()->translate(&t, rw::COMBINEREPLACE);
+		rw::V3d axis = { 0.0f, 1.0f, 0.0f };
+		camera->getFrame()->rotate(&axis, angle, rw::COMBINEPOSTCONCAT);
+		angle += 1.0f;
+
+		camera->beginUpdate();
+		beginCamera();
+		FORLIST(lnk, clump->atomics)
+			drawAtomic(rw::Atomic::fromClump(lnk));
+		camera->endUpdate();
+		printf("");
+
+		while(vsynchInt == 0);
+		GsPutDrawCtx(&gsCtx.draw[drawbuf]);
+		GsPutDispCtx(&gsCtx.disp[dispbuf]);
+		drawbuf = !drawbuf;
+		dispbuf = !dispbuf;
+		vsynchInt = 0;
+	}
+/*
 	camera->beginUpdate();
 	beginCamera();
 	FORLIST(lnk, clump->atomics)
@@ -738,7 +779,9 @@ main()
 	camera->endUpdate();
 
 	printf("hello %p\n", clump);
-	for(;;);
-//		printf("");
+	for(;;)
+		printf("");
+*/
+
 	return 0;
 }
