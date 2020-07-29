@@ -162,6 +162,7 @@ struct D3dRaster
 	void *texture;
 	void *palette;
 	uint32 format;
+	uint32 bpp;	// bytes per pixel
 	bool32 hasAlpha;
 	bool32 customFormat;
 };

@@ -74,6 +74,16 @@ typedef uint32 uint;
 
 #define nelem(A) (sizeof(A) / sizeof A[0])
 
+#ifdef __GNUC__
+#define RWALIGN(n) __attribute__ ((aligned (n)))
+#else
+#ifdef _MSC_VER
+#define RWALIGN(n) __declspec(align(n))
+#else
+#define RWALIGN(n)	// unknown compiler...ignore
+#endif
+#endif
+
 // Lists
 
 struct LLLink
@@ -286,7 +296,7 @@ inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, makeQuat(0.
 Quat lerp(const Quat &q, const Quat &p, float32 r);
 Quat slerp(const Quat &q, const Quat &p, float32 a);
 
-struct RawMatrix
+struct RWALIGN(16) RawMatrix
 {
 	V3d right;
 	float32 rightw;
@@ -302,7 +312,7 @@ struct RawMatrix
 	static void setIdentity(RawMatrix *dst);
 };
 
-struct Matrix
+struct RWALIGN(16) Matrix
 {
 	enum Type {
 		TYPENORMAL	= 1,

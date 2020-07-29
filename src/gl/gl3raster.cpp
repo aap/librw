@@ -315,8 +315,11 @@ imageFindRasterFormat(Image *img, int32 type,
 
 	assert((type&0xF) == Raster::TEXTURE);
 
-	for(width = 1; width < img->width; width <<= 1);
-	for(height = 1; height < img->height; height <<= 1);
+//	for(width = 1; width < img->width; width <<= 1);
+//	for(height = 1; height < img->height; height <<= 1);
+	// Perhaps non-power-of-2 textures are acceptable?
+	width = img->width;
+	height = img->height;
 
 	depth = img->depth;
 
@@ -440,8 +443,11 @@ rasterFromImage(Raster *raster, Image *image)
 		imgpixels -= image->stride;
 		pixels += raster->stride;
 	}
-
 	raster->unlock(0);
+
+	if(truecolimg)
+		truecolimg->destroy();
+
 	return 1;
 }
 

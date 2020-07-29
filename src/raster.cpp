@@ -231,6 +231,15 @@ conv_RGBA8888_from_RGBA8888(uint8 *out, uint8 *in)
 }
 
 void
+conv_BGRA8888_from_RGBA8888(uint8 *out, uint8 *in)
+{
+	out[2] = in[0];
+	out[1] = in[1];
+	out[0] = in[2];
+	out[3] = in[3];
+}
+
+void
 conv_RGBA8888_from_RGB888(uint8 *out, uint8 *in)
 {
 	out[0] = in[0];
@@ -240,11 +249,42 @@ conv_RGBA8888_from_RGB888(uint8 *out, uint8 *in)
 }
 
 void
+conv_BGRA8888_from_RGB888(uint8 *out, uint8 *in)
+{
+	out[2] = in[0];
+	out[1] = in[1];
+	out[0] = in[2];
+	out[3] = 0xFF;
+}
+
+void
 conv_RGB888_from_RGB888(uint8 *out, uint8 *in)
 {
 	out[0] = in[0];
 	out[1] = in[1];
 	out[2] = in[2];
+}
+
+void
+conv_BGR888_from_RGB888(uint8 *out, uint8 *in)
+{
+	out[2] = in[0];
+	out[1] = in[1];
+	out[0] = in[2];
+}
+
+void
+conv_ARGB1555_from_ARGB1555(uint8 *out, uint8 *in)
+{
+	out[0] = in[0];
+	out[1] = in[1];
+}
+
+void
+conv_ARGB1555_from_RGB555(uint8 *out, uint8 *in)
+{
+	out[0] = in[0];
+	out[1] = in[1] | 0x80;
 }
 
 void

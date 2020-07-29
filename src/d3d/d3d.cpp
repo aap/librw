@@ -527,7 +527,9 @@ rasterSetFormat(Raster *raster)
 		natras->format = formatInfoRW[(raster->format >> 8) & 0xF].d3dformat;
 		raster->depth = formatInfoRW[(raster->format >> 8) & 0xF].depth;
 	}
+	natras->bpp = raster->depth/8;
 	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
+	raster->stride = raster->width*natras->bpp;
 }
 
 static Raster*
@@ -684,8 +686,11 @@ imageFindRasterFormat(Image *img, int32 type,
 
 	assert((type&0xF) == Raster::TEXTURE);
 
-	for(width = 1; width < img->width; width <<= 1);
-	for(height = 1; height < img->height; height <<= 1);
+//	for(width = 1; width < img->width; width <<= 1);
+//	for(height = 1; height < img->height; height <<= 1);
+	// Perhaps non-power-of-2 textures are acceptable?
+	width = img->width;
+	height = img->height;
 
 	depth = img->depth;
 
@@ -734,6 +739,8 @@ rasterFromImage(Raster *raster, Image *image)
 	if((raster->type&0xF) != Raster::TEXTURE)
 		return 0;
 
+	void (*conv)(uint8 *out, uint8 *in) = nil;
+
 	// Unpalettize image if necessary but don't change original
 	Image *truecolimg = nil;
 	if(image->depth <= 8 && !isP8supported){
@@ -748,22 +755,39 @@ rasterFromImage(Raster *raster, Image *image)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	switch(image->depth){
 	case 32:
-		if(raster->format != Raster::C8888 &&
-		   raster->format != Raster::C888)
+		if(raster->format == Raster::C8888)
+			conv = conv_BGRA8888_from_RGBA8888;
+		else if(raster->format == Raster::C888)
+			conv = conv_BGR888_from_RGB888;
+		else
 			goto err;
 		break;
 	case 24:
-		if(raster->format != Raster::C888) goto err;
+		if(raster->format == Raster::C8888)
+			conv = conv_BGRA8888_from_RGB888;
+		else if(raster->format == Raster::C888)
+			conv = conv_BGR888_from_RGB888;
+		else
+			goto err;
 		break;
 	case 16:
-		if(raster->format != Raster::C1555) goto err;
+		if(raster->format == Raster::C1555)
+			conv = conv_ARGB1555_from_ARGB1555;
+		else
+			goto err;
 		break;
 	case 8:
-		if(raster->format != (Raster::PAL8 | Raster::C8888)) goto err;
+		if(raster->format == (Raster::PAL8 | Raster::C8888))
+			conv = conv_8_from_8;
+		else
+			goto err;
 		break;
 	case 4:
-		if(raster->format != (Raster::PAL4 | Raster::C8888)) goto err;
-		break;
+		if(raster->format == (Raster::PAL4 | Raster::C8888) ||
+		   raster->format == (Raster::PAL8 | Raster::C8888))
+			conv = conv_8_from_8;
+		else
+			goto err;
 	default:
 	err:
 		RWERROR((ERR_INVRASTER));
@@ -780,48 +804,30 @@ rasterFromImage(Raster *raster, Image *image)
 		in = image->palette;
 		out = (uint8*)natras->palette;
 		for(int32 i = 0; i < pallength; i++){
-			out[0] = in[0];
-			out[1] = in[1];
-			out[2] = in[2];
-			out[3] = in[3];
+			conv_RGBA8888_from_RGBA8888(out, in);
 			in += 4;
 			out += 4;
 		}
 	}
 
-	int32 inc = image->bpp;
-	in = image->pixels;
-	out = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-	if(pallength)
-		memcpy(out, in, raster->width*raster->height);
-	else
-		// TODO: stride
-		for(int32 y = 0; y < image->height; y++)
-			for(int32 x = 0; x < image->width; x++)
-				switch(raster->format & 0xF00){
-				case Raster::C8888:
-					out[0] = in[2];
-					out[1] = in[1];
-					out[2] = in[0];
-					out[3] = in[3];
-					in += inc;
-					out += 4;
-					break;
-				case Raster::C888:
-					out[0] = in[2];
-					out[1] = in[1];
-					out[2] = in[0];
-					out[3] = 0xFF;
-					in += inc;
-					out += 4;
-					break;
-				case Raster::C1555:
-					out[0] = in[0];
-					out[1] = in[1];
-					in += inc;
-					out += 2;
-					break;
-				}
+	uint8 *pixels = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+	assert(pixels);
+	uint8 *imgpixels = image->pixels;
+
+	int x, y;
+	assert(image->width == raster->width);
+	assert(image->height == raster->height);
+	for(y = 0; y < image->height; y++){
+		uint8 *imgrow = imgpixels;
+		uint8 *rasrow = pixels;
+		for(x = 0; x < image->width; x++){
+			conv(rasrow, imgrow);
+			imgrow += image->bpp;
+			rasrow += natras->bpp;
+		}
+		imgpixels += image->stride;
+		pixels += raster->stride;
+	}
 	raster->unlock(0);
 
 	if(truecolimg)
@@ -860,18 +866,24 @@ rasterToImage(Raster *raster)
 		raster->unlock(0);
 		return image;
 	}
+
+	void (*conv)(uint8 *out, uint8 *in) = nil;
 	switch(raster->format & 0xF00){
 	case Raster::C1555:
 		depth = 16;
+		conv = conv_ARGB1555_from_ARGB1555;
 		break;
 	case Raster::C8888:
 		depth = 32;
+		conv = conv_RGBA8888_from_BGRA8888;
 		break;
 	case Raster::C888:
 		depth = 24;
+		conv = conv_RGB888_from_BGR888;
 		break;
 	case Raster::C555:
 		depth = 16;
+		conv = conv_ARGB1555_from_RGB555;
 		break;
 
 	default:
@@ -898,52 +910,28 @@ rasterToImage(Raster *raster)
 		out = image->palette;
 		in = (uint8*)natras->palette;
 		for(int32 i = 0; i < pallength; i++){
-			out[0] = in[0];
-			out[1] = in[1];
-			out[2] = in[2];
-			out[3] = in[3];
+			conv_RGBA8888_from_RGBA8888(out, in);
 			in += 4;
 			out += 4;
 		}
 	}
 
-	uint8 *dst = image->pixels;
-	in = raster->lock(0, Raster::LOCKREAD);
-	if(pallength)
-		memcpy(dst, in, raster->width*raster->height);
-	else{
-		for(int32 y = 0; y < image->height; y++){
-			out = dst;
-			for(int32 x = 0; x < image->width; x++){
-				switch(raster->format & 0xF00){
-				case Raster::C8888:
-					out[0] = in[2];
-					out[1] = in[1];
-					out[2] = in[0];
-					out[3] = in[3];
-					in += 4;
-					break;
-				case Raster::C888:
-					out[0] = in[2];
-					out[1] = in[1];
-					out[2] = in[0];
-					in += 4;
-					break;
-				case Raster::C1555:
-					out[0] = in[0];
-					out[1] = in[1];
-					in += 2;
-					break;
-				case Raster::C555:
-					out[0] = in[0];
-					out[1] = in[1] | 0x80;
-					in += 2;
-					break;
-				}
-				out += image->bpp;
-			}
-			dst += image->stride;
+	uint8 *imgpixels = image->pixels;
+	uint8 *pixels = raster->lock(0, Raster::LOCKREAD);
+
+	int x, y;
+	assert(image->width == raster->width);
+	assert(image->height == raster->height);
+	for(y = 0; y < image->height; y++){
+		uint8 *imgrow = imgpixels;
+		uint8 *rasrow = pixels;
+		for(x = 0; x < image->width; x++){
+			conv(imgrow, rasrow);
+			imgrow += image->bpp;
+			rasrow += natras->bpp;
 		}
+		imgpixels += image->stride;
+		pixels += raster->stride;
 	}
 	raster->unlock(0);
 

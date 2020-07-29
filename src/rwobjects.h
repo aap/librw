@@ -306,11 +306,20 @@ struct Raster
 };
 
 void conv_RGBA8888_from_RGBA8888(uint8 *out, uint8 *in);
+void conv_BGRA8888_from_RGBA8888(uint8 *out, uint8 *in);
 void conv_RGBA8888_from_RGB888(uint8 *out, uint8 *in);
+void conv_BGRA8888_from_RGB888(uint8 *out, uint8 *in);
 void conv_RGB888_from_RGB888(uint8 *out, uint8 *in);
+void conv_BGR888_from_RGB888(uint8 *out, uint8 *in);
+void conv_ARGB1555_from_ARGB1555(uint8 *out, uint8 *in);
+void conv_ARGB1555_from_RGB555(uint8 *out, uint8 *in);
 void conv_RGBA5551_from_ARGB1555(uint8 *out, uint8 *in);
 void conv_RGBA8888_from_ARGB1555(uint8 *out, uint8 *in);
 void conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in);
+inline void conv_8_from_8(uint8 *out, uint8 *in) { *out = *in; }
+// some swaps are the same, so these are just more descriptive names
+inline void conv_RGBA8888_from_BGRA8888(uint8 *out, uint8 *in) { conv_BGRA8888_from_RGBA8888(out, in); }
+inline void conv_RGB888_from_BGR888(uint8 *out, uint8 *in) { conv_BGR888_from_RGB888(out, in); }
 inline void conv_ARGB1555_from_ABGR1555(uint8 *out, uint8 *in) { conv_ABGR1555_from_ARGB1555(out, in); }
 
 void expandPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h);
