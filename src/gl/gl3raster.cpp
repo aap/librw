@@ -394,7 +394,7 @@ rasterFromImage(Raster *raster, Image *image)
 		break;
 	case 24:
 #ifdef RW_GLES
-		conv = conv_RGB888_from_RGBA8888;
+		conv = conv_RGBA8888_from_RGB888;
 #else
 		if(raster->format == Raster::C8888)
 			conv = conv_RGBA8888_from_RGB888;
