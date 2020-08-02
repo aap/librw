@@ -5,6 +5,13 @@
 #include <math.h>
 #include <ctype.h>
 
+#define PSEP_C '/'
+#define PSEP_S "/"
+#ifdef __unix__
+#include <sys/types.h>
+#include <dirent.h>
+#endif
+
 #include "rwbase.h"
 #include "rwerror.h"
 #include "rwplg.h"
@@ -638,17 +645,10 @@ Matrix::identityError(void)
 	return dot(r,r) + dot(u,u) + dot(a,a) + dot(pos,pos);
 }
 
-#define PSEP_C '/'
-#define PSEP_S "/"
-#ifndef _WIN32
-#include <sys/types.h>
-#include <dirent.h>
-#endif
-
 void
 correctPathCase(char *filename)
 {
-#ifndef _WIN32
+#ifdef __unix__
 	DIR *direct;
 	struct dirent *dirent;
 
@@ -688,7 +688,7 @@ makePath(char *filename)
 	for(size_t i = 0; i < len; i++)
 		if(filename[i] == '/' || filename[i] == '\\')
 			filename[i] = PSEP_C;
-#ifndef _WIN32
+#ifdef __unix__
 	correctPathCase(filename);
 #endif
 }
