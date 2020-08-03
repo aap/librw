@@ -54,7 +54,7 @@ const char *matfx_env_frag_src =
 "	vec4 envColor = max(pass1, u_colorClamp);\n"
 "	pass1 *= texture2D(tex0, vec2(v_tex0.x, 1.0-v_tex0.y));\n"
 
-"	vec4 pass2 = envColor*u_coefficient*texture2D(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));\n"
+"	vec4 pass2 = envColor*shininess*texture2D(tex1, vec2(v_tex1.x, 1.0-v_tex1.y));\n"
 
 "	pass1.rgb = mix(u_fogColor.rgb, pass1.rgb, v_fog);\n"
 "	pass2.rgb = mix(vec3(0.0, 0.0, 0.0), pass2.rgb, v_fog);\n"
