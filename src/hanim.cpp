@@ -102,7 +102,8 @@ HAnimHierarchy::attachByIndex(int32 idx)
 	int32 id = this->nodeInfo[idx].id;
 //	Frame *f = findById(this->parentFrame, id);
 	Frame *f = findUnattachedById(this, this->parentFrame, id);
-	this->nodeInfo[idx].frame = f;
+	if(f)
+		this->nodeInfo[idx].frame = f;
 }
 
 void
@@ -172,7 +173,12 @@ HAnimHierarchy::updateMatrices(void)
 	HAnimNodeInfo *node = this->nodeInfo;
 	for(i = 0; i < this->numNodes; i++){
 		anim->applyCB(&animMat, anim->getInterpFrame(i));
+
+		// TODO: here we could update local matrices
+
 		Matrix::mult(curMat, &animMat, parentMat);
+
+		// TODO: here we could update LTM
 
 		if(node->flags & PUSH)
 			*sp++ = parentMat;
@@ -317,7 +323,7 @@ hAnimFrameRead(Stream *stream, Animation *anim)
 		stream->read32(&frames[i].q, 4*4);
 		stream->read32(&frames[i].t, 3*4);
 		int32 prev = stream->readI32()/0x24;
-		frames[i].prevFrame = &frames[prev];
+		frames[i].prev = &frames[prev];
 	}
 }
 
@@ -329,7 +335,7 @@ hAnimFrameWrite(Stream *stream, Animation *anim)
 		stream->writeF32(frames[i].time);
 		stream->write32(&frames[i].q, 4*4);
 		stream->write32(&frames[i].t, 3*4);
-		stream->writeI32((frames[i].prevFrame - frames)*0x24);
+		stream->writeI32((frames[i].prev - frames)*0x24);
 	}
 }
 

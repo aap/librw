@@ -64,7 +64,18 @@ struct UserDataExtension
 	int32 numArrays;
 	UserDataArray *arrays;
 
-	// TODO: static accessors
+	int32 add(const char *name, int32 datatype, int32 numElements);
+	void remove(int32 n);
+	int32 getCount(void) { return numArrays; }
+	UserDataArray *get(int32 n) { return n >= numArrays ? nil : &arrays[n]; }
+	int32 findIndex(const char *name);
+
+	static UserDataExtension *get(Geometry *geo);
+	static UserDataExtension *get(Frame *frame);
+	static UserDataExtension *get(Camera *cam);
+	static UserDataExtension *get(Light *light);
+	static UserDataExtension *get(Material *mat);
+	static UserDataExtension *get(Texture *tex);
 };
 
 struct UserDataGlobals

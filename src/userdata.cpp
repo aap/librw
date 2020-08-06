@@ -226,27 +226,27 @@ getSizeUserData(void *object, int32 offset, int32)
 	return size;
 }
 
-static int32
-add(UserDataExtension *ext, const char *name, int32 datatype, int32 numElements)
+int32
+UserDataExtension::add(const char *name, int32 datatype, int32 numElements)
 {
 	int32 i;
 	int32 len;
 	int32 typesz;
 	UserDataArray *a;
 	// try to find empty slot
-	for(i = 0; i < ext->numArrays; i++)
-		if(ext->arrays[i].datatype == USERDATANA)
+	for(i = 0; i < this->numArrays; i++)
+		if(this->arrays[i].datatype == USERDATANA)
 			goto alloc;
 	// have to realloc
-	a = (UserDataArray*)udMalloc((ext->numArrays+1)*sizeof(UserDataArray));
+	a = (UserDataArray*)udMalloc((this->numArrays+1)*sizeof(UserDataArray));
 	if(a == nil)
 		return -1;
-	memcpy(a, ext->arrays, ext->numArrays*sizeof(UserDataArray));
-	rwFree(ext->arrays);
-	ext->arrays = a;
-	i = ext->numArrays++;
+	memcpy(a, this->arrays, this->numArrays*sizeof(UserDataArray));
+	rwFree(this->arrays);
+	this->arrays = a;
+	i = this->numArrays++;
 alloc:
-	a = &ext->arrays[i];
+	a = &this->arrays[i];
 	len = (int32)strlen(name)+1;
 	a->name = (char*)udMalloc(len+1);
 	assert(a->name);
@@ -262,11 +262,11 @@ alloc:
 	return i;
 }
 
-static void
-remove(UserDataExtension *ext, int32 n)
+void
+UserDataExtension::remove(int32 n)
 {
 	int32 i;
-	UserDataArray *a = &ext->arrays[n];
+	UserDataArray *a = &this->arrays[n];
 	if(a->name){
 		rwFree(a->name);
 		a->name = nil;
@@ -282,39 +282,39 @@ remove(UserDataExtension *ext, int32 n)
 	a->numElements = 0;
 }
 
+int32
+UserDataExtension::findIndex(const char *name) {
+	for(int32 i = 0; i < this->numArrays; i++)
+		if(strcmp(this->arrays[i].name, name) == 0)
+			return i;
+	return -1;
+}
+
 #define ACCESSOR(TYPE, NAME) \
 int32 \
 UserDataArray::NAME##Add(TYPE *t, const char *name, int32 datatype, int32 numElements) \
 { \
-	return add(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset), \
-		name, datatype, numElements); \
+	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->add(name, datatype, numElements); \
 } \
 void \
 UserDataArray::NAME##Remove(TYPE *t, int32 n) \
 { \
-	remove(PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset), n); \
+	PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->remove(n); \
 } \
 int32 \
 UserDataArray::NAME##GetCount(TYPE *t) \
 { \
-	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->numArrays; \
+	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->getCount(); \
 } \
 UserDataArray* \
 UserDataArray::NAME##Get(TYPE *t, int32 n) \
 { \
-	if(n >= PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->numArrays) \
-		return nil; \
-	return &PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->arrays[n]; \
+	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->get(n); \
 } \
 int32 \
 UserDataArray::NAME##FindIndex(TYPE *t, const char *name) \
 { \
-	int32 i; \
-	UserDataExtension *ext = PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset); \
-	for(i = 0; i < ext->numArrays; i++) \
-		if(strcmp(ext->arrays[i].name, name) == 0) \
-			return i; \
-	return -1; \
+	return PLUGINOFFSET(UserDataExtension, t, userDataGlobals.NAME##Offset)->findIndex(name); \
 }
 
 ACCESSOR(Geometry, geometry)
@@ -323,6 +323,13 @@ ACCESSOR(Camera, camera)
 ACCESSOR(Light, light)
 ACCESSOR(Material, material)
 ACCESSOR(Texture, texture)
+
+UserDataExtension *UserDataExtension::get(Geometry *geo) { return PLUGINOFFSET(UserDataExtension, geo, userDataGlobals.geometryOffset); }
+UserDataExtension *UserDataExtension::get(Frame *frame) { return PLUGINOFFSET(UserDataExtension, frame, userDataGlobals.frameOffset); }
+UserDataExtension *UserDataExtension::get(Camera *cam) { return PLUGINOFFSET(UserDataExtension, cam, userDataGlobals.cameraOffset); }
+UserDataExtension *UserDataExtension::get(Light *light) { return PLUGINOFFSET(UserDataExtension, light, userDataGlobals.lightOffset); }
+UserDataExtension *UserDataExtension::get(Material *mat) { return PLUGINOFFSET(UserDataExtension, mat, userDataGlobals.materialOffset); }
+UserDataExtension *UserDataExtension::get(Texture *tex) { return PLUGINOFFSET(UserDataExtension, tex, userDataGlobals.textureOffset); }
 
 void
 registerUserDataPlugin(void)

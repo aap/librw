@@ -132,7 +132,7 @@ Animation::streamReadLegacy(Stream *stream)
 		stream->read32(&frames[i].t, 3*4);
 		frames[i].time = stream->readF32();
 		int32 prev = stream->readI32();
-		frames[i].prevFrame = &frames[prev];
+		frames[i].prev = &frames[prev];
 	}
 	return anim;
 }
@@ -162,7 +162,7 @@ Animation::streamWriteLegacy(Stream *stream)
 		stream->write32(&frames[i].q, 4*4);
 		stream->write32(&frames[i].t, 3*4);
 		stream->writeF32(frames[i].time);
-		stream->writeI32(frames[i].prevFrame - frames);
+		stream->writeI32(frames[i].prev - frames);
 	}
 	return true;
 }

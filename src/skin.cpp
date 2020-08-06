@@ -252,6 +252,55 @@ getSizeSkin(void *object, int32 offset, int32)
 	return size;
 }
 
+static Stream*
+readSkinLegacy(Stream *stream, int32 len, void *object, int32, int32)
+{
+	Atomic *atomic = (Atomic*)object;
+	Geometry *geometry = atomic->geometry;
+
+	int32 numBones = stream->readI32();
+	int32 numVertices = stream->readI32();
+	assert(numVertices == geometry->numVertices);
+
+	Skin *skin = rwNewT(Skin, 1, MEMDUR_EVENT | ID_SKIN);
+	*PLUGINOFFSET(Skin*, geometry, skinGlobals.geoOffset) = skin;
+	skin->init(numBones, numBones, numVertices);
+	skin->numWeights = 4;
+
+	stream->read8(skin->indices, numVertices*4);
+	stream->read32(skin->weights, numVertices*16);
+
+	HAnimHierarchy *hier = HAnimHierarchy::create(numBones, nil, nil, 0, 36);
+
+	for(int i = 0; i < numBones; i++){
+		hier->nodeInfo[i].id = stream->readI32();
+		hier->nodeInfo[i].index = stream->readI32();
+		hier->nodeInfo[i].flags = stream->readI32() & 3;
+//		printf("%d %d %d %d\n", i, hier->nodeInfo[i].id, hier->nodeInfo[i].index, hier->nodeInfo[i].flags);
+		stream->read32(&skin->inverseMatrices[i*16], 64);
+
+		Matrix mat;
+		Matrix::invert(&mat, (Matrix*)&skin->inverseMatrices[i*16]);
+//		printf("[ [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+//		       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+//		       "  [ %8.4f, %8.4f, %8.4f, %8.4f ]\n"
+//		       "  [ %8.4f, %8.4f, %8.4f, %8.4f ] ]\n"
+//			"  %08x == flags\n",
+//			mat.right.x, mat.up.x, mat.at.x, mat.pos.x,
+//			mat.right.y, mat.up.y, mat.at.y, mat.pos.y,
+//			mat.right.z, mat.up.z, mat.at.z, mat.pos.z,
+//			0.0f, 0.0f, 0.0f, 1.0f,
+//			mat.flags);
+	}
+	Frame *frame = atomic->getFrame()->child;
+	assert(frame->next == nil);	// in old files atomic is above hierarchy it seems
+	assert(frame->count() == numBones);	// assuming one frame per node this should also be true
+	HAnimData::get(frame)->hierarchy = hier;
+	hier->parentFrame = frame;
+
+	return stream;
+}
+
 static void
 skinRights(void *object, int32, int32, uint32)
 {
@@ -317,6 +366,7 @@ registerSkinPlugin(void)
 	o = Atomic::registerPlugin(sizeof(HAnimHierarchy*),ID_SKIN,
 	                           createSkinAtm, destroySkinAtm, copySkinAtm);
 	skinGlobals.atomicOffset = o;
+	Atomic::registerPluginStream(ID_SKIN, readSkinLegacy, nil, nil);
 	Atomic::setStreamRightsCallback(ID_SKIN, skinRights);
 }
 

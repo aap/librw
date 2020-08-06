@@ -63,6 +63,10 @@ struct Animation
 	                         int32 flags, float duration);
 	void destroy(void);
 	int32 getNumNodes(void);
+	KeyFrameHeader *getAnimFrame(int32 n){
+		return (KeyFrameHeader*)((uint8*)this->keyframes +
+		                         n*this->interpInfo->animKeyFrameSize);
+	}
 	static Animation *streamRead(Stream *stream);
 	static Animation *streamReadLegacy(Stream *stream);
 	bool streamWrite(Stream *stream);

@@ -6,7 +6,7 @@ namespace rw {
 
 struct HAnimKeyFrame
 {
-	HAnimKeyFrame *prevFrame;
+	HAnimKeyFrame *prev;
 	float32        time;
 	Quat           q;
 	V3d            t;
