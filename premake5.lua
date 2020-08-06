@@ -223,6 +223,19 @@ project "lights"
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
+project "ska2anm"
+	kind "ConsoleApp"
+	characterset ("MBCS")
+	targetdir (Bindir)
+	files { path.join("tools/ska2anm", "*.cpp"),
+	        path.join("tools/ska2anm", "*.h") }
+	debugdir ( path.join("tools/ska2nm") )
+	includedirs { "." }
+	libdirs { Libdir }
+	links { "librw" }
+	findlibs()
+	removeplatforms { "*gl3", "*d3d9", "*ps2" }
+
 project "ps2test"
 	kind "ConsoleApp"
 	targetdir (Bindir)

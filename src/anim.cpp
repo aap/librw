@@ -129,9 +129,10 @@ Animation::streamReadLegacy(Stream *stream)
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)anim->keyframes;
 	for(int32 i = 0; i < anim->numFrames; i++){
 		stream->read32(&frames[i].q, 4*4);
+		frames[i].q = conj(frames[i].q);
 		stream->read32(&frames[i].t, 3*4);
 		frames[i].time = stream->readF32();
-		int32 prev = stream->readI32();
+		int32 prev = stream->readI32()/0x24;
 		frames[i].prev = &frames[prev];
 	}
 	return anim;
@@ -159,10 +160,12 @@ Animation::streamWriteLegacy(Stream *stream)
 	assert(interpInfo->id == 1);
 	HAnimKeyFrame *frames = (HAnimKeyFrame*)this->keyframes;
 	for(int32 i = 0; i < this->numFrames; i++){
+		frames[i].q = conj(frames[i].q);
 		stream->write32(&frames[i].q, 4*4);
+		frames[i].q = conj(frames[i].q);
 		stream->write32(&frames[i].t, 3*4);
 		stream->writeF32(frames[i].time);
-		stream->writeI32(frames[i].prev - frames);
+		stream->writeI32((frames[i].prev - frames)*0x24);
 	}
 	return true;
 }
