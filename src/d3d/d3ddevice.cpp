@@ -1523,6 +1523,12 @@ initD3D(void)
 			d3ddevice->GetSamplerState(s, (D3DSAMPLERSTATETYPE)t, (DWORD*)&d3dSamplerStates[t][s]);
 			d3dSamplerStates[t][s] = d3dSamplerStates[t][s];
 		}
+	// init rw cache
+	for(t = 0; t < MAXNUMSTAGES; t++){
+		setFilterMode(t, Texture::NEAREST);
+		setAddressU(t, Texture::WRAP);
+		setAddressV(t, Texture::WRAP);
+	}
 
 	openIm2D();
 	openIm3D();
