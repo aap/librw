@@ -161,6 +161,7 @@ struct D3dRaster
 {
 	void *texture;
 	void *palette;
+	void *lockedSurf;
 	uint32 format;
 	uint32 bpp;	// bytes per pixel
 	bool32 hasAlpha;
@@ -186,7 +187,7 @@ void getSamplerState(uint32 stage, uint32 type, uint32 *value);
 void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);
-void setMaterial(SurfaceProperties surfProps, rw::RGBA color);
+void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops);
 
 void setVertexShader(void *vs);
 void setPixelShader(void *ps);
@@ -213,6 +214,7 @@ struct VertexConstantData
 };
 extern void *constantVertexStream;
 
+// TODO: figure out why this even still exists...
 struct D3dShaderState
 {
 	// for VS
@@ -222,8 +224,15 @@ struct D3dShaderState
 		float32 range;	// 1/(start-end)
 		float32 disable;	// lower clamp
 	} fogData, fogDisable;
+	RGBA matColor;
+	SurfaceProperties surfProps;
+	float lightOffset[3];
+	int32 numDir, numPoint, numSpot;
+	RGBAf ambient;
 	// for PS
 	RGBAf fogColor;
+
+	bool fogDirty;
 };
 extern D3dShaderState d3dShaderState;
 

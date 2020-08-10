@@ -178,7 +178,7 @@ inline void clamp(RGBAf *a) {
 	if(a->alpha < 0.0f) a->alpha = 0.0f;
 }
 
-inline void convColor(RGBA *i, RGBAf *f){
+inline void convColor(RGBA *i, const RGBAf *f){
 	int32 c;
 	c = (int32)(f->red*255.0f + 0.5f);
 	i->red   = (uint8)c;
@@ -190,7 +190,7 @@ inline void convColor(RGBA *i, RGBAf *f){
 	i->alpha = (uint8)c;
 }
 
-inline void convColor(RGBAf *f, RGBA *i){
+inline void convColor(RGBAf *f, const RGBA *i){
 	f->red   = i->red/255.0f;
 	f->green = i->green/255.0f;
 	f->blue  = i->blue/255.0f;

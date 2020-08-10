@@ -265,6 +265,12 @@ flushCache(void)
 		}
 	}
 	numDirtyTextureStageStates = 0;
+
+	if(d3dShaderState.fogDirty){
+		d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
+		d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
+		d3dShaderState.fogDirty = false;
+	}
 }
 
 void
@@ -489,7 +495,7 @@ setD3dMaterial(D3DMATERIAL9 *mat9)
 }
 
 void
-setMaterial(SurfaceProperties surfProps, rw::RGBA color)
+setMaterial_fix(const RGBA &color, const SurfaceProperties &surfProps)
 {
 	D3DMATERIAL9 mat9;
 	D3DCOLORVALUE black = { 0, 0, 0, 0 };
@@ -507,6 +513,30 @@ setMaterial(SurfaceProperties surfProps, rw::RGBA color)
 	mat9.Emissive = black;
 	mat9.Specular = black;
 	setD3dMaterial(&mat9);
+}
+
+
+void
+setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
+{
+	if(!equal(d3dShaderState.matColor, color)){
+		rw::RGBAf col;
+		convColor(&col, &color);
+		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
+		d3dShaderState.matColor = color;
+	}
+
+	if(d3dShaderState.surfProps.ambient != surfaceprops.ambient ||
+	   d3dShaderState.surfProps.specular != surfaceprops.specular ||
+	   d3dShaderState.surfProps.diffuse != surfaceprops.diffuse){
+		float surfProps[4];
+		surfProps[0] = surfaceprops.ambient;
+		surfProps[1] = surfaceprops.specular;
+		surfProps[2] = surfaceprops.diffuse;
+		surfProps[3] = 0.0f;
+		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+		d3dShaderState.surfProps = surfaceprops;
+	}
 }
 
 static void
@@ -557,6 +587,7 @@ setRwRenderState(int32 state, void *pvalue)
 			rwStateCache.fogenable = bval;
 //			setRenderState(D3DRS_FOGENABLE, rwStateCache.fogenable);
 			d3dShaderState.fogData.disable = bval ? 0.0f : 1.0f;
+			d3dShaderState.fogDirty = true;
 		};
 		break;
 	case FOGCOLOR:{
@@ -569,6 +600,7 @@ setRwRenderState(int32 state, void *pvalue)
 			rwStateCache.fogcolor = c;
 			setRenderState(D3DRS_FOGCOLOR, D3DCOLOR_RGBA(c.red, c.green, c.blue, c.alpha));
 			convColor(&d3dShaderState.fogColor, &c);
+			d3dShaderState.fogDirty = true;
 		}} break;
 	case CULLMODE:
 		if(rwStateCache.cullmode != value){
@@ -861,6 +893,7 @@ beginUpdate(Camera *cam)
 	d3dShaderState.fogDisable.end = 0.0f;
 	d3dShaderState.fogDisable.range = 0.0f;
 	d3dShaderState.fogDisable.disable = 1.0f;
+	d3dShaderState.fogDirty = true;
 
 	setRenderSurfaces(cam);
 

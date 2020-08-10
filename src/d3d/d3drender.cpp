@@ -218,12 +218,34 @@ struct LightVS
 	V3d direction; float param2;
 };
 
+void
+setAmbient(const RGBAf &color)
+{
+	if(!equal(d3dShaderState.ambient, color)){
+		d3dShaderState.ambient = color;
+		d3ddevice->SetVertexShaderConstantF(VSLOC_ambLight, (float*)&color, 1);
+	}
+}
+
+void
+setNumLights(int numDir, int numPoint, int numSpot)
+{
+	static int32 numLights[4*3];
+	if(d3dShaderState.numDir != numDir ||
+	   d3dShaderState.numPoint != numPoint ||
+	   d3dShaderState.numSpot != numSpot){
+		numLights[0] = d3dShaderState.numDir = numDir;
+		numLights[4] = d3dShaderState.numPoint = numPoint;
+		numLights[8] = d3dShaderState.numSpot = numSpot;
+		d3ddevice->SetVertexShaderConstantI(VSLOC_numLights, numLights, 3);
+	}
+}
+
 int32
 uploadLights(WorldLights *lightData)
 {
 	int i;
 	int bits = 0;
-	int32 numLights[4*3];
 	float32 firstLight[4];
 	firstLight[0] = 0;	// directional
 	firstLight[1] = 0;	// point
@@ -281,26 +303,33 @@ uploadLights(WorldLights *lightData)
 	}
 
 	firstLight[0] = 0;
-	numLights[0] = lightData->numDirectionals;
-	firstLight[1] = numLights[0] + firstLight[0];
-	numLights[4] = np;
-	firstLight[2] = numLights[4] + firstLight[1];
-	numLights[8] = ns;
+	int numDir = lightData->numDirectionals;
+	firstLight[1] = numDir + firstLight[0];
+	int numPoint = np;
+	firstLight[2] = numPoint + firstLight[1];
+	int numSpot = ns;
 
-	d3ddevice->SetVertexShaderConstantI(VSLOC_numLights, numLights, 3);
-	d3ddevice->SetVertexShaderConstantF(VSLOC_lightOffset, firstLight, 1);
+	setNumLights(numDir, numPoint, numSpot);
+	if(d3dShaderState.lightOffset[0] != firstLight[0] ||
+	   d3dShaderState.lightOffset[1] != firstLight[1] ||
+	   d3dShaderState.lightOffset[2] != firstLight[2]){
+		d3dShaderState.lightOffset[0] = firstLight[0];
+		d3dShaderState.lightOffset[1] = firstLight[1];
+		d3dShaderState.lightOffset[2] = firstLight[2];
+		d3ddevice->SetVertexShaderConstantF(VSLOC_lightOffset, firstLight, 1);
+	}
 
 	int32 off = VSLOC_lights;
-	if(numLights[0])
-		d3ddevice->SetVertexShaderConstantF(off, (float*)&directionals, numLights[0]*3);
-	off += numLights[0]*3;
+	if(numDir)
+		d3ddevice->SetVertexShaderConstantF(off, (float*)&directionals, numDir*3);
+	off += numDir*3;
 
-	if(numLights[4])
-		d3ddevice->SetVertexShaderConstantF(off, (float*)&points, numLights[4]*3);
-	off += numLights[4]*3;
+	if(numPoint)
+		d3ddevice->SetVertexShaderConstantF(off, (float*)&points, numPoint*3);
+	off += numPoint*3;
 
-	if(numLights[8])
-		d3ddevice->SetVertexShaderConstantF(off, (float*)&spots, numLights[8]*3);
+	if(numSpot)
+		d3ddevice->SetVertexShaderConstantF(off, (float*)&spots, numSpot*3);
 
 	return bits;
 }
@@ -318,7 +347,7 @@ lightingCB_Shader(Atomic *atomic)
 
 	if(atomic->geometry->flags & rw::Geometry::LIGHT){
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
-		d3ddevice->SetVertexShaderConstantF(VSLOC_ambLight, (float*)&lightData.ambient, 1);
+		setAmbient(lightData.ambient);
 		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
 			// Get rid of lights that need normals when we don't have any
 			lightData.numDirectionals = 0;
@@ -326,10 +355,9 @@ lightingCB_Shader(Atomic *atomic)
 		}
 		return uploadLights(&lightData);
 	}else{
-		static const float zeroF[4];
-		static const int32 zeroI[4];
-		d3ddevice->SetVertexShaderConstantF(VSLOC_ambLight, zeroF, 1);
-		d3ddevice->SetVertexShaderConstantI(VSLOC_numLights, zeroI, 1);
+		static const RGBAf black = { 0.0f, 0.0f, 0.0f, 0.0f };
+		setAmbient(black);
+		setNumLights(0, 0, 0);
 		return 0;
 	}
 }

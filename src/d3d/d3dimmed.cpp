@@ -262,12 +262,9 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	if((flags & im3d::VERTEXUV) == 0)
 		SetRenderStatePtr(TEXTURERASTER, nil);
 
-	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
-	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
-	static float surfprops[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	static float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfprops, 1);
-	d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, white, 1);
+	static RGBA white = { 255, 255, 255, 255 };
+	static SurfaceProperties surfprops = { 0.0f, 0.0f, 0.0f };
+	setMaterial(white, surfprops);
 
 	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));

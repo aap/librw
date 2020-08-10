@@ -73,6 +73,7 @@ drawInst(d3d9::InstanceDataHeader *header, d3d9::InstanceData *inst)
 		drawInst_simple(header, inst);
 }
 
+/*
 void
 defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 {
@@ -97,7 +98,7 @@ defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		SetRenderState(VERTEXALPHA, inst->vertexAlpha || inst->material->color.alpha != 255);
 		const static rw::RGBA white = { 255, 255, 255, 255 };
-		d3d::setMaterial(inst->material->surfaceProps, white);
+		d3d::setMaterial(white, inst->material->surfaceProps);
 
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		if(geo->flags & Geometry::PRELIT)
@@ -138,7 +139,7 @@ defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 	d3d::setTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
 	d3d::setTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 }
-
+*/
 
 void
 defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
@@ -151,9 +152,6 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
 
-	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
-	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
-
 	// Pick a shader
 	if((vsBits & VSLIGHT_MASK) == 0)
 		setVertexShader(default_amb_VS);
@@ -162,23 +160,13 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	else
 		setVertexShader(default_all_VS);
 
-	float surfProps[4];
-	surfProps[3] = 0.0f;
-
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Material *m = inst->material;
 
 		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
 
-		rw::RGBAf col;
-		convColor(&col, &inst->material->color);
-		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
-
-		surfProps[0] = m->surfaceProps.ambient;
-		surfProps[1] = m->surfaceProps.specular;
-		surfProps[2] = m->surfaceProps.diffuse;
-		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+		setMaterial(m->color, m->surfaceProps);
 
 		if(inst->material->texture){
 			d3d::setTexture(0, m->texture);

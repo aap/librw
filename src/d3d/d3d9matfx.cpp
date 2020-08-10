@@ -159,26 +159,13 @@ matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	vsBits = lightingCB_Shader(atomic);
 	uploadMatrices(atomic->getFrame()->getLTM());
 
-	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
-	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
-
 	bool normals = !!(atomic->geometry->flags & Geometry::NORMALS);
-
-	float surfProps[4];
-	surfProps[3] = 0.0f;
 
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Material *m = inst->material;
 
-		rw::RGBAf col;
-		convColor(&col, &inst->material->color);
-		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
-
-		surfProps[0] = m->surfaceProps.ambient;
-		surfProps[1] = m->surfaceProps.specular;
-		surfProps[2] = m->surfaceProps.diffuse;
-		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+		setMaterial(m->color, m->surfaceProps);
 
 		MatFX *matfx = MatFX::get(m);
 		if(matfx == nil)

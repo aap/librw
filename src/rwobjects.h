@@ -303,6 +303,15 @@ struct Raster
 		LOCKNOFETCH	= 4,	// don't fetch pixel data
 		LOCKRAW		= 8,
 	};
+
+	enum
+	{
+		// from RW
+		PRIVATELOCK_READ		= 0x02,
+		PRIVATELOCK_WRITE		= 0x04,
+		PRIVATELOCK_READ_PALETTE	= 0x08,
+		PRIVATELOCK_WRITE_PALETTE	= 0x10,
+	};
 };
 
 void conv_RGBA8888_from_RGBA8888(uint8 *out, uint8 *in);

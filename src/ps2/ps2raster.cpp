@@ -19,15 +19,6 @@
 namespace rw {
 namespace ps2 {
 
-enum
-{
-	// from RW
-	PS2LOCK_READ		= 0x02,
-	PS2LOCK_WRITE		= 0x04,
-	PS2LOCK_READ_PALETTE	= 0x08,
-	PS2LOCK_WRITE_PALETTE	= 0x10,
-};
-
 int32 nativeRasterOffset;
 
 #define MAXLEVEL(r) ((r)->tex1low >> 2)
@@ -1491,8 +1482,8 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 
 	if((lockMode & Raster::LOCKNOFETCH) == 0)
 		unswizzleRaster(raster);
-	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= PS2LOCK_READ;
-	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= PS2LOCK_WRITE;
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= Raster::PRIVATELOCK_READ;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= Raster::PRIVATELOCK_WRITE;
 	return raster->pixels;
 }
 
@@ -1510,7 +1501,7 @@ rasterUnlock(Raster *raster, int32 level)
 	if(natras->flags & Ps2Raster::NEWSTYLE)
 		raster->pixels = ((Ps2Raster::PixelPtr*)raster->pixels)->pixels + 0x50;
 
-	raster->privateFlags &= ~(PS2LOCK_READ|PS2LOCK_WRITE);
+	raster->privateFlags &= ~(Raster::PRIVATELOCK_READ|Raster::PRIVATELOCK_WRITE);
 	// TODO: generate mipmaps
 }
 
@@ -1563,8 +1554,8 @@ rasterLockPalette(Raster *raster, int32 lockMode)
 		return nil;
 	if((lockMode & Raster::LOCKNOFETCH) == 0)
 		convertPalette(raster);
-	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= PS2LOCK_READ_PALETTE;
-	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= PS2LOCK_WRITE_PALETTE;
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= Raster::PRIVATELOCK_READ_PALETTE;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= Raster::PRIVATELOCK_WRITE_PALETTE;
 	return raster->palette;
 }
 
@@ -1573,7 +1564,7 @@ rasterUnlockPalette(Raster *raster)
 {
 	if(raster->format & (Raster::PAL4 | Raster::PAL8))
 		convertPalette(raster);
-	raster->privateFlags &= ~(PS2LOCK_READ_PALETTE|PS2LOCK_WRITE_PALETTE);
+	raster->privateFlags &= ~(Raster::PRIVATELOCK_READ_PALETTE|Raster::PRIVATELOCK_WRITE_PALETTE);
 }
 
 // Almost the same as d3d9 and gl3 function

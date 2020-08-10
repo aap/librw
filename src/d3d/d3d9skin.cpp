@@ -276,9 +276,6 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	uploadSkinMatrices(atomic);
 
-	d3ddevice->SetVertexShaderConstantF(VSLOC_fogData, (float*)&d3dShaderState.fogData, 1);
-	d3ddevice->SetPixelShaderConstantF(PSLOC_fogColor, (float*)&d3dShaderState.fogColor, 1);
-
 	// Pick a shader
 	if((vsBits & VSLIGHT_MASK) == 0)
 		setVertexShader(skin_amb_VS);
@@ -287,23 +284,13 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	else
 		setVertexShader(skin_all_VS);
 
-	float surfProps[4];
-	surfProps[3] = 0.0f;
-
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Material *m = inst->material;
 
 		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
 
-		rw::RGBAf col;
-		convColor(&col, &inst->material->color);
-		d3ddevice->SetVertexShaderConstantF(VSLOC_matColor, (float*)&col, 1);
-
-		surfProps[0] = m->surfaceProps.ambient;
-		surfProps[1] = m->surfaceProps.specular;
-		surfProps[2] = m->surfaceProps.diffuse;
-		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
+		setMaterial(m->color, m->surfaceProps);
 
 		if(inst->material->texture){
 			d3d::setTexture(0, m->texture);

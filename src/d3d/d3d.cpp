@@ -363,33 +363,6 @@ destroyTexture(void *texture)
 #endif
 }
 
-uint8*
-lockTexture(void *texture, int32 level, int32 lockMode)
-{
-	// TODO: don't ignore this
-	(void)lockMode;
-#ifdef RW_D3D9
-	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
-	D3DLOCKED_RECT lr;
-	tex->LockRect(level, &lr, 0, D3DLOCK_NOSYSLOCK);
-	return (uint8*)lr.pBits;
-#else
-	RasterLevels *levels = (RasterLevels*)texture;
-	return levels->levels[level].data;
-#endif
-}
-
-void
-unlockTexture(void *texture, int32 level)
-{
-	(void)texture;
-	(void)level;
-#ifdef RW_D3D9
-	IDirect3DTexture9 *tex = (IDirect3DTexture9*)texture;
-	tex->UnlockRect(level);
-#endif
-}
-
 // Native Raster
 
 int32 nativeRasterOffset;
@@ -531,6 +504,12 @@ rasterSetFormat(Raster *raster)
 	natras->bpp = raster->depth/8;
 	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
 	raster->stride = raster->width*natras->bpp;
+
+	raster->pixels = nil;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->originalStride = raster->stride;
+	raster->originalPixels = raster->pixels;
 }
 
 static Raster*
@@ -589,8 +568,8 @@ rasterCreateCamera(Raster *raster)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	raster->originalWidth = raster->width;
 	raster->originalHeight = raster->height;
-	raster->stride = 0;
-	raster->pixels = nil;
+	raster->originalStride = raster->stride = 0;
+	raster->originalPixels = raster->pixels = nil;
 
 	natras->format = d3d9Globals.present.BackBufferFormat;
 	raster->depth = findFormatDepth(natras->format);
@@ -605,8 +584,8 @@ rasterCreateZbuffer(Raster *raster)
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
 	raster->originalWidth = raster->width;
 	raster->originalHeight = raster->height;
-	raster->stride = 0;
-	raster->pixels = nil;
+	raster->originalStride = raster->stride = 0;
+	raster->originalPixels = raster->pixels = nil;
 
 	// TODO: allow other formats
 	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
@@ -671,14 +650,65 @@ uint8*
 rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	return lockTexture(natras->texture, level, lockMode);
+
+	// check if already locked
+	if(raster->privateFlags & (Raster::PRIVATELOCK_READ|Raster::PRIVATELOCK_WRITE))
+		return nil;
+
+#ifdef RW_D3D9
+	DWORD flags = D3DLOCK_NOSYSLOCK;
+	if(lockMode & Raster::LOCKREAD)
+		flags |= D3DLOCK_READONLY | D3DLOCK_NO_DIRTY_UPDATE;
+	IDirect3DTexture9 *tex = (IDirect3DTexture9*)natras->texture;
+	IDirect3DSurface9 *surf;
+	D3DLOCKED_RECT lr;
+
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE: {
+		tex->GetSurfaceLevel(level, &surf);
+		natras->lockedSurf = surf;
+		surf->LockRect(&lr, 0, flags);
+		break;
+		}
+
+	default:
+		assert(0 && "can't lock this raster type (yet)");
+	}
+
+	raster->pixels = (uint8*)lr.pBits;
+	raster->width >>= level;
+	raster->height >>= level;
+	raster->stride = lr.Pitch;
+	if(raster->width == 0) raster->width = 1;
+	if(raster->height == 0) raster->height = 1;
+
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= Raster::PRIVATELOCK_READ;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= Raster::PRIVATELOCK_WRITE;
+
+	return raster->pixels;
+#else
+	RasterLevels *levels = (RasterLevels*)natras->texture;
+	return levels->levels[level].data;
+#endif
 }
 
 void
 rasterUnlock(Raster *raster, int32 level)
 {
+#if RW_D3D9
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	unlockTexture(natras->texture, level);
+	IDirect3DSurface9 *surf = (IDirect3DSurface9*)natras->lockedSurf;
+	surf->UnlockRect();
+	surf->Release();
+	natras->lockedSurf = nil;
+#endif
+	raster->width = raster->originalWidth;
+	raster->height = raster->originalHeight;
+	raster->stride = raster->originalStride;
+	raster->pixels = raster->originalPixels;
+
+	raster->privateFlags &= ~(Raster::PRIVATELOCK_READ|Raster::PRIVATELOCK_WRITE);
 }
 
 int32
@@ -1012,6 +1042,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	D3dRaster *raster = PLUGINOFFSET(D3dRaster, object, offset);
 	raster->texture = nil;
 	raster->palette = nil;
+	raster->lockedSurf = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->customFormat = 0;
@@ -1056,6 +1087,7 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	D3dRaster *raster = PLUGINOFFSET(D3dRaster, dst, offset);
 	raster->texture = nil;
 	raster->palette = nil;
+	raster->lockedSurf = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
 	raster->customFormat = 0;
