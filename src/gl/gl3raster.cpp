@@ -68,7 +68,7 @@ rasterCreateTexture(Raster *raster)
 	raster->stride = raster->width*natras->bpp;
 
 	glGenTextures(1, &natras->texid);
-	glBindTexture(GL_TEXTURE_2D, natras->texid);
+	uint32 prev = bindTexture(natras->texid);
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
 	             0, natras->format, natras->type, nil);
@@ -76,7 +76,7 @@ rasterCreateTexture(Raster *raster)
 	natras->addressU = 0;
 	natras->addressV = 0;
 
-	glBindTexture(GL_TEXTURE_2D, 0);
+	bindTexture(prev);
 	return raster;
 }
 
@@ -126,7 +126,7 @@ rasterCreateCameraTexture(Raster *raster)
 	raster->stride = raster->width*natras->bpp;
 
 	glGenTextures(1, &natras->texid);
-	glBindTexture(GL_TEXTURE_2D, natras->texid);
+	uint32 prev = bindTexture(natras->texid);
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
 	             0, natras->format, natras->type, nil);
@@ -134,7 +134,7 @@ rasterCreateCameraTexture(Raster *raster)
 	natras->addressU = 0;
 	natras->addressV = 0;
 
-	glBindTexture(GL_TEXTURE_2D, 0);
+	bindTexture(prev);
 
 
 	glGenFramebuffers(1, &natras->fbo);
@@ -180,7 +180,7 @@ rasterCreateZbuffer(Raster *raster)
 	natras->type = GL_UNSIGNED_BYTE;
 
 	glGenTextures(1, &natras->texid);
-	glBindTexture(GL_TEXTURE_2D, natras->texid);
+	uint32 prev = bindTexture(natras->texid);
 	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
 	             raster->width, raster->height,
 	             0, natras->format, natras->type, nil);
@@ -188,7 +188,7 @@ rasterCreateZbuffer(Raster *raster)
 	natras->addressU = 0;
 	natras->addressV = 0;
 
-	glBindTexture(GL_TEXTURE_2D, 0);
+	bindTexture(prev);
 
 	natras->fbo = 0;
 	natras->fboMate = nil;
