@@ -38,6 +38,9 @@ struct D3d9Globals
 
 	D3DPRESENT_PARAMETERS present;
 
+	IDirect3DSurface9 *defaultRenderTarget;
+	IDirect3DSurface9 *defaultDepthSurf;
+
 	int numTextures;
 	int numVertexShaders;
 	int numPixelShaders;
@@ -59,7 +62,7 @@ void removeDynamicIB(IDirect3DIndexBuffer9 **buf);
 
 
 int findFormatDepth(uint32 format);
-void destroyD3D9Raster(Raster *raster);
+void evictD3D9Raster(Raster *raster);
 
 #endif
 

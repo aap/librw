@@ -96,6 +96,7 @@ D3dShaderState d3dShaderState;
 #define MAXNUMTEXSTATES (D3DTSS_CONSTANT+1)
 #define MAXNUMSAMPLERSTATES (D3DSAMP_DMAPOFFSET+1)
 #define MAXNUMSTREAMS (3)
+#define MAXNUMRENDERTARGETS (4)
 
 static int32 numDirtyStates;
 static uint32 dirtyStates[MAXNUMSTATES];
@@ -116,6 +117,8 @@ struct D3dDeviceCache {
 		uint32 offset;
 		uint32 stride;
 	} vertexStreams[MAXNUMSTREAMS];
+	IDirect3DSurface9 *renderTargets[MAXNUMRENDERTARGETS];
+	IDirect3DSurface9 *depthSurface;
 };
 static D3dDeviceCache deviceCache;
 
@@ -199,6 +202,24 @@ getRenderState(uint32 state, uint32 *value)
 }
 
 void
+setRenderTarget(int n, void *surf)
+{
+	if(surf != deviceCache.renderTargets[n]){
+		deviceCache.renderTargets[n] = (IDirect3DSurface9*)surf;
+		d3ddevice->SetRenderTarget(n, deviceCache.renderTargets[n]);
+	}
+}
+
+void
+setDepthSurface(void *surf)
+{
+	if(surf != deviceCache.depthSurface){
+		deviceCache.depthSurface = (IDirect3DSurface9*)surf;
+		d3ddevice->SetDepthStencilSurface(deviceCache.depthSurface);
+	}
+}
+
+void
 setTextureStageState(uint32 stage, uint32 type, uint32 value)
 {
 	if(textureStageStateCache[type][stage].value != value){
@@ -267,6 +288,7 @@ restoreD3d9Device(void)
 {
 	int32 i;
 	uint32 s, t;
+
 	for(i = 0; i < MAXNUMSTAGES; i++){
 		Raster *raster = rwStateCache.texstage[i].raster;
 		if(raster){
@@ -300,15 +322,28 @@ restoreD3d9Device(void)
 }
 
 void
-destroyD3D9Raster(Raster *raster)
+evictD3D9Raster(Raster *raster)
 {
 	int i;
-	if(raster->type == Raster::CAMERATEXTURE)
-		removeVidmemRaster(raster);
 	// Make sure we're not still referencing this raster
-	for(i = 0; i < MAXNUMSTAGES; i++)
-		if(rwStateCache.texstage[i].raster == raster)
-			rwStateCache.texstage[i].raster = nil;
+	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	switch(raster->type){
+	case Raster::CAMERATEXTURE:
+		for(i = 0; i < MAXNUMRENDERTARGETS; i++)
+			if(deviceCache.renderTargets[i] == natras->texture)
+				setRenderTarget(i, i == 0 ? d3d9Globals.defaultRenderTarget : nil);
+		// fall through
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+		for(i = 0; i < MAXNUMSTAGES; i++)
+			if(rwStateCache.texstage[i].raster == raster)
+				rwStateCache.texstage[i].raster = nil;
+		break;
+	case Raster::ZBUFFER:
+		if(natras->texture == deviceCache.depthSurface)
+			setDepthSurface(d3d9Globals.defaultDepthSurf);
+		break;
+	}
 }
 
 // RW render state
@@ -723,6 +758,35 @@ destroyPixelShader(void *shader)
 // Camera
 
 static void
+setRenderSurfaces(Camera *cam)
+{
+	Raster *fbuf = cam->frameBuffer;
+	assert(fbuf);
+	{
+		D3dRaster *natras = PLUGINOFFSET(D3dRaster, fbuf, nativeRasterOffset);
+		assert(fbuf->type == Raster::CAMERA || fbuf->type == Raster::CAMERATEXTURE);
+		if(natras->texture == nil)
+			setRenderTarget(0, d3d9Globals.defaultRenderTarget);
+		else{
+			assert(fbuf->type == Raster::CAMERATEXTURE);
+			IDirect3DSurface9 *surf;
+			((IDirect3DTexture9*)natras->texture)->GetSurfaceLevel(0, &surf);
+			setRenderTarget(0, surf);
+			surf->Release();
+		}
+	}
+
+	Raster *zbuf = cam->zBuffer;
+	if(zbuf){
+		D3dRaster *natras = PLUGINOFFSET(D3dRaster, zbuf, nativeRasterOffset);
+		assert(zbuf->type == Raster::ZBUFFER);
+		setDepthSurface(natras->texture);
+	}else
+		setDepthSurface(nil);
+
+}
+
+static void
 beginUpdate(Camera *cam)
 {
 	float view[16], proj[16];
@@ -749,7 +813,7 @@ beginUpdate(Camera *cam)
 	view[14] =  inv.pos.z;
 	view[15] =  1.0f;
 	memcpy(&cam->devView, view, sizeof(RawMatrix));
-	d3ddevice->SetTransform(D3DTS_VIEW, (D3DMATRIX*)view);
+//	d3ddevice->SetTransform(D3DTS_VIEW, (D3DMATRIX*)view);
 
 	// Projection Matrix
 	float32 invwx = 1.0f/cam->viewWindow.x;
@@ -783,7 +847,7 @@ beginUpdate(Camera *cam)
 	}
 	proj[14] = -cam->nearPlane*proj[10];
 	memcpy(&cam->devProj, proj, sizeof(RawMatrix));
-	d3ddevice->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
+//	d3ddevice->SetTransform(D3DTS_PROJECTION, (D3DMATRIX*)proj);
 
 	// TODO: figure out where this is really done
 //	setRenderState(D3DRS_FOGSTART, *(uint32*)&cam->fogPlane);
@@ -797,6 +861,8 @@ beginUpdate(Camera *cam)
 	d3dShaderState.fogDisable.end = 0.0f;
 	d3dShaderState.fogDisable.range = 0.0f;
 	d3dShaderState.fogDisable.disable = 1.0f;
+
+	setRenderSurfaces(cam);
 
 	D3DVIEWPORT9 vp;
 	vp.MinZ = 0.0f;
@@ -852,9 +918,19 @@ releaseVidmemRasters(void)
 	for(vmr = vidmemRasters; vmr; vmr = vmr->next){
 		raster = vmr->raster;
 		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-		if(raster->type == Raster::CAMERATEXTURE){
+		switch(raster->type){
+		case Raster::CAMERATEXTURE:
 			destroyTexture(natras->texture);
 			natras->texture = nil;
+			break;
+
+		case Raster::ZBUFFER:
+			// we'll leave the default surface dangling so we can tell the difference
+			if(natras->texture != d3d9Globals.defaultDepthSurf){
+				((IDirect3DSurface9*)natras->texture)->Release();
+				natras->texture = nil;
+			}
+			break;
 		}
 	}
 }
@@ -868,7 +944,8 @@ recreateVidmemRasters(void)
 	for(vmr = vidmemRasters; vmr; vmr = vmr->next){
 		raster = vmr->raster;
 		natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-		if(raster->type == Raster::CAMERATEXTURE){
+		switch(raster->type){
+		case Raster::CAMERATEXTURE: {
 			int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
 			IDirect3DTexture9 *tex;
 			d3ddevice->CreateTexture(raster->width, raster->height,
@@ -878,6 +955,26 @@ recreateVidmemRasters(void)
 			natras->texture = tex;
 			if(natras->texture)
 				d3d9Globals.numTextures++;
+			break;
+		}
+
+		case Raster::ZBUFFER:
+			if(natras->texture){
+				RECT rect;
+				GetClientRect(d3d9Globals.window, &rect);
+				raster->width = rect.right;
+				raster->height = rect.bottom;
+				natras->texture = d3d9Globals.defaultDepthSurf;
+				natras->format = d3d9Globals.present.AutoDepthStencilFormat;
+				raster->depth = findFormatDepth(natras->format);
+			}else{
+				IDirect3DSurface9 *surf = nil;
+				d3ddevice->CreateDepthStencilSurface(raster->width, raster->height, (D3DFORMAT)natras->format,
+					d3d9Globals.present.MultiSampleType, d3d9Globals.present.MultiSampleQuality,
+					FALSE, &surf, nil);
+				natras->texture = surf;
+			}
+			break;
 		}
 	}
 }
@@ -991,6 +1088,11 @@ releaseVideoMemory(void)
 	for(i = 0; i < MAXNUMSTREAMS; i++)
 		d3ddevice->SetStreamSource(0, nil, 0, 0);
 
+	setRenderTarget(0, d3d9Globals.defaultRenderTarget);
+	for(i = 1; i < MAXNUMRENDERTARGETS; i++)
+		setRenderTarget(i, nil);
+	setDepthSurface(d3d9Globals.defaultDepthSurf);
+
 	releaseVidmemRasters();
 	releaseDynamicVBs();
 	releaseDynamicIBs();
@@ -999,6 +1101,14 @@ releaseVideoMemory(void)
 static void
 restoreVideoMemory(void)
 {
+	// Have to get these back before recreating rasters
+	d3ddevice->GetRenderTarget(0, &d3d9Globals.defaultRenderTarget);
+	d3d9Globals.defaultRenderTarget->Release();	// refcount increased by Get
+	deviceCache.renderTargets[0] = d3d9Globals.defaultRenderTarget;
+	d3ddevice->GetDepthStencilSurface(&d3d9Globals.defaultDepthSurf);
+	d3d9Globals.defaultDepthSurf->Release();	// refcount increased by Get
+	deviceCache.depthSurface = d3d9Globals.defaultDepthSurf;
+
 	recreateDynamicIBs();
 	recreateDynamicVBs();
 	// important that we get all raster back before restoring state
@@ -1031,6 +1141,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		d3d::d3ddevice->Reset(&d3d9Globals.present);
 		restoreVideoMemory();
 	}
+
+	setRenderSurfaces(cam);
 
 	d3ddevice->Clear(0, 0, mode, c, 1.0f, 0);
 }
@@ -1131,7 +1243,9 @@ findFormatDepth(uint32 format)
 
 	case D3DFMT_L8:	return 8;
 	case D3DFMT_D16:	return 16;
+	case D3DFMT_D24S8:	return 32;
 	case D3DFMT_D24X8:	return 32;
+	case D3DFMT_D24X4S4:	return 32;
 	case D3DFMT_D32:	return 32;
 
 	default:	return 0;
@@ -1323,6 +1437,13 @@ static int
 initD3D(void)
 {
 	int32 s, t;
+
+	d3ddevice->GetRenderTarget(0, &d3d9Globals.defaultRenderTarget);
+	d3d9Globals.defaultRenderTarget->Release();	// refcount increased by Get
+	deviceCache.renderTargets[0] = d3d9Globals.defaultRenderTarget;
+	d3ddevice->GetDepthStencilSurface(&d3d9Globals.defaultDepthSurf);
+	d3d9Globals.defaultDepthSurf->Release();	// refcount increased by Get
+	deviceCache.depthSurface = d3d9Globals.defaultDepthSurf;
 
 	d3d9Globals.numTextures = 0;
 	d3d9Globals.numVertexShaders = 0;

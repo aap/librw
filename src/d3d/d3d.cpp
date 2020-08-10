@@ -493,6 +493,7 @@ rasterSetFormat(Raster *raster)
 
 #ifdef RW_D3D9
 		case Raster::ZBUFFER:
+			// TODO: allow other formats
 			raster->format = findFormatInfoD3D(d3d9Globals.present.AutoDepthStencilFormat)->rwFormat;
 			// can this even happen? just do something...
 			if(raster->format == 0)
@@ -586,7 +587,6 @@ static Raster*
 rasterCreateCamera(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	raster->flags |= Raster::DONTALLOCATE;
 	raster->originalWidth = raster->width;
 	raster->originalHeight = raster->height;
 	raster->stride = 0;
@@ -594,6 +594,8 @@ rasterCreateCamera(Raster *raster)
 
 	natras->format = d3d9Globals.present.BackBufferFormat;
 	raster->depth = findFormatDepth(natras->format);
+
+	natras->texture = nil;	// global default render target
 	return raster;
 }
 
@@ -601,14 +603,34 @@ static Raster*
 rasterCreateZbuffer(Raster *raster)
 {
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
-	raster->flags |= Raster::DONTALLOCATE;
 	raster->originalWidth = raster->width;
 	raster->originalHeight = raster->height;
 	raster->stride = 0;
 	raster->pixels = nil;
 
+	// TODO: allow other formats
 	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
 	raster->depth = findFormatDepth(natras->format);
+
+	RECT rect;
+	GetClientRect(d3d9Globals.window, &rect);
+	// This check is done by RW but it's rather strange...
+	if(rect.right == raster->width && rect.bottom == raster->height)
+		natras->texture = d3d9Globals.defaultDepthSurf;
+	else{
+		IDirect3DSurface9 *surf = nil;
+		d3ddevice->CreateDepthStencilSurface(raster->width, raster->height, (D3DFORMAT)natras->format,
+			d3d9Globals.present.MultiSampleType, d3d9Globals.present.MultiSampleQuality,
+			FALSE, &surf, nil);
+		assert(natras->texture == nil);
+		natras->texture = surf;
+		if(natras->texture == nil){
+			RWERROR((ERR_NOTEXTURE));
+			return nil;
+		}
+	}
+	addVidmemRaster(raster);
+
 	return raster;
 }
 #endif
@@ -620,27 +642,22 @@ rasterCreate(Raster *raster)
 
 	rasterSetFormat(raster);
 
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->stride = 0;
+		return raster;
+	}
+	if(raster->flags & Raster::DONTALLOCATE)
+		return raster;
+
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
-		// Dummy to use as subraster
-		// ^ what did i do there?
-		if(raster->width == 0 || raster->height == 0){
-			raster->flags |= Raster::DONTALLOCATE;
-			raster->stride = 0;
-			return raster;
-		}
-
-		if(raster->flags & Raster::DONTALLOCATE)
-			return raster;
 		return rasterCreateTexture(raster);
 
 #ifdef RW_D3D9
 	case Raster::CAMERATEXTURE:
-		if(raster->flags & Raster::DONTALLOCATE)
-			return raster;
 		return rasterCreateCameraTexture(raster);
-
 	case Raster::ZBUFFER:
 		return rasterCreateZbuffer(raster);
 	case Raster::CAMERA:
@@ -1007,9 +1024,28 @@ destroyNativeRaster(void *object, int32 offset, int32)
 	Raster *raster = (Raster*)object;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
 #ifdef RW_D3D9
-	destroyD3D9Raster(raster);
+	removeVidmemRaster(raster);
+	evictD3D9Raster(raster);
 #endif
-	destroyTexture(natras->texture);
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+	case Raster::CAMERATEXTURE:
+		destroyTexture(natras->texture);
+		break;
+
+	case Raster::ZBUFFER:
+#ifdef RW_D3D9
+		if(raster->flags & Raster::DONTALLOCATE)
+			break;
+		if(natras->texture != d3d9Globals.defaultDepthSurf)
+			((IDirect3DSurface9*)natras->texture)->Release();
+		natras->texture = nil;
+#endif
+		break;
+	case Raster::CAMERA:
+		break;
+	}
 	rwFree(natras->palette);
 	return object;
 }
