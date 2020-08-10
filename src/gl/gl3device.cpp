@@ -235,6 +235,8 @@ static GlState curGlState, oldGlState;
 static int32 activeTexture;
 static uint32 boundTexture[MAXNUMSTAGES];
 
+static uint32 currentFramebuffer;
+
 static uint32 blendMap[] = {
 	GL_ZERO,	// actually invalid
 	GL_ZERO,
@@ -413,6 +415,16 @@ bindTexture(uint32 texid)
 	boundTexture[activeTexture] = texid;
 	glBindTexture(GL_TEXTURE_2D, texid);
 	return prev;
+}
+
+void
+bindFramebuffer(uint32 fbo)
+{
+	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	if(currentFramebuffer != fbo){
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		currentFramebuffer = fbo;
+	}
 }
 
 // TODO: support mipmaps
@@ -990,62 +1002,44 @@ flushCache(void)
 }
 
 static void
-clearCamera(Camera *cam, RGBA *col, uint32 mode)
+setFrameBuffer(Camera *cam)
 {
-	RGBAf colf;
-	GLbitfield mask;
+	Raster *fbuf = cam->frameBuffer;
+	Raster *zbuf = cam->zBuffer;
+	assert(fbuf);
 
-	convColor(&colf, col);
-	glClearColor(colf.red, colf.green, colf.blue, colf.alpha);
-	mask = 0;
-	if(mode & Camera::CLEARIMAGE)
-		mask |= GL_COLOR_BUFFER_BIT;
-	if(mode & Camera::CLEARZ)
-		mask |= GL_DEPTH_BUFFER_BIT;
-	glDepthMask(GL_TRUE);
-	glClear(mask);
-	glDepthMask(rwStateCache.zwrite);
-}
+	Gl3Raster *natfb = PLUGINOFFSET(Gl3Raster, fbuf, nativeRasterOffset);
+	Gl3Raster *natzb = PLUGINOFFSET(Gl3Raster, zbuf, nativeRasterOffset);
+	assert(fbuf->type == Raster::CAMERA || fbuf->type == Raster::CAMERATEXTURE);
 
-static void
-showRaster(Raster *raster, uint32 flags)
-{
-	// TODO: do this properly!
-#ifdef LIBRW_SDL2
-	SDL_GL_SwapWindow(glGlobals.window);
-#else
-	if(flags & Raster::FLIPWAITVSYNCH)
-		glfwSwapInterval(1);
-	else
-		glfwSwapInterval(0);
-	glfwSwapBuffers(glGlobals.window);
-#endif
-}
-
-static bool32
-rasterRenderFast(Raster *raster, int32 x, int32 y)
-{
-	Raster *src = raster;
-	Raster *dst = Raster::getCurrentContext();
-	Gl3Raster *natdst = PLUGINOFFSET(Gl3Raster, dst, nativeRasterOffset);
-	Gl3Raster *natsrc = PLUGINOFFSET(Gl3Raster, src, nativeRasterOffset);
-
-	switch(dst->type){
-	case Raster::NORMAL:
-	case Raster::TEXTURE:
-	case Raster::CAMERATEXTURE:
-		switch(src->type){
-		case Raster::CAMERA:
-			setActiveTexture(0);
-			glBindTexture(GL_TEXTURE_2D, natdst->texid);
-			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
-				0, 0, src->width, src->height);
-			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
-			return 1;
+	// Have to make sure depth buffer is attached to FB's fbo
+	bindFramebuffer(natfb->fbo);
+	if(zbuf){
+		if(natfb->fboMate == zbuf){
+			// all good
+			assert(natzb->fboMate == fbuf);
+		}else{
+			if(natzb->fboMate){
+				// have to detatch from fbo first!
+				Gl3Raster *oldfb = PLUGINOFFSET(Gl3Raster, natzb->fboMate, nativeRasterOffset);
+				if(oldfb->fbo){
+					bindFramebuffer(oldfb->fbo);
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+					bindFramebuffer(natfb->fbo);
+				}
+				oldfb->fboMate = nil;
+			}
+			natfb->fboMate = zbuf;
+			natzb->fboMate = fbuf;
+			if(natfb->fbo)
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, natzb->texid, 0);
 		}
-		break;
+	}else{
+		// remove z-buffer
+		if(natfb->fboMate && natfb->fbo)
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+		natfb->fboMate = nil;
 	}
-	return 0;
 }
 
 static void
@@ -1105,7 +1099,7 @@ beginUpdate(Camera *cam)
 		proj[10] = -(cam->farPlane+cam->nearPlane)*invz;
 		proj[11] = 0.0f;
 
-		proj[14] = -2.0f*invz;
+		proj[14] = 2.0f*invz;
 		proj[15] = 1.0f;
 	}
 	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
@@ -1122,17 +1116,86 @@ beginUpdate(Camera *cam)
 		stateDirty = 1;
 	}
 
+	setFrameBuffer(cam);
+
 	int w, h;
+	if(cam->frameBuffer->type == Raster::CAMERA){
 #ifdef LIBRW_SDL2
-	SDL_GetWindowSize(glGlobals.window, &w, &h);
+		SDL_GetWindowSize(glGlobals.window, &w, &h);
 #else
-	glfwGetWindowSize(glGlobals.window, &w, &h);
+		glfwGetWindowSize(glGlobals.window, &w, &h);
 #endif
+	}else{
+		w = cam->frameBuffer->width;
+		h = cam->frameBuffer->height;
+	}
+
 	if(w != glGlobals.presentWidth || h != glGlobals.presentHeight){
 		glViewport(0, 0, w, h);
 		glGlobals.presentWidth = w;
 		glGlobals.presentHeight = h;
 	}
+}
+
+static void
+clearCamera(Camera *cam, RGBA *col, uint32 mode)
+{
+	RGBAf colf;
+	GLbitfield mask;
+
+	setFrameBuffer(cam);
+
+	convColor(&colf, col);
+	glClearColor(colf.red, colf.green, colf.blue, colf.alpha);
+	mask = 0;
+	if(mode & Camera::CLEARIMAGE)
+		mask |= GL_COLOR_BUFFER_BIT;
+	if(mode & Camera::CLEARZ)
+		mask |= GL_DEPTH_BUFFER_BIT;
+	glDepthMask(GL_TRUE);
+	glClear(mask);
+	glDepthMask(rwStateCache.zwrite);
+}
+
+static void
+showRaster(Raster *raster, uint32 flags)
+{
+	// TODO: do this properly!
+#ifdef LIBRW_SDL2
+	SDL_GL_SwapWindow(glGlobals.window);
+#else
+	if(flags & Raster::FLIPWAITVSYNCH)
+		glfwSwapInterval(1);
+	else
+		glfwSwapInterval(0);
+	glfwSwapBuffers(glGlobals.window);
+#endif
+}
+
+static bool32
+rasterRenderFast(Raster *raster, int32 x, int32 y)
+{
+	Raster *src = raster;
+	Raster *dst = Raster::getCurrentContext();
+	Gl3Raster *natdst = PLUGINOFFSET(Gl3Raster, dst, nativeRasterOffset);
+	Gl3Raster *natsrc = PLUGINOFFSET(Gl3Raster, src, nativeRasterOffset);
+
+	switch(dst->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+	case Raster::CAMERATEXTURE:
+		switch(src->type){
+		case Raster::CAMERA:
+			setActiveTexture(0);
+			glBindTexture(GL_TEXTURE_2D, natdst->texid);
+			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
+				0, 0, src->width, src->height);
+			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
+			return 1;
+		}
+		break;
+	}
+	return 0;
 }
 
 #ifdef LIBRW_SDL2

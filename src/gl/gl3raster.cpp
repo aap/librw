@@ -80,9 +80,6 @@ rasterCreateTexture(Raster *raster)
 	return raster;
 }
 
-// This is totally fake right now, can't render to it. Only used to copy into from FB
-// For rendering the idea would probably be to render to the backbuffer and copy it here afterwards.
-// alternatively just use FBOs but that probably needs some more infrastructure.
 static Raster*
 rasterCreateCameraTexture(Raster *raster)
 {
@@ -138,26 +135,64 @@ rasterCreateCameraTexture(Raster *raster)
 	natras->addressV = 0;
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+
+	glGenFramebuffers(1, &natras->fbo);
+	bindFramebuffer(natras->fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, natras->texid, 0);
+	bindFramebuffer(0);
+	natras->fboMate = nil;
+
 	return raster;
 }
 
 static Raster*
 rasterCreateCamera(Raster *raster)
 {
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+
 	// TODO: set/check width, height, depth, format?
-	raster->flags |= Raster::DONTALLOCATE;
 	raster->originalWidth = raster->width;
 	raster->originalHeight = raster->height;
 	raster->stride = 0;
 	raster->pixels = nil;
+
+	natras->texid = 0;
+	natras->fbo = 0;
+	natras->fboMate = nil;
+
 	return raster;
 }
 
 static Raster*
 rasterCreateZbuffer(Raster *raster)
 {
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, raster, nativeRasterOffset);
+
 	// TODO: set/check width, height, depth, format?
-	raster->flags |= Raster::DONTALLOCATE;
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->stride = 0;
+	raster->pixels = nil;
+
+	natras->internalFormat = GL_DEPTH_COMPONENT;
+	natras->format = GL_DEPTH_COMPONENT;
+	natras->type = GL_UNSIGNED_BYTE;
+
+	glGenTextures(1, &natras->texid);
+	glBindTexture(GL_TEXTURE_2D, natras->texid);
+	glTexImage2D(GL_TEXTURE_2D, 0, natras->internalFormat,
+	             raster->width, raster->height,
+	             0, natras->format, natras->type, nil);
+	natras->filterMode = 0;
+	natras->addressU = 0;
+	natras->addressV = 0;
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	natras->fbo = 0;
+	natras->fboMate = nil;
+
 	return raster;
 }
 
@@ -192,27 +227,21 @@ GL_RGB5
 Raster*
 rasterCreate(Raster *raster)
 {
+	if(raster->width == 0 || raster->height == 0){
+		raster->flags |= Raster::DONTALLOCATE;
+		raster->stride = 0;
+		return raster;
+	}
+	if(raster->flags & Raster::DONTALLOCATE)
+		return raster;
+
 	switch(raster->type){
 #ifdef RW_OPENGL
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
-		// Dummy to use as subraster
-		// ^ what did i do there?
-		if(raster->width == 0 || raster->height == 0){
-			raster->flags |= Raster::DONTALLOCATE;
-			raster->stride = 0;
-			return raster;
-		}
-
-		if(raster->flags & Raster::DONTALLOCATE)
-			return raster;
 		return rasterCreateTexture(raster);
-
 	case Raster::CAMERATEXTURE:
-		if(raster->flags & Raster::DONTALLOCATE)
-			return raster;
 		return rasterCreateCameraTexture(raster);
-
 	case Raster::ZBUFFER:
 		return rasterCreateZbuffer(raster);
 	case Raster::CAMERA:
@@ -248,13 +277,13 @@ memset(px, 0, raster->stride*raster->height);
 			GLuint fbo;
 GLenum e;
 			glGenFramebuffers(1, &fbo);
-			glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+			bindFramebuffer(fbo);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, natras->texid, 0);
 			e = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 assert(natras->format == GL_RGBA);
 			glReadPixels(0, 0, raster->width, raster->height, natras->format, natras->type, px);
 //e = glGetError(); printf("GL err4 %x (%x)\n", e, natras->format);
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			bindFramebuffer(0);
 			glDeleteFramebuffers(1, &fbo);
 #else
 			uint32 prev = bindTexture(natras->texid);
@@ -456,15 +485,53 @@ createNativeRaster(void *object, int32 offset, int32)
 {
 	Gl3Raster *ras = PLUGINOFFSET(Gl3Raster, object, offset);
 	ras->texid = 0;
+	ras->fbo = 0;
+	ras->fboMate = nil;
 	return object;
 }
 
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
-	Gl3Raster *ras = PLUGINOFFSET(Gl3Raster, object, offset);
+	Raster *raster = (Raster*)object;
+	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, object, offset);
 #ifdef RW_OPENGL
-	glDeleteTextures(1, &ras->texid);
+	switch(raster->type){
+	case Raster::NORMAL:
+	case Raster::TEXTURE:
+		glDeleteTextures(1, &natras->texid);
+		break;
+
+	case Raster::CAMERATEXTURE:
+		if(natras->fboMate){
+			// Break apart from currently associated zbuffer
+			Gl3Raster *zras = PLUGINOFFSET(Gl3Raster, natras->fboMate, offset);
+			zras->fboMate = nil;
+			natras->fboMate = nil;
+		}
+		glDeleteFramebuffers(1, &natras->fbo);
+		glDeleteTextures(1, &natras->texid);
+		break;
+
+	case Raster::ZBUFFER:
+		if(natras->fboMate){
+			// Detatch from FBO we may be attached to
+			Gl3Raster *oldfb = PLUGINOFFSET(Gl3Raster, natras->fboMate, nativeRasterOffset);
+			if(oldfb->fbo){
+				bindFramebuffer(oldfb->fbo);
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+			}
+			oldfb->fboMate = nil;
+		}
+		glDeleteTextures(1, &natras->texid);
+		break;
+
+	case Raster::CAMERA:
+		break;
+	}
+	natras->texid = 0;
+	natras->fbo = 0;
+
 #endif
 	return object;
 }
@@ -474,6 +541,8 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 {
 	Gl3Raster *d = PLUGINOFFSET(Gl3Raster, dst, offset);
 	d->texid = 0;
+	d->fbo = 0;
+	d->fboMate = nil;
 	return dst;
 }
 

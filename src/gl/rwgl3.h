@@ -184,6 +184,7 @@ void setTexture(int32 n, Texture *tex);
 void setAlphaBlend(bool32 enable);
 bool32 getAlphaBlend(void);
 
+void bindFramebuffer(uint32 fbo);
 uint32 bindTexture(uint32 texid);
 
 void flushCache(void);
@@ -235,6 +236,9 @@ struct Gl3Raster
 	uint8 filterMode;
 	uint8 addressU;
 	uint8 addressV;
+
+	uint32 fbo;		// used for camera texture only!
+	Raster *fboMate;	// color or zbuffer raster mate of this one
 };
 
 Texture *readNativeTexture(Stream *stream);
