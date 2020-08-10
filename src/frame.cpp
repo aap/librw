@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include "rwbase.h"
 #include "rwerror.h"
@@ -51,7 +52,6 @@ Frame::cloneHierarchy(void)
 	this->purgeClone();
 	return frame;
 }
-
 void
 Frame::destroy(void)
 {
@@ -76,6 +76,7 @@ Frame::destroyHierarchy(void)
 		next = child->next;
 		child->destroyHierarchy();
 	}
+	assert(this->objectList.isEmpty());
 	s_plglist.destruct(this);
 	if(this->object.privateFlags & Frame::HIERARCHYSYNC)
 		this->inDirtyList.remove();

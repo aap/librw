@@ -345,6 +345,7 @@ Camera::destroy(void)
 	s_plglist.destruct(this);
 	assert(this->clump == nil);
 	assert(this->world == nil);
+	this->setFrame(nil);
 	rwFree(this);
 	numAllocated--;
 }

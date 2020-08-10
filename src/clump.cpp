@@ -58,7 +58,7 @@ Clump::clone(void)
 		atomic->setFrame(a->getFrame()->root);
 		clump->addAtomic(atomic);
 	}
-	root->purgeClone();
+	this->getFrame()->purgeClone();
 
 	// World extension
 	if(this->world)
