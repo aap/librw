@@ -85,12 +85,13 @@ printShaderSource(const char **src)
 	bool printline;
 	int line = 1;
 	for(f = 0; src[f]; f++){
+		int fileline = 1;
 		char c;
 		file = src[f];
 		printline = true;
 		while(c = *file++, c != '\0'){
 			if(printline)
-				printf("%.4d: ", line++);
+				printf("%.4d/%d:%.4d: ", line++, f, fileline++);
 			putchar(c);
 			printline = c == '\n';
 		}
@@ -242,6 +243,10 @@ Shader::create(const char **vsrc, const char **fsrc)
 		loc = glGetUniformLocation(program, name);
 		glUniform1i(loc, i);
 	}
+
+	// reset program
+	if(currentShader)
+		glUseProgram(currentShader->program);
 
 	return sh;
 }

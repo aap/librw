@@ -98,6 +98,12 @@ struct UniformObject
 	RGBAf lightColor[MAX_LIGHTS];
 };
 
+struct GLShaderState
+{
+	RGBA matColor;
+	SurfaceProperties surfProps;
+};
+
 const char *shaderDecl330 = "#version 330\n";
 const char *shaderDecl100es =
 "#version 100\n"\
@@ -129,6 +135,7 @@ static GLuint whitetex;
 static UniformState uniformState;
 static UniformScene uniformScene;
 static UniformObject uniformObject;
+static GLShaderState shaderState;
 
 #ifndef RW_GL_USE_UBOS
 // State
@@ -878,13 +885,39 @@ setViewMatrix(float32 *mat)
 
 Shader *lastShaderUploaded;
 
+#define U(i) currentShader->uniformLocations[i]
+
+void
+setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
+{
+	bool force = lastShaderUploaded != currentShader;
+	if(force || !equal(shaderState.matColor, color)){
+		rw::RGBAf col;
+		convColor(&col, &color);
+		glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
+		shaderState.matColor = color;
+	}
+
+	if(force ||
+	   shaderState.surfProps.ambient != surfaceprops.ambient ||
+	   shaderState.surfProps.specular != surfaceprops.specular ||
+	   shaderState.surfProps.diffuse != surfaceprops.diffuse){
+		float surfProps[4];
+		surfProps[0] = surfaceprops.ambient;
+		surfProps[1] = surfaceprops.specular;
+		surfProps[2] = surfaceprops.diffuse;
+		surfProps[3] = 0.0f;
+		glUniform4fv(U(u_surfProps), 1, surfProps);
+		shaderState.surfProps = surfaceprops;
+	}
+}
+
 void
 flushCache(void)
 {
 	flushGlRenderState();
 
 #ifndef RW_GL_USE_UBOS
-#define U(i) currentShader->uniformLocations[i]
 
 	// TODO: this is probably a stupid way to do it without UBOs
 	if(lastShaderUploaded != currentShader){

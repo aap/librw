@@ -144,14 +144,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	while(n--){
 		m = inst->material;
 
-		convColor(&col, &m->color);
-		glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
-
-		surfProps[0] = m->surfaceProps.ambient;
-		surfProps[1] = m->surfaceProps.specular;
-		surfProps[2] = m->surfaceProps.diffuse;
-		surfProps[3] = 0.0f;
-		glUniform4fv(U(u_surfProps), 1, surfProps);
+		setMaterial(m->color, m->surfaceProps);
 
 		setTexture(0, m->texture);
 

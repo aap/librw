@@ -175,6 +175,65 @@ setupClump(rw::Clump *clump)
 	}
 }
 
+#define MUL(x, y) ((x)*(y)/255)
+
+int
+calcVCfx(int fb, int col, int a, int iter)
+{
+	int prev = fb;
+	int col2 = col*2;
+	if(col2 > 255) col2 = 255;
+	for(int i = 0; i < iter; i++){
+		int tmp = MUL(fb, 255-a) + MUL(MUL(prev, col2), a);
+		tmp += MUL(prev, col);
+		tmp += MUL(prev, col);
+		prev = tmp > 255 ? 255 : tmp;
+	}
+	return prev;
+}
+
+int
+calcIIIfx(int fb, int col, int a, int iter)
+{
+	int prev = fb;
+	for(int i = 0; i < iter; i++){
+		int tmp = MUL(fb, 255-a) + MUL(MUL(prev, col), a);
+		prev = tmp > 255 ? 255 : tmp;
+	}
+	return prev;
+}
+
+void
+postfxtest(void)
+{
+	rw::Image *img = rw::Image::create(256, 256, 32);
+	img->allocate();
+	int x, y;
+	int iter;
+	static char filename[100];
+	for(iter = 0; iter < 10; iter++){
+		for(y = 0; y < 256; y++)
+			for(x = 0; x < 256; x++){
+				int res = calcVCfx(y, x, 30, iter);
+//				int res = calcIIIfx(y, x, 30, iter);
+				if(0 && res == y){
+					img->pixels[y*img->stride + x*img->bpp + 0] = 255;
+					img->pixels[y*img->stride + x*img->bpp + 1] = 0;
+					img->pixels[y*img->stride + x*img->bpp + 2] = 0;
+				}else{
+					img->pixels[y*img->stride + x*img->bpp + 0] = res;
+					img->pixels[y*img->stride + x*img->bpp + 1] = res;
+					img->pixels[y*img->stride + x*img->bpp + 2] = res;
+				}
+				img->pixels[y*img->stride + x*img->bpp + 3] = 255;
+			}
+		sprintf(filename, "vcfx_%02d.bmp", iter);
+//		sprintf(filename, "iiifx_%02d.bmp", iter);
+		rw::writeBMP(img, filename);
+	}
+	exit(0);
+}
+
 bool
 InitRW(void)
 {
@@ -183,6 +242,8 @@ InitRW(void)
 		return false;
 
 	rw::d3d::isP8supported = false;
+
+	postfxtest();
 
 	initFont();
 

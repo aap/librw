@@ -23,6 +23,9 @@ uint32 im2DVbo, im2DIbo;
 #ifdef RW_GL_USE_VAOS
 uint32 im2DVao;
 #endif
+
+Shader *im2dOverrideShader;
+
 static int32 u_xform;
 
 #define STARTINDICES 10000
@@ -130,7 +133,10 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	xform[2] = -1.0f;
 	xform[3] = 1.0f;
 
-	im2dShader->use();
+	if(im2dOverrideShader)
+		im2dOverrideShader->use();
+	else
+		im2dShader->use();
 #ifndef RW_GL_USE_VAOS
 	setAttribPointers(im2dattribDesc, 3);
 #endif
@@ -170,7 +176,10 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	xform[2] = -1.0f;
 	xform[3] = 1.0f;
 
-	im2dShader->use();
+	if(im2dOverrideShader)
+		im2dOverrideShader->use();
+	else
+		im2dShader->use();
 #ifndef RW_GL_USE_VAOS
 	setAttribPointers(im2dattribDesc, 3);
 #endif

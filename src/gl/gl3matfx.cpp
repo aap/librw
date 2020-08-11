@@ -72,20 +72,11 @@ void
 matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 {
 	Material *m;
-	RGBAf col;
-	GLfloat surfProps[4];
 	m = inst->material;
 
 	defaultShader->use();
 
-	convColor(&col, &m->color);
-	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
-
-	surfProps[0] = m->surfaceProps.ambient;
-	surfProps[1] = m->surfaceProps.specular;
-	surfProps[2] = m->surfaceProps.diffuse;
-	surfProps[3] = 0.0f;
-	glUniform4fv(U(u_surfProps), 1, surfProps);
+	setMaterial(m->color, m->surfaceProps);
 
 	setTexture(0, m->texture);
 
@@ -128,8 +119,6 @@ void
 matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 {
 	Material *m;
-	RGBAf col;
-	GLfloat surfProps[4];
 	m = inst->material;
 
 	if(env->tex == nil || env->coefficient == 0.0f){
@@ -143,14 +132,7 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 	setTexture(1, env->tex);
 	uploadEnvMatrix(env->frame);
 
-	convColor(&col, &m->color);
-	glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
-
-	surfProps[0] = m->surfaceProps.ambient;
-	surfProps[1] = m->surfaceProps.specular;
-	surfProps[2] = m->surfaceProps.diffuse;
-	surfProps[3] = 0.0f;
-	glUniform4fv(U(u_surfProps), 1, surfProps);
+	setMaterial(m->color, m->surfaceProps);
 
 	float fxparams[2];
 	fxparams[0] = env->coefficient;

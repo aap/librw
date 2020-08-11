@@ -170,6 +170,8 @@ extern const char *shaderDecl;	// #version stuff
 extern const char *header_vert_src;
 extern const char *header_frag_src;
 
+extern Shader *im2dOverrideShader;
+
 // per Scene
 void setProjectionMatrix(float32*);
 void setViewMatrix(float32*);
@@ -180,6 +182,7 @@ int32 setLights(WorldLights *lightData);
 
 // per Mesh
 void setTexture(int32 n, Texture *tex);
+void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops);
 
 void setAlphaBlend(bool32 enable);
 bool32 getAlphaBlend(void);
