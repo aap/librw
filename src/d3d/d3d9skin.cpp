@@ -366,6 +366,8 @@ skinClose(void *o, int32, int32)
 	destroySkinShaders();
 #endif
 
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_D3D9])->destroy();
+	skinGlobals.pipelines[PLATFORM_D3D9] = nil;
 	return o;
 }
 
@@ -379,7 +381,7 @@ initSkin(void)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = nil;
 	pipe->renderCB = skinRenderCB;

@@ -31,6 +31,10 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_PS2])->groupPipeline->destroy();
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_PS2])->groupPipeline = nil;
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_PS2])->destroy();
+	skinGlobals.pipelines[PLATFORM_PS2] = nil;
 	return o;
 }
 
@@ -44,7 +48,7 @@ initSkin(void)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+	MatPipeline *pipe = MatPipeline::create();
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -60,7 +64,7 @@ makeSkinPipeline(void)
 	pipe->preUninstCB = skinPreCB;
 	pipe->postUninstCB = skinPostCB;
 
-	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	ObjPipeline *opipe = ObjPipeline::create();
 	opipe->pluginID = ID_SKIN;
 	opipe->pluginData = 1;
 	opipe->groupPipeline = pipe;

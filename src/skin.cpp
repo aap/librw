@@ -331,17 +331,21 @@ static void*
 skinOpen(void *o, int32, int32)
 {
 	// init dummy pipelines
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	defpipe->pluginID = ID_SKIN;
-	defpipe->pluginData = 1;
+	skinGlobals.dummypipe = ObjPipeline::create();
+	skinGlobals.dummypipe->pluginID = ID_SKIN;
+	skinGlobals.dummypipe->pluginData = 1;
 	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
-		skinGlobals.pipelines[i] = defpipe;
+		skinGlobals.pipelines[i] = skinGlobals.dummypipe;
 	return o;
 }
 
 static void*
 skinClose(void *o, int32, int32)
 {
+	skinGlobals.dummypipe->destroy();
+	skinGlobals.dummypipe = nil;
+	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
+		skinGlobals.pipelines[i] = nil;
 	return o;
 }
 

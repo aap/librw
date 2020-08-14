@@ -49,11 +49,12 @@ void printPipeinfo(Atomic *a);
 class ObjPipeline : public rw::ObjPipeline
 {
 public:
+	void init(void);
+	static ObjPipeline *create(void);
+
 	uint32 numCustomAttribs;
 	uint32 (*instanceCB)(Geometry *g, int32 i, uint32 offset);
 	void (*uninstanceCB)(Geometry *g);
-
-	ObjPipeline(uint32 platform);
 };
 
 ObjPipeline *makeDefaultPipeline(void);

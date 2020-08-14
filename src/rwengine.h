@@ -153,6 +153,7 @@ struct Engine
 	// Dynamically allocated because of plugins
 	Driver *driver[NUM_PLATFORMS];
 	Device device;
+	ObjPipeline *dummyDefaultPipeline;
 
 	// These must always be available
 	static MemoryFunctions memfuncs;

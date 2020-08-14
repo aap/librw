@@ -286,15 +286,23 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	destroyNativeData(geo, 0, 0);
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform)
+void
+ObjPipeline::init(void)
 {
+	this->rw::ObjPipeline::init(PLATFORM_XBOX);
 	this->impl.instance = xbox::instance;
 	this->impl.uninstance = xbox::uninstance;
 	this->instanceCB = nil;
 	this->uninstanceCB = nil;
 }
 
+ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
+}
 
 int v3dFormatMap[] = {
 	-1, VERT_BYTE3, VERT_SHORT3, VERT_NORMSHORT3, VERT_COMPNORM, VERT_FLOAT3
@@ -385,7 +393,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 ObjPipeline*
 makeDefaultPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	return pipe;

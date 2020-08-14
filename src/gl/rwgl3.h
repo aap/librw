@@ -197,11 +197,12 @@ void flushCache(void);
 class ObjPipeline : public rw::ObjPipeline
 {
 public:
+	void init(void);
+	static ObjPipeline *create(void);
+
 	void (*instanceCB)(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
 	void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
 	void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
-
-	ObjPipeline(uint32 platform);
 };
 
 void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);

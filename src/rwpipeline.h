@@ -9,13 +9,20 @@ public:
 	uint32 pluginData;
 	int32 platform;
 
-	Pipeline(uint32 platform);
+	void init(uint32 platform) {
+		this->pluginID = 0;
+		this->pluginData = 0;
+		this->platform = platform;
+	}
 };
 
 class ObjPipeline : public Pipeline
 {
 public:
-	ObjPipeline(uint32 platform);
+	void init(uint32 platform);
+	static ObjPipeline *create(void);	// always PLATFORM_NULL
+	void destroy(void);
+
 	// not the most beautiful way of doing things but still
 	// better than virtual methods (i hope?).
 	struct {

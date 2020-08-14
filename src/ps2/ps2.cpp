@@ -437,12 +437,30 @@ instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 	return (uint32*)p;
 }
 
-MatPipeline::MatPipeline(uint32 platform)
- : rw::Pipeline(platform), instanceCB(nil), uninstanceCB(nil),
-   preUninstCB(nil), postUninstCB(nil)
+void
+MatPipeline::init(void)
 {
+	this->rw::Pipeline::init(PLATFORM_PS2);
 	for(int i = 0; i < 10; i++)
 		this->attribs[i] = nil;
+	this->instanceCB = nil;
+	this->uninstanceCB = nil;
+	this->preUninstCB = nil;
+	this->postUninstCB = nil;
+}
+
+MatPipeline*
+MatPipeline::create(void)
+{
+	MatPipeline *pipe = rwNewT(MatPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
+}
+
+void
+MatPipeline::destroy(void)
+{
+	rwFree(this);
 }
 
 void
@@ -911,12 +929,21 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 */
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform)
+void
+ObjPipeline::init(void)
 {
+	this->rw::ObjPipeline::init(PLATFORM_PS2);
 	this->groupPipeline = nil;
 	this->impl.instance = objInstance;
 	this->impl.uninstance = objUninstance;
+}
+
+ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
 }
 
 void
@@ -1082,7 +1109,7 @@ ObjPipeline*
 makeDefaultPipeline(void)
 {
 	if(defaultMatPipe == nil){
-		MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+		MatPipeline *pipe = MatPipeline::create();
 		pipe->attribs[AT_XYZ] = &attribXYZ;
 		pipe->attribs[AT_UV] = &attribUV;
 		pipe->attribs[AT_RGBA] = &attribRGBA;
@@ -1095,7 +1122,7 @@ makeDefaultPipeline(void)
 	}
 
 	if(defaultObjPipe == nil){
-		ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+		ObjPipeline *opipe = ObjPipeline::create();
 		defaultObjPipe = opipe;
 	}
 	return defaultObjPipe;

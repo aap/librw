@@ -240,12 +240,12 @@ Engine::open(EngineOpenParams *p)
 
 	engine->device.system(DEVICEOPEN, (void*)p, 0);
 
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
+	engine->dummyDefaultPipeline = ObjPipeline::create();
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
 		rw::engine->driver[i] = (Driver*)rwNew(Driver::s_plglist[i].size,
 			MEMDUR_GLOBAL);
 
-		engine->driver[i]->defaultPipeline = defpipe;
+		engine->driver[i]->defaultPipeline = engine->dummyDefaultPipeline;
 
 		engine->driver[i]->rasterCreate = null::rasterCreate;
 		engine->driver[i]->rasterLock = null::rasterLock;
@@ -324,6 +324,7 @@ Engine::close(void)
 	engine->device.system(DEVICECLOSE, nil, 0);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		rwFree(rw::engine->driver[i]);
+	engine->dummyDefaultPipeline->destroy();
 	rwFree(engine);
 	engine = nil;
 	Engine::state = Initialized;

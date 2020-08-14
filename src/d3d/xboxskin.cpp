@@ -225,6 +225,8 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_XBOX])->destroy();
+	skinGlobals.pipelines[PLATFORM_XBOX] = nil;
 	return o;
 }
 
@@ -238,7 +240,7 @@ initSkin(void)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = skinUninstanceCB;
 	pipe->pluginID = ID_SKIN;

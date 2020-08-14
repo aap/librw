@@ -585,17 +585,21 @@ static void*
 matfxOpen(void *o, int32, int32)
 {
 	// init dummy pipelines
-	ObjPipeline *defpipe = new ObjPipeline(PLATFORM_NULL);
-	defpipe->pluginID = 0; //ID_MATFX;
-	defpipe->pluginData = 0;
+	matFXGlobals.dummypipe = ObjPipeline::create();
+	matFXGlobals.dummypipe->pluginID = 0; //ID_MATFX;
+	matFXGlobals.dummypipe->pluginData = 0;
 	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
-		matFXGlobals.pipelines[i] = defpipe;
+		matFXGlobals.pipelines[i] = matFXGlobals.dummypipe;
 	return o;
 }
 
 static void*
 matfxClose(void *o, int32, int32)
 {
+	matFXGlobals.dummypipe->destroy();
+	matFXGlobals.dummypipe = nil;
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		matFXGlobals.pipelines[i] = nil;
 	return o;
 }
 

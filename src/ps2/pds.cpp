@@ -84,8 +84,10 @@ registerPDSPlugin(int32 n)
 void
 registerPluginPDSPipes(void)
 {
+	// TODO: how do we destroy them?
+
 	// rwPDS_G3_Skin_GrpMatPipeID
-	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+	MatPipeline *pipe = MatPipeline::create();
 	pipe->pluginID = ID_PDS;
 	pipe->pluginData = 0x11001;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -103,14 +105,14 @@ registerPluginPDSPipes(void)
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3_Skin_GrpAtmPipeID
-	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	ObjPipeline *opipe = ObjPipeline::create();
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x11002;
 	opipe->groupPipeline = pipe;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3_MatfxUV1_GrpMatPipeID
-	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe = MatPipeline::create();
 	pipe->pluginID = ID_PDS;
 	pipe->pluginData = 0x1100b;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -124,14 +126,14 @@ registerPluginPDSPipes(void)
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3_MatfxUV1_GrpAtmPipeID
-	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe = ObjPipeline::create();
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x1100d;
 	opipe->groupPipeline = pipe;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3_MatfxUV2_GrpMatPipeID
-	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe = MatPipeline::create();
 	pipe->pluginID = ID_PDS;
 	pipe->pluginData = 0x1100c;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -145,7 +147,7 @@ registerPluginPDSPipes(void)
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3_MatfxUV2_GrpAtmPipeID
-	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe = ObjPipeline::create();
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x1100e;
 	opipe->groupPipeline = pipe;
@@ -154,19 +156,19 @@ registerPluginPDSPipes(void)
 	// RW World plugin
 
 	// rwPDS_G3x_Generic_AtmPipeID
-	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe = ObjPipeline::create();
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x50001;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3x_Skin_AtmPipeID
-	opipe = new ObjPipeline(PLATFORM_PS2);
+	opipe = ObjPipeline::create();
 	opipe->pluginID = ID_PDS;
 	opipe->pluginData = 0x5000b;
 	registerPDSPipe(opipe);
 
 	// rwPDS_G3xd_A4D_MatPipeID
-	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe = MatPipeline::create();
 	pipe->pluginID = ID_PDS;
 	pipe->pluginData = 0x5002f;
 	pipe->attribs[0] = &attribXYZW;
@@ -180,7 +182,7 @@ registerPluginPDSPipes(void)
 	registerPDSPipe(pipe);
 
 	// rwPDS_G3xd_A4DSkin_MatPipeID
-	pipe = new MatPipeline(PLATFORM_PS2);
+	pipe = MatPipeline::create();
 	pipe->pluginID = ID_PDS;
 	pipe->pluginData = 0x5003e;
 	pipe->attribs[0] = &attribXYZW;

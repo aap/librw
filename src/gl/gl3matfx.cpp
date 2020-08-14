@@ -33,41 +33,6 @@ static int32 u_texMatrix;
 static int32 u_fxparams;
 static int32 u_colorClamp;
 
-static void*
-matfxOpen(void *o, int32, int32)
-{
-	u_texMatrix = registerUniform("u_texMatrix");
-	u_fxparams = registerUniform("u_fxparams");
-	u_colorClamp = registerUniform("u_colorClamp");
-	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
-
-#ifdef RW_GLES2
-#include "gl2_shaders/matfx_gl2.inc"
-#else
-#include "shaders/matfx_gl3.inc"
-#endif
-	const char *vs[] = { shaderDecl, header_vert_src, matfx_env_vert_src, nil };
-	const char *fs[] = { shaderDecl, header_frag_src, matfx_env_frag_src, nil };
-	envShader = Shader::create(vs, fs);
-	assert(envShader);
-
-	return o;
-}
-
-static void*
-matfxClose(void *o, int32, int32)
-{
-	return o;
-}
-
-void
-initMatFX(void)
-{
-	Driver::registerPlugin(PLATFORM_GL3, 0, ID_MATFX,
-	                       matfxOpen, matfxClose);
-}
-
-
 void
 matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
 {
@@ -197,13 +162,54 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_GL3);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = matfxRenderCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;
+}
+
+static void*
+matfxOpen(void *o, int32, int32)
+{
+	matFXGlobals.pipelines[PLATFORM_GL3] = makeMatFXPipeline();
+
+#ifdef RW_GLES2
+#include "gl2_shaders/matfx_gl2.inc"
+#else
+#include "shaders/matfx_gl3.inc"
+#endif
+	const char *vs[] = { shaderDecl, header_vert_src, matfx_env_vert_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, matfx_env_frag_src, nil };
+	envShader = Shader::create(vs, fs);
+	assert(envShader);
+
+	return o;
+}
+
+static void*
+matfxClose(void *o, int32, int32)
+{
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_GL3])->destroy();
+	matFXGlobals.pipelines[PLATFORM_GL3] = nil;
+
+	envShader->destroy();
+	envShader = nil;
+
+	return o;
+}
+
+void
+initMatFX(void)
+{
+	u_texMatrix = registerUniform("u_texMatrix");
+	u_fxparams = registerUniform("u_fxparams");
+	u_colorClamp = registerUniform("u_colorClamp");
+
+	Driver::registerPlugin(PLATFORM_GL3, 0, ID_MATFX,
+	                       matfxOpen, matfxClose);
 }
 
 #else

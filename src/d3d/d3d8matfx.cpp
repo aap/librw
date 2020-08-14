@@ -28,6 +28,8 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_D3D8])->destroy();
+	matFXGlobals.pipelines[PLATFORM_D3D8] = nil;
 	return o;
 }
 
@@ -41,7 +43,7 @@ initMatFX(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = defaultRenderCB;

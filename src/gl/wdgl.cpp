@@ -519,9 +519,10 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	destroyNativeData(geo, 0, 0);
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform)
+void
+ObjPipeline::init(void)
 {
+	this->rw::ObjPipeline::init(PLATFORM_GL3);
 	this->numCustomAttribs = 0;
 	this->impl.instance = wdgl::instance;
 	this->impl.uninstance = wdgl::uninstance;
@@ -530,9 +531,17 @@ ObjPipeline::ObjPipeline(uint32 platform)
 }
 
 ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
+}
+
+ObjPipeline*
 makeDefaultPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
+	ObjPipeline *pipe = ObjPipeline::create();
 	return pipe;
 }
 
@@ -696,6 +705,8 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_WDGL])->destroy();
+	skinGlobals.pipelines[PLATFORM_WDGL] = nil;
 	return o;
 }
 
@@ -709,7 +720,7 @@ initSkin(void)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->pluginID = ID_SKIN;
 	pipe->pluginData = 1;
 	pipe->numCustomAttribs = 2;
@@ -730,6 +741,8 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_WDGL])->destroy();
+	matFXGlobals.pipelines[PLATFORM_WDGL] = nil;
 	return o;
 }
 
@@ -743,7 +756,7 @@ initMatFX(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_WDGL);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	return pipe;

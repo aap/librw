@@ -26,6 +26,8 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_XBOX])->destroy();
+	matFXGlobals.pipelines[PLATFORM_XBOX] = nil;
 	return o;
 }
 
@@ -39,7 +41,7 @@ initMatFX(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_XBOX);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->pluginID = ID_MATFX;

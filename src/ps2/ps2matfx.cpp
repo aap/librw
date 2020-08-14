@@ -29,6 +29,9 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_PS2])->groupPipeline->destroy();
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_PS2])->destroy();
+	matFXGlobals.pipelines[PLATFORM_PS2] = nil;
 	return o;
 }
 
@@ -42,7 +45,7 @@ initMatFX(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	MatPipeline *pipe = new MatPipeline(PLATFORM_PS2);
+	MatPipeline *pipe = MatPipeline::create();
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 0;
 	pipe->attribs[AT_XYZ] = &attribXYZ;
@@ -54,7 +57,7 @@ makeMatFXPipeline(void)
 	pipe->vifOffset = pipe->inputStride*vertCount;
 	pipe->uninstanceCB = genericUninstanceCB;
 
-	ObjPipeline *opipe = new ObjPipeline(PLATFORM_PS2);
+	ObjPipeline *opipe = ObjPipeline::create();
 	opipe->pluginID = ID_MATFX;
 	opipe->pluginData = 0;
 	opipe->groupPipeline = pipe;

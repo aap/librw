@@ -7,6 +7,7 @@
 #include "rwplg.h"
 #include "rwpipeline.h"
 #include "rwobjects.h"
+#include "rwengine.h"
 
 #define COLOR_ARGB(a,r,g,b) \
     ((uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
@@ -15,19 +16,27 @@ namespace rw {
 
 static void nothing(ObjPipeline *, Atomic*) {}
 
-Pipeline::Pipeline(uint32 platform)
+void
+ObjPipeline::init(uint32 platform)
 {
-	this->pluginID = 0;
-	this->pluginData = 0;
-	this->platform = platform;
-}
-
-ObjPipeline::ObjPipeline(uint32 platform)
- : Pipeline(platform)
-{
+	Pipeline::init(platform);
 	this->impl.instance = nothing;
 	this->impl.uninstance = nothing;
 	this->impl.render = nothing;
+}
+
+ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init(PLATFORM_NULL);
+	return pipe;
+}
+
+void
+ObjPipeline::destroy(void)
+{
+	rwFree(this);
 }
 
 // helper functions

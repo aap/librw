@@ -40,11 +40,12 @@ void registerNativeDataPlugin(void);
 class ObjPipeline : public rw::ObjPipeline
 {
 public:
+	void init(void);
+	static ObjPipeline *create(void);
+
 	void (*instanceCB)(Geometry *geo, InstanceData *header);
 	void (*uninstanceCB)(Geometry *geo, InstanceData *header);
 	void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
-
-	ObjPipeline(uint32 platform);
 };
 
 void defaultInstanceCB(Geometry *geo, InstanceData *header);

@@ -344,15 +344,24 @@ render(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		pipe->renderCB(atomic, (InstanceDataHeader*)geo->instData);
 }
 
-ObjPipeline::ObjPipeline(uint32 platform)
- : rw::ObjPipeline(platform)
+void
+ObjPipeline::init(void)
 {
+	this->rw::ObjPipeline::init(PLATFORM_D3D8);
 	this->impl.instance = d3d8::instance;
 	this->impl.uninstance = d3d8::uninstance;
 	this->impl.render = d3d8::render;
 	this->instanceCB = nil;
 	this->uninstanceCB = nil;
 	this->renderCB = nil;
+}
+
+ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
 }
 
 void
@@ -428,7 +437,7 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 ObjPipeline*
 makeDefaultPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = defaultRenderCB;

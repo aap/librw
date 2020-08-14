@@ -132,7 +132,9 @@ public:
 		return (top-outBufs)/(inAttribs*2+outAttribs*outBufs);
 	}
 
-	MatPipeline(uint32 platform);
+	void init(void);
+	static MatPipeline *create(void);
+	void destroy(void);
 	void dump(void);
 	void setTriBufferSizes(uint32 inputStride, uint32 bufferSize);
 	void instance(Geometry *g, InstanceData *inst, Mesh *m);
@@ -142,14 +144,15 @@ public:
 class ObjPipeline : public rw::ObjPipeline
 {
 public:
+	void init(void);
+	static ObjPipeline *create(void);
+
 	MatPipeline *groupPipeline;
 	// RW has more:
 	//  setupCB()
 	//  finalizeCB()
 	//  lightOffset
 	//  lightSize
-
-	ObjPipeline(uint32 platform);
 };
 
 struct Vertex {

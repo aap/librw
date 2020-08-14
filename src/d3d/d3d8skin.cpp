@@ -28,6 +28,8 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_D3D8])->destroy();
+	skinGlobals.pipelines[PLATFORM_D3D8] = nil;
 	return o;
 }
 
@@ -41,7 +43,7 @@ initSkin(void)
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D8);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = defaultRenderCB;

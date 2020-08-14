@@ -274,6 +274,8 @@ matfxClose(void *o, int32, int32)
 	destroyMatFXShaders();
 #endif
 
+	((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_D3D9])->destroy();
+	matFXGlobals.pipelines[PLATFORM_D3D9] = nil;
 	return o;
 }
 
@@ -287,7 +289,7 @@ initMatFX(void)
 ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_D3D9);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = defaultInstanceCB;
 	pipe->uninstanceCB = defaultUninstanceCB;
 	pipe->renderCB = matfxRenderCB_Shader;

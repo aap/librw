@@ -168,6 +168,7 @@ struct MatFXGlobals
 	int32 atomicOffset;
 	int32 materialOffset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
+	ObjPipeline *dummypipe;
 };
 extern MatFXGlobals matFXGlobals;
 void registerMatFXPlugin(void);
@@ -182,6 +183,7 @@ struct SkinGlobals
 	int32 geoOffset;
 	int32 atomicOffset;
 	ObjPipeline *pipelines[NUM_PLATFORMS];
+	ObjPipeline *dummypipe;
 };
 extern SkinGlobals skinGlobals;
 

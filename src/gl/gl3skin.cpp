@@ -31,40 +31,6 @@ namespace gl3 {
 static Shader *skinShader;
 static int32 u_boneMatrices;
 
-static void*
-skinOpen(void *o, int32, int32)
-{
-	u_boneMatrices = registerUniform("u_boneMatrices");
-	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
-
-#ifdef RW_GLES2
-#include "gl2_shaders/simple_fs_gl2.inc"
-#include "gl2_shaders/skin_gl2.inc"
-#else
-#include "shaders/simple_fs_gl3.inc"
-#include "shaders/skin_gl3.inc"
-#endif
-	const char *vs[] = { shaderDecl, header_vert_src, skin_vert_src, nil };
-	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
-	skinShader = Shader::create(vs, fs);
-	assert(skinShader);
-
-	return o;
-}
-
-static void*
-skinClose(void *o, int32, int32)
-{
-	return o;
-}
-
-void
-initSkin(void)
-{
-	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
-	                       skinOpen, skinClose);
-}
-
 void
 skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 {
@@ -318,10 +284,51 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 #endif
 }
 
+static void*
+skinOpen(void *o, int32, int32)
+{
+	skinGlobals.pipelines[PLATFORM_GL3] = makeSkinPipeline();
+
+#ifdef RW_GLES2
+#include "gl2_shaders/simple_fs_gl2.inc"
+#include "gl2_shaders/skin_gl2.inc"
+#else
+#include "shaders/simple_fs_gl3.inc"
+#include "shaders/skin_gl3.inc"
+#endif
+	const char *vs[] = { shaderDecl, header_vert_src, skin_vert_src, nil };
+	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
+	skinShader = Shader::create(vs, fs);
+	assert(skinShader);
+
+	return o;
+}
+
+static void*
+skinClose(void *o, int32, int32)
+{
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_GL3])->destroy();
+	skinGlobals.pipelines[PLATFORM_GL3] = nil;
+
+	skinShader->destroy();
+	skinShader = nil;
+
+	return o;
+}
+
+void
+initSkin(void)
+{
+	u_boneMatrices = registerUniform("u_boneMatrices");
+
+	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
+	                       skinOpen, skinClose);
+}
+
 ObjPipeline*
 makeSkinPipeline(void)
 {
-	ObjPipeline *pipe = new ObjPipeline(PLATFORM_GL3);
+	ObjPipeline *pipe = ObjPipeline::create();
 	pipe->instanceCB = skinInstanceCB;
 	pipe->uninstanceCB = skinUninstanceCB;
 	pipe->renderCB = skinRenderCB;
