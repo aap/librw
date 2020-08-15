@@ -596,10 +596,11 @@ matfxOpen(void *o, int32, int32)
 static void*
 matfxClose(void *o, int32, int32)
 {
+	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
+		if(matFXGlobals.pipelines[i] == matFXGlobals.dummypipe)
+			matFXGlobals.pipelines[i] = nil;
 	matFXGlobals.dummypipe->destroy();
 	matFXGlobals.dummypipe = nil;
-	for(uint i = 0; i < nelem(matFXGlobals.pipelines); i++)
-		matFXGlobals.pipelines[i] = nil;
 	return o;
 }
 

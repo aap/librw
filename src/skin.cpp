@@ -342,10 +342,11 @@ skinOpen(void *o, int32, int32)
 static void*
 skinClose(void *o, int32, int32)
 {
+	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
+		if(skinGlobals.pipelines[i] == skinGlobals.dummypipe)
+			matFXGlobals.pipelines[i] = nil;
 	skinGlobals.dummypipe->destroy();
 	skinGlobals.dummypipe = nil;
-	for(uint i = 0; i < nelem(skinGlobals.pipelines); i++)
-		skinGlobals.pipelines[i] = nil;
 	return o;
 }
 
