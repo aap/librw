@@ -238,15 +238,16 @@ uploadSkinMatrices(Atomic *a)
 	Skin *skin = Skin::get(a->geometry);
 	HAnimHierarchy *hier = Skin::getHierarchy(a);
 	Matrix *invMats = (Matrix*)skin->inverseMatrices;
-	Matrix tmp;
+	Matrix tmp, tmp2;
 
-	Matrix *m = (Matrix*)skinMatrices;
+	float *m = skinMatrices;
 
 	if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
 		for(i = 0; i < hier->numNodes; i++){
 			invMats[i].flags = 0;
-			Matrix::mult(m, &invMats[i], &hier->matrices[i]);
-			m++;
+			Matrix::mult(&tmp, &invMats[i], &hier->matrices[i]);
+			RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp);
+			m += 12;
 		}
 	}else{
 		Matrix invAtmMat;
@@ -254,11 +255,12 @@ uploadSkinMatrices(Atomic *a)
 		for(i = 0; i < hier->numNodes; i++){
 			invMats[i].flags = 0;
 			Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
-			Matrix::mult(m, &invMats[i], &tmp);
-			m++;
+			Matrix::mult(&tmp2, &invMats[i], &tmp);
+			RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp2);
+			m += 12;
 		}
 	}
-	d3ddevice->SetVertexShaderConstantF(VSLOC_boneMatrices, skinMatrices, hier->numNodes*4);
+	d3ddevice->SetVertexShaderConstantF(VSLOC_boneMatrices, skinMatrices, hier->numNodes*3);
 }
 
 void

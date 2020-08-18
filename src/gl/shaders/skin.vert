@@ -21,15 +21,15 @@ main(void)
 		SkinNormal += (mat3(u_boneMatrices[int(in_indices[i])]) * in_normal) * in_weights[i];
 	}
 
-	vec4 V = u_world * vec4(SkinVertex, 1.0);
-	gl_Position = u_proj * u_view * V;
-	vec3 N = mat3(u_world) * SkinNormal;
+	vec4 Vertex = u_world * vec4(SkinVertex, 1.0);
+	gl_Position = u_proj * u_view * Vertex;
+	vec3 Normal = mat3(u_world) * SkinNormal;
 
 	v_tex0 = in_tex0;
 
 	v_color = in_color;
 	v_color.rgb += u_ambLight.rgb*surfAmbient;
-	v_color.rgb += DoDynamicLight(V.xyz, N)*surfDiffuse;
+	v_color.rgb += DoDynamicLight(Vertex.xyz, Normal)*surfDiffuse;
 	v_color = clamp(v_color, 0.0, 1.0);
 	v_color *= u_matColor;
 

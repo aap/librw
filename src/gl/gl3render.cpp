@@ -122,8 +122,6 @@ void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	Material *m;
-	RGBAf col;
-	GLfloat surfProps[4];
 
 	setWorldMatrix(atomic->getFrame()->getLTM());
 	lightingCB(atomic);

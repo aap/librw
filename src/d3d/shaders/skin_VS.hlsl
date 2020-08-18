@@ -1,6 +1,6 @@
 #include "standardConstants.h"
 
-float4x4 boneMatrices[64] : register(c41);
+float4x3 boneMatrices[64] : register(c41);
 
 struct VS_in
 {
@@ -27,8 +27,8 @@ VS_out main(in VS_in input)
 	float3 SkinVertex = float3(0.0, 0.0, 0.0);
 	float3 SkinNormal = float3(0.0, 0.0, 0.0);
 	for(j = 0; j < 4; j++){
-		SkinVertex += mul(boneMatrices[input.Indices[j]], input.Position).xyz * input.Weights[j];
-		SkinNormal += mul((float3x3)boneMatrices[input.Indices[j]], input.Normal).xyz * input.Weights[j];
+		SkinVertex += mul(input.Position, boneMatrices[input.Indices[j]]).xyz * input.Weights[j];
+		SkinNormal += mul(input.Normal, (float3x3)boneMatrices[input.Indices[j]]).xyz * input.Weights[j];
 	}
 
 	output.Position = mul(combinedMat, float4(SkinVertex, 1.0));

@@ -168,7 +168,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 		setMaterial(m->color, m->surfaceProps);
 
-		if(inst->material->texture){
+		if(m->texture){
 			d3d::setTexture(0, m->texture);
 			setPixelShader(default_tex_PS);
 		}else

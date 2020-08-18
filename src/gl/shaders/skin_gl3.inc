@@ -22,15 +22,15 @@ const char *skin_vert_src =
 "		SkinNormal += (mat3(u_boneMatrices[int(in_indices[i])]) * in_normal) * in_weights[i];\n"
 "	}\n"
 
-"	vec4 V = u_world * vec4(SkinVertex, 1.0);\n"
-"	gl_Position = u_proj * u_view * V;\n"
-"	vec3 N = mat3(u_world) * SkinNormal;\n"
+"	vec4 Vertex = u_world * vec4(SkinVertex, 1.0);\n"
+"	gl_Position = u_proj * u_view * Vertex;\n"
+"	vec3 Normal = mat3(u_world) * SkinNormal;\n"
 
 "	v_tex0 = in_tex0;\n"
 
 "	v_color = in_color;\n"
 "	v_color.rgb += u_ambLight.rgb*surfAmbient;\n"
-"	v_color.rgb += DoDynamicLight(V.xyz, N)*surfDiffuse;\n"
+"	v_color.rgb += DoDynamicLight(Vertex.xyz, Normal)*surfDiffuse;\n"
 "	v_color = clamp(v_color, 0.0, 1.0);\n"
 "	v_color *= u_matColor;\n"
 
