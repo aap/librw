@@ -323,7 +323,7 @@ setAlphaBlend(bool32 enable)
 {
 	if(rwStateCache.blendEnable != enable){
 		rwStateCache.blendEnable = enable;
-		setGlRenderState(RWGL_BLEND, true);
+		setGlRenderState(RWGL_BLEND, enable);
 	}
 }
 
