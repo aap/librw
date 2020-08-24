@@ -218,25 +218,33 @@ uploadSkinMatrices(Atomic *a)
 {
 	int i;
 	Skin *skin = Skin::get(a->geometry);
-	HAnimHierarchy *hier = Skin::getHierarchy(a);
-	Matrix *invMats = (Matrix*)skin->inverseMatrices;
-	Matrix tmp;
-
 	Matrix *m = (Matrix*)skinMatrices;
+	HAnimHierarchy *hier = Skin::getHierarchy(a);
 
-	if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
-		for(i = 0; i < hier->numNodes; i++){
-			invMats[i].flags = 0;
-			Matrix::mult(m, &invMats[i], &hier->matrices[i]);
-			m++;
+	if(hier){
+		Matrix *invMats = (Matrix*)skin->inverseMatrices;
+		Matrix tmp;
+
+		assert(skin->numBones == hier->numNodes);
+		if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
+			for(i = 0; i < hier->numNodes; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(m, &invMats[i], &hier->matrices[i]);
+				m++;
+			}
+		}else{
+			Matrix invAtmMat;
+			Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
+			for(i = 0; i < hier->numNodes; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+				Matrix::mult(m, &invMats[i], &tmp);
+				m++;
+			}
 		}
 	}else{
-		Matrix invAtmMat;
-		Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
-		for(i = 0; i < hier->numNodes; i++){
-			invMats[i].flags = 0;
-			Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
-			Matrix::mult(m, &invMats[i], &tmp);
+		for(i = 0; i < skin->numBones; i++){
+			m->setIdentity();
 			m++;
 		}
 	}

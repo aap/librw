@@ -236,31 +236,53 @@ uploadSkinMatrices(Atomic *a)
 {
 	int i;
 	Skin *skin = Skin::get(a->geometry);
-	HAnimHierarchy *hier = Skin::getHierarchy(a);
-	Matrix *invMats = (Matrix*)skin->inverseMatrices;
-	Matrix tmp, tmp2;
-
 	float *m = skinMatrices;
+	HAnimHierarchy *hier = Skin::getHierarchy(a);
 
-	if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
-		for(i = 0; i < hier->numNodes; i++){
-			invMats[i].flags = 0;
-			Matrix::mult(&tmp, &invMats[i], &hier->matrices[i]);
-			RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp);
-			m += 12;
+	if(hier){
+		Matrix *invMats = (Matrix*)skin->inverseMatrices;
+		Matrix tmp, tmp2;
+
+		assert(skin->numBones == hier->numNodes);
+		if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
+			for(i = 0; i < hier->numNodes; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(&tmp, &invMats[i], &hier->matrices[i]);
+				RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp);
+				m += 12;
+			}
+		}else{
+			Matrix invAtmMat;
+			Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
+			for(i = 0; i < hier->numNodes; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+				Matrix::mult(&tmp2, &invMats[i], &tmp);
+				RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp2);
+				m += 12;
+			}
 		}
 	}else{
-		Matrix invAtmMat;
-		Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
-		for(i = 0; i < hier->numNodes; i++){
-			invMats[i].flags = 0;
-			Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
-			Matrix::mult(&tmp2, &invMats[i], &tmp);
-			RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp2);
+		for(i = 0; i < skin->numBones; i++){
+			m[0] = 1.0f;
+			m[1] = 0.0f;
+			m[2] = 0.0f;
+			m[3] = 0.0f;
+
+			m[4] = 0.0f;
+			m[5] = 1.0f;
+			m[6] = 0.0f;
+			m[7] = 0.0f;
+
+			m[8] = 0.0f;
+			m[9] = 0.0f;
+			m[10] = 1.0f;
+			m[11] = 0.0f;
+
 			m += 12;
 		}
 	}
-	d3ddevice->SetVertexShaderConstantF(VSLOC_boneMatrices, skinMatrices, hier->numNodes*3);
+	d3ddevice->SetVertexShaderConstantF(VSLOC_boneMatrices, skinMatrices, skin->numBones*3);
 }
 
 void
