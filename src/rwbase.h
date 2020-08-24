@@ -296,7 +296,7 @@ inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, makeQuat(0.
 Quat lerp(const Quat &q, const Quat &p, float32 r);
 Quat slerp(const Quat &q, const Quat &p, float32 a);
 
-struct RWALIGN(16) RawMatrix
+struct RawMatrix
 {
 	V3d right;
 	float32 rightw;
@@ -312,7 +312,7 @@ struct RWALIGN(16) RawMatrix
 	static void setIdentity(RawMatrix *dst);
 };
 
-struct RWALIGN(16) Matrix
+struct Matrix
 {
 	enum Type {
 		TYPENORMAL	= 1,
