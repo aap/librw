@@ -1156,7 +1156,7 @@ beginUpdate(Camera *cam)
 #ifdef LIBRW_SDL2
 		SDL_GetWindowSize(glGlobals.window, &w, &h);
 #else
-		glfwGetWindowSize(glGlobals.window, &w, &h);
+		glfwGetFramebufferSize(glGlobals.window, &w, &h);
 #endif
 	}else{
 		w = cam->frameBuffer->width;
