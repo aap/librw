@@ -1410,6 +1410,7 @@ startGLFW(void)
 	mode = &glGlobals.modes[glGlobals.currentMode];
 
 	glfwSetErrorCallback(glfwerr);
+	glfwWindowHint(GLFW_ALPHA_BITS, 0); // important e.g. on Wayland
 	glfwWindowHint(GLFW_RED_BITS, mode->mode.redBits);
 	glfwWindowHint(GLFW_GREEN_BITS, mode->mode.greenBits);
 	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
