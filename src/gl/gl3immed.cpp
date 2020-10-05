@@ -256,7 +256,7 @@ void
 im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
 	if(world == nil){
-		Matrix ident;
+		static Matrix ident;
 		ident.setIdentity();
 		world = &ident;
 	}
