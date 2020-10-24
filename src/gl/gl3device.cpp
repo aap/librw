@@ -427,7 +427,6 @@ bindTexture(uint32 texid)
 void
 bindFramebuffer(uint32 fbo)
 {
-	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	if(currentFramebuffer != fbo){
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 		currentFramebuffer = fbo;

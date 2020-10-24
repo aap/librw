@@ -527,6 +527,12 @@ destroyNativeRaster(void *object, int32 offset, int32)
 		break;
 
 	case Raster::CAMERA:
+		if(natras->fboMate){
+			// Break apart from currently associated zbuffer
+			Gl3Raster *zras = PLUGINOFFSET(Gl3Raster, natras->fboMate, offset);
+			zras->fboMate = nil;
+			natras->fboMate = nil;
+		}
 		break;
 	}
 	natras->texid = 0;
