@@ -387,8 +387,8 @@ struct Line
 
 struct Rect
 {
-	int32 h, w;
 	int32 x, y;
+	int32 w, h;
 };
 
 struct Sphere
