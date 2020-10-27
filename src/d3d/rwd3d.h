@@ -187,7 +187,7 @@ void getSamplerState(uint32 stage, uint32 type, uint32 *value);
 void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);
-void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops);
+void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f);
 
 void setVertexShader(void *vs);
 void setPixelShader(void *ps);
@@ -226,6 +226,7 @@ struct D3dShaderState
 	} fogData, fogDisable;
 	RGBA matColor;
 	SurfaceProperties surfProps;
+	float extraSurfProp;
 	float lightOffset[3];
 	int32 numDir, numPoint, numSpot;
 	RGBAf ambient;

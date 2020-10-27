@@ -325,6 +325,16 @@ restoreD3d9Device(void)
 	d3ddevice->SetIndices(deviceCache.indices);
 	for(i = 0; i < MAXNUMSTREAMS; i++)
 		d3ddevice->SetStreamSource(i, deviceCache.vertexStreams[i].buffer, deviceCache.vertexStreams[i].offset, deviceCache.vertexStreams[i].stride);
+
+	// shader constants are zero now
+	d3dShaderState.fogDirty = true;
+	d3dShaderState.matColor.red = 0;
+	d3dShaderState.matColor.green = 0;
+	d3dShaderState.matColor.blue = 0;
+	d3dShaderState.matColor.alpha = 0;
+	d3dShaderState.surfProps.ambient = 0.0f;
+	d3dShaderState.surfProps.specular = 0.0f;
+	d3dShaderState.surfProps.diffuse = 0.0f;
 }
 
 void
@@ -517,7 +527,7 @@ setMaterial_fix(const RGBA &color, const SurfaceProperties &surfProps)
 
 
 void
-setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
+setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp)
 {
 	if(!equal(d3dShaderState.matColor, color)){
 		rw::RGBAf col;
@@ -528,14 +538,16 @@ setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
 
 	if(d3dShaderState.surfProps.ambient != surfaceprops.ambient ||
 	   d3dShaderState.surfProps.specular != surfaceprops.specular ||
-	   d3dShaderState.surfProps.diffuse != surfaceprops.diffuse){
+	   d3dShaderState.surfProps.diffuse != surfaceprops.diffuse ||
+	   d3dShaderState.extraSurfProp != extraSurfProp){
 		float surfProps[4];
 		surfProps[0] = surfaceprops.ambient;
 		surfProps[1] = surfaceprops.specular;
 		surfProps[2] = surfaceprops.diffuse;
-		surfProps[3] = 0.0f;
+		surfProps[3] = extraSurfProp;
 		d3ddevice->SetVertexShaderConstantF(VSLOC_surfProps, surfProps, 1);
 		d3dShaderState.surfProps = surfaceprops;
+		d3dShaderState.extraSurfProp = extraSurfProp;
 	}
 }
 
