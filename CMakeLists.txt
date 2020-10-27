@@ -50,7 +50,7 @@ if(LIBRW_INSTALL)
         )
     install(
         EXPORT librw-targets
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${CMAKE_PROJECT_NAME}"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         )
 
     include(CMakeCPack.cmake)
