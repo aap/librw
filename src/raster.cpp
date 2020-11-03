@@ -324,6 +324,23 @@ conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in)
 }
 
 void
+conv_RGB888_from_RGB565(uint8 *out, uint8 *in)
+{
+	out[0] = ((in[0] & 0xF800)>>11)<<3;
+	out[1] = ((in[1] & 0x7E0)>>5)<<2;
+	out[2] = ((in[2] & 0x1F))<<3;
+}
+
+void
+conv_BGRA4444_from_RGBA4444(uint8 *out, uint8 *in)
+{
+	out[2] = in[0];
+	out[1] = in[1];
+	out[0] = in[2];
+	out[3] = in[3];
+}
+
+void
 expandPal4(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, int32 h)
 {
 	int32 x, y;
