@@ -94,6 +94,7 @@ ObjPipeline *makeDefaultPipeline(void);
 void initSkin(void);
 void uploadSkinMatrices(Atomic *atomic);
 void skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
+void skinRenderCB(Atomic *atomic, InstanceDataHeader *header);
 ObjPipeline *makeSkinPipeline(void);
 
 // MatFX plugin
