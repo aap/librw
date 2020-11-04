@@ -16,6 +16,8 @@
 
 #include "rwgl3impl.h"
 
+int renderpassfudge = 2;
+
 namespace rw {
 namespace gl3 {
 
@@ -65,6 +67,8 @@ drawInst_GSemu(InstanceDataHeader *header, InstanceData *inst)
 void
 drawInst(InstanceDataHeader *header, InstanceData *inst)
 {
+if(getAlphaBlend() == renderpassfudge)
+return;
 	if(rw::GetRenderState(rw::GSALPHATEST))
 		drawInst_GSemu(header, inst);
 	else

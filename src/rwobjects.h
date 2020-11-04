@@ -723,7 +723,7 @@ struct Camera
 	PLUGINBASE
 	enum { ID = 4 };
 	enum { PERSPECTIVE = 1, PARALLEL };
-	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2};
+	enum { CLEARIMAGE = 0x1, CLEARZ = 0x2, CLEARSTENCIL = 0x4 };
 	// return value of frustumTestSphere
 	enum { SPHEREOUTSIDE, SPHEREBOUNDARY, SPHEREINSIDE };
 

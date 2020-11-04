@@ -1170,6 +1170,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		mode |= D3DCLEAR_TARGET;
 	if(mode & Camera::CLEARZ)
 		mode |= D3DCLEAR_ZBUFFER;
+	if(mode & Camera::CLEARSTENCIL)
+		mode |= D3DCLEAR_STENCIL;
 	D3DCOLOR c = D3DCOLOR_RGBA(col->red, col->green, col->blue, col->alpha);
 
 	RECT r;

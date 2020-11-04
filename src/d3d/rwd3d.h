@@ -273,6 +273,8 @@ int32 lightingCB_Shader(Atomic *atomic);
 // for VS
 void uploadMatrices(void);	// no world transform
 void uploadMatrices(Matrix *worldMat);
+void setAmbient(const RGBAf &color);
+void setNumLights(int numDir, int numPoint, int numSpot);
 int32 uploadLights(WorldLights *lightData);	// called by lightingCB_Shader
 
 extern void *im2dOverridePS;

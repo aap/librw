@@ -1206,6 +1206,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		mask |= GL_COLOR_BUFFER_BIT;
 	if(mode & Camera::CLEARZ)
 		mask |= GL_DEPTH_BUFFER_BIT;
+	if(mode & Camera::CLEARSTENCIL)
+		mask |= GL_STENCIL_BUFFER_BIT;
 	glDepthMask(GL_TRUE);
 	glClear(mask);
 	glDepthMask(rwStateCache.zwrite);
