@@ -326,9 +326,9 @@ conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in)
 void
 conv_RGB888_from_RGB565(uint8 *out, uint8 *in)
 {
-	out[0] = ((in[0] & 0xF800)>>11)<<3;
-	out[1] = ((in[1] & 0x7E0)>>5)<<2;
-	out[2] = ((in[2] & 0x1F))<<3;
+	out[0] = in[0]<<3;
+	out[1] = in[1]<<2;
+	out[2] = in[2]<<3;
 }
 
 void
