@@ -1,40 +1,23 @@
 TODO:
-- maintain the TODO list properly
-- get the error system in better shape
-- move everything to custom malloc
-- proper cleanup! and check for memory leaks
-- skeleton (partially done)
-- examples
-- morph targets and morphing
-- geometry lock/unlock
- -> reinstance
-  -> revisit pipelines
-  -> implement tristrips
+- tristrips
 - rasters
- - lock/unlock
- - camera rasters
- - more file formats (PNG)
-- PS2 rendering!
-- Im2d and Im3d
-- change naming convention? make globals stand out more
+ - camera raster to image
+- examples
+- morphing
 - Pipelines (PDS, Xbox, PC)
+- antialiasing
+
+driver
+- metrics
+- mipmaps
+
+opengl
+- DXT conversion from d3d
+
+ps2
+- rendering!
 - ADC conversion
+
 
 BUGS:
 	- fseek with negative offset on ps2 over ps2link messes up the current position
-
-Clump & related:
-	- implement plugins:
-		Clump
-			Animation (old III dffs)
-		Frame
-			Animation (old III dffs)
-		Atomic
-			((Particles))	0x118
-			Skin (old III dffs)
-		Geometry
-			((Morph))	0x105
-
-	- only stubs:
-				R* 2dfx       0x253F2F8
-				R* Collision  0x253F2FA
