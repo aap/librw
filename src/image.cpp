@@ -323,6 +323,140 @@ decompressDXT5(uint8 *adst, int32 w, int32 h, uint8 *src)
 	}
 }
 
+// not strictly image but related
+
+// flip a DXT 2-bit block
+static void
+flipBlock(uint8 *dst, uint8 *src)
+{
+	// color
+	dst[0] = src[0];
+	dst[1] = src[1];
+	dst[2] = src[2];
+	dst[3] = src[3];
+	// bits
+	dst[4] = src[7];
+	dst[5] = src[6];
+	dst[6] = src[5];
+	dst[7] = src[4];
+}
+
+// flip a DXT3 4-bit alpha block
+static void
+flipAlphaBlock3(uint8 *dst, uint8 *src)
+{
+	dst[6] = src[0];
+	dst[7] = src[1];
+	dst[4] = src[2];
+	dst[5] = src[3];
+	dst[2] = src[4];
+	dst[3] = src[5];
+	dst[0] = src[6];
+	dst[1] = src[7];
+}
+
+// flip a DXT5 3-bit alpha block
+static void
+flipAlphaBlock5(uint8 *dst, uint8 *src)
+{
+	// color
+	dst[0] = src[0];
+	dst[1] = src[1];
+	// bits
+	uint64 bits = *(uint64*)&src[2];
+	uint64 flipbits = 0;
+	for(int i = 0; i < 4; i++){
+		flipbits <<= 12;
+		flipbits |= bits & 0xFFF;
+		bits >>= 12;
+	}
+	memcpy(src+2, &flipbits, 6);
+}
+
+void
+flipDXT1(uint8 *dst, uint8 *src, uint32 width, uint32 height)
+{
+	int x, y;
+	assert(width % 4 == 0);
+	assert(height % 4 == 0);
+	int bw = width/4;
+	int bh = height/4;
+	dst += 8*bw*bh;
+	for(y = 0; y < bh; y++){
+		dst -= 8*bw;
+		uint8 *s = src;
+		uint8 *d = dst;
+		for(x = 0; x < bw; x++){
+			flipBlock(d, s);
+			s += 8;
+			d += 8;
+		}
+		src += 8*bw;
+	}
+}
+
+void
+flipDXT3(uint8 *dst, uint8 *src, uint32 width, uint32 height)
+{
+	int x, y;
+	assert(width % 4 == 0);
+	assert(height % 4 == 0);
+	int bw = width/4;
+	int bh = height/4;
+	dst += 16*bw*bh;
+	for(y = 0; y < bh; y++){
+		dst -= 16*bw;
+		uint8 *s = src;
+		uint8 *d = dst;
+		for(x = 0; x < bw; x++){
+			flipAlphaBlock3(d, s);
+			flipBlock(d+8, s+8);
+			s += 16;
+			d += 16;
+		}
+		src += 16*bw;
+	}
+}
+
+void
+flipDXT5(uint8 *dst, uint8 *src, uint32 width, uint32 height)
+{
+	int x, y;
+	assert(width % 4 == 0);
+	assert(height % 4 == 0);
+	int bw = width/4;
+	int bh = height/4;
+	dst += 16*bw*bh;
+	for(y = 0; y < bh; y++){
+		dst -= 16*bw;
+		uint8 *s = src;
+		uint8 *d = dst;
+		for(x = 0; x < bw; x++){
+			flipAlphaBlock5(d, s);
+			flipBlock(d+8, s+8);
+			s += 16;
+			d += 16;
+		}
+		src += 16*bw;
+	}
+}
+
+void
+flipDXT(int32 type, uint8 *dst, uint8 *src, uint32 width, uint32 height)
+{
+	switch(type){
+	case 1:
+		flipDXT1(dst, src, width, height);
+		break;
+	case 3:
+		flipDXT3(dst, src, width, height);
+		break;
+	case 5:
+		flipDXT5(dst, src, width, height);
+		break;
+	}
+}
+
 void
 Image::setPixelsDXT(int32 type, uint8 *pixels)
 {

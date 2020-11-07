@@ -746,7 +746,7 @@ readNativeTexture(Stream *stream)
 		assert((flags & 2) == 0 && "Can't have cube maps yet");
 		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_D3D9);
 		assert(raster);
-		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ext = GETD3DRASTEREXT(raster);
 		ext->format = d3dformat;
 		ext->hasAlpha = flags & 1;
 		ext->texture = createTexture(raster->width, raster->height,
@@ -760,7 +760,7 @@ readNativeTexture(Stream *stream)
 	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D9);
 		assert(raster);
-		ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ext = GETD3DRASTEREXT(raster);
 	}
 	tex->raster = raster;
 
@@ -799,7 +799,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Raster
 	Raster *raster = tex->raster;
-	D3dRaster *ext = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	D3dRaster *ext = GETD3DRASTEREXT(raster);
 	int32 numLevels = raster->getNumLevels();
 	stream->writeI32(raster->format);
 	stream->writeU32(ext->format);

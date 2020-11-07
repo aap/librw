@@ -546,12 +546,12 @@ readNativeTexture(Stream *stream)
 	D3dRaster *ras;
 	if(compression){
 		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
-		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ras = GETD3DRASTEREXT(raster);
 		allocateDXT(raster, compression, numLevels, hasAlpha);
 		ras->customFormat = 1;
 	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D8);
-		ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+		ras = GETD3DRASTEREXT(raster);
 	}
 	tex->raster = raster;
 
@@ -588,7 +588,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Raster
 	Raster *raster = tex->raster;
-	D3dRaster *ras = PLUGINOFFSET(D3dRaster, raster, nativeRasterOffset);
+	D3dRaster *ras = GETD3DRASTEREXT(raster);
 	int32 numLevels = raster->getNumLevels();
 	stream->writeI32(raster->format);
 	stream->writeI32(ras->hasAlpha);

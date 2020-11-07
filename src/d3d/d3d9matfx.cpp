@@ -130,7 +130,7 @@ matfxRender_EnvMap(InstanceDataHeader *header, InstanceData *inst, int32 lightBi
 	else
 		setVertexShader(matfx_env_all_VS);
 
-	bool32 texAlpha = PLUGINOFFSET(D3dRaster, env->tex->raster, nativeRasterOffset)->hasAlpha;
+	bool32 texAlpha = GETD3DRASTEREXT(env->tex->raster)->hasAlpha;
 
 	if(inst->material->texture){
 		d3d::setTexture(0, m->texture);
