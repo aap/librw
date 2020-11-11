@@ -218,6 +218,7 @@ struct Skin
 
 	uint8 *data;	// only used by delete
 	void *platformData; // a place to store platform specific stuff
+	bool32 legacyType;	// old skin attached to atomic, needed for always CB
 
 	void init(int32 numBones, int32 numUsedBones, int32 numVertices);
 	void findNumWeights(int32 numVertices);

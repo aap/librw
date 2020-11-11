@@ -233,8 +233,10 @@ struct Gl3Raster
 	// texture object
 	uint32 texid;
 
-	bool32 isCompressed;
-	bool32 hasAlpha;
+	bool isCompressed;
+	bool hasAlpha;
+	bool autogenMipmap;
+	int8 numLevels;
 	// cached filtermode and addressing
 	uint8 filterMode;
 	uint8 addressU;

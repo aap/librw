@@ -207,11 +207,11 @@ unlockVertices(void *vertexBuffer)
 }
 
 void*
-createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
+createTexture(int32 width, int32 height, int32 numlevels, uint32 usage, uint32 format)
 {
 #ifdef RW_D3D9
 	IDirect3DTexture9 *tex;
-	d3ddevice->CreateTexture(width, height, numlevels, 0,
+	d3ddevice->CreateTexture(width, height, numlevels, usage,
 	                      (D3DFORMAT)format, D3DPOOL_MANAGED, &tex, nil);
 	if(tex)
 		d3d9Globals.numTextures++;
@@ -406,11 +406,7 @@ rasterSetFormat(Raster *raster)
 	natras->hasAlpha = formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
 	raster->stride = raster->width*natras->bpp;
 
-	raster->pixels = nil;
-	raster->originalWidth = raster->width;
-	raster->originalHeight = raster->height;
-	raster->originalStride = raster->stride;
-	raster->originalPixels = raster->pixels;
+	natras->autogenMipmap = (raster->format & (Raster::MIPMAP|Raster::AUTOMIPMAP)) == (Raster::MIPMAP|Raster::AUTOMIPMAP);
 }
 
 static Raster*
@@ -421,10 +417,17 @@ rasterCreateTexture(Raster *raster)
 
 	if(natras->format == D3DFMT_P8)
 		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-	levels = Raster::calculateNumLevels(raster->width, raster->height);
+	if(natras->autogenMipmap)
+		levels = 0;
+	else if(raster->format & Raster::MIPMAP)
+		levels = Raster::calculateNumLevels(raster->width, raster->height);
+	else
+		levels = 1;
+
 	assert(natras->texture == nil);
 	natras->texture = createTexture(raster->width, raster->height,
-	                                raster->format & Raster::MIPMAP ? levels : 1,
+	                                levels,
+	                                natras->autogenMipmap ? D3DUSAGE_AUTOGENMIPMAP : 0,
 	                                natras->format);
 	if(natras->texture == nil){
 		RWERROR((ERR_NOTEXTURE));
@@ -445,12 +448,17 @@ rasterCreateCameraTexture(Raster *raster)
 
 	int32 levels;
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
-	levels = Raster::calculateNumLevels(raster->width, raster->height);
+	if(natras->autogenMipmap)
+		levels = 0;
+	else if(raster->format & Raster::MIPMAP)
+		levels = Raster::calculateNumLevels(raster->width, raster->height);
+	else
+		levels = 1;
 
 	IDirect3DTexture9 *tex;
 	d3ddevice->CreateTexture(raster->width, raster->height,
-				raster->format & Raster::MIPMAP ? levels : 1,
-				D3DUSAGE_RENDERTARGET,
+				levels,
+				(natras->autogenMipmap ? D3DUSAGE_AUTOGENMIPMAP : 0) | D3DUSAGE_RENDERTARGET,
 				(D3DFORMAT)natras->format, D3DPOOL_DEFAULT, &tex, nil);
 	assert(natras->texture == nil);
 	natras->texture = tex;
@@ -467,10 +475,8 @@ static Raster*
 rasterCreateCamera(Raster *raster)
 {
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
-	raster->originalWidth = raster->width;
-	raster->originalHeight = raster->height;
-	raster->originalStride = raster->stride = 0;
-	raster->originalPixels = raster->pixels = nil;
+
+	natras->autogenMipmap = 0;
 
 	natras->format = d3d9Globals.present.BackBufferFormat;
 	raster->depth = findFormatDepth(natras->format);
@@ -483,10 +489,8 @@ static Raster*
 rasterCreateZbuffer(Raster *raster)
 {
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
-	raster->originalWidth = raster->width;
-	raster->originalHeight = raster->height;
-	raster->originalStride = raster->stride = 0;
-	raster->originalPixels = raster->pixels = nil;
+
+	natras->autogenMipmap = 0;
 
 	// TODO: allow other formats
 	natras->format = d3d9Globals.present.AutoDepthStencilFormat;
@@ -518,33 +522,47 @@ rasterCreateZbuffer(Raster *raster)
 Raster*
 rasterCreate(Raster *raster)
 {
-	D3dRaster *natras = GETD3DRASTEREXT(raster);
-
 	rasterSetFormat(raster);
+
+	Raster *ret = raster;
 
 	if(raster->width == 0 || raster->height == 0){
 		raster->flags |= Raster::DONTALLOCATE;
 		raster->stride = 0;
-		return raster;
+		goto ret;
 	}
 	if(raster->flags & Raster::DONTALLOCATE)
-		return raster;
+		goto ret;
 
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
-		return rasterCreateTexture(raster);
+		ret = rasterCreateTexture(raster);
+		break;
 
 #ifdef RW_D3D9
 	case Raster::CAMERATEXTURE:
-		return rasterCreateCameraTexture(raster);
+		ret = rasterCreateCameraTexture(raster);
+		break;
 	case Raster::ZBUFFER:
-		return rasterCreateZbuffer(raster);
+		ret = rasterCreateZbuffer(raster);
+		break;
 	case Raster::CAMERA:
-		return rasterCreateCamera(raster);
+		ret = rasterCreateCamera(raster);
+		break;
 #endif
+
+	default:
+		RWERROR((ERR_INVRASTER));
+		return nil;
 	}
-	return nil;
+
+ret:
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->originalStride = raster->stride;
+	raster->originalPixels = raster->pixels;
+	return ret;
 }
 
 uint8*
@@ -569,7 +587,8 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 	case Raster::TEXTURE: {
 		tex->GetSurfaceLevel(level, &surf);
 		natras->lockedSurf = surf;
-		surf->LockRect(&lr, 0, flags);
+		HRESULT res = surf->LockRect(&lr, 0, flags);
+		assert(res == D3D_OK);
 		break;
 		}
 
@@ -583,15 +602,17 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 	raster->stride = lr.Pitch;
 	if(raster->width == 0) raster->width = 1;
 	if(raster->height == 0) raster->height = 1;
-
+#else
+	RasterLevels *levels = (RasterLevels*)natras->texture;
+	raster->pixels = levels->levels[level].data;
+	raster->width = levels->levels[level].width;
+	raster->height = levels->levels[level].height;
+	raster->stride = raster->width*natras->bpp;
+#endif
 	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= Raster::PRIVATELOCK_READ;
 	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= Raster::PRIVATELOCK_WRITE;
 
 	return raster->pixels;
-#else
-	RasterLevels *levels = (RasterLevels*)natras->texture;
-	return levels->levels[level].data;
-#endif
 }
 
 void
@@ -701,38 +722,39 @@ rasterFromImage(Raster *raster, Image *image)
 	}
 
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
+	int32 format = raster->format&0xF00;
 	switch(image->depth){
 	case 32:
-		if(raster->format == Raster::C8888)
+		if(format == Raster::C8888)
 			conv = conv_BGRA8888_from_RGBA8888;
-		else if(raster->format == Raster::C888)
+		else if(format == Raster::C888)
 			conv = conv_BGR888_from_RGB888;
 		else
 			goto err;
 		break;
 	case 24:
-		if(raster->format == Raster::C8888)
+		if(format == Raster::C8888)
 			conv = conv_BGRA8888_from_RGB888;
-		else if(raster->format == Raster::C888)
+		else if(format == Raster::C888)
 			conv = conv_BGR888_from_RGB888;
 		else
 			goto err;
 		break;
 	case 16:
-		if(raster->format == Raster::C1555)
+		if(format == Raster::C1555)
 			conv = conv_ARGB1555_from_ARGB1555;
 		else
 			goto err;
 		break;
 	case 8:
-		if(raster->format == (Raster::PAL8 | Raster::C8888))
+		if(format == (Raster::PAL8 | Raster::C8888))
 			conv = conv_8_from_8;
 		else
 			goto err;
 		break;
 	case 4:
-		if(raster->format == (Raster::PAL4 | Raster::C8888) ||
-		   raster->format == (Raster::PAL8 | Raster::C8888))
+		if(format == (Raster::PAL4 | Raster::C8888) ||
+		   format == (Raster::PAL8 | Raster::C8888))
 			conv = conv_8_from_8;
 		else
 			goto err;
@@ -758,7 +780,13 @@ rasterFromImage(Raster *raster, Image *image)
 		}
 	}
 
-	uint8 *pixels = raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+	bool unlock = false;
+	if(raster->pixels == nil){
+		raster->lock(0, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+		unlock = true;
+	}
+
+	uint8 *pixels = raster->pixels;
 	assert(pixels);
 	uint8 *imgpixels = image->pixels;
 
@@ -776,7 +804,8 @@ rasterFromImage(Raster *raster, Image *image)
 		imgpixels += image->stride;
 		pixels += raster->stride;
 	}
-	raster->unlock(0);
+	if(unlock)
+		raster->unlock(0);
 
 	if(truecolimg)
 		truecolimg->destroy();
@@ -789,11 +818,23 @@ rasterToImage(Raster *raster)
 {
 	int32 depth;
 	Image *image;
+
+	bool unlock = false;
+	if(raster->pixels == nil){
+		raster->lock(0, Raster::LOCKREAD);
+		unlock = true;
+	}
+
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
 	if(natras->customFormat){
-		image = Image::create(raster->width, raster->height, 32);
+		int w = raster->width;
+		int h = raster->height;
+		// pixels are in the upper right corner
+		if(w < 4) w = 4;
+		if(h < 4) h = 4;
+		image = Image::create(w, h, 32);
 		image->allocate();
-		uint8 *pix = raster->lock(0, Raster::LOCKREAD);
+		uint8 *pix = raster->pixels;
 		switch(natras->format){
 		case D3DFMT_DXT1:
 			image->setPixelsDXT(1, pix);
@@ -807,11 +848,17 @@ rasterToImage(Raster *raster)
 			image->setPixelsDXT(5, pix);
 			break;
 		default:
-			raster->unlock(0);
 			image->destroy();
+			if(unlock)
+				raster->unlock(0);
 			return nil;
 		}
-		raster->unlock(0);
+		// fix it up again
+		image->width = raster->width;
+		image->height = raster->height;
+
+		if(unlock)
+			raster->unlock(0);
 		return image;
 	}
 
@@ -865,7 +912,7 @@ rasterToImage(Raster *raster)
 	}
 
 	uint8 *imgpixels = image->pixels;
-	uint8 *pixels = raster->lock(0, Raster::LOCKREAD);
+	uint8 *pixels = raster->pixels;
 
 	int x, y;
 	assert(image->width == raster->width);
@@ -881,9 +928,10 @@ rasterToImage(Raster *raster)
 		imgpixels += image->stride;
 		pixels += raster->stride;
 	}
-	raster->unlock(0);
-
 	image->compressPalette();
+
+	if(unlock)
+		raster->unlock(0);
 
 	return image;
 }
@@ -916,8 +964,16 @@ allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha)
 	D3dRaster *ras = GETD3DRASTEREXT(raster);
 	ras->format = dxtMap[dxt-1];
 	ras->hasAlpha = hasAlpha;
+	ras->customFormat = 1;
+	if(ras->autogenMipmap)
+		numLevels = 0;
+	else if(raster->format & Raster::MIPMAP)
+		{}
+	else
+		numLevels = 1;
 	ras->texture = createTexture(raster->width, raster->height,
-	                             raster->format & Raster::MIPMAP ? numLevels : 1,
+	                             numLevels,
+	                             ras->autogenMipmap ? D3DUSAGE_AUTOGENMIPMAP : 0,
 	                             ras->format);
 	raster->flags &= ~Raster::DONTALLOCATE;
 }

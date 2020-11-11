@@ -243,7 +243,7 @@ InitRW(void)
 
 	rw::d3d::isP8supported = false;
 
-	postfxtest();
+//	postfxtest();
 
 	initFont();
 

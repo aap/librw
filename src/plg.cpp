@@ -95,6 +95,13 @@ PluginList::streamRead(Stream *stream, void *object)
 cont:
 		length -= header.length;
 	}
+
+	// now the always callbacks
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
+		if(p->alwaysCallback)
+			p->alwaysCallback(object, p->offset, p->size);
+	}
 	return true;
 }
 
@@ -176,6 +183,7 @@ PluginList::registerPlugin(int32 size, uint32 id,
 	p->write = nil;
 	p->getSize = nil;
 	p->rightsCallback = nil;
+	p->alwaysCallback = nil;
 	p->parentList = this;
 	this->plugins.add(&p->inParentList);
 	allPlugins.add(&p->inGlobalList);
@@ -205,6 +213,19 @@ PluginList::setStreamRightsCallback(uint32 id, RightsCallback cb)
 		Plugin *p = PLG(lnk);
 		if(p->id == id){
 			p->rightsCallback = cb;
+			return p->offset;
+		}
+	}
+	return -1;
+}
+
+int32
+PluginList::setStreamAlwaysCallback(uint32 id, AlwaysCallback cb)
+{
+	FORLIST(lnk, this->plugins){
+		Plugin *p = PLG(lnk);
+		if(p->id == id){
+			p->alwaysCallback = cb;
 			return p->offset;
 		}
 	}

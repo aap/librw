@@ -234,6 +234,9 @@ enum {
 	D3DDECLUSAGE_FOG,           // 11
 	D3DDECLUSAGE_DEPTH,         // 12
 	D3DDECLUSAGE_SAMPLE         // 13
+	,
+
+	D3DUSAGE_AUTOGENMIPMAP = 0x400
 };
 #endif
 
@@ -249,7 +252,7 @@ void destroyVertexBuffer(void *vertexBuffer);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
 
-void *createTexture(int32 width, int32 height, int32 levels, uint32 format);
+void *createTexture(int32 width, int32 height, int32 levels, uint32 usage, uint32 format);
 void destroyTexture(void *texture);
 uint8 *lockTexture(void *texture, int32 level);
 void unlockTexture(void *texture, int32 level);
@@ -263,8 +266,9 @@ struct D3dRaster
 	void *lockedSurf;
 	uint32 format;
 	uint32 bpp;	// bytes per pixel
-	bool32 hasAlpha;
-	bool32 customFormat;
+	bool hasAlpha;
+	bool customFormat;
+	bool autogenMipmap;
 };
 
 int32 getLevelSize(Raster *raster, int32 level);

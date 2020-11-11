@@ -170,11 +170,15 @@ static uint32 cullmodeMap[] = {
 	D3DCULL_CCW
 };
 
-// TODO: support mipmaps
-static uint32 filterConvMap_NoMIP[] = {
+static uint32 filterConvMap[] = {
 	0, D3DTEXF_POINT, D3DTEXF_LINEAR,
 	   D3DTEXF_POINT, D3DTEXF_LINEAR,
 	   D3DTEXF_POINT, D3DTEXF_LINEAR
+};
+static uint32 filterConvMap_MIP[] = {
+	0, D3DTEXF_NONE, D3DTEXF_NONE,
+	   D3DTEXF_POINT, D3DTEXF_POINT,
+	   D3DTEXF_LINEAR, D3DTEXF_LINEAR
 };
 static uint32 addressConvMap[] = {
 	0, D3DTADDRESS_WRAP, D3DTADDRESS_MIRROR,
@@ -304,8 +308,9 @@ restoreD3d9Device(void)
 			d3ddevice->SetTexture(i, nil);
 		setSamplerState(i, D3DSAMP_ADDRESSU, addressConvMap[rwStateCache.texstage[i].addressingU]);
 		setSamplerState(i, D3DSAMP_ADDRESSV, addressConvMap[rwStateCache.texstage[i].addressingV]);
-		setSamplerState(i, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[rwStateCache.texstage[i].filter]);
-		setSamplerState(i, D3DSAMP_MINFILTER, filterConvMap_NoMIP[rwStateCache.texstage[i].filter]);
+		setSamplerState(i, D3DSAMP_MAGFILTER, filterConvMap[rwStateCache.texstage[i].filter]);
+		setSamplerState(i, D3DSAMP_MINFILTER, filterConvMap[rwStateCache.texstage[i].filter]);
+		setSamplerState(i, D3DSAMP_MIPFILTER, filterConvMap_MIP[rwStateCache.texstage[i].filter]);
 	}
 	for(s = 0; s < MAXNUMSTATES; s++)
 		if(validStates[s])
@@ -438,11 +443,11 @@ setRasterStage(uint32 stage, Raster *raster)
 static void
 setFilterMode(uint32 stage, int32 filter)
 {
-	// TODO: mip mapping
 	if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter){
 		rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
-		setSamplerState(stage, D3DSAMP_MAGFILTER, filterConvMap_NoMIP[filter]);
-		setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap_NoMIP[filter]);
+		setSamplerState(stage, D3DSAMP_MAGFILTER, filterConvMap[filter]);
+		setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap[filter]);
+		setSamplerState(stage, D3DSAMP_MIPFILTER, filterConvMap_MIP[filter]);
 	}
 }
 

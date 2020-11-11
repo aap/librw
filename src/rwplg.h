@@ -10,6 +10,7 @@ typedef Stream *(*StreamRead)(Stream *stream, int32 length, void *object, int32 
 typedef Stream *(*StreamWrite)(Stream *stream, int32 length, void *object, int32 offset, int32 size);
 typedef int32 (*StreamGetSize)(void *object, int32 offset, int32 size);
 typedef void (*RightsCallback)(void *object, int32 offset, int32 size, uint32 data);
+typedef void (*AlwaysCallback)(void *object, int32 offset, int32 size);
 
 struct PluginList
 {
@@ -38,6 +39,7 @@ struct PluginList
 		Constructor, Destructor, CopyConstructor);
 	int32 registerStream(uint32 id, StreamRead, StreamWrite, StreamGetSize);
 	int32 setStreamRightsCallback(uint32 id, RightsCallback cb);
+	int32 setStreamAlwaysCallback(uint32 id, AlwaysCallback cb);
 	int32 getPluginOffset(uint32 id);
 };
 
@@ -53,6 +55,7 @@ struct Plugin
 	StreamWrite write;
 	StreamGetSize getSize;
 	RightsCallback rightsCallback;
+	AlwaysCallback alwaysCallback;
 	PluginList *parentList;
 	LLLink inParentList;
 	LLLink inGlobalList;
@@ -70,6 +73,9 @@ struct Plugin
 	}									    \
 	static int32 setStreamRightsCallback(uint32 id, RightsCallback cb){	    \
 		return s_plglist.setStreamRightsCallback(id, cb);		    \
+	}									    \
+	static int32 setStreamAlwaysCallback(uint32 id, AlwaysCallback cb){	    \
+		return s_plglist.setStreamAlwaysCallback(id, cb);		    \
 	}									    \
 	static int32 getPluginOffset(uint32 id){				    \
 		return s_plglist.getPluginOffset(id);				    \

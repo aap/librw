@@ -751,6 +751,7 @@ readNativeTexture(Stream *stream)
 		ext->hasAlpha = flags & 1;
 		ext->texture = createTexture(raster->width, raster->height,
 		                             raster->format & Raster::MIPMAP ? numLevels : 1,
+		                             0,
 		                             ext->format);
 		assert(ext->texture);
 		raster->flags &= ~Raster::DONTALLOCATE;
@@ -811,7 +812,9 @@ writeNativeTexture(Texture *tex, Stream *stream)
 	uint8 flags = 0;
 	if(ext->hasAlpha)
 		flags |= 1;
-	// no automipmapgen and cube supported yet
+	// no cube supported yet
+	if(ext->autogenMipmap)
+		flags |= 4;
 	if(ext->customFormat)
 		flags |= 8;
 	stream->writeU8(flags);

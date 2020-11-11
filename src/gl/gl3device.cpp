@@ -260,6 +260,8 @@ static uint32 blendMap[] = {
 	GL_SRC_ALPHA_SATURATE,
 };
 
+static float maxAnisotropy;
+
 /*
  * GL state cache
  */
@@ -434,11 +436,15 @@ bindFramebuffer(uint32 fbo)
 	}
 }
 
-// TODO: support mipmaps
 static GLint filterConvMap_NoMIP[] = {
 	0, GL_NEAREST, GL_LINEAR,
 	   GL_NEAREST, GL_LINEAR,
 	   GL_NEAREST, GL_LINEAR
+};
+static GLint filterConvMap_MIP[] = {
+	0, GL_NEAREST, GL_LINEAR,
+	   GL_NEAREST_MIPMAP_NEAREST, GL_LINEAR_MIPMAP_NEAREST,
+	   GL_NEAREST_MIPMAP_LINEAR, GL_LINEAR_MIPMAP_LINEAR
 };
 
 static GLint addressConvMap[] = {
@@ -456,8 +462,13 @@ setFilterMode(uint32 stage, int32 filter)
 			Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, rwStateCache.texstage[stage].raster, nativeRasterOffset);
 			if(natras->filterMode != filter){
 				setActiveTexture(stage);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				if(natras->autogenMipmap || natras->numLevels > 1){
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_MIP[filter]);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_MIP[filter]);
+				}else{
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				}
 				natras->filterMode = filter;
 			}
 		}
@@ -547,8 +558,13 @@ setRasterStage(uint32 stage, Raster *raster)
 			uint32 addrU = rwStateCache.texstage[stage].addressingU;
 			uint32 addrV = rwStateCache.texstage[stage].addressingV;
 			if(natras->filterMode != filter){
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				if(natras->autogenMipmap || natras->numLevels > 1){
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_MIP[filter]);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_MIP[filter]);
+				}else{
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterConvMap_NoMIP[filter]);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterConvMap_NoMIP[filter]);
+				}
 				natras->filterMode = filter;
 			}
 			if(natras->addressU != addrU){
@@ -1520,6 +1536,8 @@ initOpenGL(void)
 	             0, GL_RGBA, GL_UNSIGNED_BYTE, &whitepixel);
 
 	resetRenderState();
+
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
 
 #ifndef RW_GLES2
 	glGenVertexArrays(1, &vao);

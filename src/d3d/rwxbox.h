@@ -84,7 +84,9 @@ struct XboxRaster
 	void *texture;
 	void *palette;
 	uint32 format;
-	bool32 hasAlpha;
+	uint32 bpp;	// bytes per pixel
+	bool hasAlpha;
+	bool customFormat;
 	bool32 unknownFlag;
 };
 
@@ -92,6 +94,7 @@ int32 getLevelSize(Raster *raster, int32 level);
 
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);
+#define GETXBOXRASTEREXT(raster) PLUGINOFFSET(rw::xbox::XboxRaster, raster, rw::xbox::nativeRasterOffset)
 
 Texture *readNativeTexture(Stream *stream);
 void writeNativeTexture(Texture *tex, Stream *stream);

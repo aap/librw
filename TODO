@@ -9,10 +9,6 @@ TODO:
 
 driver
 - metrics
-- mipmaps
-
-opengl
-- DXT conversion from d3d
 
 ps2
 - rendering!

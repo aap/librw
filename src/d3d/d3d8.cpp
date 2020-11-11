@@ -468,35 +468,54 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 		for(int32 i = 0; i < pallen; i++)
 			palette[i*4+3] = 0xFF;
 
-	// Only read one mipmap	
-	for(int32 i = 0; i < numLevels; i++){
-		uint32 size = stream->readU32();
-		if(i == 0){
-			data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_IMAGE);
-			stream->read8(data, size);
-		}else
-			stream->seek(size);
-	}
+	Raster *ras = nil;
 
-	if(format & (Raster::PAL4 | Raster::PAL8)){
-		uint8 *idx = data;
-		uint8 *pixels = img->pixels;
-		for(int y = 0; y < img->height; y++){
-			uint8 *line = pixels;
-			for(int x = 0; x < img->width; x++){
-				line[0] = palette[*idx*4+0];
-				line[1] = palette[*idx*4+1];
-				line[2] = palette[*idx*4+2];
-				line[3] = palette[*idx*4+3];
-				line += 4;
-				idx++;
-			}
-			pixels += img->stride;
+	for(int i = 0; i < numLevels; i++){
+		if(ras){
+			ras->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+			img->width = ras->width;
+			img->height = ras->height;
+			img->stride = img->width*img->bpp;
 		}
+
+		uint32 size = stream->readU32();
+		// one allocation is enough, first level is largest
+		if(data == nil)
+			data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_IMAGE);
+		stream->read8(data, size);
+
+
+		if(format & (Raster::PAL4 | Raster::PAL8)){
+			uint8 *idx = data;
+			uint8 *pixels = img->pixels;
+			for(int y = 0; y < img->height; y++){
+				uint8 *line = pixels;
+				for(int x = 0; x < img->width; x++){
+					line[0] = palette[*idx*4+0];
+					line[1] = palette[*idx*4+1];
+					line[2] = palette[*idx*4+2];
+					line[3] = palette[*idx*4+3];
+					line += img->bpp;
+					idx++;
+				}
+				pixels += img->stride;
+			}
+		}
+
+		if(ras == nil){
+			// Important to have filled the image with data
+			int32 newformat;
+			Raster::imageFindRasterFormat(img, format&7, &width, &height, &depth, &newformat);
+			newformat |= format & (Raster::MIPMAP | Raster::AUTOMIPMAP);
+			ras = Raster::create(width, height, depth, newformat);
+			ras->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+		}
+
+		ras->setFromImage(img);
+		ras->unlock(i);
 	}
 
 	rwFree(data);
-	Raster *ras = Raster::createFromImage(img, PLATFORM_D3D8);
 	img->destroy();
 	return ras;
 }
@@ -545,7 +564,7 @@ readNativeTexture(Stream *stream)
 	Raster *raster;
 	D3dRaster *ras;
 	if(compression){
-		raster = Raster::create(width, height, depth, format | type | 0x80, PLATFORM_D3D8);
+		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_D3D8);
 		ras = GETD3DRASTEREXT(raster);
 		allocateDXT(raster, compression, numLevels, hasAlpha);
 		ras->customFormat = 1;

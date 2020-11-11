@@ -522,97 +522,137 @@ createTexture(int32 width, int32 height, int32 numlevels, uint32 format)
 	return levels;
 }
 
+struct RasterFormatInfo
+{
+	uint32 d3dformat;
+	int32 depth;
+	bool32 hasAlpha;
+	uint32 rwFormat;
+};
+
+// indexed directly by RW format
+static RasterFormatInfo formatInfoRW[16] = {
+	{ 0, 0, 0},
+	{ D3DFMT_A1R5G5B5, 16, 1, Raster::C1555 },
+	{ D3DFMT_R5G6B5,   16, 0, Raster::C565 },
+	{ D3DFMT_A4R4G4B4, 16, 1, Raster::C4444 },
+	{ D3DFMT_L8,        8, 0, Raster::LUM8 },
+	{ D3DFMT_A8R8G8B8, 32, 1, Raster::C8888 },
+	{ D3DFMT_X8R8G8B8, 32, 0, Raster::C888 },
+	{ D3DFMT_UNKNOWN,  16, 0, Raster::D16 },
+	{ D3DFMT_UNKNOWN,  32, 0, Raster::D24 },
+	{ D3DFMT_UNKNOWN,  32, 0, Raster::D32 },
+	{ D3DFMT_X1R5G5B5, 16, 0, Raster::C555 }
+};
+
+static void
+rasterSetFormat(Raster *raster)
+{
+	assert(raster->format != 0);	// no default yet
+
+	XboxRaster *natras = GETXBOXRASTEREXT(raster);
+	if(raster->format & (Raster::PAL4 | Raster::PAL8)){
+		natras->format = D3DFMT_P8;
+		raster->depth = 8;
+	}else{
+		natras->format = formatInfoRW[(raster->format >> 8) & 0xF].d3dformat;
+		raster->depth = formatInfoRW[(raster->format >> 8) & 0xF].depth;
+	}
+	natras->bpp = raster->depth/8;
+	natras->hasAlpha =  formatInfoRW[(raster->format >> 8) & 0xF].hasAlpha;
+	raster->stride = raster->width&natras->bpp;
+}
+
+static Raster*
+rasterCreateTexture(Raster *raster)
+{
+	XboxRaster *natras = GETXBOXRASTEREXT(raster);
+	int32 levels;
+
+	if(natras->format == D3DFMT_P8)
+		natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
+	levels = Raster::calculateNumLevels(raster->width, raster->height);
+	assert(natras->texture == nil);
+	natras->texture = createTexture(raster->width, raster->height,
+	                                raster->format & Raster::MIPMAP ? levels : 1,
+	                                natras->format);
+	if(natras->texture == nil){
+		RWERROR((ERR_NOTEXTURE));
+		return nil;
+	}
+	return raster;
+}
+
 Raster*
 rasterCreate(Raster *raster)
 {
-	static uint32 formatMap[] = {
-		D3DFMT_UNKNOWN,
-		D3DFMT_A1R5G5B5,
-		D3DFMT_R5G6B5,
-		D3DFMT_A4R4G4B4,
-		D3DFMT_L8,
-		D3DFMT_A8R8G8B8,
-		D3DFMT_X8R8G8B8,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN,
-		D3DFMT_X1R5G5B5,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN,
-		D3DFMT_UNKNOWN
-	};
-	static bool32 alphaMap[] = {
-		0,
-		1,
-		0,
-		1,
-		0,
-		1,
-		0,
-		0, 0, 0,
-		0,
-		0, 0, 0, 0, 0
-	};
+	rasterSetFormat(raster);
 
-	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
-	uint32 format;
-	int32 levels;
+	Raster *ret = raster;
 
 	// Dummy to use as subraster
 	if(raster->width == 0 || raster->height == 0){
 		raster->flags |= Raster::DONTALLOCATE;
 		raster->stride = 0;
-		return raster;
+		goto ret;
 	}
+	if(raster->flags & Raster::DONTALLOCATE)
+		goto ret;
 
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
-		if(raster->flags & Raster::DONTALLOCATE)
-			return raster;
-		if(raster->format & (Raster::PAL4 | Raster::PAL8)){
-			format = D3DFMT_P8;
-			natras->palette = (uint8*)rwNew(4*256, MEMDUR_EVENT | ID_DRIVER);
-		}else
-			format = formatMap[(raster->format >> 8) & 0xF];
-		natras->format = 0;
-		natras->hasAlpha = alphaMap[(raster->format >> 8) & 0xF];
-		levels = Raster::calculateNumLevels(raster->width, raster->height);
-		natras->texture = createTexture(raster->width, raster->height,
-		                                raster->format & Raster::MIPMAP ? levels : 1,
-		                                format);
-		if(natras->texture == nil){
-			RWERROR((ERR_NOTEXTURE));
-			return nil;
-		}
-		return raster;
+		ret = rasterCreateTexture(raster);
+		break;
+	default:
+		RWERROR((ERR_INVRASTER));
+		return nil;
 	}
-	// unsupported
-	return nil;
+
+ret:
+	raster->originalWidth = raster->width;
+	raster->originalHeight = raster->height;
+	raster->originalStride = raster->stride;
+	raster->originalPixels = raster->pixels;
+	return ret;
 }
 
 uint8*
 rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
-	// TODO?
-	(void)lockMode;
+	XboxRaster *natras = GETXBOXRASTEREXT(raster);
 
-	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	// check if already locked
+	if(raster->privateFlags & (Raster::PRIVATELOCK_READ|Raster::PRIVATELOCK_WRITE))
+		return nil;
+
 	RasterLevels *levels = (RasterLevels*)natras->texture;
-	return levels->levels[level].data;
+	raster->pixels = levels->levels[level].data;
+	raster->width = levels->levels[level].width;
+	raster->height = levels->levels[level].height;
+	raster->stride = raster->width*natras->bpp;
+
+	if(lockMode & Raster::LOCKREAD) raster->privateFlags |= Raster::PRIVATELOCK_READ;
+	if(lockMode & Raster::LOCKWRITE) raster->privateFlags |= Raster::PRIVATELOCK_WRITE;
+
+	return raster->pixels;
 }
 
 void
-rasterUnlock(Raster*, int32)
+rasterUnlock(Raster *raster, int32 level)
 {
+	raster->width = raster->originalWidth;
+	raster->height = raster->originalHeight;
+	raster->stride = raster->originalStride;
+	raster->pixels = raster->originalPixels;
+
+	raster->privateFlags &= ~(Raster::PRIVATELOCK_READ|Raster::PRIVATELOCK_WRITE);
 }
 
 int32
 rasterNumLevels(Raster *raster)
 {
-	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	XboxRaster *natras = GETXBOXRASTEREXT(raster);
 	RasterLevels *levels = (RasterLevels*)natras->texture;
 	return levels->numlevels;
 }
@@ -656,12 +696,23 @@ rasterToImage(Raster *raster)
 {
 	int32 depth;
 	Image *image;
-	XboxRaster *natras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
 
-	if(natras->format){
-		image = Image::create(raster->width, raster->height, 32);
+	bool unlock = false;
+	if(raster->pixels == nil){
+		raster->lock(0, Raster::LOCKREAD);
+		unlock = true;
+	}
+
+	XboxRaster *natras = GETXBOXRASTEREXT(raster);
+	if(natras->customFormat){
+		int w = raster->width;
+		int h = raster->height;
+		// pixels are in the upper right corner
+		if(w < 4) w = 4;
+		if(h < 4) h = 4;
+		image = Image::create(w, h, 32);
 		image->allocate();
-		uint8 *pix = raster->lock(0, Raster::LOCKREAD);
+		uint8 *pix = raster->pixels;
 		switch(natras->format){
 		case D3DFMT_DXT1:
 			image->setPixelsDXT(1, pix);
@@ -677,11 +728,17 @@ rasterToImage(Raster *raster)
 			break;
 		default:
 			assert(0 && "unknown format");
-			raster->unlock(0);
 			image->destroy();
+			if(unlock)
+				raster->unlock(0);
 			return nil;
 		}
-		raster->unlock(0);
+		// fix it up again
+		image->width = raster->width;
+		image->height = raster->height;
+
+		if(unlock)
+			raster->unlock(0);
 		return image;
 	}
 
@@ -714,48 +771,51 @@ rasterToImage(Raster *raster)
 		pallength = 256;
 	}
 
-	uint8 *in, *out;
 	image = Image::create(raster->width, raster->height, depth);
 	image->allocate();
 
 	if(pallength){
-		out = image->palette;
-		in = (uint8*)natras->palette;
+		uint8 *out = image->palette;
+		uint8 *in = (uint8*)natras->palette;
+		// bytes are BGRA unlike regular d3d!
 		for(int32 i = 0; i < pallength; i++){
-			out[0] = in[2];
-			out[1] = in[1];
-			out[2] = in[0];
-			out[3] = in[3];
+			conv_BGRA8888_from_RGBA8888(out, in);
 			in += 4;
 			out += 4;
 		}
 	}
 
-	out = image->pixels;
-	in = raster->lock(0, Raster::LOCKREAD);
+	uint8 *imgpixels = image->pixels;
+	uint8 *pixels = raster->pixels;
 
-	unswizzle(out, in, image->width, image->height, depth < 8 ? 1 : depth/8);
+	// NB:
+	assert(image->bpp == natras->bpp);
+	assert(image->stride == raster->stride);
+	unswizzle(imgpixels, pixels, image->width, image->height, image->bpp);
 	// Fix RGB order
-	// TODO: stride
 	uint8 tmp;
 	if(depth > 8)
-		for(int32 y = 0; y < image->height; y++)
-			for(int32 x = 0; x < image->width; x++)
+		for(int32 y = 0; y < image->height; y++){
+			uint8 *imgrow = imgpixels;
+		//	uint8 *rasrow = pixels;
+			for(int32 x = 0; x < image->width; x++){
 				switch(raster->format & 0xF00){
 				case Raster::C8888:
-					tmp = out[0];
-					out[0] = out[2];
-					out[2] = tmp;
-					out += 4;
-					break;
 				case Raster::C888:
-					tmp = out[0];
-					out[0] = out[2];
-					out[2] = tmp;
-					out += 3;
+					tmp = imgrow[0];
+					imgrow[0] = imgrow[2];
+					imgrow[2] = tmp;
+					imgrow += image->bpp;
 					break;
 				}
-	raster->unlock(0);
+			}
+			imgpixels += image->stride;
+		//	pixels += raster->stride;
+		}
+	image->compressPalette();
+
+	if(unlock)
+		raster->unlock(0);
 
 	return image;
 }
@@ -763,7 +823,7 @@ rasterToImage(Raster *raster)
 int32
 getLevelSize(Raster *raster, int32 level)
 {
-	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	XboxRaster *ras = GETXBOXRASTEREXT(raster);
 	RasterLevels *levels = (RasterLevels*)ras->texture;
 	return levels->levels[level].size;
 }
@@ -776,6 +836,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	raster->palette = nil;
 	raster->format = 0;
 	raster->hasAlpha = 0;
+	raster->customFormat = 0;
 	raster->unknownFlag = 0;
 	return object;
 }
@@ -836,6 +897,9 @@ readNativeTexture(Stream *stream)
 	stream->read8(tex->name, 32);
 	stream->read8(tex->mask, 32);
 
+//if(strcmp(tex->name, "bluallu") == 0)
+//__debugbreak();
+
 	// Raster
 	int32 format = stream->readI32();
 	bool32 hasAlpha = stream->readI16();
@@ -853,16 +917,17 @@ readNativeTexture(Stream *stream)
 	Raster *raster;
 	if(compression){
 		raster = Raster::create(width, height, depth, format | type | Raster::DONTALLOCATE, PLATFORM_XBOX);
-		XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+		XboxRaster *ras = GETXBOXRASTEREXT(raster);
 		ras->format = compression;
 		ras->hasAlpha = hasAlpha;
 		ras->texture = createTexture(raster->width, raster->height,
 	                                     raster->format & Raster::MIPMAP ? numLevels : 1,
 	                                     ras->format);
+		ras->customFormat = 1;
 		raster->flags &= ~Raster::DONTALLOCATE;
 	}else
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_XBOX);
-	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	XboxRaster *ras = GETXBOXRASTEREXT(raster);
 	tex->raster = raster;
 
 	if(raster->format & Raster::PAL4)
@@ -892,7 +957,7 @@ writeNativeTexture(Texture *tex, Stream *stream)
 
 	// Raster
 	Raster *raster = tex->raster;
-	XboxRaster *ras = PLUGINOFFSET(XboxRaster, raster, nativeRasterOffset);
+	XboxRaster *ras = GETXBOXRASTEREXT(raster);
 	int32 numLevels = raster->getNumLevels();
 	stream->writeI32(raster->format);
 	stream->writeI16(ras->hasAlpha);
