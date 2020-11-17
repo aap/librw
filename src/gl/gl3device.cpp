@@ -59,6 +59,8 @@ struct GlGlobals
 	const char *winTitle;
 } glGlobals;
 
+Gl3Caps gl3Caps;
+
 int32   alphaFunc;
 float32 alphaRef;
 
@@ -1498,6 +1500,18 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
+	memset(&gl3Caps, 0, sizeof(gl3Caps));
+	int numExt;
+	glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
+	for(int i = 0; i < numExt; i++){
+		const char *ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
+		if(strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
+			gl3Caps.dxtSupported = true;
+		else if(strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
+			gl3Caps.astcSupported = true;
+//		printf("%d %s\n", i, ext);
+	}
+
 #ifndef RW_GL_USE_UBOS
 	u_alphaRef = registerUniform("u_alphaRef");
 	u_fogData = registerUniform("u_fogData");

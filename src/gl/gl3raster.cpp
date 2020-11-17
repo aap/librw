@@ -769,6 +769,11 @@ readNativeTexture(Stream *stream)
 	Raster *raster;
 	Gl3Raster *natras;
 	if(flags & 2){
+		if(!gl3Caps.dxtSupported){
+			tex->destroy();
+			RWERROR((ERR_FORMAT_UNSUPPORTED));
+			return nil;
+		}
 		raster = Raster::create(width, height, depth, format | Raster::TEXTURE | Raster::DONTALLOCATE, PLATFORM_GL3);
 		allocateDXT(raster, compression, numLevels, flags & 1);
 	}else{

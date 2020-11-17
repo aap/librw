@@ -19,4 +19,6 @@ ECODE(ERR_ENGINESTART,
 ECODE(ERR_INVRASTER,
       "Invalid raster format"),
 ECODE(ERR_NOTEXTURE,
-      "Could not create texture")
+      "Could not create texture"),
+ECODE(ERR_FORMAT_UNSUPPORTED,
+      "Unsupported raster format")

@@ -419,6 +419,9 @@ d3d_to_gl3(rw::Raster *ras)
 #ifdef RW_GL3
 	using namespace rw;
 
+	if(!gl3::gl3Caps.dxtSupported)
+		return nil;
+
 	int dxt = 0;
 	d3d::D3dRaster *d3dras = GETD3DRASTEREXT(ras);
 	if(d3dras->customFormat){

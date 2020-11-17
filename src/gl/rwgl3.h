@@ -246,6 +246,14 @@ struct Gl3Raster
 	Raster *fboMate;	// color or zbuffer raster mate of this one
 };
 
+struct Gl3Caps
+{
+	// TODO: put more stuff into this
+	bool dxtSupported;
+	bool astcSupported;	// not used yet
+};
+extern Gl3Caps gl3Caps;
+
 void allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha);
 
 Texture *readNativeTexture(Stream *stream);
