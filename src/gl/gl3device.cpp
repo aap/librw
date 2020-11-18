@@ -109,6 +109,14 @@ struct GLShaderState
 	SurfaceProperties surfProps;
 };
 
+const char *shaderDecl120 =
+"#version 120\n"
+"#define GL2\n"
+"#define texture texture2D\n"
+"#define VSIN(index) attribute\n"
+"#define VSOUT varying\n"
+"#define FSIN varying\n"
+"#define FRAGCOLOR(c) (gl_FragColor = c)\n";
 const char *shaderDecl330 =
 "#version 330\n"
 "#define VSIN(index) layout(location = index) in\n"
@@ -1539,8 +1547,12 @@ initOpenGL(void)
 			shaderDecl = shaderDecl310es;
 		else
 			shaderDecl = shaderDecl100es;
-	}else
-		shaderDecl = shaderDecl330;
+	}else{
+		if(gl3Caps.glversion >= 30)
+			shaderDecl = shaderDecl330;
+		else
+			shaderDecl = shaderDecl120;
+	}
 
 #ifndef RW_GL_USE_UBOS
 	u_alphaRef = registerUniform("u_alphaRef");
@@ -1763,5 +1775,13 @@ Device renderdevice = {
 }
 }
 
+#else
+// urgh, probably should get rid of that eventually
+#include "rwgl3.h"
+namespace rw {
+namespace gl3 { 
+Gl3Caps gl3Caps;
+bool32 needToReadBackTextures;
+}
+}
 #endif
-
