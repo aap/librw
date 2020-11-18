@@ -17,13 +17,8 @@
 namespace rw {
 namespace gl3 {
 
-#ifdef RW_GLES2
-#include "gl2_shaders/header_vs.inc"
-#include "gl2_shaders/header_fs.inc"
-#else
 #include "shaders/header_vs.inc"
 #include "shaders/header_fs.inc"
-#endif
 
 UniformRegistry uniformRegistry;
 
@@ -137,15 +132,16 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 
 	prog = glCreateProgram();
 
-#ifdef RW_GLES2
-	// TODO: perhaps just do this always and get rid of the layout stuff?
-	glBindAttribLocation(prog, ATTRIB_POS, "in_pos");
-	glBindAttribLocation(prog, ATTRIB_NORMAL, "in_normal");
-	glBindAttribLocation(prog, ATTRIB_COLOR, "in_color");
-	glBindAttribLocation(prog, ATTRIB_TEXCOORDS0, "in_tex0");
-	glBindAttribLocation(prog, ATTRIB_WEIGHTS, "in_weights");
-	glBindAttribLocation(prog, ATTRIB_INDICES, "in_indices");
-#endif
+	if(gl3Caps.glversion < 30){
+		// TODO: perhaps just do this always and get rid of the layout stuff?
+		glBindAttribLocation(prog, ATTRIB_POS, "in_pos");
+		glBindAttribLocation(prog, ATTRIB_NORMAL, "in_normal");
+		glBindAttribLocation(prog, ATTRIB_COLOR, "in_color");
+		glBindAttribLocation(prog, ATTRIB_WEIGHTS, "in_weights");
+		glBindAttribLocation(prog, ATTRIB_INDICES, "in_indices");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS0, "in_tex0");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS1, "in_tex1");
+	}
 
 	glAttachShader(prog, vs);
 	glAttachShader(prog, fs);

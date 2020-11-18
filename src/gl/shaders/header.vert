@@ -3,6 +3,23 @@
 //#define POINTLIGHTS
 //#define SPOTLIGHTS
 
+#define ATTRIB_POS	0
+#define ATTRIB_NORMAL	1
+#define ATTRIB_COLOR	2
+#define ATTRIB_WEIGHTS	3
+#define ATTRIB_INDICES	4
+#define ATTRIB_TEXCOORDS0	5
+#define ATTRIB_TEXCOORDS1	6
+
+
+VSIN(ATTRIB_NORMAL)	vec3 in_normal;
+VSIN(ATTRIB_COLOR)	vec4 in_color;
+VSIN(ATTRIB_WEIGHTS)	vec4 in_weights;
+VSIN(ATTRIB_INDICES)	vec4 in_indices;
+VSIN(ATTRIB_TEXCOORDS0)	vec2 in_tex0;
+VSIN(ATTRIB_TEXCOORDS1)	vec2 in_tex1;
+
+
 #ifdef USE_UBOS
 layout(std140) uniform State
 {

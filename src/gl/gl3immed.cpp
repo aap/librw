@@ -56,13 +56,8 @@ openIm2D(void)
 {
 	u_xform = registerUniform("u_xform");
 
-#ifdef RW_GLES2
-#include "gl2_shaders/im2d_gl2.inc"
-#include "gl2_shaders/simple_fs_gl2.inc"
-#else
-#include "shaders/im2d_gl3.inc"
-#include "shaders/simple_fs_gl3.inc"
-#endif
+#include "shaders/im2d_gl.inc"
+#include "shaders/simple_fs_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, im2d_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	im2dShader = Shader::create(vs, fs);
@@ -216,13 +211,8 @@ static int32 num3DVertices;	// not actually needed here
 void
 openIm3D(void)
 {
-#ifdef RW_GLES2
-#include "gl2_shaders/im3d_gl2.inc"
-#include "gl2_shaders/simple_fs_gl2.inc"
-#else
-#include "shaders/im3d_gl3.inc"
-#include "shaders/simple_fs_gl3.inc"
-#endif
+#include "shaders/im3d_gl.inc"
+#include "shaders/simple_fs_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, im3d_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	im3dShader = Shader::create(vs, fs);

@@ -60,6 +60,8 @@ struct GlGlobals
 } glGlobals;
 
 Gl3Caps gl3Caps;
+// terrible hack for GLES
+bool32 needToReadBackTextures;
 
 int32   alphaFunc;
 float32 alphaRef;
@@ -107,30 +109,37 @@ struct GLShaderState
 	SurfaceProperties surfProps;
 };
 
-const char *shaderDecl330 = "#version 330\n";
+const char *shaderDecl330 =
+"#version 330\n"
+"#define VSIN(index) layout(location = index) in\n"
+"#define VSOUT out\n"
+"#define FSIN in\n"
+"#define FRAGCOLOR(c) (fragColor = c)\n";
 const char *shaderDecl100es =
-"#version 100\n"\
-"precision highp float;\n"\
+"#version 100\n"
+"#define GL2\n"
+"#define texture texture2D\n"
+"#define VSIN(index) attribute\n"
+"#define VSOUT varying\n"
+"#define FSIN varying\n"
+"#define FRAGCOLOR(c) (gl_FragColor = c)\n"
+"precision highp float;\n"
 "precision highp int;\n";
 const char *shaderDecl310es =
-"#version 310 es\n"\
-"precision highp float;\n"\
+"#version 310 es\n"
+"#define VSIN(index) layout(location = index) in\n"
+"#define VSOUT out\n"
+"#define FSIN in\n"
+"#define FRAGCOLOR(c) (fragColor = c)\n"
+"precision highp float;\n"
 "precision highp int;\n";
 
-#ifdef RW_GLES3
-const char *shaderDecl = shaderDecl310es;
-#elif defined RW_GLES2
-const char *shaderDecl = shaderDecl100es;
-#else
-const char *shaderDecl = shaderDecl330;
-#endif
+const char *shaderDecl;
 
 // this needs a define in the shaders as well!
 //#define RW_GL_USE_UBOS
 
-#ifndef RW_GLES2
 static GLuint vao;
-#endif
 #ifdef RW_GL_USE_UBOS
 static GLuint ubo_state, ubo_scene, ubo_object;
 #endif
@@ -1082,8 +1091,12 @@ setFrameBuffer(Camera *cam)
 			}
 			natfb->fboMate = zbuf;
 			natzb->fboMate = fbuf;
-			if(natfb->fbo)
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, natzb->texid, 0);
+			if(natfb->fbo){
+				if(gl3Caps.gles)
+					glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, natzb->texid);
+				else
+					glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, natzb->texid, 0);
+			}
 		}
 	}else{
 		// remove z-buffer
@@ -1399,27 +1412,14 @@ openGLFW(EngineOpenParams *openparams)
 	glGlobals.winTitle = openparams->windowtitle;
 	glGlobals.pWindow = openparams->window;
 
+	memset(&gl3Caps, 0, sizeof(gl3Caps));
+
 	/* Init GLFW */
 	if(!glfwInit()){
 		RWERROR((ERR_GENERAL, "glfwInit() failed"));
 		return 0;
 	}
 	glfwWindowHint(GLFW_SAMPLES, 0);
-#ifdef RW_GLES3
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-#elif defined RW_GLES2
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#else
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#endif
 
 	glGlobals.monitor = glfwGetMonitors(&glGlobals.numMonitors)[0];
 
@@ -1441,6 +1441,17 @@ glfwerr(int error, const char *desc)
 	fprintf(stderr, "GLFW Error: %s\n", desc);
 }
 
+static struct {
+	int gl;
+	int major, minor;
+} profiles[] = {
+	{ GLFW_OPENGL_API, 3, 3 },
+	{ GLFW_OPENGL_API, 2, 1 },
+	{ GLFW_OPENGL_ES_API, 3, 1 },
+	{ GLFW_OPENGL_ES_API, 2, 0 },
+	{ 0, 0, 0 },
+};
+
 static int
 startGLFW(void)
 {
@@ -1456,16 +1467,28 @@ startGLFW(void)
 	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
 	glfwWindowHint(GLFW_REFRESH_RATE, mode->mode.refreshRate);
 
-	if(mode->flags & VIDEOMODEEXCLUSIVE)
-		win = glfwCreateWindow(mode->mode.width, mode->mode.height, glGlobals.winTitle, glGlobals.monitor, nil);
-	else
-		win = glfwCreateWindow(glGlobals.winWidth, glGlobals.winHeight, glGlobals.winTitle, nil, nil);
+	int i;
+	for(i = 0; profiles[i].gl; i++){
+		glfwWindowHint(GLFW_CLIENT_API, profiles[i].gl);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, profiles[i].major);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, profiles[i].minor);
+
+		if(mode->flags & VIDEOMODEEXCLUSIVE)
+			win = glfwCreateWindow(mode->mode.width, mode->mode.height, glGlobals.winTitle, glGlobals.monitor, nil);
+		else
+			win = glfwCreateWindow(glGlobals.winWidth, glGlobals.winHeight, glGlobals.winTitle, nil, nil);
+		if(win){
+			gl3Caps.gles = profiles[i].gl == GLFW_OPENGL_ES_API;
+			gl3Caps.glversion = profiles[i].major*10 + profiles[i].minor;
+			break;
+		}
+	}
 	if(win == nil){
 		RWERROR((ERR_GENERAL, "glfwCreateWindow() failed"));
 		return 0;
 	}
 	glfwMakeContextCurrent(win);
-printf("version %s\n", glGetString(GL_VERSION));
+	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
 
 	/* Init GLEW */
 	glewExperimental = GL_TRUE;
@@ -1500,7 +1523,6 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
-	memset(&gl3Caps, 0, sizeof(gl3Caps));
 	int numExt;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
 	for(int i = 0; i < numExt; i++){
@@ -1511,6 +1533,14 @@ initOpenGL(void)
 			gl3Caps.astcSupported = true;
 //		printf("%d %s\n", i, ext);
 	}
+
+	if(gl3Caps.gles){
+		if(gl3Caps.glversion >= 30)
+			shaderDecl = shaderDecl310es;
+		else
+			shaderDecl = shaderDecl100es;
+	}else
+		shaderDecl = shaderDecl330;
 
 #ifndef RW_GL_USE_UBOS
 	u_alphaRef = registerUniform("u_alphaRef");
@@ -1553,10 +1583,10 @@ initOpenGL(void)
 
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
 
-#ifndef RW_GLES2
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-#endif
+	if(gl3Caps.glversion >= 30){
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+	}
 
 #ifdef RW_GL_USE_UBOS
 	glGenBuffers(1, &ubo_state);
@@ -1581,13 +1611,8 @@ initOpenGL(void)
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 #endif
 
-#ifdef RW_GLES2
-#include "gl2_shaders/default_vs_gl2.inc"
-#include "gl2_shaders/simple_fs_gl2.inc"
-#else
-#include "shaders/default_vs_gl3.inc"
-#include "shaders/simple_fs_gl3.inc"
-#endif
+#include "shaders/default_vs_gl.inc"
+#include "shaders/simple_fs_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, default_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	defaultShader = Shader::create(vs, fs);

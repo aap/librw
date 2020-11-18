@@ -17,6 +17,10 @@ uniform vec4  u_fogColor;
 #define u_fogRange (u_fogData.z)
 #define u_fogDisable (u_fogData.w)
 
+#ifndef GL2
+out vec4 fragColor;
+#endif
+
 void DoAlphaTest(float a)
 {
 	if(a < u_alphaRef.x || a >= u_alphaRef.y)

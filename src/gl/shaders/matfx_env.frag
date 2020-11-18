@@ -7,12 +7,10 @@ uniform vec4 u_colorClamp;
 #define shininess (u_fxparams.x)
 #define disableFBA (u_fxparams.y)
 
-in vec4 v_color;
-in vec2 v_tex0;
-in vec2 v_tex1;
-in float v_fog;
-
-out vec4 color;
+FSIN vec4 v_color;
+FSIN vec2 v_tex0;
+FSIN vec2 v_tex1;
+FSIN float v_fog;
 
 void
 main(void)
@@ -27,8 +25,11 @@ main(void)
 	pass2.rgb = mix(vec3(0.0, 0.0, 0.0), pass2.rgb, v_fog);
 
 	float fba = max(pass1.a, disableFBA);
+	vec4 color;
 	color.rgb = pass1.rgb*pass1.a + pass2.rgb*fba;
 	color.a = pass1.a;
 
 	DoAlphaTest(color.a);
+
+	FRAGCOLOR(color);
 }
