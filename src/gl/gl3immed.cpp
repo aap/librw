@@ -83,6 +83,9 @@ closeIm2D(void)
 {
 	glDeleteBuffers(1, &im2DIbo);
 	glDeleteBuffers(1, &im2DVbo);
+#ifdef RW_GL_USE_VAOS
+	glDeleteVertexArrays(1, &im2DVao);
+#endif
 	im2dShader->destroy();
 	im2dShader = nil;
 }
@@ -238,6 +241,9 @@ closeIm3D(void)
 {
 	glDeleteBuffers(1, &im3DIbo);
 	glDeleteBuffers(1, &im3DVbo);
+#ifdef RW_GL_USE_VAOS
+	glDeleteVertexArrays(1, &im3DVao);
+#endif
 	im3dShader->destroy();
 	im3dShader = nil;
 }

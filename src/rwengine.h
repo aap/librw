@@ -159,7 +159,7 @@ struct Engine
 	static MemoryFunctions memfuncs;
 	static State state;
 
-	static bool32 init(void);
+	static bool32 init(MemoryFunctions *memfuncs = nil);
 	static bool32 open(EngineOpenParams*);
 	static bool32 start(void);
 	static void term(void);
@@ -206,6 +206,10 @@ inline void *mustrealloc_LOC(void *p, size_t sz, uint32 hint, const char *here) 
 #define rwNewT(t, s, h) (t*)rw::mustmalloc_LOC((s)*sizeof(t),h,RWHERE)
 #define rwResize(p, s, h) rw::mustrealloc_LOC(p,s,h,RWHERE)
 #define rwResizeT(t, p, s, h) (t*)rw::mustrealloc_LOC(p,(s)*sizeof(t),h,RWHERE)
+
+extern MemoryFunctions defaultMemfuncs;
+extern MemoryFunctions managedMemfuncs;
+void printleaks(void);	// when using managed mem funcs
 
 namespace null {
 	void beginUpdate(Camera*);
