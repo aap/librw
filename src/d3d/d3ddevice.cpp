@@ -1459,7 +1459,7 @@ startD3D(void)
 	d3d9Globals.present.BackBufferHeight           = height;
 	d3d9Globals.present.BackBufferFormat           = format;
 	d3d9Globals.present.BackBufferCount            = 1;
-	d3d9Globals.present.MultiSampleType            = D3DMULTISAMPLE_NONE;
+	d3d9Globals.present.MultiSampleType            = (D3DMULTISAMPLE_TYPE)d3d9Globals.msLevel;
 	d3d9Globals.present.MultiSampleQuality         = 0;
 	d3d9Globals.present.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
 	d3d9Globals.present.hDeviceWindow              = d3d9Globals.window;
@@ -1796,6 +1796,26 @@ deviceSystem(DeviceReq req, void *arg, int32 n)
 		rwmode->height = d3d9Globals.modes[n].mode.Height;
 		rwmode->depth = findFormatDepth(d3d9Globals.modes[n].mode.Format);
 		rwmode->flags = d3d9Globals.modes[n].flags;
+		return 1;
+	case DEVICEGETMAXMULTISAMPLINGLEVELS:
+		{
+			assert(d3d9Globals.d3d9 != nil);
+			uint32 level;
+			DWORD quality;
+			for (level = D3DMULTISAMPLE_16_SAMPLES; level > D3DMULTISAMPLE_NONMASKABLE; level--) {
+				if (SUCCEEDED(d3d9Globals.d3d9->CheckDeviceMultiSampleType(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, d3d9Globals.startMode.mode.Format,
+				                                                           !(d3d9Globals.startMode.flags & VIDEOMODEEXCLUSIVE), (D3DMULTISAMPLE_TYPE)level,
+				                                                           &quality)))
+					return level;
+			}
+		}
+		return 1;
+	case DEVICEGETMULTISAMPLINGLEVELS:
+		if (d3d9Globals.msLevel == 0)
+			return 1;
+		return d3d9Globals.msLevel;
+	case DEVICESETMULTISAMPLINGLEVELS:
+		d3d9Globals.msLevel = (uint32)n;
 		return 1;
 	}
 	return 1;
