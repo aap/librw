@@ -27,7 +27,13 @@ enum DeviceReq
 	DEVICEGETNUMVIDEOMODES,
 	DEVICEGETCURRENTVIDEOMODE,
 	DEVICESETVIDEOMODE,
-	DEVICEGETVIDEOMODEINFO
+	DEVICEGETVIDEOMODEINFO,
+
+	// Multisampling
+	DEVICEGETMAXMULTISAMPLINGLEVELS,
+	DEVICEGETMULTISAMPLINGLEVELS,
+	DEVICESETMULTISAMPLINGLEVELS,
+
 };
 
 typedef int DeviceSystem(DeviceReq req, void *arg, int32 n);
@@ -176,6 +182,9 @@ struct Engine
 	static bool32 setVideoMode(int32 mode);
 	static VideoMode *getVideoModeInfo(VideoMode *info, int32 mode);
 
+	static uint32 getMaxMultiSamplingLevels(void);
+	static uint32 getMultiSamplingLevels(void);
+	static bool32 setMultiSamplingLevels(uint32 levels);
 
 	static PluginList s_plglist;
 	static int32 registerPlugin(int32 size, uint32 id,

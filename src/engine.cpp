@@ -414,6 +414,25 @@ Engine::getVideoModeInfo(VideoMode *info, int32 mode)
 }
 
 
+uint32
+Engine::getMaxMultiSamplingLevels(void)
+{
+	return engine->device.system(DEVICEGETMAXMULTISAMPLINGLEVELS, nil, 0);
+}
+
+uint32
+Engine::getMultiSamplingLevels(void)
+{
+	return engine->device.system(DEVICEGETMULTISAMPLINGLEVELS, nil, 0);
+}
+
+bool32
+Engine::setMultiSamplingLevels(uint32 levels)
+{
+	return engine->device.system(DEVICESETMULTISAMPLINGLEVELS, nil, levels);
+}
+
+
 namespace null {
 
 void beginUpdate(Camera*) { }

@@ -57,6 +57,7 @@ struct GlGlobals
 	// for opening the window
 	int winWidth, winHeight;
 	const char *winTitle;
+	uint32 numSamples;
 } glGlobals;
 
 Gl3Caps gl3Caps;
@@ -1427,7 +1428,6 @@ openGLFW(EngineOpenParams *openparams)
 		RWERROR((ERR_GENERAL, "glfwInit() failed"));
 		return 0;
 	}
-	glfwWindowHint(GLFW_SAMPLES, 0);
 
 	glGlobals.monitor = glfwGetMonitors(&glGlobals.numMonitors)[0];
 
@@ -1474,6 +1474,7 @@ startGLFW(void)
 	glfwWindowHint(GLFW_GREEN_BITS, mode->mode.greenBits);
 	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
 	glfwWindowHint(GLFW_REFRESH_RATE, mode->mode.refreshRate);
+	glfwWindowHint(GLFW_SAMPLES, glGlobals.numSamples);
 
 	int i;
 	for(i = 0; profiles[i].gl; i++){
@@ -1739,6 +1740,21 @@ deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 		rwmode->flags = glGlobals.modes[n].flags;
 		return 1;
 
+	case DEVICEGETMAXMULTISAMPLINGLEVELS:
+		{
+			GLint maxSamples;
+			glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+		    if (maxSamples == 0)
+			    return 1;
+			return maxSamples;
+		}
+	case DEVICEGETMULTISAMPLINGLEVELS:
+		if (glGlobals.numSamples == 0)
+			return 1;
+		return glGlobals.numSamples;
+	case DEVICESETMULTISAMPLINGLEVELS:
+		glGlobals.numSamples = (uint32)n;
+		return 1;
 	default:
 		assert(0 && "not implemented");
 		return 0;
