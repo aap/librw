@@ -1744,12 +1744,12 @@ deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 		{
 			GLint maxSamples;
 			glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-		    if (maxSamples == 0)
-			    return 1;
+			if(maxSamples == 0)
+				return 1;
 			return maxSamples;
 		}
 	case DEVICEGETMULTISAMPLINGLEVELS:
-		if (glGlobals.numSamples == 0)
+		if(glGlobals.numSamples == 0)
 			return 1;
 		return glGlobals.numSamples;
 	case DEVICESETMULTISAMPLINGLEVELS:

@@ -1459,7 +1459,8 @@ startD3D(void)
 	d3d9Globals.present.BackBufferHeight           = height;
 	d3d9Globals.present.BackBufferFormat           = format;
 	d3d9Globals.present.BackBufferCount            = 1;
-	d3d9Globals.present.MultiSampleType            = (D3DMULTISAMPLE_TYPE)d3d9Globals.msLevel;
+	d3d9Globals.present.MultiSampleType            = d3d9Globals.msLevel == 1 ?
+		D3DMULTISAMPLE_NONE : (D3DMULTISAMPLE_TYPE)d3d9Globals.msLevel;
 	d3d9Globals.present.MultiSampleQuality         = 0;
 	d3d9Globals.present.SwapEffect                 = D3DSWAPEFFECT_DISCARD;
 	d3d9Globals.present.hDeviceWindow              = d3d9Globals.window;
@@ -1811,7 +1812,7 @@ deviceSystem(DeviceReq req, void *arg, int32 n)
 		}
 		return 1;
 	case DEVICEGETMULTISAMPLINGLEVELS:
-		if (d3d9Globals.msLevel == 0)
+		if(d3d9Globals.msLevel == 0)
 			return 1;
 		return d3d9Globals.msLevel;
 	case DEVICESETMULTISAMPLINGLEVELS:
