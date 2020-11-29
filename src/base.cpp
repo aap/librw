@@ -760,7 +760,7 @@ Stream::write32(const void *data, uint32 length)
 	for(len = length >>= 2; len > 0; len -= 256){
 		n = len < 256 ? len : 256;
 		memcpy(buf, src, n*4);
-		memLittle16(buf, n*4);
+		memLittle32(buf, n*4);
 		write8(buf, n*4);
 		src += n*4;
 	}
