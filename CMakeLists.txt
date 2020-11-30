@@ -49,9 +49,16 @@ if(LIBRW_INSTALL)
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         )
     install(
-        EXPORT librw-targets
+        EXPORT librw-targets NAMESPACE librw::
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         )
-
-    include(CMakeCPack.cmake)
+    set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A (partial) re-implementation of RenderWare Graphics")
+    set(CPACK_PACKAGE_VENDOR "aap")
+    set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/LICENSE")
+    set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
+    set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}")
+    set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}")
+    include(CPack)
 endif()

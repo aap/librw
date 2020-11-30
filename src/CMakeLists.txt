@@ -99,6 +99,7 @@ add_library(librw
     ps2/rwps2impl.h
     ps2/rwps2plg.h
     )
+add_library(librw::librw ALIAS librw)
 
 target_include_directories(librw
     INTERFACE
@@ -174,6 +175,7 @@ if(LIBRW_INSTALL)
         FILES
             base.err
             rwbase.h
+            rwcharset.h
             rwerror.h
             rwplg.h
             rwrender.h
@@ -203,6 +205,7 @@ if(LIBRW_INSTALL)
         FILES
             gl/rwwdgl.h
             gl/rwgl3.h
+            gl/rwgl3plg.h
             gl/rwgl3shader.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
         )
