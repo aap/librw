@@ -1,0 +1,46 @@
+name: Build using conan
+on:
+  pull_request:
+  push:
+  release:
+    types: published
+jobs:
+  build-cmake:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        platform: ['null', 'gl3', 'd3d9', 'ps2']
+        exclude:
+          - os: windows-latest
+            platform: ps2
+          - os: ubuntu-latest
+            platform: d3d9
+          - os: ubuntu-latest
+            platform: ps2  # FIXME: add ps2toolchain conan package + ps2 profile
+          - os: macos-latest
+            platform: d3d9
+          - os: macos-latest
+            platform: ps2
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+      - name: "Setup conan"
+        run: |
+          python -m pip install conan
+          conan user
+          conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
+          conan config set log.print_run_commands=True
+      - name: "conan install (download/build dependencies)"
+        run: |
+          conan install ${{ github.workspace }} -if build -o platform=${{ matrix.platform }} --build missing
+        env:
+          CONAN_SYSREQUIRES_MODE: enabled
+      - name: "conan build (build librw)"
+        run: |
+          conan build ${{ github.workspace }} -if build -bf build -pf package
+      - name: "conan package (package librw)"
+        run: |
+          conan package ${{ github.workspace }} -if build -bf build -pf package
