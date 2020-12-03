@@ -54,15 +54,15 @@ if(LIBRW_INSTALL)
     include(CMakePackageConfigHelpers)
     configure_package_config_file(cmake/librw-config.cmake.in librw-config.cmake
         INSTALL_DESTINATION "${CMAKE_INSTALL_PREFIX}"
-        )
+    )
     install(
         FILES "${CMAKE_CURRENT_BINARY_DIR}/librw-config.cmake"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-        )
+    )
     install(
         EXPORT librw-targets NAMESPACE librw::
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-        )
+    )
     set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
     set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "A (partial) re-implementation of RenderWare Graphics")
     set(CPACK_PACKAGE_VENDOR "aap")
