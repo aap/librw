@@ -1,10 +1,3 @@
-if(LIBRW_PLATFORM_GL3)
-    set(OpenGL_GL_PREFERENCE GLVND)
-    find_package(OpenGL REQUIRED)
-    find_package(GLEW REQUIRED)
-    find_package(glfw3 REQUIRED)
-endif()
-
 add_library(librw
     "${PROJECT_SOURCE_DIR}/args.h"
     "${PROJECT_SOURCE_DIR}/rw.h"
@@ -99,6 +92,7 @@ add_library(librw
     ps2/rwps2impl.h
     ps2/rwps2plg.h
     )
+add_library(librw::librw ALIAS librw)
 
 target_include_directories(librw
     INTERFACE
@@ -144,12 +138,33 @@ set_target_properties(librw
     )
 
 if(LIBRW_PLATFORM_GL3)
+
+
+if(LIBRW_PLATFORM_GL3)
+    set(OpenGL_GL_PREFERENCE GLVND)
+    find_package(OpenGL REQUIRED)
+    find_package(GLEW REQUIRED)
+
     target_link_libraries(librw
         PUBLIC
-            glfw
-            GLEW::GLEW
             OpenGL::GL
+            GLEW::GLEW
         )
+    if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
+        find_package(glfw3 REQUIRED)
+        target_link_libraries(librw
+            PUBLIC
+                glfw
+            )
+    elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+        find_package(SDL2 REQUIRED)
+        target_compile_definitions(librw PUBLIC LIBRW_SDL2)
+        target_link_libraries(librw
+            PUBLIC
+                SDL2::SDL2
+            )
+    endif()
+endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
         PUBLIC
@@ -174,6 +189,7 @@ if(LIBRW_INSTALL)
         FILES
             base.err
             rwbase.h
+            rwcharset.h
             rwerror.h
             rwplg.h
             rwrender.h
@@ -203,6 +219,7 @@ if(LIBRW_INSTALL)
         FILES
             gl/rwwdgl.h
             gl/rwgl3.h
+            gl/rwgl3plg.h
             gl/rwgl3shader.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
         )
