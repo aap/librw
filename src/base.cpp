@@ -1107,7 +1107,8 @@ uint8*
 getFileContents(const char *name, uint32 *len)
 {
 	FILE *cf = fopen(name, "rb");
-	assert(cf != nil);
+	if(cf == nil)
+		return nil;
 	fseek(cf, 0, SEEK_END);
 	*len = ftell(cf);
 	fseek(cf, 0, SEEK_SET);
