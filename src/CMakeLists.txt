@@ -101,6 +101,7 @@ target_include_directories(librw
 
 target_compile_definitions(librw
     PRIVATE
+        LODEPNG_NO_COMPILE_CPP
         "$<IF:$<CONFIG:DEBUG>,DEBUG,NDEBUG>"
     PUBLIC
         "RW_${LIBRW_PLATFORM}"
