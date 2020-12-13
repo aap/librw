@@ -758,6 +758,7 @@ rasterFromImage(Raster *raster, Image *image)
 			conv = conv_8_from_8;
 		else
 			goto err;
+		break;
 	default:
 	err:
 		RWERROR((ERR_INVRASTER));
