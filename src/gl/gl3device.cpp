@@ -210,6 +210,14 @@ struct RwStateCache {
 	uint32 zwrite;
 	uint32 ztest;
 	uint32 cullmode;
+	uint32 stencilenable;
+	uint32 stencilpass;
+	uint32 stencilfail;
+	uint32 stencilzfail;
+	uint32 stencilfunc;
+	uint32 stencilref;
+	uint32 stencilmask;
+	uint32 stencilwritemask;
 	uint32 fogEnable;
 	float32 fogStart;
 	float32 fogEnd;
@@ -233,6 +241,14 @@ enum
 	RWGL_DEPTHMASK,
 	RWGL_CULL,
 	RWGL_CULLFACE,
+	RWGL_STENCIL,
+	RWGL_STENCILFUNC,
+	RWGL_STENCILFAIL,
+	RWGL_STENCILZFAIL,
+	RWGL_STENCILPASS,
+	RWGL_STENCILREF,
+	RWGL_STENCILMASK,
+	RWGL_STENCILWRITEMASK,
 
 	// uniforms
 	RWGL_ALPHAFUNC,
@@ -257,6 +273,18 @@ struct GlState {
 
 	bool32 cullEnable;
 	uint32 cullFace;
+
+	bool32 stencilEnable;
+	// glStencilFunc
+	uint32 stencilFunc;
+	uint32 stencilRef;
+	uint32 stencilMask;
+	// glStencilOp
+	uint32 stencilPass;
+	uint32 stencilFail;
+	uint32 stencilZFail;
+	// glStencilMask
+	uint32 stencilWriteMask;
 };
 static GlState curGlState, oldGlState;
 
@@ -280,6 +308,30 @@ static uint32 blendMap[] = {
 	GL_SRC_ALPHA_SATURATE,
 };
 
+static uint32 stencilOpMap[] = {
+	GL_KEEP,	// actually invalid
+	GL_KEEP,
+	GL_ZERO,
+	GL_REPLACE,
+	GL_INCR,
+	GL_DECR,
+	GL_INVERT,
+	GL_INCR_WRAP,
+	GL_DECR_WRAP
+};
+
+static uint32 stencilFuncMap[] = {
+	GL_NEVER,	// actually invalid
+	GL_NEVER,
+	GL_LESS,
+	GL_EQUAL,
+	GL_LEQUAL,
+	GL_GREATER,
+	GL_NOTEQUAL,
+	GL_GEQUAL,
+	GL_ALWAYS
+};
+
 static float maxAnisotropy;
 
 /*
@@ -298,6 +350,14 @@ setGlRenderState(uint32 state, uint32 value)
 	case RWGL_DEPTHMASK: curGlState.depthMask = value; break;
 	case RWGL_CULL: curGlState.cullEnable = value; break;
 	case RWGL_CULLFACE: curGlState.cullFace = value; break;
+	case RWGL_STENCIL: curGlState.stencilEnable = value; break;
+	case RWGL_STENCILFUNC: curGlState.stencilFunc = value; break;
+	case RWGL_STENCILFAIL: curGlState.stencilFail = value; break;
+	case RWGL_STENCILZFAIL: curGlState.stencilZFail = value; break;
+	case RWGL_STENCILPASS: curGlState.stencilPass = value; break;
+	case RWGL_STENCILREF: curGlState.stencilRef = value; break;
+	case RWGL_STENCILMASK: curGlState.stencilMask = value; break;
+	case RWGL_STENCILWRITEMASK: curGlState.stencilWriteMask = value; break;
 	}
 }
 
@@ -327,6 +387,31 @@ flushGlRenderState(void)
 	if(oldGlState.depthMask != curGlState.depthMask){
 		oldGlState.depthMask = curGlState.depthMask;
 		glDepthMask(oldGlState.depthMask);
+	}
+
+	if(oldGlState.stencilEnable != curGlState.stencilEnable){
+		oldGlState.stencilEnable = curGlState.stencilEnable;
+		(oldGlState.stencilEnable ? glEnable : glDisable)(GL_STENCIL_TEST);
+	}
+	if(oldGlState.stencilFunc != curGlState.stencilFunc ||
+	   oldGlState.stencilRef != curGlState.stencilRef ||
+	   oldGlState.stencilMask != curGlState.stencilMask){
+		oldGlState.stencilFunc = curGlState.stencilFunc;
+		oldGlState.stencilRef = curGlState.stencilRef;
+		oldGlState.stencilMask = curGlState.stencilMask;
+		glStencilFunc(oldGlState.stencilFunc, oldGlState.stencilRef, oldGlState.stencilMask);
+	}
+	if(oldGlState.stencilPass != curGlState.stencilPass ||
+	   oldGlState.stencilFail != curGlState.stencilFail ||
+	   oldGlState.stencilZFail != curGlState.stencilZFail){
+		oldGlState.stencilPass = curGlState.stencilPass;
+		oldGlState.stencilFail = curGlState.stencilFail;
+		oldGlState.stencilZFail = curGlState.stencilZFail;
+		glStencilOp(oldGlState.stencilFail, oldGlState.stencilZFail, oldGlState.stencilPass);
+	}
+	if(oldGlState.stencilWriteMask != curGlState.stencilWriteMask){
+		oldGlState.stencilWriteMask = curGlState.stencilWriteMask;
+		glStencilMask(oldGlState.stencilWriteMask);
 	}
 
 	if(oldGlState.cullEnable != curGlState.cullEnable){
@@ -698,6 +783,55 @@ setRenderState(int32 state, void *pvalue)
 		}
 		break;
 
+	case STENCILENABLE:
+		if(rwStateCache.stencilenable != value){
+			rwStateCache.stencilenable = value;
+			setGlRenderState(RWGL_STENCIL, value);
+		}
+		break;
+	case STENCILFAIL:
+		if(rwStateCache.stencilfail != value){
+			rwStateCache.stencilfail = value;
+			setGlRenderState(RWGL_STENCILFAIL, stencilOpMap[value]);
+		}
+		break;
+	case STENCILZFAIL:
+		if(rwStateCache.stencilzfail != value){
+			rwStateCache.stencilzfail = value;
+			setGlRenderState(RWGL_STENCILZFAIL, stencilOpMap[value]);
+		}
+		break;
+	case STENCILPASS:
+		if(rwStateCache.stencilpass != value){
+			rwStateCache.stencilpass = value;
+			setGlRenderState(RWGL_STENCILPASS, stencilOpMap[value]);
+		}
+		break;
+	case STENCILFUNCTION:
+		if(rwStateCache.stencilfunc != value){
+			rwStateCache.stencilfunc = value;
+			setGlRenderState(RWGL_STENCILFUNC, stencilFuncMap[value]);
+		}
+		break;
+	case STENCILFUNCTIONREF:
+		if(rwStateCache.stencilref != value){
+			rwStateCache.stencilref = value;
+			setGlRenderState(RWGL_STENCILREF, value);
+		}
+		break;
+	case STENCILFUNCTIONMASK:
+		if(rwStateCache.stencilmask != value){
+			rwStateCache.stencilmask = value;
+			setGlRenderState(RWGL_STENCILMASK, value);
+		}
+		break;
+	case STENCILFUNCTIONWRITEMASK:
+		if(rwStateCache.stencilwritemask != value){
+			rwStateCache.stencilwritemask = value;
+			setGlRenderState(RWGL_STENCILWRITEMASK, value);
+		}
+		break;
+
 	case ALPHATESTFUNC:
 		setAlphaTestFunction(value);
 		break;
@@ -766,6 +900,31 @@ getRenderState(int32 state)
 		val = rwStateCache.cullmode;
 		break;
 
+	case STENCILENABLE:
+		val = rwStateCache.stencilenable;
+		break;
+	case STENCILFAIL:
+		val = rwStateCache.stencilfail;
+		break;
+	case STENCILZFAIL:
+		val = rwStateCache.stencilzfail;
+		break;
+	case STENCILPASS:
+		val = rwStateCache.stencilpass;
+		break;
+	case STENCILFUNCTION:
+		val = rwStateCache.stencilfunc;
+		break;
+	case STENCILFUNCTIONREF:
+		val = rwStateCache.stencilref;
+		break;
+	case STENCILFUNCTIONMASK:
+		val = rwStateCache.stencilmask;
+		break;
+	case STENCILFUNCTIONWRITEMASK:
+		val = rwStateCache.stencilwritemask;
+		break;
+
 	case ALPHATESTFUNC:
 		val = rwStateCache.alphaFunc;
 		break;
@@ -803,7 +962,7 @@ resetRenderState(void)
 	rwStateCache.textureAlpha = 0;
 	rwStateCache.alphaTestEnable = 0;
 
-	memset(&oldGlState, 0xFF, sizeof(oldGlState));
+	memset(&oldGlState, 0xFE, sizeof(oldGlState));
 
 	rwStateCache.blendEnable = 0;
 	setGlRenderState(RWGL_BLEND, false);
@@ -822,6 +981,23 @@ resetRenderState(void)
 	rwStateCache.cullmode = CULLNONE;
 	setGlRenderState(RWGL_CULL, false);
 	setGlRenderState(RWGL_CULLFACE, GL_BACK);
+
+	rwStateCache.stencilenable = 0;
+	setGlRenderState(RWGL_STENCIL, GL_FALSE);
+	rwStateCache.stencilfail = STENCILKEEP;
+	setGlRenderState(RWGL_STENCILFAIL, GL_KEEP);
+	rwStateCache.stencilzfail = STENCILKEEP;
+	setGlRenderState(RWGL_STENCILZFAIL, GL_KEEP);
+	rwStateCache.stencilpass = STENCILKEEP;
+	setGlRenderState(RWGL_STENCILPASS, GL_KEEP);
+	rwStateCache.stencilfunc = STENCILALWAYS;
+	setGlRenderState(RWGL_STENCILFUNC, GL_ALWAYS);
+	rwStateCache.stencilref = 0;
+	setGlRenderState(RWGL_STENCILREF, 0);
+	rwStateCache.stencilmask = 0xFFFFFFFF;
+	setGlRenderState(RWGL_STENCILMASK, 0xFFFFFFFF);
+	rwStateCache.stencilwritemask = 0xFFFFFFFF;
+	setGlRenderState(RWGL_STENCILWRITEMASK, 0xFFFFFFFF);
 
 	activeTexture = -1;
 	for(int i = 0; i < MAXNUMSTAGES; i++){

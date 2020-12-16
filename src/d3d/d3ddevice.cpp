@@ -77,6 +77,14 @@ struct RwStateCache {
 	uint32 fogenable;
 	RGBA fogcolor;
 	uint32 cullmode;
+	uint32 stencilenable;
+	uint32 stencilpass;
+	uint32 stencilfail;
+	uint32 stencilzfail;
+	uint32 stencilfunc;
+	uint32 stencilref;
+	uint32 stencilmask;
+	uint32 stencilwritemask;
 	uint32 alphafunc;
 	uint32 alpharef;
 
@@ -155,6 +163,30 @@ static uint32 blendMap[] = {
 	D3DBLEND_DESTCOLOR,
 	D3DBLEND_INVDESTCOLOR,
 	D3DBLEND_SRCALPHASAT
+};
+
+static uint32 stencilOpMap[] = {
+	D3DSTENCILOP_KEEP,	// actually invalid
+	D3DSTENCILOP_KEEP,
+	D3DSTENCILOP_ZERO,
+	D3DSTENCILOP_REPLACE,
+	D3DSTENCILOP_INCRSAT,
+	D3DSTENCILOP_DECRSAT,
+	D3DSTENCILOP_INVERT,
+	D3DSTENCILOP_INCR,
+	D3DSTENCILOP_DECR
+};
+
+static uint32 stencilFuncMap[] = {
+	D3DCMP_NEVER,	// actually invalid
+	D3DCMP_NEVER,
+	D3DCMP_LESS,
+	D3DCMP_EQUAL,
+	D3DCMP_LESSEQUAL,
+	D3DCMP_GREATER,
+	D3DCMP_NOTEQUAL,
+	D3DCMP_GREATEREQUAL,
+	D3DCMP_ALWAYS
 };
 
 static uint32 alphafuncMap[] = {
@@ -625,6 +657,56 @@ setRwRenderState(int32 state, void *pvalue)
 			setRenderState(D3DRS_CULLMODE, cullmodeMap[value]);
 		}
 		break;
+
+	case STENCILENABLE:
+		if(rwStateCache.stencilenable != bval){
+			rwStateCache.stencilenable = bval;
+			setRenderState(D3DRS_STENCILENABLE, bval);
+		}
+		break;
+	case STENCILFAIL:
+		if(rwStateCache.stencilfail != value){
+			rwStateCache.stencilfail = value;
+			setRenderState(D3DRS_STENCILFAIL, stencilOpMap[value]);
+		}
+		break;
+	case STENCILZFAIL:
+		if(rwStateCache.stencilzfail != value){
+			rwStateCache.stencilzfail = value;
+			setRenderState(D3DRS_STENCILZFAIL, stencilOpMap[value]);
+		}
+		break;
+	case STENCILPASS:
+		if(rwStateCache.stencilpass != value){
+			rwStateCache.stencilpass = value;
+			setRenderState(D3DRS_STENCILPASS, stencilOpMap[value]);
+		}
+		break;
+	case STENCILFUNCTION:
+		if(rwStateCache.stencilfunc != value){
+			rwStateCache.stencilfunc = value;
+			setRenderState(D3DRS_STENCILFUNC, stencilFuncMap[value]);
+		}
+		break;
+	case STENCILFUNCTIONREF:
+		if(rwStateCache.stencilref != value){
+			rwStateCache.stencilref = value;
+			setRenderState(D3DRS_STENCILREF, value);
+		}
+		break;
+	case STENCILFUNCTIONMASK:
+		if(rwStateCache.stencilmask != value){
+			rwStateCache.stencilmask = value;
+			setRenderState(D3DRS_STENCILMASK, value);
+		}
+		break;
+	case STENCILFUNCTIONWRITEMASK:
+		if(rwStateCache.stencilwritemask != value){
+			rwStateCache.stencilwritemask = value;
+			setRenderState(D3DRS_STENCILWRITEMASK, value);
+		}
+		break;
+
 	case ALPHATESTFUNC:
 		if(rwStateCache.alphafunc != value){
 			rwStateCache.alphafunc = value;
@@ -694,6 +776,32 @@ getRwRenderState(int32 state)
 	case CULLMODE:
 		val = rwStateCache.cullmode;
 		break;
+
+	case STENCILENABLE:
+		val = rwStateCache.stencilenable;
+		break;
+	case STENCILFAIL:
+		val = rwStateCache.stencilfail;
+		break;
+	case STENCILZFAIL:
+		val = rwStateCache.stencilzfail;
+		break;
+	case STENCILPASS:
+		val = rwStateCache.stencilpass;
+		break;
+	case STENCILFUNCTION:
+		val = rwStateCache.stencilfunc;
+		break;
+	case STENCILFUNCTIONREF:
+		val = rwStateCache.stencilref;
+		break;
+	case STENCILFUNCTIONMASK:
+		val = rwStateCache.stencilmask;
+		break;
+	case STENCILFUNCTIONWRITEMASK:
+		val = rwStateCache.stencilwritemask;
+		break;
+
 	case ALPHATESTFUNC:
 		val = rwStateCache.alphafunc;
 		break;
@@ -1549,6 +1657,23 @@ initD3D(void)
 	d3ddevice->SetRenderState(D3DRS_ALPHABLENDENABLE, 0);
 	rwStateCache.vertexAlpha = 0;
 	rwStateCache.textureAlpha = 0;
+
+	rwStateCache.stencilenable = 0;
+	d3ddevice->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+	rwStateCache.stencilfail = STENCILKEEP;
+	d3ddevice->SetRenderState(D3DRS_STENCILFAIL, D3DSTENCILOP_KEEP);
+	rwStateCache.stencilzfail = STENCILKEEP;
+	d3ddevice->SetRenderState(D3DRS_STENCILZFAIL, D3DSTENCILOP_KEEP);
+	rwStateCache.stencilpass = STENCILKEEP;
+	d3ddevice->SetRenderState(D3DRS_STENCILPASS, D3DSTENCILOP_KEEP);
+	rwStateCache.stencilfunc = STENCILALWAYS;
+	d3ddevice->SetRenderState(D3DRS_STENCILFUNC, D3DCMP_ALWAYS);
+	rwStateCache.stencilref = 0;
+	d3ddevice->SetRenderState(D3DRS_STENCILREF, 0);
+	rwStateCache.stencilmask = 0xFFFFFFFF;
+	d3ddevice->SetRenderState(D3DRS_STENCILMASK, 0xFFFFFFFF);
+	rwStateCache.stencilwritemask = 0xFFFFFFFF;
+	d3ddevice->SetRenderState(D3DRS_STENCILWRITEMASK, 0xFFFFFFFF);
 
 	setTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 //	setTextureStageState(0, D3DTSS_CONSTANT, 0xFFFFFFFF);
