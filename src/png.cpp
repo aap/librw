@@ -12,11 +12,6 @@
 
 #include "lodepng/lodepng.h"
 
-#ifdef _WIN32
-/* srsly? */
-#define strdup _strdup
-#endif
-
 #define PLUGIN_ID 0
 
 namespace rw {

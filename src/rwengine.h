@@ -206,6 +206,8 @@ inline void *realloc_LOC(void *p, size_t sz, uint32 hint, const char *here) { al
 inline void *mustmalloc_LOC(size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwmustmalloc(sz,hint); }
 inline void *mustrealloc_LOC(void *p, size_t sz, uint32 hint, const char *here) { allocLocation = here; return rw::Engine::memfuncs.rwmustrealloc(p,sz,hint); }
 
+char *strdup_LOC(const char *s, uint32 hint, const char *here);
+
 #define rwMalloc(s, h) rw::malloc_LOC(s,h,RWHERE)
 #define rwMallocT(t, s, h) (t*)rw::malloc_LOC((s)*sizeof(t),h,RWHERE)
 #define rwRealloc(p, s, h) rw::realloc_LOC(p,s,h,RWHERE)
@@ -215,6 +217,7 @@ inline void *mustrealloc_LOC(void *p, size_t sz, uint32 hint, const char *here) 
 #define rwNewT(t, s, h) (t*)rw::mustmalloc_LOC((s)*sizeof(t),h,RWHERE)
 #define rwResize(p, s, h) rw::mustrealloc_LOC(p,s,h,RWHERE)
 #define rwResizeT(t, p, s, h) (t*)rw::mustrealloc_LOC(p,(s)*sizeof(t),h,RWHERE)
+#define rwStrdup(s, h) rw::strdup_LOC(s,h,RWHERE)
 
 extern MemoryFunctions defaultMemfuncs;
 extern MemoryFunctions managedMemfuncs;

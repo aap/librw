@@ -33,7 +33,7 @@ registerUniform(const char *name)
 		assert(0 && "no space for uniform");
 		return -1;
 	}
-	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = strdup(name);
+	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = rwStrdup(name, MEMDUR_EVENT);
 	return uniformRegistry.numUniforms++;
 }
 
@@ -56,7 +56,7 @@ registerBlock(const char *name)
 	// TODO: print error
 	if(uniformRegistry.numBlocks+1 >= MAX_BLOCKS)
 		return -1;
-	uniformRegistry.blockNames[uniformRegistry.numBlocks] = strdup(name);
+	uniformRegistry.blockNames[uniformRegistry.numBlocks] = rwStrdup(name, MEMDUR_EVENT);
 	return uniformRegistry.numBlocks++;
 }
 
