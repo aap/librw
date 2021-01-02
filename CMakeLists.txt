@@ -3,10 +3,6 @@ project(librw C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
-if(PS2DEV AND EE)
-    include("${CMAKE_CURRENT_LIST_DIR}/cmake/ee.cmake")
-endif()
-
 if(WIN32)
     set(LIBRW_PLATFORMS "NULL" "GL3" "D3D9")
 else()
