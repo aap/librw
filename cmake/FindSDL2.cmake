@@ -1,16 +1,19 @@
 find_package(PkgConfig QUIET)
 if(PKG_CONFIG_FOUND)
     pkg_check_modules(SDL2 IMPORTED_TARGET "sdl2")
-    if(TARGET PkgConfig::SDL2 AND NOT TARGET sdl2::sdl2)
-        add_library(_sdl2 INTERFACE)
-        target_link_libraries(_sdl2 INTERFACE PkgConfig::SDL2)
-        add_library(SDL2::SDL2 ALIAS _sdl2)
+    if(TARGET PkgConfig::SDL2 AND NOT TARGET SDL2::SDL2)
+        add_library(SDL2::SDL2 INTERFACE IMPORTED)
+        set_property(TARGET SDL2::SDL2 PROPERTY INTERFACE_LINK_LIBRARIES PkgConfig::SDL2)
     endif()
 endif()
 
+find_library(SDL2main_LIBRARY SDL2main)
+
 if(NOT SDL2_FOUND)
     find_path(SDL2_INCLUDE_DIR sdl2.h)
-    find_library(SDL2_LIBRARY sdl2)
+    find_library(SDL2_LIBRARY SDL2 SDL2d)
+
+    find_library(SDL2main_LIBRARY SDL2main)
 
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(libuv
@@ -24,4 +27,12 @@ if(NOT SDL2_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
         )
     endif()
+endif()
+
+if(SDL2main_LIBRARY AND NOT TARGET SDL2::SDL2main)
+    add_library(SDL2::SDL2main UNKNOWN IMPORTED)
+    set_target_properties(SDL2::SDL2main PROPERTIES
+        IMPORTED_LOCATION "${SDL2main_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
+    )
 endif()

@@ -107,6 +107,12 @@ target_compile_definitions(librw
         "RW_${LIBRW_PLATFORM}"
 )
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_link_libraries(librw
+        PRIVATE
+            m
+    )
+endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     target_compile_options(librw
         PRIVATE
@@ -161,6 +167,12 @@ if(LIBRW_PLATFORM_GL3)
             PUBLIC
                 SDL2::SDL2
         )
+        if(TARGET SDL2::SDL2main)
+            target_link_libraries(librw
+                PUBLIC
+                    SDL2::SDL2main
+            )
+        endif()
     endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
