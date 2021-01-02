@@ -12,17 +12,17 @@ add_library(librw_skeleton_imgui
     stb_rect_pack.h
     stb_textedit.h
     stb_truetype.h
-    )
+)
 
 set_target_properties(librw_skeleton_imgui
     PROPERTIES
         PREFIX ""
-    )
+)
 
 target_link_libraries(librw_skeleton_imgui
     PUBLIC
         librw_skeleton
-    )
+)
 
 if(LIBRW_INSTALL)
     install(
@@ -34,7 +34,7 @@ if(LIBRW_INSTALL)
             ImGuizmo.h
             stb_textedit.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/skeleton/imgui"
-        )
+    )
 
     install(
         TARGETS librw_skeleton_imgui
@@ -42,5 +42,5 @@ if(LIBRW_INSTALL)
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        )
+    )
 endif()

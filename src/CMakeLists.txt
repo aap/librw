@@ -91,39 +91,46 @@ add_library(librw
     ps2/rwps2.h
     ps2/rwps2impl.h
     ps2/rwps2plg.h
-    )
+)
 add_library(librw::librw ALIAS librw)
 
 target_include_directories(librw
     INTERFACE
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
-    )
+)
 
 target_compile_definitions(librw
     PRIVATE
+        LODEPNG_NO_COMPILE_CPP
         "$<IF:$<CONFIG:DEBUG>,DEBUG,NDEBUG>"
     PUBLIC
         "RW_${LIBRW_PLATFORM}"
-    )
+)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_link_libraries(librw
+        PRIVATE
+            m
+    )
+endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     target_compile_options(librw
         PRIVATE
             "-Wall"
-        )
+    )
     if (NOT LIBRW_PLATFORM_PS2)
         target_compile_options(librw
             PRIVATE
                 "-Wextra"
                 "-Wdouble-promotion"
                 "-Wpedantic"
-            )
+        )
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(librw
         PUBLIC
             /wd4996 /wd4244
-        )
+    )
 endif()
 
 set_target_properties(librw
@@ -135,10 +142,7 @@ set_target_properties(librw
         CXX_EXTENSIONS OFF
         CXX_STANDARD_REQUIRED ON
         PREFIX ""
-    )
-
-if(LIBRW_PLATFORM_GL3)
-
+)
 
 if(LIBRW_PLATFORM_GL3)
     set(OpenGL_GL_PREFERENCE GLVND)
@@ -149,7 +153,7 @@ if(LIBRW_PLATFORM_GL3)
         PUBLIC
             OpenGL::GL
             GLEW::GLEW
-        )
+    )
     if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
         find_package(glfw3 REQUIRED)
         target_link_libraries(librw
@@ -162,29 +166,34 @@ if(LIBRW_PLATFORM_GL3)
         target_link_libraries(librw
             PUBLIC
                 SDL2::SDL2
+        )
+        if(TARGET SDL2::SDL2main)
+            target_link_libraries(librw
+                PUBLIC
+                    SDL2::SDL2main
             )
+        endif()
     endif()
-endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
         PUBLIC
             d3d9
             xinput
-        )
+    )
 endif()
 
 if(LIBRW_INSTALL)
     target_include_directories(librw
         INTERFACE
             $<INSTALL_INTERFACE:${LIBRW_INSTALL_INCLUDEDIR}>
-        )
+    )
 
     install(
         FILES
             "${PROJECT_SOURCE_DIR}/args.h"
             "${PROJECT_SOURCE_DIR}/rw.h"
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}"
-        )
+    )
     install(
         FILES
             base.err
@@ -200,7 +209,7 @@ if(LIBRW_INSTALL)
             rwplugins.h
             rwuserdata.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src"
-        )
+    )
     install(
         FILES
             d3d/rwxbox.h
@@ -208,20 +217,20 @@ if(LIBRW_INSTALL)
             d3d/rwd3d8.h
             d3d/rwd3d9.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/d3d"
-        )
+    )
     install(
         FILES
             ps2/rwps2.h
             ps2/rwps2plg.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/ps2"
-        )
+    )
     install(
         FILES
             gl/rwwdgl.h
             gl/rwgl3.h
             gl/rwgl3plg.h
             gl/rwgl3shader.h
-        DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
+    DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
         )
 
     install(
@@ -230,5 +239,5 @@ if(LIBRW_INSTALL)
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        )
+    )
 endif()
