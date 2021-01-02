@@ -1036,7 +1036,7 @@ bool32
 Image::registerFileFormat(const char *ext, fileRead read, fileWrite write)
 {
 	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
-	if(g->numFileFormats >= nelem(g->fileFormats))
+	if(g->numFileFormats >= (int)nelem(g->fileFormats))
 		return 0;
 	g->fileFormats[g->numFileFormats].extension = rwstrdup(ext);
 	g->fileFormats[g->numFileFormats].read = read;

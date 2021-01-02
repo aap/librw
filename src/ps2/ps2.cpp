@@ -588,13 +588,14 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 	im.numBrokenAttribs = 0;
 	im.vertexSize = 0;
 	for(uint i = 0; i < nelem(pipe->attribs); i++)
-		if(a = pipe->attribs[i])
+		if((a = pipe->attribs[i])) {
 			if(a->attrib & AT_RW)
 				im.numBrokenAttribs++;
 			else{
 				im.vertexSize += attribSize(a->attrib);
 				im.numAttribs++;
 			}
+		}
 	if(g->meshHeader->flags == MeshHeader::TRISTRIP){
 		im.numBatches = (m->numIndices-2) / (pipe->triStripCount-2);
 		im.batchVertCount = pipe->triStripCount;
@@ -758,13 +759,14 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	uint8 *raw = rwNewT(uint8, im.vertexSize*m->numIndices, MEMDUR_EVENT | ID_GEOMETRY);
 	uint8 *dp = raw;
 	for(uint i = 0; i < nelem(this->attribs); i++)
-		if(a = this->attribs[i])
+		if((a = this->attribs[i])) {
 			if(a->attrib & AT_RW){
 				data[i] = inst->data + im.attribPos[i]*0x10;
 			}else{
 				data[i] = dp;
 				dp += m->numIndices*attribSize(a->attrib);
 			}
+		}
 
 	uint8 *datap[nelem(this->attribs)];
 	memcpy(datap, data, sizeof(datap));
@@ -965,8 +967,8 @@ void
 genericPreCB(MatPipeline *pipe, Geometry *geo)
 {
 	PipeAttribute *a;
-	for(int32 i = 0; i < nelem(pipe->attribs); i++)
-		if(a = pipe->attribs[i])
+	for(int32 i = 0; i < (int)nelem(pipe->attribs); i++)
+		if((a = pipe->attribs[i]))
 			if(a == &attribXYZW){
 				allocateADC(geo);
 				break;
@@ -988,8 +990,8 @@ genericUninstanceCB(MatPipeline *pipe, Geometry *geo, uint32 flags[], Mesh *mesh
 		skin = Skin::get(geo);
 
 	PipeAttribute *a;
-	for(int32 i = 0; i < nelem(pipe->attribs); i++)
-		if(a = pipe->attribs[i]){
+	for(int32 i = 0; i < (int)nelem(pipe->attribs); i++)
+		if((a = pipe->attribs[i])){
 			if(a == &attribXYZ) xyz = (float32*)data[i];
 			else if(a == &attribXYZW) xyzw = (float32*)data[i];
 			else if(a == &attribUV) uv = (float32*)data[i];

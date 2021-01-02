@@ -24,7 +24,7 @@
 
 namespace rw {
 
-SkinGlobals skinGlobals = { 0, 0, { nil } };
+SkinGlobals skinGlobals = { 0, 0, { nil }, nil };
 
 static void*
 createSkin(void *object, int32 offset, int32)

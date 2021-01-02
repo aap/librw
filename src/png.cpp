@@ -25,7 +25,7 @@ namespace rw {
 Image*
 readPNG(const char *filename)
 {
-	Image *image;
+	Image *image = nil;
 	uint32 length;
 	uint8 *data = getFileContents(filename, &length);
 	assert(data != nil);

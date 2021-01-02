@@ -247,7 +247,7 @@ writeBMP(Image *image, const char *filename)
 		for(int x = 0; x < image->width; x++){
 			switch(image->depth){
 			case 4:
-				file.writeU8((p[0]&0xF)<<4 | p[1]&0xF);
+				file.writeU8((p[0]&0xF)<<4 | (p[1]&0xF));
 				p += 2;
 				x++;
 				break;

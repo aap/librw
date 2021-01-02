@@ -37,7 +37,7 @@ rasterOpen(void *object, int32 offset, int32 size)
 	int i;
 	rasterModuleOffset = offset;
 	RASTERGLOBAL(sp) = -1;
-	for(i = 0; i < nelem(RASTERGLOBAL(stack)); i++)
+	for(i = 0; i < (int)nelem(RASTERGLOBAL(stack)); i++)
 		RASTERGLOBAL(stack)[i] = nil;
 	return object;
 }
@@ -295,7 +295,7 @@ conv_RGBA5551_from_ARGB1555(uint8 *out, uint8 *in)
 	uint32 r, g, b, a;
 	a = (in[1]>>7) & 1;
 	r = (in[1]>>2) & 0x1F;
-	g = (in[1]&3)<<3 | (in[0]>>5)&7;
+	g = (in[1]&3)<<3 | ((in[0]>>5)&7);
 	b = in[0] & 0x1F;
 	out[0] = a | b<<1 | g<<6;
 	out[1] = g>>2 | r<<3;
@@ -307,7 +307,7 @@ conv_RGBA8888_from_ARGB1555(uint8 *out, uint8 *in)
 	uint32 r, g, b, a;
 	a = (in[1]>>7) & 1;
 	r = (in[1]>>2) & 0x1F;
-	g = (in[1]&3)<<3 | (in[0]>>5)&7;
+	g = (in[1]&3)<<3 | ((in[0]>>5)&7);
 	b = in[0] & 0x1F;
 	out[0] = r*0xFF/0x1f;
 	out[1] = g*0xFF/0x1f;
@@ -321,8 +321,8 @@ conv_ABGR1555_from_ARGB1555(uint8 *out, uint8 *in)
 	uint32 r, b;
 	r = (in[1]>>2) & 0x1F;
 	b = in[0] & 0x1F;
-	out[1] = in[1]&0x83 | b<<2;
-	out[0] = in[0]&0xE0 | r;
+	out[1] = (in[1]&0x83) | b<<2;
+	out[0] = (in[0]&0xE0) | r;
 }
 
 void
@@ -496,8 +496,8 @@ Raster::convertTexToCurrentPlatform(rw::Raster *ras)
 	if(ras->platform == rw::platform)
 		return ras;
 	// compatible platforms
-	if(ras->platform == PLATFORM_D3D8 && rw::platform == PLATFORM_D3D9 ||
-	   ras->platform == PLATFORM_D3D9 && rw::platform == PLATFORM_D3D8)
+	if((ras->platform == PLATFORM_D3D8 && rw::platform == PLATFORM_D3D9) ||
+	   (ras->platform == PLATFORM_D3D9 && rw::platform == PLATFORM_D3D8))
 		return ras;
 
 	// special cased conversion for DXT
