@@ -139,9 +139,6 @@ set_target_properties(librw
 )
 
 if(LIBRW_PLATFORM_GL3)
-
-
-if(LIBRW_PLATFORM_GL3)
     set(OpenGL_GL_PREFERENCE GLVND)
     find_package(OpenGL REQUIRED)
     find_package(GLEW REQUIRED)
@@ -165,7 +162,6 @@ if(LIBRW_PLATFORM_GL3)
                 SDL2::SDL2
         )
     endif()
-endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
         PUBLIC
