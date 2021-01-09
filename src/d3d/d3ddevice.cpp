@@ -1599,6 +1599,7 @@ initD3D(void)
 {
 	int32 s, t;
 
+	memset(&deviceCache, 0, sizeof(deviceCache));
 	d3ddevice->GetRenderTarget(0, &d3d9Globals.defaultRenderTarget);
 	d3d9Globals.defaultRenderTarget->Release();	// refcount increased by Get
 	deviceCache.renderTargets[0] = d3d9Globals.defaultRenderTarget;
