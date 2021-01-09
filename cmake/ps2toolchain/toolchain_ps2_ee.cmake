@@ -1,7 +1,9 @@
+cmake_minimum_required(VERSION 3.7)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 
-set(CMAKE_SYSTEM_NAME "Generic")
-set(CMAKE_SYSTEM_PROCESSOR "ee")
+set(CMAKE_SYSTEM_NAME "PlayStation2")
+set(CMAKE_SYSTEM_PROCESSOR "mipsel")
 set(CMAKE_SYSTEM_VERSION 1)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -19,12 +21,7 @@ endif()
 set(PS2DEV "$ENV{PS2DEV}")
 set(PS2SDK "$ENV{PS2SDK}")
 
-#set(CMAKE_ASM_SOURCE_FILE_EXTENSIONS "asm;dsm")
-
 set(CMAKE_DSM_SOURCE_FILE_EXTENSIONS "dsm")
-
-set(CMAKE_SHARED_LIBRARY_SUFFIX ".erl")
-set(CMAKE_EXECUTABLE_SUFFIX ".elf")
 
 set(CMAKE_C_COMPILER "${PS2DEV}/ee/bin/ee-gcc")
 set(CMAKE_CXX_COMPILER "${PS2DEV}/ee/bin/ee-g++")
@@ -35,25 +32,10 @@ set(CMAKE_LINKER "${PS2DEV}/ee/bin/ee-ld")
 set(CMAKE_RANLIB "${PS2DEV}/ee/bin/ee-ranlib" CACHE FILEPATH "ranlib")
 set(CMAKE_STRIP "${PS2DEV}/ee/bin/ee-strip" CACHE FILEPATH "strip")
 
-set(EE_LDFLAGS "" CACHE STRING "EE linker flags")
-set(EE_ASFLAGS "-G0" CACHE STRING "EE assembler flags")
-
-set(EE_CRT0 "${PS2SDK}/ee/startup/crt0.o" CACHE FILEPATH "EE crt0 file")
-set_source_files_properties("${EE_CRT0}" PROPERTIES EXTERNAL_OBJECT ON)
-
-set(EE_LINKSCRIPT "${PS2SDK}/ee/startup/linkfile" CACHE FILEPATH "EE link script")
-
-#set(EE_CFLAGS " -nostdlib -fno-common -D_EE" CACHE STRING "EE C/CXX compiler flags")
-set(EE_CFLAGS "-D_EE")
-set(CMAKE_C_FLAGS_INIT "${EE_CFLAGS}")
-set(CMAKE_CXX_FLAGS_INIT "${EE_CFLAGS}")
-#set(CMAKE_ASM_FLAGS_INIT "${EE_CFLAGS}")
-
-set(CMAKE_C_CREATE_STATIC_LIBRARY "<CMAKE_AR> cru <TARGET> <LINK_FLAGS> <OBJECTS>")
-set(CMAKE_CXX_CREATE_STATIC_LIBRARY "${CMAKE_C_CREATE_STATIC_LIBRARY}")
-set(CMAKE_ASM_CREATE_STATIC_LIBRARY "${CMAKE_C_CREATE_STATIC_LIBRARY}")
-
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-mno-crt0 -T\"${PS2SDK}/ee/startup/linkfile\" \"${EE_CRT0}\" -L\"${PS2SDK}/ee/lib\"")
+set(CMAKE_ASM_FLAGS_INIT "-G0 -I\"${PS2SDK}/ee/include\" -I\"${PS2SDK}/common/include\"")
+set(CMAKE_C_FLAGS_INIT "-G0 -fno-common -I\"${PS2SDK}/ee/include\" -I\"${PS2SDK}/common/include\"")
+set(CMAKE_CXX_FLAGS_INIT "-G0 -fno-common -I\"${PS2SDK}/ee/include\" -I\"${PS2SDK}/common/include\"")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-G0 -L\"${PS2SDK}/ee/lib\" -Wl,-r -Wl,-d")
 
 set(CMAKE_FIND_ROOT_PATH "${PS2DEV}/ee;${PS2SDK}/ee")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
@@ -62,3 +44,17 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
 set(PS2 1)
 set(EE 1)
+
+function(add_erl_executable OUTFILE TARGET)
+    get_property(output_dir TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY)
+    set(outfile "${output_dir}/${TARGET}.erl")
+    add_custom_command(OUTPUT "${outfile}"
+        COMMAND "${CMAKE_COMMAND}" -E copy  "$<TARGET_FILE:${TARGET}>" "${outfile}"
+        COMMAND "${CMAKE_STRIP}" --strip-unneeded -R .mdebug.eabi64 -R .reginfo -R .comment "${outfile}"
+        DEPENDS ${TARGET}
+    )
+    add_custom_target("${TARGET}_erl" ALL
+        DEPENDS "${outfile}"
+    )
+    set("${OUTFILE}" "${outfile}" PARENT_SCOPE)
+endfunction()
