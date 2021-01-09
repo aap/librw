@@ -111,6 +111,7 @@ struct GLShaderState
 {
 	RGBA matColor;
 	SurfaceProperties surfProps;
+	float extraSurfProp;
 };
 
 const char *shaderDecl120 =
@@ -1103,7 +1104,7 @@ Shader *lastShaderUploaded;
 #define U(i) currentShader->uniformLocations[i]
 
 void
-setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
+setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp)
 {
 	bool force = lastShaderUploaded != currentShader;
 	if(force || !equal(shaderState.matColor, color)){
@@ -1116,12 +1117,13 @@ setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops)
 	if(force ||
 	   shaderState.surfProps.ambient != surfaceprops.ambient ||
 	   shaderState.surfProps.specular != surfaceprops.specular ||
-	   shaderState.surfProps.diffuse != surfaceprops.diffuse){
+	   shaderState.surfProps.diffuse != surfaceprops.diffuse ||
+	   shaderState.extraSurfProp != extraSurfProp){
 		float surfProps[4];
 		surfProps[0] = surfaceprops.ambient;
 		surfProps[1] = surfaceprops.specular;
 		surfProps[2] = surfaceprops.diffuse;
-		surfProps[3] = 0.0f;
+		surfProps[3] = extraSurfProp;
 		glUniform4fv(U(u_surfProps), 1, surfProps);
 		shaderState.surfProps = surfaceprops;
 	}

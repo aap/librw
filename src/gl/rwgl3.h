@@ -180,7 +180,7 @@ int32 setLights(WorldLights *lightData);
 
 // per Mesh
 void setTexture(int32 n, Texture *tex);
-void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops);
+void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f);
 
 void setAlphaBlend(bool32 enable);
 bool32 getAlphaBlend(void);
