@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <new>
 
@@ -154,6 +155,15 @@ void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 	fprintf(stderr, "Error: out of memory\n");
 	exit(1);
 	return nil;
+}
+
+char *strdup_LOC(const char *s, uint32 hint, const char *here) {
+	char *t;
+	size_t sz = strlen(s)+1;
+	t = (char*)malloc_LOC(sz, hint, here);
+	if(t)
+		memcpy(t, s, sz);
+	return t;
 }
 
 MemoryFunctions defaultMemfuncs = {
