@@ -305,7 +305,7 @@ struct RawMatrix
 	V3d at;
 	float32 atw;
 	V3d pos;
-	float32 posw;;
+	float32 posw;
 
 	static void mult(RawMatrix *dst, RawMatrix *src1, RawMatrix *src2);
 	static void transpose(RawMatrix *dst, RawMatrix *src);

@@ -278,7 +278,7 @@ struct RasterFormatInfo
 
 // indexed directly by RW format
 static RasterFormatInfo formatInfoRW[16] = {
-	{ 0, 0, 0},
+	{ 0, 0, 0, 0},
 	{ D3DFMT_A1R5G5B5, 16, 1, Raster::C1555 },
 	{ D3DFMT_R5G6B5,   16, 0, Raster::C565 },
 	{ D3DFMT_A4R4G4B4, 16, 1, Raster::C4444 },
@@ -345,7 +345,7 @@ findFormatInfoD3D(uint32 d3dformat)
 {
 	static RasterFormatInfo fake = { 0, 0, 0, 0 };
 	int i;
-	for(i = 0; i < nelem(formatInfoFull); i++)
+	for(i = 0; i < (int)nelem(formatInfoFull); i++)
 		if(formatInfoFull[i].d3dformat == d3dformat)
 			return &formatInfoFull[i];
 	return &fake;

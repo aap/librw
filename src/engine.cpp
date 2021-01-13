@@ -130,7 +130,7 @@ printleaks(void)
 {
 	FORLIST(lnk, allocations){
 		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);
-		printf("sz %d hint %X\n   %s\n", mem->sz, mem->hint, mem->codeline);
+		printf("sz %zu hint %X\n   %s\n", mem->sz, mem->hint, mem->codeline);
 	}
 }
 
@@ -527,6 +527,7 @@ deviceSystem(DeviceReq req, void *arg0, int32 n)
 		return 0;
 	case DEVICEGETSUBSSYSTEMINFO:
 		return 0;
+	default: break;
 	}
 	return 1;
 }
