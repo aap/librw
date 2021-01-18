@@ -894,17 +894,6 @@ Image::extractMask(void)
 	return img;
 }
 
-static char*
-rwstrdup(const char *s)
-{
-	char *t;
-	size_t len = strlen(s)+1;
-	t = (char*)rwMalloc(len, MEMDUR_EVENT);
-	if(t)
-		memcpy(t, s, len);
-	return t;
-}
-
 void
 Image::setSearchPath(const char *path)
 {
@@ -913,7 +902,7 @@ Image::setSearchPath(const char *path)
 	rwFree(g->searchPaths);
 	g->numSearchPaths = 0;
 	if(path)
-		g->searchPaths = p = rwstrdup(path);
+		g->searchPaths = p = rwStrdup(path, MEMDUR_EVENT);
 	else{
 		g->searchPaths = nil;
 		return;
@@ -946,7 +935,7 @@ Image::getFilename(const char *name)
 	char *s, *p = g->searchPaths;
 	size_t len = strlen(name)+1;
 	if(g->numSearchPaths == 0){
-		s = rwstrdup(name);
+		s = rwStrdup(name, MEMDUR_EVENT);
 		makePath(s);
 		f = fopen(s, "rb");
 		if(f){
@@ -1036,9 +1025,9 @@ bool32
 Image::registerFileFormat(const char *ext, fileRead read, fileWrite write)
 {
 	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
-	if(g->numFileFormats >= nelem(g->fileFormats))
+	if(g->numFileFormats >= (int)nelem(g->fileFormats))
 		return 0;
-	g->fileFormats[g->numFileFormats].extension = rwstrdup(ext);
+	g->fileFormats[g->numFileFormats].extension = rwStrdup(ext, MEMDUR_EVENT);
 	g->fileFormats[g->numFileFormats].read = read;
 	g->fileFormats[g->numFileFormats].write = write;
 	g->numFileFormats++;

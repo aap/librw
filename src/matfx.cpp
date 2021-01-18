@@ -69,7 +69,7 @@ getSizeAtomicMatFX(void *object, int32 offset, int32)
 
 // Material
 
-MatFXGlobals matFXGlobals = { 0, 0, { nil } };
+MatFXGlobals matFXGlobals = { 0, 0, { nil }, nil };
 
 // TODO: Frames and Matrices?
 static void

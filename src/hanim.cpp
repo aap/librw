@@ -307,7 +307,7 @@ getSizeHAnim(void *object, int32 offset, int32)
 {
 	HAnimData *hanim = PLUGINOFFSET(HAnimData, object, offset);
 	if(!hAnimDoStream ||
-	   version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == nil)
+	   (version >= 0x35000 && hanim->id == -1 && hanim->hierarchy == nil))
 		return 0;
 	if(hanim->hierarchy)
 		return 12 + 8 + hanim->hierarchy->numNodes*12;

@@ -472,7 +472,7 @@ Geometry::generateTriangles(int8 *adc)
 		int32 matid = this->matList.findIndex(m->material);
 		if(header->flags == MeshHeader::TRISTRIP)
 			for(uint32 j = 0; j < m->numIndices-2; j++){
-				if(adc && adcbits[j+2] ||
+				if((adc && adcbits[j+2]) ||
 				   isDegenerate(&m->indices[j]))
 					continue;
 				tri->v[0] = m->indices[j+0];

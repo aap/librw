@@ -655,9 +655,9 @@ trace("%d %d %d\n", a, b, c);
 			for(k = 0; k < geo->numTriangles; k++){
 				t = &geo->triangles[k];
 				if(seen[k] || t->matId != m) continue;
-				if(t->v[0] == a && t->v[1] == b && t->v[2] == c ||
-				   t->v[1] == a && t->v[2] == b && t->v[0] == c ||
-				   t->v[2] == a && t->v[0] == b && t->v[1] == c){
+				if((t->v[0] == a && t->v[1] == b && t->v[2] == c) ||
+				   (t->v[1] == a && t->v[2] == b && t->v[0] == c) ||
+				   (t->v[2] == a && t->v[0] == b && t->v[1] == c)){
 					seen[k] = 1;
 					goto found;
 				}

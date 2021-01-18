@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <new>
 
@@ -130,7 +131,7 @@ printleaks(void)
 {
 	FORLIST(lnk, allocations){
 		MemoryBlock *mem = LLLinkGetData(lnk, MemoryBlock, inAllocList);
-		printf("sz %d hint %X\n   %s\n", mem->sz, mem->hint, mem->codeline);
+		printf("sz %zu hint %X\n   %s\n", mem->sz, mem->hint, mem->codeline);
 	}
 }
 
@@ -154,6 +155,15 @@ void *mustrealloc_h(void *p, size_t sz, uint32 hint)
 	fprintf(stderr, "Error: out of memory\n");
 	exit(1);
 	return nil;
+}
+
+char *strdup_LOC(const char *s, uint32 hint, const char *here) {
+	char *t;
+	size_t sz = strlen(s)+1;
+	t = (char*)malloc_LOC(sz, hint, here);
+	if(t)
+		memcpy(t, s, sz);
+	return t;
 }
 
 MemoryFunctions defaultMemfuncs = {
@@ -527,6 +537,7 @@ deviceSystem(DeviceReq req, void *arg0, int32 n)
 		return 0;
 	case DEVICEGETSUBSSYSTEMINFO:
 		return 0;
+	default: break;
 	}
 	return 1;
 }
