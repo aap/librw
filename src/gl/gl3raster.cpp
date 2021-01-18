@@ -233,12 +233,12 @@ rasterCreateZbuffer(Raster *raster)
 		// have to use RBO on GLES!!
 		glGenRenderbuffers(1, &natras->texid);
 		glBindRenderbuffer(GL_RENDERBUFFER, natras->texid);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, raster->width, raster->height);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, raster->width, raster->height);
 	}else{
 		// TODO: set/check width, height, depth, format?
-		natras->internalFormat = GL_DEPTH_COMPONENT;
-		natras->format = GL_DEPTH_COMPONENT;
-		natras->type = GL_UNSIGNED_BYTE;
+		natras->internalFormat = GL_DEPTH_STENCIL;
+		natras->format = GL_DEPTH_STENCIL;
+		natras->type = GL_UNSIGNED_INT_24_8;
 
 		natras->autogenMipmap = 0;
 
@@ -735,7 +735,7 @@ destroyNativeRaster(void *object, int32 offset, int32)
 			Gl3Raster *oldfb = GETGL3RASTEREXT(natras->fboMate);
 			if(oldfb->fbo){
 				bindFramebuffer(oldfb->fbo);
-				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 			}
 			oldfb->fboMate = nil;
 		}
