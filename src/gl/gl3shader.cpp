@@ -21,6 +21,19 @@ namespace gl3 {
 #include "shaders/header_fs.inc"
 
 UniformRegistry uniformRegistry;
+static char nameBuffer[(MAX_UNIFORMS + MAX_BLOCKS)*32];	// static because memory system isn't up yet when we register
+static uint32 nameBufPtr;
+
+static char*
+shader_strdup(const char *name)
+{
+	size_t len = strlen(name)+1;
+	char *s = &nameBuffer[nameBufPtr];
+	nameBufPtr += len;
+	assert(nameBufPtr <= nelem(nameBuffer));
+	memcpy(s, name, len);
+	return s;
+}
 
 int32
 registerUniform(const char *name)
@@ -33,7 +46,7 @@ registerUniform(const char *name)
 		assert(0 && "no space for uniform");
 		return -1;
 	}
-	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = rwStrdup(name, MEMDUR_EVENT);
+	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = shader_strdup(name);
 	return uniformRegistry.numUniforms++;
 }
 
@@ -56,7 +69,7 @@ registerBlock(const char *name)
 	// TODO: print error
 	if(uniformRegistry.numBlocks+1 >= MAX_BLOCKS)
 		return -1;
-	uniformRegistry.blockNames[uniformRegistry.numBlocks] = rwStrdup(name, MEMDUR_EVENT);
+	uniformRegistry.blockNames[uniformRegistry.numBlocks] = shader_strdup(name);
 	return uniformRegistry.numBlocks++;
 }
 
