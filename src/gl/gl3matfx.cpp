@@ -68,8 +68,10 @@ uploadEnvMatrix(Frame *frame)
 
 	// cache the matrix across multiple meshes
 	static RawMatrix envMtx;
-	if(frame != lastEnvFrame){
-		lastEnvFrame = frame;
+// can't do it, frame matrix may change
+//	if(frame != lastEnvFrame){
+//		lastEnvFrame = frame;
+	{
 
 		RawMatrix invMtx;
 		Matrix::invert(&invMat, frame->getLTM());

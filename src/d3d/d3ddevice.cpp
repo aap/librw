@@ -97,6 +97,7 @@ struct RwStateCache {
 static RwStateCache rwStateCache;
 
 void *constantVertexStream;
+static IDirect3DTexture9 *whiteTex;
 
 D3dShaderState d3dShaderState;
 
@@ -457,7 +458,7 @@ setRasterStage(uint32 stage, Raster *raster)
 			d3ddevice->SetTexture(stage, (IDirect3DTexture9*)d3draster->texture);
 			alpha = d3draster->hasAlpha;
 		}else{
-			d3ddevice->SetTexture(stage, nil);
+			d3ddevice->SetTexture(stage, whiteTex);
 			alpha = 0;
 		}
 		if(stage == 0){
@@ -1830,6 +1831,17 @@ initD3D(void)
 		setAddressV(t, Texture::WRAP);
 	}
 
+	IDirect3DSurface9 *surf;
+	D3DLOCKED_RECT lr;
+	uint8 whitepixel[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+	whiteTex = (IDirect3DTexture9*)createTexture(1, 1, 1, 0, D3DFMT_X8R8G8B8);
+	whiteTex->GetSurfaceLevel(0, &surf);
+	HRESULT res = surf->LockRect(&lr, 0, D3DLOCK_NOSYSLOCK);
+	assert(res == D3D_OK);
+	memcpy(lr.pBits, whitepixel, 4);
+	surf->UnlockRect();
+	surf->Release();
+
 	openIm2D();
 	openIm3D();
 
@@ -1841,6 +1853,9 @@ termD3D(void)
 {
 	destroyVertexBuffer(constantVertexStream);
 	constantVertexStream = nil;
+
+	destroyTexture(whiteTex);
+	whiteTex = nil;
 
 	closeIm3D();
 	closeIm2D();

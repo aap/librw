@@ -748,7 +748,7 @@ struct Camera
 	Raster *frameBuffer;
 	Raster *zBuffer;
 
-	// Device dependant view and projection matrices
+	// Device dependent view and projection matrices
 	// optional
 	RawMatrix devView;
 	RawMatrix devProj;

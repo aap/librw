@@ -79,9 +79,10 @@ uploadEnvMatrix(Frame *frame)
 		frame = engine->currentCamera->getFrame();
 
 	// cache the matrix across multiple meshes
-	if(frame == lastEnvFrame)
-		return;
-	lastEnvFrame = frame;
+// can't do it, frame matrix may change
+//	if(frame == lastEnvFrame)
+//		return;
+//	lastEnvFrame = frame;
 
 	RawMatrix envMtx, invMtx;
 	Matrix::invert(&invMat, frame->getLTM());
