@@ -21,6 +21,46 @@ void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flag
 void im3DRenderPrimitive(PrimitiveType primType);
 void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 void im3DEnd(void);
+
+struct DisplayMode
+{
+#ifdef LIBRW_SDL2
+	SDL_DisplayMode mode;
+#else
+	GLFWvidmode mode;
+#endif
+	int32 depth;
+	uint32 flags;
+};
+
+struct GlGlobals
+{
+#ifdef LIBRW_SDL2
+	SDL_Window **pWindow;
+	SDL_Window *window;
+	SDL_GLContext glcontext;
+#else
+	GLFWwindow **pWindow;
+	GLFWwindow *window;
+
+	GLFWmonitor *monitor;
+	int numMonitors;
+	int currentMonitor;
+#endif
+
+	DisplayMode *modes;
+	int numModes;
+	int currentMode;
+	int presentWidth, presentHeight;
+	int presentOffX, presentOffY;
+
+	// for opening the window
+	int winWidth, winHeight;
+	const char *winTitle;
+	uint32 numSamples;
+};
+
+extern GlGlobals glGlobals;
 #endif
 
 Raster *rasterCreate(Raster *raster);
@@ -30,6 +70,7 @@ int32 rasterNumLevels(Raster*);
 bool32 imageFindRasterFormat(Image *img, int32 type,
 	int32 *width, int32 *height, int32 *depth, int32 *format);
 bool32 rasterFromImage(Raster *raster, Image *image);
+Image *rasterToImage(Raster *raster);
 
 }
 }

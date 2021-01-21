@@ -579,7 +579,7 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 	if(lockMode & Raster::LOCKREAD)
 		flags |= D3DLOCK_READONLY | D3DLOCK_NO_DIRTY_UPDATE;
 	IDirect3DTexture9 *tex = (IDirect3DTexture9*)natras->texture;
-	IDirect3DSurface9 *surf;
+	IDirect3DSurface9 *surf, *rt;
 	D3DLOCKED_RECT lr;
 
 	switch(raster->type){
@@ -588,6 +588,26 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 		tex->GetSurfaceLevel(level, &surf);
 		natras->lockedSurf = surf;
 		HRESULT res = surf->LockRect(&lr, 0, flags);
+		assert(res == D3D_OK);
+		break;
+		}
+
+	case Raster::CAMERATEXTURE:
+	case Raster::CAMERA: {
+		if(lockMode & Raster::PRIVATELOCK_WRITE)
+			assert(0 && "can't lock framebuffer for writing");
+		if(raster->type == Raster::CAMERA)
+			rt = d3d9Globals.defaultRenderTarget;
+		else
+			tex->GetSurfaceLevel(level, &rt);
+		D3DSURFACE_DESC desc;
+		rt->GetDesc(&desc);
+		HRESULT res = d3ddevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &rt, nil);
+		if(res != D3D_OK)
+			return nil;
+		d3ddevice->GetRenderTargetData(rt, surf);
+		natras->lockedSurf = surf;
+		res = surf->LockRect(&lr, 0, flags);
 		assert(res == D3D_OK);
 		break;
 		}

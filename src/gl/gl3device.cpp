@@ -25,43 +25,8 @@
 
 namespace rw {
 namespace gl3 {
-struct DisplayMode
-{
-#ifdef LIBRW_SDL2
-	SDL_DisplayMode mode;
-#else
-	GLFWvidmode mode;
-#endif
-	int32 depth;
-	uint32 flags;
-};
 
-struct GlGlobals
-{
-#ifdef LIBRW_SDL2
-	SDL_Window **pWindow;
-	SDL_Window *window;
-	SDL_GLContext glcontext;
-#else
-	GLFWwindow **pWindow;
-	GLFWwindow *window;
-
-	GLFWmonitor *monitor;
-	int numMonitors;
-	int currentMonitor;
-#endif
-
-	DisplayMode *modes;
-	int numModes;
-	int currentMode;
-	int presentWidth, presentHeight;
-	int presentOffX, presentOffY;
-
-	// for opening the window
-	int winWidth, winHeight;
-	const char *winTitle;
-	uint32 numSamples;
-} glGlobals;
+GlGlobals glGlobals;
 
 Gl3Caps gl3Caps;
 // terrible hack for GLES
