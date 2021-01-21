@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 
+#define WITH_D3D
 #include "rwbase.h"
 #include "rwerror.h"
 #include "rwplg.h"
@@ -14,6 +15,7 @@
 #include "d3d/rwxbox.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#include "d3d/rwd3dimpl.h"
 #include "gl/rwgl3.h"
 
 #define PLUGIN_ID 0
@@ -515,6 +517,80 @@ Texture::streamGetSizeNative(void)
 		return gl3::getSizeNativeTexture(this);
 	assert(0 && "unsupported platform");
 	return 0;
+}
+
+
+
+int32 anisotOffset;
+
+static void*
+createAnisot(void *object, int32 offset, int32)
+{
+	*GETANISOTROPYEXT(object) = 1;
+	return object;
+}
+
+static void*
+copyAnisot(void *dst, void *src, int32 offset, int32)
+{
+	*GETANISOTROPYEXT(dst) = *GETANISOTROPYEXT(src);
+	return dst;
+}
+
+static Stream*
+readAnisot(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	*GETANISOTROPYEXT(object) = stream->readI32();
+	return stream;
+}
+
+static Stream*
+writeAnisot(Stream *stream, int32, void *object, int32 offset, int32)
+{
+	stream->writeI32(*GETANISOTROPYEXT(object));
+	return stream;
+}
+
+static int32
+getSizeAnisot(void *object, int32 offset, int32)
+{
+	if(*GETANISOTROPYEXT(object) == 1)
+		return 0;
+	return sizeof(int32);
+}
+
+void
+registerAnisotropyPlugin(void)
+{
+	anisotOffset = Texture::registerPlugin(sizeof(int32), ID_ANISOT, createAnisot, nil, copyAnisot);
+	Texture::registerPluginStream(ID_ANISOT, readAnisot, writeAnisot, getSizeAnisot);
+}
+
+void
+Texture::setMaxAnisotropy(int32 maxaniso)
+{
+	if(anisotOffset > 0)
+		*GETANISOTROPYEXT(this) = maxaniso;
+}
+
+int32
+Texture::getMaxAnisotropy(void)
+{
+	if(anisotOffset > 0)
+		return *GETANISOTROPYEXT(this);
+	return 1;
+}
+
+int32
+getMaxSupportedMaxAnisotropy(void)
+{
+#ifdef RW_D3D9
+	return d3d::d3d9Globals.caps.MaxAnisotropy;
+#endif
+#ifdef RW_GL3
+	return (int32)gl3::gl3Caps.maxAnisotropy;
+#endif
+	return 1;
 }
 
 }

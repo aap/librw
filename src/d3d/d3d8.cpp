@@ -471,19 +471,25 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 	Raster *ras = nil;
 
 	for(int i = 0; i < numLevels; i++){
+		uint32 size = stream->readU32();
+
+		// don't read levels that don't exist
+		if(ras && i >= ras->getNumLevels()){
+			stream->seek(size);
+			continue;
+		}
+
+		// one allocation is enough, first level is largest
+		if(data == nil)
+			data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_IMAGE);
+		stream->read8(data, size);
+
 		if(ras){
 			ras->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
 			img->width = ras->width;
 			img->height = ras->height;
 			img->stride = img->width*img->bpp;
 		}
-
-		uint32 size = stream->readU32();
-		// one allocation is enough, first level is largest
-		if(data == nil)
-			data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_IMAGE);
-		stream->read8(data, size);
-
 
 		if(format & (Raster::PAL4 | Raster::PAL8)){
 			uint8 *idx = data;

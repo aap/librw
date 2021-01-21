@@ -63,6 +63,7 @@ struct RwRasterStateCache {
 	Texture::Addressing addressingU;
 	Texture::Addressing addressingV;
 	Texture::FilterMode filter;
+	int32 maxAniso;
 };
 
 #define MAXNUMSTAGES 8
@@ -342,7 +343,10 @@ restoreD3d9Device(void)
 		setSamplerState(i, D3DSAMP_ADDRESSU, addressConvMap[rwStateCache.texstage[i].addressingU]);
 		setSamplerState(i, D3DSAMP_ADDRESSV, addressConvMap[rwStateCache.texstage[i].addressingV]);
 		setSamplerState(i, D3DSAMP_MAGFILTER, filterConvMap[rwStateCache.texstage[i].filter]);
-		setSamplerState(i, D3DSAMP_MINFILTER, filterConvMap[rwStateCache.texstage[i].filter]);
+		if(rwStateCache.texstage[i].maxAniso == 1)
+			setSamplerState(i, D3DSAMP_MINFILTER, filterConvMap[rwStateCache.texstage[i].filter]);
+		else
+			setSamplerState(i, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
 		setSamplerState(i, D3DSAMP_MIPFILTER, filterConvMap_MIP[rwStateCache.texstage[i].filter]);
 	}
 	for(s = 0; s < MAXNUMSTATES; s++)
@@ -474,13 +478,24 @@ setRasterStage(uint32 stage, Raster *raster)
 }
 
 static void
-setFilterMode(uint32 stage, int32 filter)
+setFilterMode(uint32 stage, int32 filter, int32 maxAniso = 1)
 {
 	if(rwStateCache.texstage[stage].filter != (Texture::FilterMode)filter){
 		rwStateCache.texstage[stage].filter = (Texture::FilterMode)filter;
 		setSamplerState(stage, D3DSAMP_MAGFILTER, filterConvMap[filter]);
-		setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap[filter]);
+		if(maxAniso == 1)
+			setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap[filter]);
+		else
+			setSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
 		setSamplerState(stage, D3DSAMP_MIPFILTER, filterConvMap_MIP[filter]);
+	}
+	if(rwStateCache.texstage[stage].maxAniso != maxAniso){
+		rwStateCache.texstage[stage].maxAniso = maxAniso;
+		if(maxAniso == 1)
+			setSamplerState(stage, D3DSAMP_MINFILTER, filterConvMap[filter]);
+		else
+			setSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
+		setSamplerState(stage, D3DSAMP_MAXANISOTROPY, maxAniso);
 	}
 }
 
@@ -510,7 +525,7 @@ setTexture(uint32 stage, Texture *tex)
 		return;
 	}
 	if(tex->raster){
-		setFilterMode(stage, tex->getFilter());
+		setFilterMode(stage, tex->getFilter(), tex->getMaxAnisotropy());
 		setAddressU(stage, tex->getAddressU());
 		setAddressV(stage, tex->getAddressV());
 	}

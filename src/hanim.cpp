@@ -408,6 +408,7 @@ registerHAnimPlugin(void)
 	Frame::registerPluginStream(ID_HANIM,
 	                            readHAnim,
 	                            writeHAnim,
-	                            getSizeHAnim);}
+	                            getSizeHAnim);
+}
 
 }

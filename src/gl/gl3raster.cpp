@@ -132,9 +132,7 @@ rasterCreateTexture(Raster *raster)
 	natras->filterMode = 0;
 	natras->addressU = 0;
 	natras->addressV = 0;
-
-// TEST
-//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 16.0f);
+	natras->maxAnisotropy = 1;
 
 	bindTexture(prev);
 	return raster;
@@ -196,6 +194,7 @@ rasterCreateCameraTexture(Raster *raster)
 	natras->filterMode = 0;
 	natras->addressU = 0;
 	natras->addressV = 0;
+	natras->maxAnisotropy = 1;
 
 	bindTexture(prev);
 
@@ -259,6 +258,7 @@ rasterCreateZbuffer(Raster *raster)
 		natras->filterMode = 0;
 		natras->addressU = 0;
 		natras->addressV = 0;
+		natras->maxAnisotropy = 1;
 
 		bindTexture(prev);
 	}
@@ -329,6 +329,7 @@ allocateDXT(Raster *raster, int32 dxt, int32 numLevels, bool32 hasAlpha)
 	natras->filterMode = 0;
 	natras->addressU = 0;
 	natras->addressV = 0;
+	natras->maxAnisotropy = 1;
 
 	bindTexture(prev);
 

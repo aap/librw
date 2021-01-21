@@ -404,11 +404,18 @@ struct Texture
 	static bool32 getMipmapping(void);
 	static bool32 getAutoMipmapping(void);
 
+	void setMaxAnisotropy(int32 maxaniso);	// only if plugin is attached
+	int32 getMaxAnisotropy(void);
+
 #ifndef RWPUBLIC
 	static void registerModule(void);
 #endif
 };
 
+extern int32 anisotOffset;
+#define GETANISOTROPYEXT(texture) PLUGINOFFSET(int32, texture, rw::anisotOffset)
+void registerAnisotropyPlugin(void);
+int32 getMaxSupportedMaxAnisotropy(void);
 
 struct SurfaceProperties
 {
