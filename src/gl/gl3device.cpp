@@ -1785,6 +1785,8 @@ initOpenGL(void)
 	glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
 	for(int i = 0; i < numExt; i++){
 		const char *ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
+		if(ext == nil)
+			continue;	// apparently that can happen...
 		if(strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
 			gl3Caps.dxtSupported = true;
 		else if(strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
