@@ -11,7 +11,6 @@
 #include "../rwobjects.h"
 #include "../rwengine.h"
 #ifdef RW_OPENGL
-#include <GL/glew.h>
 #include "rwgl3.h"
 #include "rwgl3impl.h"
 #include "rwgl3shader.h"

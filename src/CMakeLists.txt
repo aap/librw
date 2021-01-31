@@ -78,6 +78,7 @@ add_library(librw
     gl/rwgl3shader.h
     gl/rwwdgl.h
     gl/wdgl.cpp
+    gl/glad/glad.c
 
     lodepng/lodepng.h
     lodepng/lodepng.cpp
@@ -147,12 +148,10 @@ set_target_properties(librw
 if(LIBRW_PLATFORM_GL3)
     set(OpenGL_GL_PREFERENCE GLVND)
     find_package(OpenGL REQUIRED)
-    find_package(GLEW REQUIRED)
 
     target_link_libraries(librw
         PUBLIC
             OpenGL::GL
-            GLEW::GLEW
     )
     if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
         find_package(glfw3 REQUIRED)

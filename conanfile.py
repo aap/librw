@@ -54,7 +54,6 @@ class LibrwConan(ConanFile):
 
     def requirements(self):
         if self.options.platform == "gl3":
-            self.requires("glew/2.1.0")
             if self.options.gl3_gfxlib == "glfw":
                 self.requires("glfw/3.3.2")
             elif self.options.gl3_gfxlib == "sdl2":
