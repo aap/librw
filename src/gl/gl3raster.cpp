@@ -111,7 +111,7 @@ rasterCreateTexture(Raster *raster)
 	if(raster->format & Raster::MIPMAP){
 		int w = raster->width;
 		int h = raster->height;
-		natras->numLevels = 0;
+		natras->numLevels = 1;
 		while(w != 1 || h != 1){
 			natras->numLevels++;
 			if(w > 1) w /= 2;
