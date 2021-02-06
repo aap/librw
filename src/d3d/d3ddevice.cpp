@@ -377,6 +377,14 @@ restoreD3d9Device(void)
 	d3dShaderState.surfProps.ambient = 0.0f;
 	d3dShaderState.surfProps.specular = 0.0f;
 	d3dShaderState.surfProps.diffuse = 0.0f;
+	d3dShaderState.extraSurfProp = 0.0f;
+	d3dShaderState.numDir = 0;
+	d3dShaderState.numPoint = 0;
+	d3dShaderState.numSpot = 0;
+	d3dShaderState.ambient.red = 0.0f;
+	d3dShaderState.ambient.green = 0.0f;
+	d3dShaderState.ambient.blue = 0.0f;
+	d3dShaderState.ambient.alpha = 0.0f;
 }
 
 void
