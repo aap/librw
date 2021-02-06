@@ -145,6 +145,7 @@ void
 defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
+	uint32 flags = atomic->geometry->flags;
 	setStreamSource(0, header->vertexStream[0].vertexBuffer, 0, header->vertexStream[0].stride);
 	setIndices(header->indexBuffer);
 	setVertexDeclaration(header->vertexDeclaration);
@@ -166,7 +167,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
 
-		setMaterial(m->color, m->surfaceProps);
+		setMaterial(flags, m->color, m->surfaceProps);
 
 		if(m->texture){
 			d3d::setTexture(0, m->texture);

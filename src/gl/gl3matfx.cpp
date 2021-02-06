@@ -34,14 +34,14 @@ static int32 u_fxparams;
 static int32 u_colorClamp;
 
 void
-matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst)
+matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags)
 {
 	Material *m;
 	m = inst->material;
 
 	defaultShader->use();
 
-	setMaterial(m->color, m->surfaceProps);
+	setMaterial(flags, m->color, m->surfaceProps);
 
 	setTexture(0, m->texture);
 
@@ -83,13 +83,13 @@ uploadEnvMatrix(Frame *frame)
 }
 
 void
-matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
+matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags, MatFX::Env *env)
 {
 	Material *m;
 	m = inst->material;
 
 	if(env->tex == nil || env->coefficient == 0.0f){
-		matfxDefaultRender(header, inst);
+		matfxDefaultRender(header, inst, flags);
 		return;
 	}
 
@@ -99,7 +99,7 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 	setTexture(1, env->tex);
 	uploadEnvMatrix(env->frame);
 
-	setMaterial(m->color, m->surfaceProps);
+	setMaterial(flags, m->color, m->surfaceProps);
 
 	float fxparams[2];
 	fxparams[0] = env->coefficient;
@@ -125,6 +125,7 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, MatFX::Env *env)
 void
 matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
+	uint32 flags = atomic->geometry->flags;
 	setWorldMatrix(atomic->getFrame()->getLTM());
 	lightingCB(atomic);
 
@@ -145,13 +146,13 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		MatFX *matfx = MatFX::get(inst->material);
 
 		if(matfx == nil)
-			matfxDefaultRender(header, inst);
+			matfxDefaultRender(header, inst, flags);
 		else switch(matfx->type){
 		case MatFX::ENVMAP:
-			matfxEnvRender(header, inst, &matfx->fx[0].env);
+			matfxEnvRender(header, inst, flags, &matfx->fx[0].env);
 			break;
 		default:
-			matfxDefaultRender(header, inst);
+			matfxDefaultRender(header, inst, flags);
 			break;
 		}
 		inst++;

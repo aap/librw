@@ -123,6 +123,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	Material *m;
 
+	uint32 flags = atomic->geometry->flags;
 	setWorldMatrix(atomic->getFrame()->getLTM());
 	lightingCB(atomic);
 
@@ -142,7 +143,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	while(n--){
 		m = inst->material;
 
-		setMaterial(m->color, m->surfaceProps);
+		setMaterial(flags, m->color, m->surfaceProps);
 
 		setTexture(0, m->texture);
 

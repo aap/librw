@@ -29,8 +29,8 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	d3d::lightingCB_Fix(atomic);
 
-	Geometry *geo = atomic->geometry;
-	d3d::setRenderState(D3DRS_LIGHTING, !!(geo->flags & rw::Geometry::LIGHT));
+	uint32 flags = atomic->geometry->flags;
+	d3d::setRenderState(D3DRS_LIGHTING, !!(flags & rw::Geometry::LIGHT));
 
 	Frame *f = atomic->getFrame();
 	convMatrix(&world, f->getLTM());
@@ -39,12 +39,12 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		d3d::setTexture(0, inst->material->texture);
-		d3d::setMaterial(inst->material->color, inst->material->surfaceProps);
+		d3d::setMaterial(flags, inst->material->color, inst->material->surfaceProps);
 
 
 		d3d::setRenderState(D3DRS_AMBIENTMATERIALSOURCE, D3DMCS_MATERIAL);
 		d3d::setRenderState(D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_MATERIAL);
-		if(geo->flags & Geometry::PRELIT)
+		if(flags & Geometry::PRELIT)
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_COLOR1);
 		else
 			d3d::setRenderState(D3DRS_EMISSIVEMATERIALSOURCE, D3DMCS_MATERIAL);

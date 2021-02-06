@@ -150,6 +150,7 @@ void
 matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
 	int vsBits;
+	uint32 flags = atomic->geometry->flags;
 	setStreamSource(0, (IDirect3DVertexBuffer9*)header->vertexStream[0].vertexBuffer,
 	                           0, header->vertexStream[0].stride);
 	setIndices((IDirect3DIndexBuffer9*)header->indexBuffer);
@@ -166,7 +167,7 @@ matfxRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Material *m = inst->material;
 
-		setMaterial(m->color, m->surfaceProps);
+		setMaterial(flags, m->color, m->surfaceProps);
 
 		MatFX *matfx = MatFX::get(m);
 		if(matfx == nil)

@@ -292,6 +292,14 @@ void flushCache(void);
 
 void setTexture(uint32 stage, Texture *tex);
 void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f);
+inline void setMaterial(uint32 flags, const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f)
+{
+	static RGBA white = { 255, 255, 255, 255 };
+	if(flags & Geometry::MODULATE)
+		setMaterial(color, surfaceprops, extraSurfProp);
+	else
+		setMaterial(white, surfaceprops, extraSurfProp);
+}
 
 void setVertexShader(void *vs);
 void setPixelShader(void *ps);

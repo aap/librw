@@ -181,6 +181,14 @@ int32 setLights(WorldLights *lightData);
 // per Mesh
 void setTexture(int32 n, Texture *tex);
 void setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f);
+inline void setMaterial(uint32 flags, const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp = 0.0f)
+{
+	static RGBA white = { 255, 255, 255, 255 };
+	if(flags & Geometry::MODULATE)
+		setMaterial(color, surfaceprops, extraSurfProp);
+	else
+		setMaterial(white, surfaceprops, extraSurfProp);
+}
 
 void setAlphaBlend(bool32 enable);
 bool32 getAlphaBlend(void);
