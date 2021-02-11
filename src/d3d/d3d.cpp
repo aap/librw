@@ -602,7 +602,7 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 			tex->GetSurfaceLevel(level, &rt);
 		D3DSURFACE_DESC desc;
 		rt->GetDesc(&desc);
-		HRESULT res = d3ddevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &rt, nil);
+		HRESULT res = d3ddevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &surf, nil);
 		if(res != D3D_OK)
 			return nil;
 		d3ddevice->GetRenderTargetData(rt, surf);
