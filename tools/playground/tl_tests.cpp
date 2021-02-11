@@ -219,10 +219,10 @@ cam2screen(Im2DVertex *scrvert, CamSpace3DVertex *camvert)
 	int32 height = cam->frameBuffer->height;
 	recipZ = 1.0f/camvert->camVertex.z;
 
-	scrvert->setScreenX(camvert->camVertex.x * recipZ * width);
-	scrvert->setScreenY(camvert->camVertex.y * recipZ * height);
-//	scrvert->setScreenX(camvert->camVertex.x * recipZ * width/2 + width/4);
-//	scrvert->setScreenY(camvert->camVertex.y * recipZ * height/2 + height/4);
+//	scrvert->setScreenX(camvert->camVertex.x * recipZ * width);
+//	scrvert->setScreenY(camvert->camVertex.y * recipZ * height);
+	scrvert->setScreenX(camvert->camVertex.x * recipZ * width/2 + width/4);
+	scrvert->setScreenY(camvert->camVertex.y * recipZ * height/2 + height/4);
 	scrvert->setScreenZ(recipZ * cam->zScale + cam->zShift);
 	scrvert->setCameraZ(camvert->camVertex.z);
 	scrvert->setRecipCameraZ(recipZ);
@@ -493,6 +493,109 @@ clipTriangles(MeshState *mstate, CamSpace3DVertex *camverts, Im2DVertex *scrvert
 	mstate->numPrimitives = newNumPrims;
 }
 
+static int32
+clipPoly(CamSpace3DVertex *in, int32 nin, CamSpace3DVertex *out, Plane *plane)
+{
+	int32 j;
+	int32 nout;
+	int32 x1, x2;
+	float32 d1, d2, t;
+
+	nout = 0;
+	for(j = 0; j < nin; j++){
+		x1 = j;
+		x2 = (j+1) % nin;
+
+		d1 = dot(plane->normal, in[x1].camVertex) + plane->distance;
+		d2 = dot(plane->normal, in[x2].camVertex) + plane->distance;
+		if(d1*d2 < 0.0f){
+			t = d1/(d1 - d2);
+			interpVertex(&out[nout++], &in[x1], &in[x2], t);
+		}
+		if(d2 >= 0.0f)
+			out[nout++] = in[x2];
+	}
+	return nout;
+}
+
+static void
+clipTriangles2(MeshState *mstate, CamSpace3DVertex *camverts, Im2DVertex *scrverts, uint16 *indices, uint16 *clipindices)
+{
+	int32 i, j;
+	int32 x1, x2, x3;
+	int32 newNumPrims;
+	CamSpace3DVertex buf[18];
+	CamSpace3DVertex *in, *out;
+	int32 nout;
+	Camera *cam = (Camera*)engine->currentCamera;
+
+	Plane planes[6] = {
+		{ {  0.0f,  0.0f,  1.0f }, -cam->nearPlane },	// z = near
+		{ {  0.0f,  0.0f, -1.0f },  cam->farPlane },	// z = far
+
+		{ { -1.0f,  0.0f,  1.0f }, 0.0f },	// x = w
+//		{ {  1.0f,  0.0f,  1.0f }, 0.0f },	// x = -w
+		{ {  1.0f,  0.0f,  0.0f }, 0.0f },	// x = 0
+
+		{ {  0.0f, -1.0f,  1.0f }, 0.0f },	// y = w
+//		{ {  0.0f,  1.0f,  1.0f }, 0.0f }	// y = -1
+		{ {  0.0f,  1.0f,  0.0f }, 0.0f }	// y = 0
+	};
+
+	newNumPrims = 0;
+	for(i = 0; i < mstate->numPrimitives; i++, indices += 3){
+		x1 = indices[0];
+		x2 = indices[1];
+		x3 = indices[2];
+
+		if((camverts[x1].clipFlags |
+		    camverts[x2].clipFlags |
+		    camverts[x3].clipFlags) == 0){
+			// all inside
+			clipindices[0] = x1;
+			clipindices[1] = x2;
+			clipindices[2] = x3;
+			clipindices += 3;
+			newNumPrims++;
+			continue;
+		}
+
+		// set up triangle
+		in = &buf[0];
+		out = &buf[9];
+		in[0] = camverts[x1];
+		in[1] = camverts[x2];
+		in[2] = camverts[x3];
+		nout = 0;
+
+		// clip here
+		if(nout = clipPoly(in,  3,    out, &planes[0]), nout == 0) continue;
+		if(nout = clipPoly(out, nout, in,  &planes[1]), nout == 0) continue;
+		if(nout = clipPoly(in,  nout, out, &planes[2]), nout == 0) continue;
+		if(nout = clipPoly(out, nout, in,  &planes[3]), nout == 0) continue;
+		if(nout = clipPoly(in,  nout, out, &planes[4]), nout == 0) continue;
+		if(nout = clipPoly(out, nout, in,  &planes[5]), nout == 0) continue;
+		out = in;
+
+		// Insert new triangles
+		x1 = mstate->numVertices;
+		for(j = 0; j < nout; j++){
+			x2 = mstate->numVertices++;
+			camverts[x2] = out[j];
+			cam2screen(&scrverts[x2], &camverts[x2]);
+		}
+		x2 = x1+1;
+		for(j = 0; j < nout-2; j++){
+			clipindices[0] = x1;
+			clipindices[1] = x2++;
+			clipindices[2] = x2;
+			clipindices += 3;
+			newNumPrims++;
+		}
+	}
+	mstate->numPrimitives = newNumPrims;
+}
+
 static void
 submitTriangles(RWDEVICE::Im2DVertex *scrverts, int32 numVerts, uint16 *indices, int32 numTris)
 {
@@ -551,7 +654,8 @@ drawMesh(MeshState *mstate, ObjSpace3DVertex *objverts, uint16 *indices)
 	scrverts = rwResizeT(Im2DVertex, scrverts, mstate->numVertices + numClip*9, MEMDUR_FUNCTION);
 	clipindices = rwNewT(uint16, mstate->numPrimitives*3 + numClip*7*3, MEMDUR_FUNCTION);
 
-	clipTriangles(mstate, camverts, scrverts, cullindices, clipindices);
+//	clipTriangles(mstate, camverts, scrverts, cullindices, clipindices);
+	clipTriangles2(mstate, camverts, scrverts, cullindices, clipindices);
 
 	submitTriangles(scrverts, mstate->numVertices, clipindices, mstate->numPrimitives);
 

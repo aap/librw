@@ -246,12 +246,8 @@ project "ps2test"
 	files { "tools/ps2test/*.cpp",
 	        "tools/ps2test/vu/*.dsm",
 	        "tools/ps2test/*.h" }
-	linkoptions '$(PS2SDK)/ee/startup/crt0.o'
-	linkoptions { '-mno-crt0', "-T$(PS2SDK)/ee/startup/linkfile" }
 	libdirs { "$(PS2SDK)/ee/lib" }
 	links { "librw" }
-	-- "c -lc" is a hack because we need -lc twice for some reason
-	links { "c -lc", "kernel", "mf" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"

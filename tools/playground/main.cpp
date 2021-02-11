@@ -300,7 +300,8 @@ InitRW(void)
 	Scene.camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
 	camera->m_rwcam = Scene.camera;
 	camera->m_aspectRatio = 640.0f/448.0f;
-	camera->m_near = 0.5f;
+//	camera->m_near = 0.5f;
+	camera->m_near = 1.5f;
 //	camera->m_far = 450.0f;
 	camera->m_far = 15.0f;
 	camera->m_target.set(0.0f, 0.0f, 0.0f);
@@ -456,7 +457,7 @@ Draw(float timeDelta)
 extern void beginSoftras(void);
 	beginSoftras();
 
-//	gen::tlTest(Scene.clump);
+	gen::tlTest(Scene.clump);
 void drawtest(void);
 //	drawtest();
 
@@ -472,7 +473,7 @@ extern void endSoftras(void);
 
 //	testfont->print("foo ABC", 200, 200, true);
 
-	rendersplines();
+//	rendersplines();
 
 	camera->m_rwcam->endUpdate();
 
