@@ -370,6 +370,53 @@ im2dtest(void)
 }
 
 void
+im2dtest2(void)
+{
+	using namespace rw::RWDEVICE;
+	int i;
+	rw::Camera *cam = Scene.camera;
+	float n = cam->nearPlane;
+	float f = cam->farPlane;
+	float mid = (n+f)/4.0f;
+	struct
+	{
+		float x, y, z;
+		rw::uint8 r, g, b, a;
+		float u, v;
+	} vs[4] = {
+		{ 0.5f,  0.5f,   n,  255, 255, 255, 255,  0.0f, 0.0f },
+		{ 0.5f,  0.5f, mid,  255, 255, 255, 255,  1.0f, 0.0f },
+		{ 0.5f, -0.5f,   n,  255, 255, 255, 255,  0.0f, 1.0f },
+		{ 0.5f, -0.5f, mid,  255, 255, 255, 255,  1.0f, 1.0f },
+	};
+	Im2DVertex verts[4];
+	static short indices[] = {
+		0, 1, 2, 3
+	};
+
+	for(i = 0; i < 4; i++){
+		float recipZ = 1.0f/vs[i].z;
+		verts[i].setScreenX((vs[i].x*recipZ + 0.5f) * 640.0f);
+		verts[i].setScreenY((vs[i].y*recipZ + 0.5f) * 448.0f);
+		verts[i].setScreenZ(recipZ * cam->zScale + cam->zShift);
+//		verts[i].setCameraZ(vs[i].z);
+		verts[i].setRecipCameraZ(recipZ);
+		verts[i].setColor(vs[i].r, vs[i].g, vs[i].b, vs[i].a);
+		if(dosoftras)
+			verts[i].setColor(255, 255, 255, 255);
+		verts[i].setU(vs[i].u + 0.5f/640.0f, recipZ);
+		verts[i].setV(vs[i].v + 0.5f/448.0f, recipZ);
+	}
+
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
+	rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
+	rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
+	rw::SetRenderState(rw::VERTEXALPHA, 1);
+	rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRISTRIP,
+		&verts, 4, &indices, 4);
+}
+
+void
 im3dtest(void)
 {
 	using namespace rw::RWDEVICE;
@@ -449,6 +496,10 @@ Draw(float timeDelta)
 {
 	getFrontBuffer();
 
+	rw::SetRenderState(rw::FOGCOLOR, 0xFF0000FF);
+	rw::SetRenderState(rw::FOGENABLE, 1);
+	camera->m_rwcam->fogPlane = camera->m_rwcam->nearPlane;
+
 	static rw::RGBA clearcol = { 161, 161, 161, 0xFF };
 	camera->m_rwcam->clear(&clearcol, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
 	camera->update();
@@ -457,7 +508,7 @@ Draw(float timeDelta)
 extern void beginSoftras(void);
 	beginSoftras();
 
-	gen::tlTest(Scene.clump);
+//	gen::tlTest(Scene.clump);
 void drawtest(void);
 //	drawtest();
 
@@ -465,7 +516,8 @@ extern void endSoftras(void);
 	if(dosoftras){
 		endSoftras();
 	}
-	//	im2dtest();
+		//im2dtest();
+		im2dtest2();
 
 //	Scene.clump->render();
 //	im3dtest();

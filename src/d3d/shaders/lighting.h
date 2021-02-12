@@ -11,7 +11,7 @@ float3 DoDirLight(Light L, float3 N)
 	return l*L.color.xyz;
 }
 
-float3 DoDirLightSpec(Light L, float3 N, float3 V, float power))
+float3 DoDirLightSpec(Light L, float3 N, float3 V, float power)
 {
 	return pow(saturate(dot(N, normalize(V + -L.direction.xyz))), power)*L.color.xyz;
 }

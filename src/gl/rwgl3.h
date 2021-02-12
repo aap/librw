@@ -130,8 +130,9 @@ struct Im2DVertex
 	void setScreenX(float32 x) { this->x = x; }
 	void setScreenY(float32 y) { this->y = y; }
 	void setScreenZ(float32 z) { this->z = z; }
-	void setCameraZ(float32 z) { this->w = z; }
-	void setRecipCameraZ(float32 recipz) { }
+	// This is a bit unefficient but we have to counteract GL's divide, so multiply
+	void setCameraZ(float32 z) { }
+	void setRecipCameraZ(float32 recipz) { this->w = 1.0f/recipz; }
 	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
 		this->r = r; this->g = g; this->b = b; this->a = a; }
 	void setU(float32 u, float recipz) { this->u = u; }
