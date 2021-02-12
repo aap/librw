@@ -112,12 +112,21 @@ im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, 
 }
 
 void
-im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
+im2DSetXform(void)
 {
 	GLfloat xform[4];
 	Camera *cam;
 	cam = (Camera*)engine->currentCamera;
+	xform[0] = 2.0f/cam->frameBuffer->width;
+	xform[1] = -2.0f/cam->frameBuffer->height;
+	xform[2] = -1.0f;
+	xform[3] = 1.0f;
+	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
+}
 
+void
+im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
+{
 #ifdef RW_GL_USE_VAOS
 	glBindVertexArray(im2DVao);
 #endif
@@ -125,11 +134,6 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	glBindBuffer(GL_ARRAY_BUFFER, im2DVbo);
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im2DVertex), vertices);
-
-	xform[0] = 2.0f/cam->frameBuffer->width;
-	xform[1] = -2.0f/cam->frameBuffer->height;
-	xform[2] = -1.0f;
-	xform[3] = 1.0f;
 
 	if(im2dOverrideShader)
 		im2dOverrideShader->use();
@@ -139,7 +143,7 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	setAttribPointers(im2dattribDesc, 3);
 #endif
 
-	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
+	im2DSetXform();
 
 	flushCache();
 	glDrawArrays(primTypeMap[primType], 0, numVertices);
@@ -153,10 +157,6 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	void *vertices, int32 numVertices,
 	void *indices, int32 numIndices)
 {
-	GLfloat xform[4];
-	Camera *cam;
-	cam = (Camera*)engine->currentCamera;
-
 #ifdef RW_GL_USE_VAOS
 	glBindVertexArray(im2DVao);
 #endif
@@ -169,11 +169,6 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im2DVertex), nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im2DVertex), vertices);
 
-	xform[0] = 2.0f/cam->frameBuffer->width;
-	xform[1] = -2.0f/cam->frameBuffer->height;
-	xform[2] = -1.0f;
-	xform[3] = 1.0f;
-
 	if(im2dOverrideShader)
 		im2dOverrideShader->use();
 	else
@@ -182,7 +177,7 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	setAttribPointers(im2dattribDesc, 3);
 #endif
 
-	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
+	im2DSetXform();
 
 	flushCache();
 	glDrawElements(primTypeMap[primType], numIndices,

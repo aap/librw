@@ -43,7 +43,9 @@ void
 openIm2D(void)
 {
 	D3DVERTEXELEMENT9 elements[4] = {
-		{ 0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITIONT, 0 },
+// can't get proper fog with this :(
+//		{ 0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITIONT, 0 },
+		{ 0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
 		{ 0, offsetof(Im2DVertex, color), D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
 		{ 0, offsetof(Im2DVertex, u), D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
 		D3DDECL_END()
@@ -100,6 +102,20 @@ im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, 
 }
 
 void
+im2DSetXform(void)
+{
+	float xform[4];
+	Camera *cam;
+	cam = (Camera*)engine->currentCamera;
+	xform[0] = 2.0f/cam->frameBuffer->width;
+	xform[1] = -2.0f/cam->frameBuffer->height;
+	xform[2] = -1.0f;
+	xform[3] = 1.0f;
+	// TODO: should cache this...
+	d3ddevice->SetVertexShaderConstantF(VSLOC_afterLights, xform, 1);
+}
+
+void
 im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 {
 	if(numVertices > NUMVERTICES){
@@ -113,6 +129,9 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	setStreamSource(0, im2dvertbuf, 0, sizeof(Im2DVertex));
 	setVertexDeclaration(im2ddecl);
 
+	im2DSetXform();
+
+	setVertexShader(im2d_VS);
 	if(im2dOverridePS)
 		setPixelShader(im2dOverridePS);
 	else if(engine->device.getRenderState(TEXTURERASTER))
@@ -167,6 +186,9 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	setIndices(im2dindbuf);
 	setVertexDeclaration(im2ddecl);
 
+	im2DSetXform();
+
+	setVertexShader(im2d_VS);
 	if(im2dOverridePS)
 		setPixelShader(im2dOverridePS);
 	else if(engine->device.getRenderState(TEXTURERASTER))

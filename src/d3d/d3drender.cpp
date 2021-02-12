@@ -27,6 +27,7 @@ void *default_amb_dir_VS;
 void *default_all_VS;
 void *default_PS;
 void *default_tex_PS;
+void *im2d_VS;
 void *im2d_PS;
 void *im2d_tex_PS;
 
@@ -68,6 +69,12 @@ createDefaultShaders(void)
 
 	{
 		static
+#include "shaders/im2d_VS.h"
+		im2d_VS = createVertexShader((void*)VS_NAME);
+		assert(im2d_VS);
+	}
+	{
+		static
 #include "shaders/im2d_PS.h"
 		im2d_PS = createPixelShader((void*)PS_NAME);
 		assert(im2d_PS);
@@ -95,6 +102,8 @@ destroyDefaultShaders(void)
 	destroyPixelShader(default_tex_PS);
 	default_tex_PS = nil;
 
+	destroyVertexShader(im2d_VS);
+	im2d_VS = nil;
 	destroyPixelShader(im2d_PS);
 	im2d_PS = nil;
 	destroyPixelShader(im2d_tex_PS);
