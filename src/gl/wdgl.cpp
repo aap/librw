@@ -14,7 +14,7 @@
 #include "rwwdgl.h"
 
 #ifdef RW_OPENGL
-#include <GL/glew.h>
+#include "glad/glad.h"
 #endif
 
 #define PLUGIN_ID 2

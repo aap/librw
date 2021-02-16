@@ -28,7 +28,6 @@ RUN mkdir -p "$PS2DEV" "$PS2SDK" \
         wget \
         zip \
         zlib1g-dev \
-        libglew-dev \
         libglfw3-dev \
         libsdl2-dev \
     && git clone -b $TOOLCHAIN_GIT_BRANCH $TOOLCHAIN_GIT_URL /toolchain \

@@ -1,8 +1,6 @@
 image: Visual Studio 2017
 configuration: Release
 environment:
-  GLEW_BASE: glew-2.1.0
-  GLEW_URL: https://github.com/nigels-com/glew/releases/download/glew-2.1.0/%GLEW_BASE%-win32.zip
   GLFW_BASE: glfw-3.2.1.bin.WIN64
   GLFW_URL: https://github.com/glfw/glfw/releases/download/3.2.1/%GLFW_BASE%.zip
   SDL2_BASE: SDL2-devel-2.0.8-VC
@@ -20,8 +18,6 @@ environment:
 install:
   - appveyor DownloadFile %GLFW_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE%.zip"
   - 7z x "%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE%.zip"
-  - appveyor DownloadFile %GLEW_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE%.zip"
-  - 7z x "%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE%.zip"
   - appveyor DownloadFile %SDL2_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/%SDL2_BASE%.zip"
   - 7z x "%APPVEYOR_BUILD_FOLDER%/%SDL2_BASE%.zip"
   - appveyor DownloadFile %PREMAKE5_URL% -FileName "%APPVEYOR_BUILD_FOLDER%/premake5.zip"
@@ -30,7 +26,7 @@ install:
 before_build:
   - mkdir "%APPVEYOR_BUILD_FOLDER%/build"
   - cd "%APPVEYOR_BUILD_FOLDER%"
-  - premake5 vs2017 --glewdir=%APPVEYOR_BUILD_FOLDER%/%GLEW_BASE% --glfwdir64=%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE% --sdl2dir=%APPVEYOR_BUILD_FOLDER%/%SDL2_DIRAME% %PREMAKE5_EXTRA_ARGS%
+  - premake5 vs2017 --glfwdir64=%APPVEYOR_BUILD_FOLDER%/%GLFW_BASE% --sdl2dir=%APPVEYOR_BUILD_FOLDER%/%SDL2_DIRAME% %PREMAKE5_EXTRA_ARGS%
 build:
   project: c:\projects\librw\build\librw.sln
   verbosity: minimal

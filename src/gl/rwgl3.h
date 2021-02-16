@@ -1,5 +1,5 @@
 #ifdef RW_GL3
-#include <GL/glew.h>
+#include "glad/glad.h"
 #ifdef LIBRW_SDL2
 #include <SDL.h>
 #else

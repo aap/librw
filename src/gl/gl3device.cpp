@@ -11,12 +11,7 @@
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
 #ifdef RW_OPENGL
-#include <GL/glew.h>
-#ifdef LIBRW_SDL2
-#include <SDL.h>
-#else
-#include <GLFW/glfw3.h>
-#endif
+
 #include "rwgl3.h"
 #include "rwgl3shader.h"
 #include "rwgl3impl.h"
@@ -1541,7 +1536,6 @@ static struct {
 static int
 startSDL2(void)
 {
-	GLenum status;
 	SDL_Window *win;
 	SDL_GLContext ctx;
 	DisplayMode *mode;
@@ -1576,23 +1570,16 @@ startSDL2(void)
 		return 0;
 	}
 	ctx = SDL_GL_CreateContext(win);
+
+	if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)){
+		RWERROR((ERR_GENERAL, "gladLoadGLLoader failed"));
+		SDL_GL_DeleteContext(ctx);
+		SDL_DestroyWindow(win);
+		return 0;
+	}
+
 	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
 
-	/* Init GLEW */
-	glewExperimental = GL_TRUE;
-	status = glewInit();
-	if(status != GLEW_OK){
-		RWERROR((ERR_GENERAL, glewGetErrorString(status)));
-		SDL_GL_DeleteContext(ctx);
-		SDL_DestroyWindow(win);
-		return 0;
-	}
-	if(!GLEW_VERSION_3_3){
-		RWERROR((ERR_GENERAL, "OpenGL 3.3 needed"));
-		SDL_GL_DeleteContext(ctx);
-		SDL_DestroyWindow(win);
-		return 0;
-	}
 	glGlobals.window = win;
 	glGlobals.glcontext = ctx;
 	*glGlobals.pWindow = win;
@@ -1712,7 +1699,6 @@ static struct {
 static int
 startGLFW(void)
 {
-	GLenum status;
 	GLFWwindow *win;
 	DisplayMode *mode;
 
@@ -1746,21 +1732,16 @@ startGLFW(void)
 		return 0;
 	}
 	glfwMakeContextCurrent(win);
+
+	/* Init GLAD */
+	if(!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+		RWERROR((ERR_GENERAL, "gladLoadGLLoader failed"));
+		glfwDestroyWindow(win);
+		return 0;
+	}
+
 	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
 
-	/* Init GLEW */
-	glewExperimental = GL_TRUE;
-	status = glewInit();
-	if(status != GLEW_OK){
-		RWERROR((ERR_GENERAL, glewGetErrorString(status)));
-		glfwDestroyWindow(win);
-		return 0;
-	}
-	if(!GLEW_VERSION_3_3){
-		RWERROR((ERR_GENERAL, "OpenGL 3.3 needed"));
-		glfwDestroyWindow(win);
-		return 0;
-	}
 	glGlobals.window = win;
 	*glGlobals.pWindow = win;
 	glGlobals.presentWidth = 0;

@@ -1,11 +1,4 @@
 newoption {
-	trigger     = "glewdir",
-	value       = "PATH",
-	description = "Directory of GLEW",
-	default     = "../glew-2.1.0",
-}
-
-newoption {
 	trigger		= "gfxlib",
 	value       = "LIBRARY",
 	description = "Choose a particular development library",
@@ -95,8 +88,6 @@ workspace "librw"
 		system "linux"
 
 	filter { "platforms:win*gl3" }
-		defines { "GLEW_STATIC" }
-		includedirs { path.join(_OPTIONS["glewdir"], "include") }
 		includedirs { path.join(_OPTIONS["sdl2dir"], "include") }
 	filter { "platforms:win-x86-gl3" }
 		includedirs { path.join(_OPTIONS["glfwdir32"], "include") }
@@ -123,6 +114,8 @@ project "librw"
 	defines { "LODEPNG_NO_COMPILE_CPP" }
 	files { "src/*.*" }
 	files { "src/*/*.*" }
+	filter { "platforms:*gl3" }
+		files { "src/gl/glad/*.*" }
 
 project "dumprwtree"
 	kind "ConsoleApp"
@@ -135,23 +128,16 @@ project "dumprwtree"
 
 function findlibs()
 	filter { "platforms:linux*gl3" }
-		links { "GL", "GLEW" }
+		links { "GL" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw" }
 		else
 			links { "SDL2" }
 		end
-	filter { "platforms:win*gl3", "action:vs*" }
-		defines { "GLEW_STATIC" }
-		links { "glew32s" }
-	filter { "platforms:win*gl3", "action:not vs*" }
-		links { "glew32" }
 	filter { "platforms:win-amd64-gl3" }
-		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/x64") }
 		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
-		libdirs { path.join(_OPTIONS["glewdir"], "lib/Release/Win32") }
 		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
