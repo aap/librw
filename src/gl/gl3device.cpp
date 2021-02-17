@@ -1762,6 +1762,9 @@ stopGLFW(void)
 static int
 initOpenGL(void)
 {
+/*
+	// this only works from 3.0 onward,
+	// but luckily GLAD has already taken care of extensions for us
 	int numExt;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &numExt);
 	for(int i = 0; i < numExt; i++){
@@ -1774,6 +1777,9 @@ initOpenGL(void)
 			gl3Caps.astcSupported = true;
 //		printf("%d %s\n", i, ext);
 	}
+*/
+	gl3Caps.dxtSupported = GLAD_GL_EXT_texture_compression_s3tc;
+	gl3Caps.astcSupported = GLAD_GL_KHR_texture_compression_astc_ldr;
 
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl3Caps.maxAnisotropy);
 
