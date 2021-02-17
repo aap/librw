@@ -1571,7 +1571,7 @@ startSDL2(void)
 	}
 	ctx = SDL_GL_CreateContext(win);
 
-	if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress)){
+	if (!((gl3Caps.gles ? gladLoadGLES2Loader : gladLoadGLLoader) ((GLADloadproc) SDL_GL_GetProcAddress, gl3Caps.glversion)) ) {
 		RWERROR((ERR_GENERAL, "gladLoadGLLoader failed"));
 		SDL_GL_DeleteContext(ctx);
 		SDL_DestroyWindow(win);
@@ -1734,7 +1734,7 @@ startGLFW(void)
 	glfwMakeContextCurrent(win);
 
 	/* Init GLAD */
-	if(!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
+	if (!((gl3Caps.gles ? gladLoadGLES2Loader : gladLoadGLLoader) ((GLADloadproc) glfwGetProcAddress, gl3Caps.glversion)) ) {
 		RWERROR((ERR_GENERAL, "gladLoadGLLoader failed"));
 		glfwDestroyWindow(win);
 		return 0;
