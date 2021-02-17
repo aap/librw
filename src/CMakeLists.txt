@@ -78,7 +78,9 @@ add_library(librw
     gl/rwgl3shader.h
     gl/rwwdgl.h
     gl/wdgl.cpp
+    gl/glad/glad.h
     gl/glad/glad.c
+    gl/glad/khrplatform.h
 
     lodepng/lodepng.h
     lodepng/lodepng.cpp
