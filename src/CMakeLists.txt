@@ -231,8 +231,15 @@ if(LIBRW_INSTALL)
             gl/rwgl3.h
             gl/rwgl3plg.h
             gl/rwgl3shader.h
-    DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
-        )
+        DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
+    )
+
+    install(
+        FILES
+            gl/glad/glad.h
+            gl/glad/khrplatform.h
+        DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl/glad"
+    )
 
     install(
         TARGETS librw
