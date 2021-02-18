@@ -391,7 +391,6 @@ copyPal8(uint8 *dst, uint32 dststride, uint8 *src, uint32 srcstride, int32 w, in
 static rw::Raster*
 xbox_to_d3d(rw::Raster *ras)
 {
-#ifdef RW_D3D9
 	using namespace rw;
 
 	int dxt = 0;
@@ -420,9 +419,6 @@ xbox_to_d3d(rw::Raster *ras)
 	}
 
 	return newras;
-#else
-	return nil;
-#endif
 }
 
 static rw::Raster*

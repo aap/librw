@@ -792,7 +792,7 @@ rasterCreateTexture(Raster *raster)
 	int32 palettePagewidth, palettePageheight;
 
 
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *ras = GETPS2RASTEREXT(raster);
 	pixelformat = raster->format & 0xF00;
 	palformat = raster->format & 0x6000;
 	width = raster->width;
@@ -1375,7 +1375,7 @@ unswizzleRaster(Raster *raster)
 	int32 x, y, w, h;
 	int32 i;
 	int32 logw;
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 	uint8 *px;
 
 	if((raster->format & (Raster::PAL4|Raster::PAL8)) == 0)
@@ -1422,7 +1422,7 @@ swizzleRaster(Raster *raster)
 	int32 x, y, w, h;
 	int32 i;
 	int32 logw;
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 	uint8 *px;
 
 	if((raster->format & (Raster::PAL4|Raster::PAL8)) == 0)
@@ -1464,7 +1464,7 @@ swizzleRaster(Raster *raster)
 uint8*
 rasterLock(Raster *raster, int32 level, int32 lockMode)
 {
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 	assert(raster->depth != 24);
 
 	if(level > 0){
@@ -1490,7 +1490,7 @@ rasterLock(Raster *raster, int32 level, int32 lockMode)
 void
 rasterUnlock(Raster *raster, int32 level)
 {
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 	if(raster->format & (Raster::PAL4 | Raster::PAL8))
 		swizzleRaster(raster);
 
@@ -1615,7 +1615,7 @@ imageFindRasterFormat(Image *img, int32 type,
 bool32
 rasterFromImage(Raster *raster, Image *image)
 {
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 
 	int32 pallength = 0;
 	switch(image->depth){
@@ -1708,7 +1708,7 @@ rasterToImage(Raster *raster)
 {
 	Image *image;
 	int depth;
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 
 	int32 rasterFormat = raster->format & 0xF00;
 	switch(rasterFormat){
@@ -1812,7 +1812,7 @@ rasterToImage(Raster *raster)
 int32
 rasterNumLevels(Raster *raster)
 {
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *ras = GETPS2RASTEREXT(raster);
 	if(raster->pixels == nil) return 0;
 	if(raster->format & Raster::MIPMAP)
 		return MAXLEVEL(ras)+1;
@@ -1822,7 +1822,7 @@ rasterNumLevels(Raster *raster)
 static void*
 createNativeRaster(void *object, int32 offset, int32)
 {
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
+	Ps2Raster *raster = GETPS2RASTEREXT(object);
 	raster->tex0 = 0;
 	raster->paletteBase = 0;
 	raster->kl = defaultMipMapKL;
@@ -1843,7 +1843,7 @@ createNativeRaster(void *object, int32 offset, int32)
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, object, offset);
+	Ps2Raster *raster = GETPS2RASTEREXT(object);
 	freealign(raster->data);
 	return object;
 }
@@ -1851,8 +1851,8 @@ destroyNativeRaster(void *object, int32 offset, int32)
 static void*
 copyNativeRaster(void *dst, void *src, int32 offset, int32)
 {
-	Ps2Raster *dstraster = PLUGINOFFSET(Ps2Raster, dst, offset);
-	Ps2Raster *srcraster = PLUGINOFFSET(Ps2Raster, src, offset);
+	Ps2Raster *dstraster = GETPS2RASTEREXT(dst);
+	Ps2Raster *srcraster = GETPS2RASTEREXT(src);
 	*dstraster = *srcraster;
 	return dst;
 }
@@ -1864,7 +1864,7 @@ readMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 	Texture *tex = (Texture*)object;
 	if(tex->raster == nil)
 		return stream;
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
+	Ps2Raster *raster = GETPS2RASTEREXT(tex->raster);
 	raster->kl = val;
 	return stream;
 }
@@ -1877,7 +1877,7 @@ writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 		stream->writeI32(defaultMipMapKL);
 		return stream;
 	}
-	Ps2Raster *raster = PLUGINOFFSET(Ps2Raster, tex->raster, offset);
+	Ps2Raster *raster = GETPS2RASTEREXT(tex->raster);
 	stream->writeI32(raster->kl);
 	return stream;
 }
@@ -1947,7 +1947,7 @@ calcTEX1(Raster *raster, uint64 *tex1, int32 filter)
 		LINEAR_MIPMAP_NEAREST,
 		LINEAR_MIPMAP_LINEAR,
 	};
-	Ps2Raster *natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *natras = GETPS2RASTEREXT(raster);
 	uint64 t1 = natras->tex1low;
 	uint64 k = natras->kl & 0xFFF;
 	uint64 l = (natras->kl >> 12) & 0x3;
@@ -2071,7 +2071,7 @@ streamExt.mipmapVal);
 	noNewStyleRasters = 0;
 	rw::version = oldversion;
 	tex->raster = raster;
-	natras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	natras = GETPS2RASTEREXT(raster);
 //printf("%X %X\n", natras->paletteBase, natras->tex1low);
 //	printf("%08X%08X %08X%08X %08X%08X\n",
 //	       (uint32)natras->tex0, (uint32)(natras->tex0>>32),
@@ -2176,7 +2176,7 @@ void
 writeNativeTexture(Texture *tex, Stream *stream)
 {
 	Raster *raster = tex->raster;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, raster, nativeRasterOffset);
+	Ps2Raster *ras = GETPS2RASTEREXT(raster);
 	writeChunkHeader(stream, ID_STRUCT, 8);
 	stream->writeU32(FOURCC_PS2);
 	stream->writeU32(tex->filterAddressing);
@@ -2229,7 +2229,7 @@ getSizeNativeTexture(Texture *tex)
 	size += 12 + strlen(tex->mask)+4 & ~3;
 	size += 12;
 	size += 12 + 64;
-	Ps2Raster *ras = PLUGINOFFSET(Ps2Raster, tex->raster, nativeRasterOffset);
+	Ps2Raster *ras = GETPS2RASTEREXT(tex->raster);
 	size += 12 + ras->pixelSize + ras->paletteSize;
 	return size;
 }

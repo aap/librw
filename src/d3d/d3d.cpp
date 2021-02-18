@@ -742,7 +742,7 @@ rasterFromImage(Raster *raster, Image *image)
 	}
 
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
-	int32 format = raster->format&0xF00;
+	int32 format = raster->format&(Raster::PAL8 | Raster::PAL4 | 0xF00);
 	switch(image->depth){
 	case 32:
 		if(format == Raster::C8888)
@@ -781,6 +781,7 @@ rasterFromImage(Raster *raster, Image *image)
 		break;
 	default:
 	err:
+fprintf(stderr, "%d %x\n", image->depth, format); fflush(stdout);
 		RWERROR((ERR_INVRASTER));
 		return 0;
 	}

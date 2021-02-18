@@ -883,8 +883,8 @@ readNativeTexture(Stream *stream)
 		RWERROR((ERR_PLATFORM, platform));
 		return nil;
 	}
-	if(version < 0x34001){
-		RWERROR((ERR_VERSION, version));
+	if(vers < 0x34001){
+		RWERROR((ERR_VERSION, vers));
 		return nil;
 	}
 	Texture *tex = Texture::create(nil);

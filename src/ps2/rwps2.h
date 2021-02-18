@@ -248,6 +248,7 @@ struct Ps2Raster
 
 extern int32 nativeRasterOffset;
 void registerNativeRaster(void);
+#define GETPS2RASTEREXT(raster) PLUGINOFFSET(rw::ps2::Ps2Raster, raster, rw::ps2::nativeRasterOffset)
 
 Texture *readNativeTexture(Stream *stream);
 void writeNativeTexture(Texture *tex, Stream *stream);

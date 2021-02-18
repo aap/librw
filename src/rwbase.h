@@ -486,11 +486,12 @@ public:
 
 class StreamMemory : public Stream
 {
+public:
 	uint8 *data;
 	uint32 length;
 	uint32 capacity;
 	uint32 position;
-public:
+
 	void close(void);
 	uint32 write8(const void *data, uint32 length);
 	uint32 read8(void *data, uint32 length);
@@ -507,8 +508,9 @@ public:
 
 class StreamFile : public Stream
 {
-	FILE *file;
 public:
+	FILE *file;
+
 	StreamFile(void) { file = nil; }
 	void close(void);
 	uint32 write8(const void *data, uint32 length);
