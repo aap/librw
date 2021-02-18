@@ -150,6 +150,8 @@ struct Im2DVertex
 
 void setAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
 void disableAttribPointers(AttribDesc *attribDescs, int32 numAttribs);
+void setupVertexInput(InstanceDataHeader *header);
+void teardownVertexInput(InstanceDataHeader *header);
 
 // Render state
 

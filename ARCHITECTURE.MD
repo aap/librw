@@ -87,7 +87,7 @@ but because librw is supposed to be able to
 convert between all sorts of platform specific files,
 the code for that has to be available no matter
 the render platform used.
-The common interface for all device-indepenent
+The common interface for all device-independent
 platform code is the `Driver` struct.
 The `Engine` struct has an array with one for each platform.
 
