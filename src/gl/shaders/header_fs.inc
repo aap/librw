@@ -24,7 +24,9 @@ const char *header_frag_src =
 
 "void DoAlphaTest(float a)\n"
 "{\n"
+"#ifndef NO_ALPHATEST\n"
 "	if(a < u_alphaRef.x || a >= u_alphaRef.y)\n"
 "		discard;\n"
+"#endif\n"
 "}\n"
 ;

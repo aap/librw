@@ -149,8 +149,6 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
 
-	defaultShader->use();
-
 	while(n--){
 		m = inst->material;
 
@@ -159,6 +157,11 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		setTexture(0, m->texture);
 
 		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+
+		if(getAlphaTest())
+			defaultShader->use();
+		else
+			defaultShader_noAT->use();
 
 		drawInst(header, inst);
 		inst++;

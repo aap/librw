@@ -136,7 +136,7 @@ int32 u_lightColor;
 int32 u_matColor;
 int32 u_surfProps;
 
-Shader *defaultShader;
+Shader *defaultShader, *defaultShader_noAT;
 
 static bool32 stateDirty = 1;
 static bool32 sceneDirty = 1;
@@ -1829,6 +1829,9 @@ initOpenGL(void)
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
 	defaultShader = Shader::create(vs, fs);
 	assert(defaultShader);
+	const char *fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, simple_frag_src, nil };
+	defaultShader_noAT = Shader::create(vs, fs_noAT);
+	assert(defaultShader_noAT);
 
 	openIm2D();
 	openIm3D();
@@ -1841,6 +1844,15 @@ termOpenGL(void)
 {
 	closeIm3D();
 	closeIm2D();
+
+	defaultShader->destroy();
+	defaultShader = nil;
+	defaultShader_noAT->destroy();
+	defaultShader_noAT = nil;
+
+	glDeleteTextures(1, &whitetex);
+	whitetex = nil;
+
 	return 1;
 }
 

@@ -23,6 +23,8 @@ out vec4 fragColor;
 
 void DoAlphaTest(float a)
 {
+#ifndef NO_ALPHATEST
 	if(a < u_alphaRef.x || a >= u_alphaRef.y)
 		discard;
+#endif
 }
