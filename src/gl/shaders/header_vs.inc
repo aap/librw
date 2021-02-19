@@ -29,7 +29,7 @@ const char *header_vert_src =
 "	vec4  u_fogColor;\n"
 "};\n"
 "#else\n"
-"uniform vec2 u_alphaRef;\n"
+"uniform vec4 u_alphaRef;\n"
 "uniform vec4  u_fogData;\n"
 "uniform vec4  u_fogColor;\n"
 "#endif\n"

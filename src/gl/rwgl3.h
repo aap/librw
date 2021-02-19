@@ -196,6 +196,8 @@ inline void setMaterial(uint32 flags, const RGBA &color, const SurfaceProperties
 void setAlphaBlend(bool32 enable);
 bool32 getAlphaBlend(void);
 
+bool32 getAlphaTest(void);
+
 void bindFramebuffer(uint32 fbo);
 uint32 bindTexture(uint32 texid);
 

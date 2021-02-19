@@ -22,6 +22,12 @@ namespace gl3 {
 UniformRegistry uniformRegistry;
 static char nameBuffer[(MAX_UNIFORMS + MAX_BLOCKS)*32];	// static because memory system isn't up yet when we register
 static uint32 nameBufPtr;
+static float uniformData[512*4];	// seems enough
+static uint32 dataPtr;
+
+static int uniformTypesize[] = {
+	0, 4, 4, 16
+};
 
 static char*
 shader_strdup(const char *name)
@@ -35,7 +41,7 @@ shader_strdup(const char *name)
 }
 
 int32
-registerUniform(const char *name)
+registerUniform(const char *name, UniformType type, int32 num)
 {
 	int i;
 	i = findUniform(name);
@@ -45,7 +51,21 @@ registerUniform(const char *name)
 		assert(0 && "no space for uniform");
 		return -1;
 	}
-	uniformRegistry.uniformNames[uniformRegistry.numUniforms] = shader_strdup(name);
+	Uniform *u = &uniformRegistry.uniforms[uniformRegistry.numUniforms];
+	u->name = shader_strdup(name);
+	u->type = type;
+//	u->dirty = false;
+	u->serialNum = 0;
+	if(type == UNIFORM_NA){
+		u->num = 0;
+		u->data = nil;
+	}else{
+		u->num = num;
+		u->data = &uniformData[dataPtr];
+		dataPtr += uniformTypesize[type]*num;
+		assert(dataPtr <= nelem(uniformData));
+	}
+	
 	return uniformRegistry.numUniforms++;
 }
 
@@ -54,7 +74,7 @@ findUniform(const char *name)
 {
 	int i;
 	for(i = 0; i < uniformRegistry.numUniforms; i++)
-		if(strcmp(name, uniformRegistry.uniformNames[i]) == 0)
+		if(strcmp(name, uniformRegistry.uniforms[i].name) == 0)
 			return i;
 	return -1;
 }
@@ -80,6 +100,47 @@ findBlock(const char *name)
 		if(strcmp(name, uniformRegistry.blockNames[i]) == 0)
 			return i;
 	return -1;
+}
+
+void
+setUniform(int32 id, void *data)
+{
+	Uniform *u = &uniformRegistry.uniforms[id];
+	assert(u->type != UNIFORM_NA);
+	if(memcmp(u->data, data, uniformTypesize[u->type]*u->num * sizeof(float)) != 0){
+		memcpy(u->data, data, uniformTypesize[u->type]*u->num * sizeof(float));
+		//u->dirty = true;
+		u->serialNum++;
+	}
+}
+
+void
+flushUniforms(void)
+{
+	for(int i = 0; i < uniformRegistry.numUniforms; i++){
+		int32 loc = currentShader->uniformLocations[i];
+		if(loc == -1)
+			continue;
+
+		Uniform *u = &uniformRegistry.uniforms[i];
+//		if(force || u->dirty)
+		if(currentShader->serialNums[i] != u->serialNum)
+			switch(u->type){
+			case UNIFORM_NA:
+				break;
+			case UNIFORM_VEC4:
+				glUniform4fv(loc, u->num, (GLfloat*)u->data);
+				break;
+			case UNIFORM_IVEC4:
+				glUniform4iv(loc, u->num, (GLint*)u->data);
+				break;
+			case UNIFORM_MAT4:
+				glUniformMatrix4fv(loc, u->num, GL_FALSE, (GLfloat*)u->data);
+				break;
+			}
+		currentShader->serialNums[i] = u->serialNum;
+		//u->dirty = false;
+	}
 }
 
 Shader *currentShader;
@@ -238,9 +299,12 @@ Shader::create(const char **vsrc, const char **fsrc)
 	// query uniform locations
 	sh->program = program;
 	sh->uniformLocations = rwNewT(GLint, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
-	for(i = 0; i < uniformRegistry.numUniforms; i++)
+	sh->serialNums = rwNewT(uint32, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
+	for(i = 0; i < uniformRegistry.numUniforms; i++){
 		sh->uniformLocations[i] = glGetUniformLocation(program,
-			uniformRegistry.uniformNames[i]);
+			uniformRegistry.uniforms[i].name);
+		sh->serialNums[i] = ~0;	// let's hope this means dirty
+	}
 
 	// set samplers
 	glUseProgram(program);

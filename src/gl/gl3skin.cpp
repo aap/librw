@@ -24,8 +24,6 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-#define U(i) currentShader->uniformLocations[i]
-
 static Shader *skinShader;
 static int32 u_boneMatrices;
 
@@ -246,8 +244,7 @@ uploadSkinMatrices(Atomic *a)
 			m++;
 		}
 	}
-	glUniformMatrix4fv(U(u_boneMatrices), 64, GL_FALSE,
-	                   (GLfloat*)skinMatrices);
+	setUniform(u_boneMatrices, skinMatrices);
 }
 
 void
@@ -313,7 +310,7 @@ skinClose(void *o, int32, int32)
 void
 initSkin(void)
 {
-	u_boneMatrices = registerUniform("u_boneMatrices");
+	u_boneMatrices = registerUniform("u_boneMatrices", UNIFORM_MAT4, 64);
 
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_SKIN,
 	                       skinOpen, skinClose);

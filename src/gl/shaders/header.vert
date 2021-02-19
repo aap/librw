@@ -28,7 +28,7 @@ layout(std140) uniform State
 	vec4  u_fogColor;
 };
 #else
-uniform vec2 u_alphaRef;
+uniform vec4 u_alphaRef;
 uniform vec4  u_fogData;
 uniform vec4  u_fogColor;
 #endif

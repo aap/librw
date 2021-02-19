@@ -53,7 +53,7 @@ static int primTypeMap[] = {
 void
 openIm2D(void)
 {
-	u_xform = registerUniform("u_xform");
+	u_xform = registerUniform("u_xform", UNIFORM_VEC4);
 
 #include "shaders/im2d_gl.inc"
 #include "shaders/simple_fs_gl.inc"
@@ -120,7 +120,8 @@ im2DSetXform(void)
 	xform[1] = -2.0f/cam->frameBuffer->height;
 	xform[2] = -1.0f;
 	xform[3] = 1.0f;
-	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
+	setUniform(u_xform, xform);
+//	glUniform4fv(currentShader->uniformLocations[u_xform], 1, xform);
 }
 
 void

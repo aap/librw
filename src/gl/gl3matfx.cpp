@@ -24,8 +24,6 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-#define U(i) currentShader->uniformLocations[i]
-
 static Shader *envShader;
 static int32 u_texMatrix;
 static int32 u_fxparams;
@@ -77,7 +75,7 @@ uploadEnvMatrix(Frame *frame)
 		invMtx.pos.set(0.0f, 0.0f, 0.0f);
 		RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	}
-	glUniformMatrix4fv(U(u_texMatrix), 1, GL_FALSE, (float*)&envMtx);
+	setUniform(u_texMatrix, &envMtx);
 }
 
 void
@@ -99,18 +97,19 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags, Mat
 
 	setMaterial(flags, m->color, m->surfaceProps);
 
-	float fxparams[2];
+	float fxparams[4];
 	fxparams[0] = env->coefficient;
 	fxparams[1] = env->fbAlpha ? 0.0f : 1.0f;
+	fxparams[2] = fxparams[3] = 0.0f;
 
-	glUniform2fv(U(u_fxparams), 1, fxparams);
+	setUniform(u_fxparams, fxparams);
 	static float zero[4];
 	static float one[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	// This clamps the vertex color below. With it we can achieve both PC and PS2 style matfx
 	if(MatFX::modulateEnvMap)
-		glUniform4fv(U(u_colorClamp), 1, zero);
+		setUniform(u_colorClamp, zero);
 	else
-		glUniform4fv(U(u_colorClamp), 1, one);
+		setUniform(u_colorClamp, one);
 
 	rw::SetRenderState(VERTEXALPHA, 1);
 	rw::SetRenderState(SRCBLEND, BLENDONE);
@@ -193,9 +192,9 @@ matfxClose(void *o, int32, int32)
 void
 initMatFX(void)
 {
-	u_texMatrix = registerUniform("u_texMatrix");
-	u_fxparams = registerUniform("u_fxparams");
-	u_colorClamp = registerUniform("u_colorClamp");
+	u_texMatrix = registerUniform("u_texMatrix", UNIFORM_MAT4);
+	u_fxparams = registerUniform("u_fxparams", UNIFORM_VEC4);
+	u_colorClamp = registerUniform("u_colorClamp", UNIFORM_VEC4);
 
 	Driver::registerPlugin(PLATFORM_GL3, 0, ID_MATFX,
 	                       matfxOpen, matfxClose);

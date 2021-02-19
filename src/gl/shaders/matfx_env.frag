@@ -1,7 +1,7 @@
 uniform sampler2D tex0;
 uniform sampler2D tex1;
 
-uniform vec2 u_fxparams;
+uniform vec4 u_fxparams;
 uniform vec4 u_colorClamp;
 
 #define shininess (u_fxparams.x)

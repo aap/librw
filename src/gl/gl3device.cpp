@@ -67,13 +67,6 @@ struct UniformObject
 	RGBAf lightColor[MAX_LIGHTS];
 };
 
-struct GLShaderState
-{
-	RGBA matColor;
-	SurfaceProperties surfProps;
-	float extraSurfProp;
-};
-
 const char *shaderDecl120 =
 "#version 120\n"
 "#define GL2\n"
@@ -120,16 +113,11 @@ static GLuint whitetex;
 static UniformState uniformState;
 static UniformScene uniformScene;
 static UniformObject uniformObject;
-static GLShaderState shaderState;
 
 #ifndef RW_GL_USE_UBOS
 // State
 int32 u_alphaRef;
 int32 u_fogData;
-//int32 u_fogStart;
-//int32 u_fogEnd;
-//int32 u_fogRange;
-//int32 u_fogDisable;
 int32 u_fogColor;
 
 // Scene
@@ -404,6 +392,8 @@ getAlphaBlend(void)
 {
 	return rwStateCache.blendEnable;
 }
+
+bool32 getAlphaTest(void) { return rwStateCache.alphaTestEnable; }
 
 static void
 setDepthTest(bool32 enable)
@@ -980,6 +970,7 @@ void
 setWorldMatrix(Matrix *mat)
 {
 	convMatrix(&uniformObject.world, mat);
+	setUniform(u_world, &uniformObject.world);
 	objectDirty = 1;
 }
 
@@ -1045,6 +1036,12 @@ setLights(WorldLights *lightData)
 	}
 
 	uniformObject.lightParams[n].type = 0.0f;
+
+	setUniform(u_ambLight, &uniformObject.ambLight);
+	setUniform(u_lightParams, uniformObject.lightParams);
+	setUniform(u_lightPosition, uniformObject.lightPosition);
+	setUniform(u_lightDirection, uniformObject.lightDirection);
+	setUniform(u_lightColor, uniformObject.lightColor);
 out:
 	objectDirty = 1;
 	return bits;
@@ -1054,6 +1051,7 @@ void
 setProjectionMatrix(float32 *mat)
 {
 	memcpy(&uniformScene.proj, mat, 64);
+	setUniform(u_proj, uniformScene.proj);
 	sceneDirty = 1;
 }
 
@@ -1061,6 +1059,7 @@ void
 setViewMatrix(float32 *mat)
 {
 	memcpy(&uniformScene.view, mat, 64);
+	setUniform(u_view, uniformScene.view);
 	sceneDirty = 1;
 }
 
@@ -1071,27 +1070,16 @@ Shader *lastShaderUploaded;
 void
 setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp)
 {
-	bool force = lastShaderUploaded != currentShader;
-	if(force || !equal(shaderState.matColor, color)){
-		rw::RGBAf col;
-		convColor(&col, &color);
-		glUniform4fv(U(u_matColor), 1, (GLfloat*)&col);
-		shaderState.matColor = color;
-	}
+	rw::RGBAf col;
+	convColor(&col, &color);
+	setUniform(u_matColor, &col);
 
-	if(force ||
-	   shaderState.surfProps.ambient != surfaceprops.ambient ||
-	   shaderState.surfProps.specular != surfaceprops.specular ||
-	   shaderState.surfProps.diffuse != surfaceprops.diffuse ||
-	   shaderState.extraSurfProp != extraSurfProp){
-		float surfProps[4];
-		surfProps[0] = surfaceprops.ambient;
-		surfProps[1] = surfaceprops.specular;
-		surfProps[2] = surfaceprops.diffuse;
-		surfProps[3] = extraSurfProp;
-		glUniform4fv(U(u_surfProps), 1, surfProps);
-		shaderState.surfProps = surfaceprops;
-	}
+	float surfProps[4];
+	surfProps[0] = surfaceprops.ambient;
+	surfProps[1] = surfaceprops.specular;
+	surfProps[2] = surfaceprops.diffuse;
+	surfProps[3] = extraSurfProp;
+	setUniform(u_surfProps, surfProps);
 }
 
 void
@@ -1101,80 +1089,54 @@ flushCache(void)
 
 #ifndef RW_GL_USE_UBOS
 
-	// TODO: this is probably a stupid way to do it without UBOs
-	if(lastShaderUploaded != currentShader){
-		lastShaderUploaded = currentShader;
-		objectDirty = 1;
-		sceneDirty = 1;
-		stateDirty = 1;
+	// what's this doing here??
+	uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
+	uniformState.fogStart = rwStateCache.fogStart;
+	uniformState.fogEnd = rwStateCache.fogEnd;
+	uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 
-		int i;
-		for(i = 0; i < RWGL_NUM_STATES; i++)
-			uniformStateDirty[i] = true;
+	if(uniformStateDirty[RWGL_ALPHAFUNC] || uniformStateDirty[RWGL_ALPHAREF]){
+		float alphaTest[4];
+		switch(alphaFunc){
+		case ALPHAALWAYS:
+		default:
+			alphaTest[0] = -1000.0f;
+			alphaTest[1] = 1000.0f;
+			break;
+		case ALPHAGREATEREQUAL:
+			alphaTest[0] = alphaRef;
+			alphaTest[1] = 1000.0f;
+			break;
+		case ALPHALESS:
+			alphaTest[0] = -1000.0f;
+			alphaTest[1] = alphaRef;
+			break;
+		}
+		setUniform(u_alphaRef, alphaTest);
+		uniformStateDirty[RWGL_ALPHAFUNC] = false;
+		uniformStateDirty[RWGL_ALPHAREF] = false;
 	}
 
-	if(sceneDirty){
-		glUniformMatrix4fv(U(u_proj), 1, 0, uniformScene.proj);
-		glUniformMatrix4fv(U(u_view), 1, 0, uniformScene.view);
-		sceneDirty = 0;
+	if(uniformStateDirty[RWGL_FOG] ||
+	   uniformStateDirty[RWGL_FOGSTART] ||
+	   uniformStateDirty[RWGL_FOGEND]){
+		float fogData[4] = {
+			uniformState.fogStart,
+			uniformState.fogEnd,
+			uniformState.fogRange,
+			uniformState.fogDisable
+		};
+		setUniform(u_fogData, fogData);
+		uniformStateDirty[RWGL_FOG] = false;
+		uniformStateDirty[RWGL_FOGSTART] = false;
+		uniformStateDirty[RWGL_FOGEND] = false;
 	}
 
-	if(objectDirty){
-		glUniformMatrix4fv(U(u_world), 1, 0, (float*)&uniformObject.world);
-		glUniform4fv(U(u_ambLight), 1, (float*)&uniformObject.ambLight);
-		glUniform4fv(U(u_lightParams), MAX_LIGHTS, (float*)uniformObject.lightParams);
-		glUniform4fv(U(u_lightPosition), MAX_LIGHTS, (float*)uniformObject.lightPosition);
-		glUniform4fv(U(u_lightDirection), MAX_LIGHTS, (float*)uniformObject.lightDirection);
-		glUniform4fv(U(u_lightColor), MAX_LIGHTS, (float*)uniformObject.lightColor);
-		objectDirty = 0;
+	if(uniformStateDirty[RWGL_FOGCOLOR]){
+		setUniform(u_fogColor, &uniformState.fogColor);
+		uniformStateDirty[RWGL_FOGCOLOR] = false;
 	}
 
-//	if(stateDirty){
-
-		uniformState.fogDisable = rwStateCache.fogEnable ? 0.0f : 1.0f;
-		uniformState.fogStart = rwStateCache.fogStart;
-		uniformState.fogEnd = rwStateCache.fogEnd;
-		uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
-
-		if(uniformStateDirty[RWGL_ALPHAFUNC] || uniformStateDirty[RWGL_ALPHAREF]){
-			switch(alphaFunc){
-			case ALPHAALWAYS:
-			default:
-				glUniform2f(U(u_alphaRef), -1000.0f, 1000.0f);
-				break;
-			case ALPHAGREATEREQUAL:
-				glUniform2f(U(u_alphaRef), alphaRef, 1000.0f);
-				break;
-			case ALPHALESS:
-				glUniform2f(U(u_alphaRef), -1000.0f, alphaRef);
-				break;
-			}
-			uniformStateDirty[RWGL_ALPHAFUNC] = false;
-			uniformStateDirty[RWGL_ALPHAREF] = false;
-		}
-
-		if(uniformStateDirty[RWGL_FOG] ||
-		   uniformStateDirty[RWGL_FOGSTART] ||
-		   uniformStateDirty[RWGL_FOGEND]){
-			float fogData[4] = {
-				uniformState.fogStart,
-				uniformState.fogEnd,
-				uniformState.fogRange,
-				uniformState.fogDisable
-			};
-			glUniform4fv(U(u_fogData), 1, fogData);
-			uniformStateDirty[RWGL_FOG] = false;
-			uniformStateDirty[RWGL_FOGSTART] = false;
-			uniformStateDirty[RWGL_FOGEND] = false;
-		}
-
-		if(uniformStateDirty[RWGL_FOGCOLOR]){
-			glUniform4fv(U(u_fogColor), 1, (float*)&uniformState.fogColor);
-			uniformStateDirty[RWGL_FOGCOLOR] = false;
-		}
-
-//		stateDirty = 0;
-//	}
 #else
 	if(objectDirty){
 		glBindBuffer(GL_UNIFORM_BUFFER, ubo_object);
@@ -1214,6 +1176,7 @@ flushCache(void)
 		stateDirty = 0;
 	}
 #endif
+	flushUniforms();
 }
 
 static void
@@ -1796,29 +1759,25 @@ initOpenGL(void)
 	}
 
 #ifndef RW_GL_USE_UBOS
-	u_alphaRef = registerUniform("u_alphaRef");
-	u_fogData = registerUniform("u_fogData");
-//	u_fogStart = registerUniform("u_fogStart");
-//	u_fogEnd = registerUniform("u_fogEnd");
-//	u_fogRange = registerUniform("u_fogRange");
-//	u_fogDisable = registerUniform("u_fogDisable");
-	u_fogColor = registerUniform("u_fogColor");
-	u_proj = registerUniform("u_proj");
-	u_view = registerUniform("u_view");
-	u_world = registerUniform("u_world");
-	u_ambLight = registerUniform("u_ambLight");
-	u_lightParams = registerUniform("u_lightParams");
-	u_lightPosition = registerUniform("u_lightPosition");
-	u_lightDirection = registerUniform("u_lightDirection");
-	u_lightColor = registerUniform("u_lightColor");
+	u_alphaRef = registerUniform("u_alphaRef", UNIFORM_VEC4);
+	u_fogData = registerUniform("u_fogData", UNIFORM_VEC4);
+	u_fogColor = registerUniform("u_fogColor", UNIFORM_VEC4);
+	u_proj = registerUniform("u_proj", UNIFORM_MAT4);
+	u_view = registerUniform("u_view", UNIFORM_MAT4);
+	u_world = registerUniform("u_world", UNIFORM_MAT4);
+	u_ambLight = registerUniform("u_ambLight", UNIFORM_VEC4);
+	u_lightParams = registerUniform("u_lightParams", UNIFORM_VEC4, MAX_LIGHTS);
+	u_lightPosition = registerUniform("u_lightPosition", UNIFORM_VEC4, MAX_LIGHTS);
+	u_lightDirection = registerUniform("u_lightDirection", UNIFORM_VEC4, MAX_LIGHTS);
+	u_lightColor = registerUniform("u_lightColor", UNIFORM_VEC4, MAX_LIGHTS);
 	lastShaderUploaded = nil;
 #else
 	registerBlock("Scene");
 	registerBlock("Object");
 	registerBlock("State");
 #endif
-	u_matColor = registerUniform("u_matColor");
-	u_surfProps = registerUniform("u_surfProps");
+	u_matColor = registerUniform("u_matColor", UNIFORM_VEC4);
+	u_surfProps = registerUniform("u_surfProps", UNIFORM_VEC4);
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 

@@ -31,7 +31,7 @@ const char *matfx_env_frag_src =
 "uniform sampler2D tex0;\n"
 "uniform sampler2D tex1;\n"
 
-"uniform vec2 u_fxparams;\n"
+"uniform vec4 u_fxparams;\n"
 "uniform vec4 u_colorClamp;\n"
 
 "#define shininess (u_fxparams.x)\n"
