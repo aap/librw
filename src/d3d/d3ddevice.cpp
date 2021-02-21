@@ -1129,7 +1129,7 @@ recreateVidmemRasters(void)
 		switch(raster->type){
 		case Raster::CAMERATEXTURE: {
 			int32 levels = Raster::calculateNumLevels(raster->width, raster->height);
-			IDirect3DTexture9 *tex;
+			IDirect3DTexture9 *tex = nil;
 			d3ddevice->CreateTexture(raster->width, raster->height,
 						raster->format & Raster::MIPMAP ? levels : 1,
 						D3DUSAGE_RENDERTARGET,
