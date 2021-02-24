@@ -1412,12 +1412,11 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 		case Raster::CAMERA:
 			setActiveTexture(0);
 			glBindTexture(GL_TEXTURE_2D, natdst->texid);
-			if(dpiScale.x != 1 || dpiScale.y != 1)
-				glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
-					src->width/dpiScale.x, src->height/dpiScale.y, src->width, src->height);
-			else
-				glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
-					0, 0, src->width, src->height);
+			
+			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
+			src->width - src->width/dpiScale.x, src->height - src->height/dpiScale.y,
+			src->width, src->height);
+
 			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
 			return 1;
 		}
