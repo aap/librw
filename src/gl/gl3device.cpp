@@ -1388,7 +1388,10 @@ static V2d dpiScale(float x, float y)
 	int w = 0;
         int h = 0;
         glfwGetFramebufferSize(glGlobals.window, &w, &h);
-	v.set(w / x, h / y);
+	if (w && h)
+		v.set(w / x, h / y);
+	else
+		v.set(1,1);
 	return v;
 }
 
@@ -1409,8 +1412,12 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 		case Raster::CAMERA:
 			setActiveTexture(0);
 			glBindTexture(GL_TEXTURE_2D, natdst->texid);
-			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
-				src->width/dpiScale.x, src->height/dpiScale.y, src->width, src->height);
+			if(dpiScale.x != 1 || dpiScale.y != 1)
+				glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
+					src->width/dpiScale.x, src->height/dpiScale.y, src->width, src->height);
+			else
+				glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
+					0, 0, src->width, src->height);
 			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
 			return 1;
 		}
