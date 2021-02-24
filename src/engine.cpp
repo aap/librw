@@ -559,6 +559,7 @@ Device renderdevice = {
 	null::im3DRenderPrimitive,
 	null::im3DRenderIndexedPrimitive,
 	null::im3DEnd,
+	null::dpiScale,
 	null::deviceSystem
 };
 
