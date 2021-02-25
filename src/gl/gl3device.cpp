@@ -1384,6 +1384,12 @@ showRaster(Raster *raster, uint32 flags)
 
 static V2d dpiScale(float x, float y)
 {
+//TODO SDL2 version of this
+#ifdef LIBRW_SDL2
+	V2d v;
+	v.set(1.f, 1.f);
+	return v;
+#else
 	V2d v;
 	int w = 0;
         int h = 0;
@@ -1393,6 +1399,7 @@ static V2d dpiScale(float x, float y)
 	else
 		v.set(1,1);
 	return v;
+#endif
 }
 
 static bool32
