@@ -1,6 +1,8 @@
 #include "standardConstants.h"
 
 float4x4	texMat	: register(c41);
+float4		colorClamp : register(c45);
+float4		envColor : register(c46);
 
 struct VS_in
 {
@@ -15,6 +17,7 @@ struct VS_out {
 	float3 TexCoord0	: TEXCOORD0;	// also fog
 	float2 TexCoord1	: TEXCOORD1;
 	float4 Color		: COLOR0;
+	float4 EnvColor		: COLOR1;
 };
 
 
@@ -47,6 +50,7 @@ VS_out main(in VS_in input)
 #endif
 	// PS2 clamps before material color
 	output.Color = clamp(output.Color, 0.0, 1.0);
+	output.EnvColor = max(output.Color, colorClamp) * envColor;
 	output.Color *= matCol;
 
 	output.TexCoord0.z = clamp((output.Position.w - fogEnd)*fogRange, fogDisable, 1.0);

@@ -1065,8 +1065,6 @@ setViewMatrix(float32 *mat)
 
 Shader *lastShaderUploaded;
 
-#define U(i) currentShader->uniformLocations[i]
-
 void
 setMaterial(const RGBA &color, const SurfaceProperties &surfaceprops, float extraSurfProp)
 {

@@ -33,9 +33,10 @@ static void *matfx_env_tex_PS;
 enum
 {
 	VSLOC_texMat = VSLOC_afterLights,
+	VSLOC_colorClamp = VSLOC_texMat + 4,
+	VSLOC_envColor,
 
 	PSLOC_shininess = 1,
-	PSLOC_colorClamp = 2
 };
 
 void
@@ -88,6 +89,8 @@ uploadEnvMatrix(Frame *frame)
 	Matrix::invert(&invMat, frame->getLTM());
 	convMatrix(&invMtx, &invMat);
 	invMtx.pos.set(0.0f, 0.0f, 0.0f);
+	float uscale = fabs(normal2texcoord.right.x);
+	normal2texcoord.right.x = MatFX::envMapFlipU ? -uscale : uscale;
 	RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	d3ddevice->SetVertexShaderConstantF(VSLOC_texMat, (float*)&envMtx, 4);
 }
@@ -118,10 +121,16 @@ matfxRender_EnvMap(InstanceDataHeader *header, InstanceData *inst, int32 lightBi
 	fxparams.disableFBA = env->fbAlpha ? 0.0f : 1.0f;
 	d3ddevice->SetPixelShaderConstantF(PSLOC_shininess, (float*)&fxparams, 1);
 	// This clamps the vertex color below. With it we can achieve both PC and PS2 style matfx
-	if(MatFX::modulateEnvMap)
-		d3ddevice->SetPixelShaderConstantF(PSLOC_colorClamp, zero, 1);
+	if(MatFX::envMapApplyLight)
+		d3ddevice->SetVertexShaderConstantF(VSLOC_colorClamp, zero, 1);
 	else
-		d3ddevice->SetPixelShaderConstantF(PSLOC_colorClamp, one, 1);
+		d3ddevice->SetVertexShaderConstantF(VSLOC_colorClamp, one, 1);
+	RGBAf envcol[4];
+	if(MatFX::envMapUseMatColor)
+		convColor(envcol, &m->color);
+	else
+		convColor(envcol, &MatFX::envMapColor);
+	d3ddevice->SetVertexShaderConstantF(VSLOC_envColor, (float*)&envcol, 1);
 
 	// Pick a shader
 	if((lightBits & VSLIGHT_MASK) == 0)

@@ -24,7 +24,11 @@
 
 namespace rw {
 
-bool32 MatFX::modulateEnvMap;
+bool32 MatFX::envMapFlipU;
+bool32 MatFX::envMapApplyLight;
+bool32 MatFX::envMapUseMatColor;
+RGBA MatFX::envMapColor = { 255, 255, 255, 255 };
+
 
 // Atomic
 

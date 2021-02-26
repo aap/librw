@@ -307,6 +307,7 @@ struct RawMatrix
 	V3d pos;
 	float32 posw;
 
+	// NB: this is dst = src2*src1, i.e. src1 is applied first, then src2
 	static void mult(RawMatrix *dst, RawMatrix *src1, RawMatrix *src2);
 	static void transpose(RawMatrix *dst, RawMatrix *src);
 	static void setIdentity(RawMatrix *dst);

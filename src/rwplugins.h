@@ -160,7 +160,10 @@ struct MatFX
 	static void disableEffects(Atomic *atomic);
 	static bool32 getEffects(Atomic *atomic);
 
-	static bool32 modulateEnvMap;
+	static bool32 envMapFlipU;	// PS2 does this for some reason
+	static bool32 envMapApplyLight;	// modulate env map by lighting
+	static bool32 envMapUseMatColor;	// modulate env map by material color
+	static RGBA envMapColor;	// if !envMapUseMatColor, use this
 };
 
 struct MatFXGlobals

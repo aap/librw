@@ -3,6 +3,7 @@ struct VS_out {
 	float3 TexCoord0	: TEXCOORD0;
 	float2 TexCoord1	: TEXCOORD1;
 	float4 Color		: COLOR0;
+	float4 EnvColor		: COLOR1;
 };
 
 sampler2D diffTex : register(s0);
@@ -11,7 +12,6 @@ sampler2D envTex : register(s1);
 float4 fogColor : register(c0);
 
 float4 fxparams : register(c1);
-float4 colorClamp : register(c2);
 
 #define shininess (fxparams.x)
 #define disableFBA (fxparams.y)
@@ -19,12 +19,11 @@ float4 colorClamp : register(c2);
 float4 main(VS_out input) : COLOR
 {
 	float4 pass1 = input.Color;
-	float4 envColor = max(pass1, colorClamp);
 #ifdef TEX
 	pass1 *= tex2D(diffTex, input.TexCoord0.xy);
 #endif
 
-	float4 pass2 = envColor*shininess*tex2D(envTex, input.TexCoord1.xy);
+	float4 pass2 = input.EnvColor*shininess*tex2D(envTex, input.TexCoord1.xy);
 
 	pass1.rgb = lerp(fogColor.rgb, pass1.rgb, input.TexCoord0.z);
 	pass2.rgb = lerp(float3(0.0, 0.0, 0.0), pass2.rgb, input.TexCoord0.z);
