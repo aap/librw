@@ -251,13 +251,12 @@ Shader::create(const char **vsrc, const char **fsrc)
 	}
 
 	fail = linkprogram(vs, fs, &program);
+
+	glDeleteShader(vs);
+	glDeleteShader(fs);
 	if(fail){
-		glDeleteShader(fs);
-		glDeleteShader(vs);
 		return nil;
 	}
-	glDeleteProgram(vs);
-	glDeleteProgram(fs);
 
 	Shader *sh = rwNewT(Shader, 1, MEMDUR_EVENT | ID_DRIVER);	 // or global?
 
