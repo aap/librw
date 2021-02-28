@@ -1723,7 +1723,11 @@ startGLFW(void)
 	glfwWindowHint(GLFW_GREEN_BITS, mode->mode.greenBits);
 	glfwWindowHint(GLFW_BLUE_BITS, mode->mode.blueBits);
 	glfwWindowHint(GLFW_REFRESH_RATE, mode->mode.refreshRate);
-	glfwWindowHint(GLFW_SAMPLES, glGlobals.numSamples);
+	
+	// GLX will round up to 2x or 4x if you ask for multisampling on with 1 sample
+	// So only apply the SAMPLES hint if we actually want multisampling
+	if (glGlobals.numSamples > 1)
+		glfwWindowHint(GLFW_SAMPLES, glGlobals.numSamples);
 
 	int i;
 	for(i = 0; profiles[i].gl; i++){
