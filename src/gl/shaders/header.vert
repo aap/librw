@@ -1,5 +1,5 @@
 
-#define DIRECTIONALS
+//#define DIRECTIONALS
 //#define POINTLIGHTS
 //#define SPOTLIGHTS
 

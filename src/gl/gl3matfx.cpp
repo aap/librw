@@ -24,25 +24,36 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-static Shader *envShader;
+static Shader *envShader, *envShader_noAT;
+static Shader *envShader_fullLight, *envShader_fullLight_noAT;
 static int32 u_texMatrix;
 static int32 u_fxparams;
 static int32 u_colorClamp;
 static int32 u_envColor;
 
 void
-matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags)
+matfxDefaultRender(InstanceDataHeader *header, InstanceData *inst, int32 vsBits, uint32 flags)
 {
 	Material *m;
 	m = inst->material;
-
-	defaultShader->use();
 
 	setMaterial(flags, m->color, m->surfaceProps);
 
 	setTexture(0, m->texture);
 
 	rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+
+	if((vsBits & VSLIGHT_MASK) == 0){
+		if(getAlphaTest())
+			defaultShader->use();
+		else
+			defaultShader_noAT->use();
+	}else{
+		if(getAlphaTest())
+			defaultShader_fullLight->use();
+		else
+			defaultShader_fullLight_noAT->use();
+	}
 
 	drawInst(header, inst);
 }
@@ -82,17 +93,15 @@ uploadEnvMatrix(Frame *frame)
 }
 
 void
-matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags, MatFX::Env *env)
+matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, int32 vsBits, uint32 flags, MatFX::Env *env)
 {
 	Material *m;
 	m = inst->material;
 
 	if(env->tex == nil || env->coefficient == 0.0f){
-		matfxDefaultRender(header, inst, flags);
+		matfxDefaultRender(header, inst, vsBits, flags);
 		return;
 	}
-
-	envShader->use();
 
 	setTexture(0, m->texture);
 	setTexture(1, env->tex);
@@ -123,6 +132,18 @@ matfxEnvRender(InstanceDataHeader *header, InstanceData *inst, uint32 flags, Mat
 	rw::SetRenderState(VERTEXALPHA, 1);
 	rw::SetRenderState(SRCBLEND, BLENDONE);
 
+	if((vsBits & VSLIGHT_MASK) == 0){
+		if(getAlphaTest())
+			envShader->use();
+		else
+			envShader_noAT->use();
+	}else{
+		if(getAlphaTest())
+			envShader_fullLight->use();
+		else
+			envShader_fullLight_noAT->use();
+	}
+
 	drawInst(header, inst);
 
 	rw::SetRenderState(SRCBLEND, BLENDSRCALPHA);
@@ -133,7 +154,7 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 {
 	uint32 flags = atomic->geometry->flags;
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(atomic);
+	int32 vsBits = lightingCB(atomic);
 
 	setupVertexInput(header);
 
@@ -146,13 +167,13 @@ matfxRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		MatFX *matfx = MatFX::get(inst->material);
 
 		if(matfx == nil)
-			matfxDefaultRender(header, inst, flags);
+			matfxDefaultRender(header, inst, vsBits, flags);
 		else switch(matfx->type){
 		case MatFX::ENVMAP:
-			matfxEnvRender(header, inst, flags, &matfx->fx[0].env);
+			matfxEnvRender(header, inst, vsBits, flags, &matfx->fx[0].env);
 			break;
 		default:
-			matfxDefaultRender(header, inst, flags);
+			matfxDefaultRender(header, inst, vsBits, flags);
 			break;
 		}
 		inst++;
@@ -179,9 +200,19 @@ matfxOpen(void *o, int32, int32)
 
 #include "shaders/matfx_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, matfx_env_vert_src, nil };
+	const char *vs_fullLight[] = { shaderDecl, "#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", header_vert_src, matfx_env_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, matfx_env_frag_src, nil };
+	const char *fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, matfx_env_frag_src, nil };
+
 	envShader = Shader::create(vs, fs);
 	assert(envShader);
+	envShader_noAT = Shader::create(vs, fs_noAT);
+	assert(envShader_noAT);
+
+	envShader_fullLight = Shader::create(vs_fullLight, fs);
+	assert(envShader_fullLight);
+	envShader_fullLight_noAT = Shader::create(vs_fullLight, fs_noAT);
+	assert(envShader_fullLight_noAT);
 
 	return o;
 }
@@ -194,6 +225,12 @@ matfxClose(void *o, int32, int32)
 
 	envShader->destroy();
 	envShader = nil;
+	envShader_noAT->destroy();
+	envShader_noAT = nil;
+	envShader_fullLight->destroy();
+	envShader_fullLight = nil;
+	envShader_fullLight_noAT->destroy();
+	envShader_fullLight_noAT = nil;
 
 	return o;
 }

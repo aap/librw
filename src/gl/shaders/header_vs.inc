@@ -1,6 +1,6 @@
 const char *header_vert_src =
 
-"#define DIRECTIONALS\n"
+"//#define DIRECTIONALS\n"
 "//#define POINTLIGHTS\n"
 "//#define SPOTLIGHTS\n"
 

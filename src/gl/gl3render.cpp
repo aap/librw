@@ -142,7 +142,7 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	uint32 flags = atomic->geometry->flags;
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(atomic);
+	int32 vsBits = lightingCB(atomic);
 
 	setupVertexInput(header);
 
@@ -158,10 +158,17 @@ defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
 
-		if(getAlphaTest())
-			defaultShader->use();
-		else
-			defaultShader_noAT->use();
+		if((vsBits & VSLIGHT_MASK) == 0){
+			if(getAlphaTest())
+				defaultShader->use();
+			else
+				defaultShader_noAT->use();
+		}else{
+			if(getAlphaTest())
+				defaultShader_fullLight->use();
+			else
+				defaultShader_fullLight_noAT->use();
+		}
 
 		drawInst(header, inst);
 		inst++;

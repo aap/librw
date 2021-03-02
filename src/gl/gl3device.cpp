@@ -137,6 +137,7 @@ int32 u_matColor;
 int32 u_surfProps;
 
 Shader *defaultShader, *defaultShader_noAT;
+Shader *defaultShader_fullLight, *defaultShader_fullLight_noAT;
 
 static bool32 stateDirty = 1;
 static bool32 sceneDirty = 1;
@@ -996,7 +997,7 @@ setLights(WorldLights *lightData)
 		uniformObject.lightParams[n].type = 1.0f;
 		uniformObject.lightColor[n] = l->color;
 		memcpy(&uniformObject.lightDirection[n], &l->getFrame()->getLTM()->at, sizeof(V3d));
-		bits |= VSLIGHT_POINT;
+		bits |= VSLIGHT_DIRECT;
 		n++;
 		if(n >= MAX_LIGHTS)
 			goto out;
@@ -1833,12 +1834,19 @@ initOpenGL(void)
 #include "shaders/default_vs_gl.inc"
 #include "shaders/simple_fs_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, default_vert_src, nil };
+	const char *vs_fullLight[] = { shaderDecl, "#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", header_vert_src, default_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
+	const char *fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, simple_frag_src, nil };
+
 	defaultShader = Shader::create(vs, fs);
 	assert(defaultShader);
-	const char *fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, simple_frag_src, nil };
 	defaultShader_noAT = Shader::create(vs, fs_noAT);
 	assert(defaultShader_noAT);
+
+	defaultShader_fullLight = Shader::create(vs_fullLight, fs);
+	assert(defaultShader_fullLight);
+	defaultShader_fullLight_noAT = Shader::create(vs_fullLight, fs_noAT);
+	assert(defaultShader_fullLight_noAT);
 
 	openIm2D();
 	openIm3D();
@@ -1856,6 +1864,10 @@ termOpenGL(void)
 	defaultShader = nil;
 	defaultShader_noAT->destroy();
 	defaultShader_noAT = nil;
+	defaultShader_fullLight->destroy();
+	defaultShader_fullLight = nil;
+	defaultShader_fullLight_noAT->destroy();
+	defaultShader_fullLight_noAT = nil;
 
 	glDeleteTextures(1, &whitetex);
 	whitetex = nil;

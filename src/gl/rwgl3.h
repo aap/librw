@@ -98,6 +98,7 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 struct Shader;
 
 extern Shader *defaultShader, *defaultShader_noAT;
+extern Shader *defaultShader_fullLight, *defaultShader_fullLight_noAT;
 
 struct Im3DVertex
 {

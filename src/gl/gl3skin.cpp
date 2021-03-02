@@ -24,7 +24,8 @@ namespace gl3 {
 
 #ifdef RW_OPENGL
 
-static Shader *skinShader;
+static Shader *skinShader, *skinShader_noAT;
+static Shader *skinShader_fullLight, *skinShader_fullLight_noAT;
 static int32 u_boneMatrices;
 
 void
@@ -254,14 +255,12 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 
 	uint32 flags = atomic->geometry->flags;
 	setWorldMatrix(atomic->getFrame()->getLTM());
-	lightingCB(atomic);
+	int32 vsBits = lightingCB(atomic);
 
 	setupVertexInput(header);
 
 	InstanceData *inst = header->inst;
 	int32 n = header->numMeshes;
-
-	skinShader->use();
 
 	uploadSkinMatrices(atomic);
 
@@ -273,6 +272,18 @@ skinRenderCB(Atomic *atomic, InstanceDataHeader *header)
 		setTexture(0, m->texture);
 
 		rw::SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 0xFF);
+
+		if((vsBits & VSLIGHT_MASK) == 0){
+			if(getAlphaTest())
+				skinShader->use();
+			else
+				skinShader_noAT->use();
+		}else{
+			if(getAlphaTest())
+				skinShader_fullLight->use();
+			else
+				skinShader_fullLight_noAT->use();
+		}
 
 		drawInst(header, inst);
 		inst++;
@@ -288,9 +299,19 @@ skinOpen(void *o, int32, int32)
 #include "shaders/simple_fs_gl.inc"
 #include "shaders/skin_gl.inc"
 	const char *vs[] = { shaderDecl, header_vert_src, skin_vert_src, nil };
+	const char *vs_fullLight[] = { shaderDecl, "#define DIRECTIONALS\n#define POINTLIGHTS\n#define SPOTLIGHTS\n", header_vert_src, skin_vert_src, nil };
 	const char *fs[] = { shaderDecl, header_frag_src, simple_frag_src, nil };
+	const char *fs_noAT[] = { shaderDecl, "#define NO_ALPHATEST\n", header_frag_src, simple_frag_src, nil };
+
 	skinShader = Shader::create(vs, fs);
 	assert(skinShader);
+	skinShader_noAT = Shader::create(vs, fs_noAT);
+	assert(skinShader_noAT);
+
+	skinShader_fullLight = Shader::create(vs_fullLight, fs);
+	assert(skinShader_fullLight);
+	skinShader_fullLight_noAT = Shader::create(vs_fullLight, fs_noAT);
+	assert(skinShader_fullLight_noAT);
 
 	return o;
 }
@@ -303,6 +324,12 @@ skinClose(void *o, int32, int32)
 
 	skinShader->destroy();
 	skinShader = nil;
+	skinShader_noAT->destroy();
+	skinShader_noAT = nil;
+	skinShader_fullLight->destroy();
+	skinShader_fullLight = nil;
+	skinShader_fullLight_noAT->destroy();
+	skinShader_fullLight_noAT = nil;
 
 	return o;
 }
