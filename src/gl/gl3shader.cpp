@@ -54,7 +54,6 @@ registerUniform(const char *name, UniformType type, int32 num)
 	Uniform *u = &uniformRegistry.uniforms[uniformRegistry.numUniforms];
 	u->name = shader_strdup(name);
 	u->type = type;
-//	u->dirty = false;
 	u->serialNum = 0;
 	if(type == UNIFORM_NA){
 		u->num = 0;
@@ -118,12 +117,17 @@ void
 flushUniforms(void)
 {
 	for(int i = 0; i < uniformRegistry.numUniforms; i++){
+		// this is bad!
+		if(i >= currentShader->numUniforms){
+			printf("trying to set uniform %d %s that doesn't exist!\n", i, uniformRegistry.uniforms[i].name);
+			continue;
+		}
+
 		int32 loc = currentShader->uniformLocations[i];
 		if(loc == -1)
 			continue;
 
 		Uniform *u = &uniformRegistry.uniforms[i];
-//		if(force || u->dirty)
 		if(currentShader->serialNums[i] != u->serialNum)
 			switch(u->type){
 			case UNIFORM_NA:
@@ -139,7 +143,6 @@ flushUniforms(void)
 				break;
 			}
 		currentShader->serialNums[i] = u->serialNum;
-		//u->dirty = false;
 	}
 }
 
@@ -297,6 +300,7 @@ Shader::create(const char **vsrc, const char **fsrc)
 
 	// query uniform locations
 	sh->program = program;
+	sh->numUniforms = uniformRegistry.numUniforms;
 	sh->uniformLocations = rwNewT(GLint, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
 	sh->serialNums = rwNewT(uint32, uniformRegistry.numUniforms, MEMDUR_EVENT | ID_DRIVER);
 	for(i = 0; i < uniformRegistry.numUniforms; i++){

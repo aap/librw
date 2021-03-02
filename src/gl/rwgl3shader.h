@@ -52,6 +52,7 @@ struct Shader
 	// same number of elements as UniformRegistry::numUniforms
 	GLint *uniformLocations;
 	uint32 *serialNums;
+	int32 numUniforms;	// just to be sure!
 
 	static Shader *create(const char **vsrc, const char **fsrc);
 //	static Shader *fromFiles(const char *vs, const char *fs);

@@ -481,8 +481,10 @@ uint32
 bindTexture(uint32 texid)
 {
 	uint32 prev = boundTexture[activeTexture];
-	boundTexture[activeTexture] = texid;
-	glBindTexture(GL_TEXTURE_2D, texid);
+	if(prev != texid){
+		boundTexture[activeTexture] = texid;
+		glBindTexture(GL_TEXTURE_2D, texid);
+	}
 	return prev;
 }
 
@@ -1780,6 +1782,9 @@ initOpenGL(void)
 #endif
 	u_matColor = registerUniform("u_matColor", UNIFORM_VEC4);
 	u_surfProps = registerUniform("u_surfProps", UNIFORM_VEC4);
+
+	// for im2d
+	registerUniform("u_xform", UNIFORM_VEC4);
 
 	glClearColor(0.25, 0.25, 0.25, 1.0);
 

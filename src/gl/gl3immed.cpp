@@ -53,6 +53,7 @@ static int primTypeMap[] = {
 void
 openIm2D(void)
 {
+	// must already be registered by device. we just need the value
 	u_xform = registerUniform("u_xform", UNIFORM_VEC4);
 
 #include "shaders/im2d_gl.inc"
