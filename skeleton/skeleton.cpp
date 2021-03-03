@@ -47,6 +47,8 @@ InitRW(void)
 	if(!rw::Engine::start())
 		return false;
 
+	rw::Charset::open();
+
 	rw::Image::setSearchPath("./");
 	return true;
 }
@@ -54,6 +56,8 @@ InitRW(void)
 void
 TerminateRW(void)
 {
+	rw::Charset::close();
+
 	// TODO: delete all tex dicts
 	rw::Engine::stop();
 	rw::Engine::close();

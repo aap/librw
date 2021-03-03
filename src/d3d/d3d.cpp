@@ -18,7 +18,7 @@
 namespace rw {
 namespace d3d {
 
-bool32 isP8supported = 1;
+bool32 isP8supported = 1;	// set to 0 when actual d3d device is used
 
 // stolen from d3d8to9
 static uint32

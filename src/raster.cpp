@@ -87,8 +87,8 @@ Raster::subRaster(Raster *parent, Rect *r)
 		return;
 	this->width = r->w;
 	this->height = r->h;
-	this->offsetX += r->x;
-	this->offsetY += r->y;
+	this->offsetX = parent->offsetX + r->x;
+	this->offsetY = parent->offsetY + r->y;
 	this->parent = parent->parent;
 }
 

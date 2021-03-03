@@ -1225,6 +1225,50 @@ setFrameBuffer(Camera *cam)
 	}
 }
 
+static Rect
+getFramebufferRect(Raster *frameBuffer)
+{
+	Rect r;
+	Raster *fb = frameBuffer->parent;
+	if(fb->type == Raster::CAMERA){
+#ifdef LIBRW_SDL2
+		SDL_GetWindowSize(glGlobals.window, &r.w, &r.h);
+#else
+		glfwGetFramebufferSize(glGlobals.window, &r.w, &r.h);
+#endif
+	}else{
+		r.w = fb->width;
+		r.h = fb->height;
+	}
+	r.x = 0;
+	r.y = 0;
+
+	// Got a subraster
+	if(frameBuffer != fb){
+		r.x = frameBuffer->offsetX;
+		// GL y offset is from bottom
+		r.y = r.h - frameBuffer->height - frameBuffer->offsetY;
+		r.w = frameBuffer->width;
+		r.h = frameBuffer->height;
+	}
+
+	return r;
+}
+
+static void
+setViewport(Raster *frameBuffer)
+{
+	Rect r = getFramebufferRect(frameBuffer);
+	if(r.w != glGlobals.presentWidth || r.h != glGlobals.presentHeight ||
+	   r.x != glGlobals.presentOffX || r.y != glGlobals.presentOffY){
+		glViewport(r.x, r.y, r.w, r.h);
+		glGlobals.presentWidth = r.w;
+		glGlobals.presentHeight = r.h;
+		glGlobals.presentOffX = r.x;
+		glGlobals.presentOffY = r.y;
+	}
+}
+
 static void
 beginUpdate(Camera *cam)
 {
@@ -1279,10 +1323,10 @@ beginUpdate(Camera *cam)
 		proj[14] = -2.0f*cam->nearPlane*cam->farPlane*invz;
 		proj[15] = 0.0f;
 	}else{
-		proj[10] = -(cam->farPlane+cam->nearPlane)*invz;
+		proj[10] = 2.0f*invz;
 		proj[11] = 0.0f;
 
-		proj[14] = 2.0f*invz;
+		proj[14] = -(cam->farPlane+cam->nearPlane)*invz;
 		proj[15] = 1.0f;
 	}
 	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
@@ -1301,39 +1345,7 @@ beginUpdate(Camera *cam)
 
 	setFrameBuffer(cam);
 
-	int w, h;
-	int x, y;
-	Raster *fb = cam->frameBuffer->parent;
-	if(fb->type == Raster::CAMERA){
-#ifdef LIBRW_SDL2
-		SDL_GetWindowSize(glGlobals.window, &w, &h);
-#else
-		glfwGetFramebufferSize(glGlobals.window, &w, &h);
-#endif
-	}else{
-		w = fb->width;
-		h = fb->height;
-	}
-	x = 0;
-	y = 0;
-
-	// Got a subraster
-	if(cam->frameBuffer != fb){
-		x = cam->frameBuffer->offsetX;
-		// GL y offset is from bottom
-		y = h - cam->frameBuffer->height - cam->frameBuffer->offsetY;
-		w = cam->frameBuffer->width;
-		h = cam->frameBuffer->height;
-	}
-
-	if(w != glGlobals.presentWidth || h != glGlobals.presentHeight ||
-	   x != glGlobals.presentOffX || y != glGlobals.presentOffY){
-		glViewport(x, y, w, h);
-		glGlobals.presentWidth = w;
-		glGlobals.presentHeight = h;
-		glGlobals.presentOffX = x;
-		glGlobals.presentOffY = y;
-	}
+	setViewport(cam->frameBuffer);
 }
 
 static void
@@ -1349,6 +1361,15 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 
 	setFrameBuffer(cam);
 
+	// make sure we're only clearing the part of the framebuffer
+	// that is subrastered
+	bool setScissor = cam->frameBuffer != cam->frameBuffer->parent;
+	if(setScissor){
+		Rect r = getFramebufferRect(cam->frameBuffer);
+		glScissor(r.x, r.y, r.w, r.h);
+		glEnable(GL_SCISSOR_TEST);
+	}
+
 	convColor(&colf, col);
 	glClearColor(colf.red, colf.green, colf.blue, colf.alpha);
 	mask = 0;
@@ -1361,12 +1382,17 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	glDepthMask(GL_TRUE);
 	glClear(mask);
 	glDepthMask(rwStateCache.zwrite);
+
+	if(setScissor)
+		glDisable(GL_SCISSOR_TEST);
 }
 
 static void
 showRaster(Raster *raster, uint32 flags)
 {
-	// TODO: do this properly!
+//	glViewport(raster->offsetX, raster->offsetY,
+//		raster->width, raster->height);
+
 #ifdef LIBRW_SDL2
 	if(flags & Raster::FLIPWAITVSYNCH)
 		SDL_GL_SetSwapInterval(1);
@@ -1746,8 +1772,8 @@ initOpenGL(void)
 //		printf("%d %s\n", i, ext);
 	}
 */
-	gl3Caps.dxtSupported = GLAD_GL_EXT_texture_compression_s3tc;
-	gl3Caps.astcSupported = GLAD_GL_KHR_texture_compression_astc_ldr;
+	gl3Caps.dxtSupported = !!GLAD_GL_EXT_texture_compression_s3tc;
+	gl3Caps.astcSupported = !!GLAD_GL_KHR_texture_compression_astc_ldr;
 
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl3Caps.maxAnisotropy);
 

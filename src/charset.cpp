@@ -128,8 +128,16 @@ Charset::flushBuffer(void)
 		rw::SetRenderState(rw::TEXTUREADDRESS, rw::Texture::WRAP);
 		rw::SetRenderState(rw::TEXTUREFILTER, rw::Texture::NEAREST);
 
+		uint32 cull = rw::GetRenderState(rw::CULLMODE);
+		uint32 ztest = rw::GetRenderState(rw::ZTESTENABLE);
+		rw::SetRenderState(rw::CULLMODE, rw::CULLNONE);
+		rw::SetRenderState(rw::ZTESTENABLE, 0);
+
 		im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 			vertices, numChars*4, indices, numChars*6);
+
+		rw::SetRenderState(rw::CULLMODE, cull);
+		rw::SetRenderState(rw::ZTESTENABLE, ztest);
 	}
 
 	numChars = 0;

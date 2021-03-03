@@ -944,6 +944,9 @@ setRenderSurfaces(Camera *cam)
 	Raster *fbuf = cam->frameBuffer;
 	assert(fbuf);
 	{
+		if(fbuf->parent)
+			fbuf = fbuf->parent;
+
 		D3dRaster *natras = GETD3DRASTEREXT(fbuf);
 		assert(fbuf->type == Raster::CAMERA || fbuf->type == Raster::CAMERATEXTURE);
 		if(natras->texture == nil)
@@ -959,12 +962,28 @@ setRenderSurfaces(Camera *cam)
 
 	Raster *zbuf = cam->zBuffer;
 	if(zbuf){
+		if(zbuf->parent)
+			zbuf = zbuf->parent;
+
 		D3dRaster *natras = GETD3DRASTEREXT(zbuf);
 		assert(zbuf->type == Raster::ZBUFFER);
 		setDepthSurface(natras->texture);
 	}else
 		setDepthSurface(nil);
 
+}
+
+static void
+setViewport(Raster *fb)
+{
+	D3DVIEWPORT9 vp;
+	vp.MinZ = 0.0f;
+	vp.MaxZ = 1.0f;
+	vp.X = fb->offsetX;
+	vp.Y = fb->offsetY;
+	vp.Width = fb->width;
+	vp.Height = fb->height;
+	d3ddevice->SetViewport(&vp);
 }
 
 static void
@@ -1046,23 +1065,14 @@ beginUpdate(Camera *cam)
 
 	setRenderSurfaces(cam);
 
-	D3DVIEWPORT9 vp;
-	vp.MinZ = 0.0f;
-	vp.MaxZ = 1.0f;
-	vp.X = cam->frameBuffer->offsetX;
-	vp.Y = cam->frameBuffer->offsetY;
-	vp.Width = cam->frameBuffer->width;
-	vp.Height = cam->frameBuffer->height;
-	d3ddevice->SetViewport(&vp);
+	setViewport(cam->frameBuffer);
 
-	// TODO: figure out when to call this
 	d3ddevice->BeginScene();
 }
 
 static void
 endUpdate(Camera *cam)
 {
-	// TODO: figure out when to call this
 	d3ddevice->EndScene();
 }
 
@@ -1314,7 +1324,6 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	RECT r;
 	GetClientRect(d3d9Globals.window, &r);
 	BOOL icon = IsIconic(d3d9Globals.window);
-	Raster *ras = cam->frameBuffer;
 	if(!icon &&
 	   (r.right != d3d9Globals.present.BackBufferWidth || r.bottom != d3d9Globals.present.BackBufferHeight)){
 
@@ -1328,7 +1337,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 
 	setRenderSurfaces(cam);
 
-	d3ddevice->Clear(0, 0, mode, c, 1.0f, 0);
+	setViewport(cam->frameBuffer);	// need to set this for the clear to work correctly
+	d3ddevice->Clear(0, nil, mode, c, 1.0f, 0);
 }
 
 static void
@@ -1603,6 +1613,8 @@ startD3D(void)
 	d3d9Globals.present.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
 //	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_ONE;
 	d3d9Globals.present.PresentationInterval       = D3DPRESENT_INTERVAL_IMMEDIATE;
+
+	rw::d3d::isP8supported = 0;
 
 	assert(d3d::d3ddevice == nil);
 

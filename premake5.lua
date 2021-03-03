@@ -209,6 +209,14 @@ project "lights"
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
+project "subrast"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("subrast")
+	flags { "WinMain" }
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
+
 project "ska2anm"
 	kind "ConsoleApp"
 	characterset ("MBCS")
