@@ -166,6 +166,31 @@ Initialize3D(void)
 	return true;
 }
 
+void
+Terminate3D(void)
+{
+	FORLIST(lnk, World->clumps){
+		rw::Clump *clump = rw::Clump::fromWorld(lnk);
+		World->removeClump(clump);
+		clump->destroy();
+	}
+
+	if(Camera){
+		World->removeCamera(Camera);
+		sk::CameraDestroy(Camera);
+		Camera = nil;
+	}
+
+	LightsDestroy();
+
+	if(World){
+		World->destroy();
+		World = nil;
+	}
+
+	sk::TerminateRW();
+}
+
 bool
 attachPlugins(void)
 {
@@ -327,6 +352,9 @@ AppEventHandler(sk::Event e, void *param)
 		return EVENTPROCESSED;
 	case RWINITIALIZE:
 		return Initialize3D() ? EVENTPROCESSED : EVENTERROR;
+	case RWTERMINATE:
+		Terminate3D();
+		return EVENTPROCESSED;
 	case PLUGINATTACH:
 		return attachPlugins() ? EVENTPROCESSED : EVENTERROR;
 	case KEYDOWN:

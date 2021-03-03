@@ -101,9 +101,32 @@ CreateSpotSoftLight(void)
 }
 
 void
+DestroyLight(rw::Light **light)
+{
+	if(*light == nil)
+		return;
+	rw::World *world = (*light)->world;
+	if(world)
+		world->removeLight(*light);
+	rw::Frame *frame = (*light)->getFrame();
+	if(frame){
+		(*light)->setFrame(nil);
+		frame->destroy();
+	}
+
+	(*light)->destroy();
+	*light = nil;
+}
+
+void
 LightsDestroy(void)
 {
-	// TODO
+	DestroyLight(&SpotSoftLight);
+	DestroyLight(&SpotLight);
+	DestroyLight(&PointLight);
+	DestroyLight(&DirectLight);
+	DestroyLight(&AmbientLight);
+	DestroyLight(&BaseAmbientLight);
 }
 
 void

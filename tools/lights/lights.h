@@ -28,6 +28,7 @@ rw::Light *CreatePointLight(void);
 rw::Light *CreateSpotLight(void);
 rw::Light *CreateSpotSoftLight(void);
 
+void LightsDestroy(void);
 void LightsUpdate(void);
 void DrawCurrentLight(void);
 

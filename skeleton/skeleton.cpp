@@ -72,6 +72,25 @@ CameraCreate(int32 width, int32 height, bool32 z)
 }
 
 void
+CameraDestroy(rw::Camera *cam)
+{
+	if(cam->frameBuffer){
+		cam->frameBuffer->destroy();
+		cam->frameBuffer = nil;
+	}
+	if(cam->zBuffer){
+		cam->zBuffer->destroy();
+		cam->zBuffer = nil;
+	}
+	rw::Frame *frame = cam->getFrame();
+	if(frame){
+		cam->setFrame(nil);
+		frame->destroy();
+	}
+	cam->destroy();
+}
+
+void
 CameraSize(Camera *cam, Rect *r)
 {
 	if(cam->frameBuffer){
