@@ -2,134 +2,45 @@
 #include <skeleton.h>
 #include <assert.h>
 
+#include "main.h"
+#include "lights.h"
+
 rw::V3d zero = { 0.0f, 0.0f, 0.0f };
-struct SceneGlobals {
-	rw::World *world;
-	rw::Camera *camera;
-} Scene;
 rw::EngineOpenParams engineOpenParams;
 float FOV = 70.0f;
+
+rw::RGBA ForegroundColor = { 200, 200, 200, 255 };
+rw::RGBA BackgroundColor = { 64, 64, 64, 0 };
+
+rw::World *World;
+rw::Camera *Camera;
 
 rw::V3d Xaxis = { 1.0f, 0.0, 0.0f };
 rw::V3d Yaxis = { 0.0f, 1.0, 0.0f };
 rw::V3d Zaxis = { 0.0f, 0.0, 1.0f };
 
-rw::Light *BaseAmbientLight;
-bool BaseAmbientLightOn;
-
-rw::Light *CurrentLight;
-rw::Light *AmbientLight;
-rw::Light *PointLight;
-rw::Light *DirectLight;
-rw::Light *SpotLight;
-rw::Light *SpotSoftLight;
-
-float LightRadius = 100.0f;
-float LightConeAngle = 45.0f;
-rw::V3d LightPos = {0.0f, 0.0f, 75.0f};
-
-void
-Init(void)
+rw::World*
+CreateWorld(void)
 {
-	sk::globals.windowtitle = "Light test";
-	sk::globals.width = 1280;
-	sk::globals.height = 800;
-	sk::globals.quit = 0;
+	rw::BBox bb;
+
+	bb.inf.x = bb.inf.y = bb.inf.z = -100.0f;
+	bb.sup.x = bb.sup.y = bb.sup.z = 100.0f;
+
+	return rw::World::create(&bb);
 }
 
-bool
-attachPlugins(void)
+rw::Camera*
+CreateCamera(rw::World *world)
 {
-	rw::ps2::registerPDSPlugin(40);
-	rw::ps2::registerPluginPDSPipes();
-
-	rw::registerMeshPlugin();
-	rw::registerNativeDataPlugin();
-	rw::registerAtomicRightsPlugin();
-	rw::registerMaterialRightsPlugin();
-	rw::xbox::registerVertexFormatPlugin();
-	rw::registerSkinPlugin();
-	rw::registerUserDataPlugin();
-	rw::registerHAnimPlugin();
-	rw::registerMatFXPlugin();
-	rw::registerUVAnimPlugin();
-	rw::ps2::registerADCPlugin();
-	return true;
-}
-
-rw::Light*
-CreateBaseAmbientLight(void)
-{
-	rw::Light *light = rw::Light::create(rw::Light::AMBIENT);
-	assert(light);
-	light->setColor(0.5f, 0.5f, 0.5f);
-	return light;
-}
-
-rw::Light*
-CreateAmbientLight(void)
-{
-	return rw::Light::create(rw::Light::AMBIENT);
-}
-
-rw::Light*
-CreateDirectLight(void)
-{
-	rw::Light *light = rw::Light::create(rw::Light::DIRECTIONAL);
-	assert(light);
-	rw::Frame *frame = rw::Frame::create();
-	assert(frame);
-	frame->rotate(&Xaxis, 45.0f, rw::COMBINEREPLACE);
-	rw::V3d pos = LightPos;
-	frame->translate(&pos, rw::COMBINEPOSTCONCAT);
-	light->setFrame(frame);
-	return light;
-}
-
-rw::Light*
-CreatePointLight(void)
-{
-	rw::Light *light = rw::Light::create(rw::Light::POINT);
-	assert(light);
-	light->radius = LightRadius;
-	rw::Frame *frame = rw::Frame::create();
-	assert(frame);
-	rw::V3d pos = LightPos;
-	frame->translate(&pos, rw::COMBINEREPLACE);
-	light->setFrame(frame);
-	return light;
-}
-
-rw::Light*
-CreateSpotLight(void)
-{
-	rw::Light *light = rw::Light::create(rw::Light::SPOT);
-	assert(light);
-	light->radius = LightRadius;
-	light->setAngle(LightConeAngle/180.0f*M_PI);
-	rw::Frame *frame = rw::Frame::create();
-	assert(frame);
-	frame->rotate(&Xaxis, 45.0f, rw::COMBINEREPLACE);
-	rw::V3d pos = LightPos;
-	frame->translate(&pos, rw::COMBINEPOSTCONCAT);
-	light->setFrame(frame);
-	return light;
-}
-
-rw::Light*
-CreateSpotSoftLight(void)
-{
-	rw::Light *light = rw::Light::create(rw::Light::SOFTSPOT);
-	assert(light);
-	light->radius = LightRadius;
-	light->setAngle(LightConeAngle/180.0f*M_PI);
-	rw::Frame *frame = rw::Frame::create();
-	assert(frame);
-	frame->rotate(&Xaxis, 45.0f, rw::COMBINEREPLACE);
-	rw::V3d pos = LightPos;
-	frame->translate(&pos, rw::COMBINEPOSTCONCAT);
-	light->setFrame(frame);
-	return light;
+	rw::Camera *camera;
+	camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
+	assert(camera);
+	camera->setNearPlane(0.1f);
+	camera->setFarPlane(300.0f);
+	camera->setFOV(FOV, (float)sk::globals.width/sk::globals.height);
+	world->addCamera(camera);
+	return camera;
 }
 
 bool
@@ -208,17 +119,35 @@ CreateTestScene(rw::World *world)
 	pos.z = zOffset + 25.0f;
 	clumpFrame->translate(&pos, rw::COMBINEPOSTCONCAT);
 
+	// BBox
+	pos.x = 25.0f;
+	pos.y = 25.0f;
+	pos.z = zOffset - 25.0f;
+	RoomBBox.initialize(&pos);
+	pos.x = -25.0f;
+	pos.y = -25.0f;
+	pos.z = zOffset + 25.0f;
+	RoomBBox.addPoint(&pos);
+
 	return 1;
 }
 
-bool
-InitRW(void)
+void
+Initialize(void)
 {
-//	rw::platform = rw::PLATFORM_D3D8;
+	sk::globals.windowtitle = "Lights example";
+	sk::globals.width = 1280;
+	sk::globals.height = 800;
+	sk::globals.quit = 0;
+}
+
+bool
+Initialize3D(void)
+{
 	if(!sk::InitRW())
 		return false;
 
-	Scene.world = rw::World::create();
+	World = CreateWorld();
 
 	BaseAmbientLight = CreateBaseAmbientLight();
 	AmbientLight = CreateAmbientLight();
@@ -227,13 +156,9 @@ InitRW(void)
 	SpotLight = CreateSpotLight();
 	SpotSoftLight = CreateSpotSoftLight();
 
-	Scene.camera = sk::CameraCreate(sk::globals.width, sk::globals.height, 1);
-	Scene.camera->setNearPlane(0.1f);
-	Scene.camera->setFarPlane(300.0f);
-	Scene.camera->setFOV(FOV, (float)sk::globals.width/sk::globals.height);
-	Scene.world->addCamera(Scene.camera);
+	Camera = CreateCamera(World);
 
-	CreateTestScene(Scene.world);
+	CreateTestScene(World);
 
 	ImGui_ImplRW_Init();
 	ImGui::StyleColorsClassic();
@@ -241,85 +166,149 @@ InitRW(void)
 	return true;
 }
 
-void
-SwitchToLight(rw::Light *light)
+bool
+attachPlugins(void)
 {
-	if(CurrentLight)
-		Scene.world->removeLight(CurrentLight);
-	CurrentLight = light;
-	Scene.world->addLight(CurrentLight);
+	rw::ps2::registerPDSPlugin(40);
+	rw::ps2::registerPluginPDSPipes();
+
+	rw::registerMeshPlugin();
+	rw::registerNativeDataPlugin();
+	rw::registerAtomicRightsPlugin();
+	rw::registerMaterialRightsPlugin();
+	rw::xbox::registerVertexFormatPlugin();
+	rw::registerSkinPlugin();
+	rw::registerUserDataPlugin();
+	rw::registerHAnimPlugin();
+	rw::registerMatFXPlugin();
+	rw::registerUVAnimPlugin();
+	rw::ps2::registerADCPlugin();
+	return true;
 }
 
 void
 Gui(void)
 {
-//	ImGui::ShowDemoWindow(&show_demo_window);
+//	ImGui::ShowDemoWindow(nil);
 
 	static bool showLightWindow = true;
 	ImGui::Begin("Lights", &showLightWindow);
-	static int lightswitch = 0;
-	if(ImGui::RadioButton("Light Off", &lightswitch, 0)){
-		if(CurrentLight)
-			Scene.world->removeLight(CurrentLight);
-		CurrentLight = nil;
+
+	ImGui::Checkbox("Light", &LightOn);
+	ImGui::Checkbox("Draw Light", &LightDrawOn);
+	if(ImGui::Checkbox("Base Ambient", &BaseAmbientLightOn)){
+		if(BaseAmbientLightOn){
+			if(BaseAmbientLight->world == nil)
+				World->addLight(BaseAmbientLight);
+		}else{
+			if(BaseAmbientLight->world)
+				World->removeLight(BaseAmbientLight);
+		}
 	}
-	if(ImGui::RadioButton("Ambient Light", &lightswitch, 1)){
-		SwitchToLight(AmbientLight);
-	}
-	ImGui::SameLine();
-	if(ImGui::RadioButton("Directional Light", &lightswitch, 2)){
-		SwitchToLight(DirectLight);
-	}
-	ImGui::SameLine();
-	if(ImGui::RadioButton("Point Light", &lightswitch, 3)){
-		SwitchToLight(PointLight);
-	}
-	if(ImGui::RadioButton("Spot Light", &lightswitch, 4)){
-		SwitchToLight(SpotLight);
-	}
-	ImGui::SameLine();
-	if(ImGui::RadioButton("Soft Spot Light", &lightswitch, 5)){
-		SwitchToLight(SpotSoftLight);
-	}
+
+	ImGui::RadioButton("Ambient Light", &LightTypeIndex, 0);
+	ImGui::RadioButton("Point Light", &LightTypeIndex, 1);
+	ImGui::RadioButton("Directional Light", &LightTypeIndex, 2);
+	ImGui::RadioButton("Spot Light", &LightTypeIndex, 3);
+	ImGui::RadioButton("Soft Spot Light", &LightTypeIndex, 4);
+
+	ImGui::ColorEdit3("Color", (float*)&LightColor);
+	float radAngle = LightConeAngle/180.0f*M_PI;
+	ImGui::SliderAngle("Cone angle", &radAngle, 0.0f, 180.0f);
+	LightConeAngle = radAngle/M_PI*180.0f;
+	ImGui::SliderFloat("Radius", &LightRadius, 0.1f, 500.0f);
+
 	ImGui::End();
 }
 
 void
-Draw(float timeDelta)
+Render(float timeDelta)
 {
-	static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-	rw::RGBA clearcol = rw::makeRGBA(clear_color.x*255, clear_color.y*255, clear_color.z*255, clear_color.w*255);
-	Scene.camera->clear(&clearcol, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
-	Scene.camera->beginUpdate();
+	Camera->clear(&BackgroundColor, rw::Camera::CLEARIMAGE|rw::Camera::CLEARZ);
+	Camera->beginUpdate();
 
 	ImGui_ImplRW_NewFrame(timeDelta);
 
-	Scene.world->render();
+	World->render();
+
+	if(LightDrawOn && CurrentLight)
+		DrawCurrentLight();
 
 	Gui();
 
 	ImGui::EndFrame();
 	ImGui::Render();
 
-	Scene.camera->endUpdate();
-	Scene.camera->showRaster(0);
+	Camera->endUpdate();
+	Camera->showRaster(0);
 }
 
+void
+Idle(float timeDelta)
+{
+	LightsUpdate();
+
+	Render(timeDelta);
+}
+
+int MouseX, MouseY;
+int MouseDeltaX, MouseDeltaY;
+int MouseButtons;
+
+int CtrlDown;
+
+bool RotateLight;
+bool TranslateLightXY;
+bool TranslateLightZ;
 
 void
 KeyUp(int key)
 {
+	switch(key){
+	case sk::KEY_LCTRL:
+	case sk::KEY_RCTRL:
+		CtrlDown = 0;
+		break;
+	}
 }
 
 void
 KeyDown(int key)
 {
 	switch(key){
+	case sk::KEY_LCTRL:
+	case sk::KEY_RCTRL:
+		CtrlDown = 1;
+		break;
 	case sk::KEY_ESC:
 		sk::globals.quit = 1;
 		break;
 	}
+}
+
+void
+MouseBtn(sk::MouseState *mouse)
+{
+	MouseButtons = mouse->buttons;
+	RotateLight = !CtrlDown && !!(MouseButtons&1);
+	TranslateLightXY = CtrlDown && !!(MouseButtons&1);
+	TranslateLightZ = CtrlDown && !!(MouseButtons&4);
+}
+
+void
+MouseMove(sk::MouseState *mouse)
+{
+	MouseDeltaX = mouse->posx - MouseX;
+	MouseDeltaY = mouse->posy - MouseY;
+	MouseX = mouse->posx;
+	MouseY = mouse->posy;
+
+	if(RotateLight)
+		LightRotate(-MouseDeltaX, MouseDeltaY);
+	if(TranslateLightXY)
+		LightTranslateXY(-MouseDeltaX*0.1f, -MouseDeltaY*0.1f);
+	if(TranslateLightZ)
+		LightTranslateZ(-MouseDeltaY*0.1f);
 }
 
 sk::EventStatus
@@ -327,15 +316,17 @@ AppEventHandler(sk::Event e, void *param)
 {
 	using namespace sk;
 	Rect *r;
+	MouseState *ms;
 
 	ImGuiEventHandler(e, param);
+	ImGuiIO &io = ImGui::GetIO();
 
 	switch(e){
 	case INITIALIZE:
-		Init();
+		Initialize();
 		return EVENTPROCESSED;
 	case RWINITIALIZE:
-		return ::InitRW() ? EVENTPROCESSED : EVENTERROR;
+		return Initialize3D() ? EVENTPROCESSED : EVENTERROR;
 	case PLUGINATTACH:
 		return attachPlugins() ? EVENTPROCESSED : EVENTERROR;
 	case KEYDOWN:
@@ -343,6 +334,16 @@ AppEventHandler(sk::Event e, void *param)
 		return EVENTPROCESSED;
 	case KEYUP:
 		KeyUp(*(int*)param);
+		return EVENTPROCESSED;
+	case MOUSEBTN:
+		if(!io.WantCaptureMouse){
+			ms = (MouseState*)param;
+			MouseBtn(ms);
+		}else
+			MouseButtons = 0;
+		return EVENTPROCESSED;
+	case MOUSEMOVE:
+		MouseMove((MouseState*)param);
 		return EVENTPROCESSED;
 	case RESIZE:
 		r = (Rect*)param;
@@ -352,13 +353,13 @@ AppEventHandler(sk::Event e, void *param)
 
 		sk::globals.width = r->w;
 		sk::globals.height = r->h;
-		if(Scene.camera){
-			sk::CameraSize(Scene.camera, r);
-			Scene.camera->setFOV(FOV, (float)sk::globals.width/sk::globals.height);
+		if(::Camera){
+			sk::CameraSize(::Camera, r);
+			::Camera->setFOV(FOV, (float)sk::globals.width/sk::globals.height);
 		}
 		break;
 	case IDLE:
-		Draw(*(float*)param);
+		Idle(*(float*)param);
 		return EVENTPROCESSED;
 	}
 	return sk::EVENTNOTPROCESSED;

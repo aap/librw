@@ -19,7 +19,7 @@ int32 World::numAllocated = 0;
 PluginList World::s_plglist(sizeof(World));
 
 World*
-World::create(void)
+World::create(BBox *bbox)
 {
 	World *world = (World*)rwMalloc(s_plglist.size, MEMDUR_EVENT | ID_WORLD);
 	if(world == nil){

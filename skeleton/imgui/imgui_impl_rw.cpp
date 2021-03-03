@@ -55,10 +55,21 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 		vtx_dst += cmd_list->VtxBuffer.Size;
 	}
 
+	int vertexAlpha = rw::GetRenderState(rw::VERTEXALPHA);
+	int srcBlend = rw::GetRenderState(rw::SRCBLEND);
+	int dstBlend = rw::GetRenderState(rw::DESTBLEND);
+	int ztest = rw::GetRenderState(rw::ZTESTENABLE);
+	void *tex = rw::GetRenderStatePtr(rw::TEXTURERASTER);
+	int addrU = rw::GetRenderState(rw::TEXTUREADDRESSU);
+	int addrV = rw::GetRenderState(rw::TEXTUREADDRESSV);
+	int filter = rw::GetRenderState(rw::TEXTUREFILTER);
+	int cullmode = rw::GetRenderState(rw::CULLMODE);
+
 	rw::SetRenderState(rw::VERTEXALPHA, 1);
 	rw::SetRenderState(rw::SRCBLEND, rw::BLENDSRCALPHA);
 	rw::SetRenderState(rw::DESTBLEND, rw::BLENDINVSRCALPHA);
 	rw::SetRenderState(rw::ZTESTENABLE, 0);
+	rw::SetRenderState(rw::CULLMODE, rw::CULLNONE);
 
 	int vtx_offset = 0;
 	for(int n = 0; n < draw_data->CmdListsCount; n++){
@@ -85,6 +96,16 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 		}
 		vtx_offset += cmd_list->VtxBuffer.Size;
 	}
+
+	rw::SetRenderState(rw::VERTEXALPHA,vertexAlpha);
+	rw::SetRenderState(rw::SRCBLEND, srcBlend);
+	rw::SetRenderState(rw::DESTBLEND, dstBlend);
+	rw::SetRenderState(rw::ZTESTENABLE, ztest);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, tex);
+	rw::SetRenderState(rw::TEXTUREADDRESSU, addrU);
+	rw::SetRenderState(rw::TEXTUREADDRESSV, addrV);
+	rw::SetRenderState(rw::TEXTUREFILTER, filter);
+	rw::SetRenderState(rw::CULLMODE, cullmode);
 }
 
 bool

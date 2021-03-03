@@ -127,6 +127,8 @@ enum TransformFlags
 };
 
 void Transform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
+void RenderLine(int32 vert1, int32 vert2);
+void RenderTriangle(int32 vert1, int32 vert2, int32 vert3);
 void RenderPrimitive(PrimitiveType primType);
 void RenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 void End(void);

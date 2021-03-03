@@ -3,6 +3,7 @@
 #include "rwbase.h"
 #include "rwplg.h"
 #include "rwengine.h"
+#include "rwrender.h"
 
 namespace rw {
 
@@ -55,6 +56,23 @@ void
 Transform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
 	engine->device.im3DTransform(vertices, numVertices, world, flags);
+}
+void
+RenderLine(int32 vert1, int32 vert2)
+{
+	int16 indices[2];
+	indices[0] = vert1;
+	indices[1] = vert2;
+	RenderIndexedPrimitive(rw::PRIMTYPELINELIST, indices, 2);
+}
+void
+RenderTriangle(int32 vert1, int32 vert2, int32 vert3)
+{
+	int16 indices[3];
+	indices[0] = vert1;
+	indices[1] = vert2;
+	indices[2] = vert3;
+	RenderIndexedPrimitive(rw::PRIMTYPETRILIST, indices, 3);
 }
 void
 RenderPrimitive(PrimitiveType primType)

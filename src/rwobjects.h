@@ -860,7 +860,7 @@ struct World
 
 	static int32 numAllocated;
 
-	static World *create(void);
+	static World *create(BBox *bbox = nil);	// TODO: should probably make this non-optional
 	void destroy(void);
 	void addLight(Light *light);
 	void removeLight(Light *light);
