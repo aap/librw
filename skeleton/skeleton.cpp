@@ -95,7 +95,7 @@ CameraDestroy(rw::Camera *cam)
 }
 
 void
-CameraSize(Camera *cam, Rect *r)
+CameraSize(Camera *cam, Rect *r, float viewWindow, float aspectRatio)
 {
 	if(cam->frameBuffer){
 		cam->frameBuffer->destroy();
@@ -107,6 +107,60 @@ CameraSize(Camera *cam, Rect *r)
 	}
 	cam->frameBuffer = Raster::create(r->w, r->h, 0, Raster::CAMERA);
 	cam->zBuffer = Raster::create(r->w, r->h, 0, Raster::ZBUFFER);
+
+	if(viewWindow != 0.0f){
+		rw::V2d vw;
+		// TODO: aspect ratio when fullscreen
+		if(r->w > r->h){
+			vw.x = viewWindow;
+			vw.y = viewWindow / ((float)r->w/r->h);
+		}else{
+			vw.x = viewWindow / ((float)r->h/r->w);
+			vw.y = viewWindow;
+		}		
+		cam->setViewWindow(&vw);
+	}
+}
+
+void
+CameraMove(Camera *cam, V3d *delta)
+{
+	rw::V3d offset;
+	rw::V3d::transformVectors(&offset, delta, 1, &cam->getFrame()->matrix);
+	cam->getFrame()->translate(&offset);
+}
+
+void
+CameraPan(Camera *cam, V3d *pos, float angle)
+{
+	rw::Frame *frame = cam->getFrame();
+	rw::V3d trans = pos ? *pos : frame->matrix.pos;
+	rw::V3d negTrans = rw::scale(trans, -1.0f);
+	frame->translate(&negTrans);
+	frame->rotate(&frame->matrix.up, angle);
+	frame->translate(&trans);
+}
+
+void
+CameraTilt(Camera *cam, V3d *pos, float angle)
+{
+	rw::Frame *frame = cam->getFrame();
+	rw::V3d trans = pos ? *pos : frame->matrix.pos;
+	rw::V3d negTrans = rw::scale(trans, -1.0f);
+	frame->translate(&negTrans);
+	frame->rotate(&frame->matrix.right, angle);
+	frame->translate(&trans);
+}
+
+void
+CameraRotate(Camera *cam, V3d *pos, float angle)
+{
+	rw::Frame *frame = cam->getFrame();
+	rw::V3d trans = pos ? *pos : frame->matrix.pos;
+	rw::V3d negTrans = rw::scale(trans, -1.0f);
+	frame->translate(&negTrans);
+	frame->rotate(&frame->matrix.at, angle);
+	frame->translate(&negTrans);
 }
 
 EventStatus

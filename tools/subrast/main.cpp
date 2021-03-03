@@ -74,14 +74,14 @@ CreateClump(rw::World *world)
 	const char *filename = "files/clump.dff";
 	if(in.open(filename, "rb") == NULL){
 		printf("couldn't open file\n");
-		return false;
+		return nil;
 	}
 	if(!rw::findChunk(&in, rw::ID_CLUMP, NULL, NULL))
-		return false;
+		return nil;
 	clump = rw::Clump::streamRead(&in);
 	in.close();
 	if(clump == nil)
-		return false;
+		return nil;
 
 	rw::Frame *frame = clump->getFrame();
 	frame->rotate(&Xaxis, -120.0f, rw::COMBINEREPLACE);

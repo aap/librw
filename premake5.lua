@@ -217,6 +217,14 @@ project "subrast"
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
+project "camera"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("camera")
+	flags { "WinMain" }
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
+
 project "ska2anm"
 	kind "ConsoleApp"
 	characterset ("MBCS")

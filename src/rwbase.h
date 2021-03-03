@@ -278,7 +278,7 @@ struct Quat
 		this->w = w; this->x = x; this->y = y; this->z = z; }
 	V3d vec(void){ return makeV3d(x, y, z); }
 
-	Quat *rotate(const V3d *axis, float32 angle, CombineOp op);
+	Quat *rotate(const V3d *axis, float32 angle, CombineOp op = rw::COMBINEPOSTCONCAT);
 };
 
 inline Quat makeQuat(float32 w, float32 x, float32 y, float32 z) { Quat q = { x, y, z, w }; return q; }
@@ -347,11 +347,11 @@ struct Matrix
 	static Matrix *mult(Matrix *dst, const Matrix *src1, const Matrix *src2);
 	static Matrix *invert(Matrix *dst, const Matrix *src);
 	static Matrix *transpose(Matrix *dst, const Matrix *src);
-	Matrix *rotate(const V3d *axis, float32 angle, CombineOp op);
-	Matrix *rotate(const Quat &q, CombineOp op);
-	Matrix *translate(const V3d *translation, CombineOp op);
-	Matrix *scale(const V3d *scl, CombineOp op);
-	Matrix *transform(const Matrix *mat, CombineOp op);
+	Matrix *rotate(const V3d *axis, float32 angle, CombineOp op = rw::COMBINEPOSTCONCAT);
+	Matrix *rotate(const Quat &q, CombineOp op = rw::COMBINEPOSTCONCAT);
+	Matrix *translate(const V3d *translation, CombineOp op = rw::COMBINEPOSTCONCAT);
+	Matrix *scale(const V3d *scl, CombineOp op = rw::COMBINEPOSTCONCAT);
+	Matrix *transform(const Matrix *mat, CombineOp op = rw::COMBINEPOSTCONCAT);
 	Quat getRotation(void);
 	void lookAt(const V3d &dir, const V3d &up);
 

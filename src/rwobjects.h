@@ -70,10 +70,10 @@ struct Frame
 	bool32 dirty(void) const {
 		return !!(this->root->object.privateFlags & HIERARCHYSYNC); }
 	Matrix *getLTM(void);
-	void rotate(const V3d *axis, float32 angle, CombineOp op);
-	void translate(const V3d *trans, CombineOp op);
-	void scale(const V3d *scale, CombineOp op);
-	void transform(const Matrix *mat, CombineOp op);
+	void rotate(const V3d *axis, float32 angle, CombineOp op = rw::COMBINEPOSTCONCAT);
+	void translate(const V3d *trans, CombineOp op = rw::COMBINEPOSTCONCAT);
+	void scale(const V3d *scale, CombineOp op = rw::COMBINEPOSTCONCAT);
+	void transform(const Matrix *mat, CombineOp op = rw::COMBINEPOSTCONCAT);
 	void updateObjects(void);
 
 

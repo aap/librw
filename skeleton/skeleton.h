@@ -104,7 +104,11 @@ bool InitRW(void);
 void TerminateRW(void);
 Camera *CameraCreate(int32 width, int32 height, bool32 z);
 void CameraDestroy(rw::Camera *cam);
-void CameraSize(Camera *cam, Rect *r);
+void CameraSize(Camera *cam, Rect *r, float viewWindow = 0.0f, float aspectRatio = 0.0f);
+void CameraMove(Camera *cam, V3d *delta);
+void CameraPan(Camera *cam, V3d *pos, float angle);
+void CameraTilt(Camera *cam, V3d *pos, float angle);
+void CameraRotate(Camera *cam, V3d *pos, float angle);
 void SetMousePosition(int x, int y);
 EventStatus EventHandler(Event e, void *param);
 
