@@ -225,6 +225,14 @@ project "camera"
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
+project "im2d"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("im2d")
+	flags { "WinMain" }
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
+
 project "ska2anm"
 	kind "ConsoleApp"
 	characterset ("MBCS")
