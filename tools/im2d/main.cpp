@@ -4,9 +4,7 @@
 
 #include "im2d.h"
 
-rw::V3d zero = { 0.0f, 0.0f, 0.0f };
 rw::EngineOpenParams engineOpenParams;
-float FOV = 70.0f;
 
 rw::RGBA ForegroundColor = { 200, 200, 200, 255 };
 rw::RGBA BackgroundColor = { 64, 64, 64, 0 };
@@ -46,13 +44,8 @@ Initialize3D(void)
 	Charset = rw::Charset::create(&ForegroundColor, &BackgroundColor);
 
 	Camera = CreateCamera();
-//UpdateSubRasters(Camera, sk::globals.width, sk::globals.height);
 
 	Im2DInitialize(Camera);
-
-//	rw::SetRenderState(rw::CULLMODE, rw::CULLBACK);
-//	rw::SetRenderState(rw::ZTESTENABLE, 1);
-//	rw::SetRenderState(rw::ZWRITEENABLE, 1);
 
 	ImGui_ImplRW_Init();
 	ImGui::StyleColorsClassic();
