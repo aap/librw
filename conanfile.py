@@ -36,6 +36,7 @@ class LibrwConan(ConanFile):
         if self._os_is_playstation2:
             self.options.platform = "ps2"
         if self.settings.os == "Windows":
+            self.options.platform = "d3d9"
             self.options["sdl2"].directx = False
 
     def configure(self):
