@@ -258,7 +258,7 @@ InitRW(void)
 	tex = rw::Texture::read("maze", nil);
 	tex2 = rw::Texture::read("checkers", nil);
 
-	const char *filename = "teapot2.dff";
+	const char *filename = "teapot.dff";
 	if(sk::args.argc > 1)
 		filename = sk::args.argv[1];
 	rw::StreamFile in;
