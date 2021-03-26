@@ -1,4 +1,4 @@
-add_executable(lights
+add_executable(lights WIN32
     main.cpp lights.cpp
 )
 

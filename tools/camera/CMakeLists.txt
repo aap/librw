@@ -1,4 +1,4 @@
-add_executable(camera
+add_executable(camera WIN32
     main.cpp camexamp.cpp viewer.cpp
 )
 

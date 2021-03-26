@@ -1,4 +1,4 @@
-add_executable(subrast
+add_executable(subrast WIN32
     main.cpp subrast.cpp
 )
 

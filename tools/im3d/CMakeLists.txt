@@ -1,4 +1,4 @@
-add_executable(im3d
+add_executable(im3d WIN32
     im3d.cpp linelist.cpp main.cpp polyline.cpp trifan.cpp trilist.cpp tristrip.cpp
 )
 

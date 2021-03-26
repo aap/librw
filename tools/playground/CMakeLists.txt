@@ -1,4 +1,4 @@
-add_executable(playgound
+add_executable(playgound WIN32
     camera.cpp font.cpp main.cpp ras_test.cpp splines.cpp tl_tests.cpp
 )
 
