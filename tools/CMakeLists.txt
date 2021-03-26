@@ -1,21 +1,18 @@
 if(NOT LIBRW_PLATFORM_PS2)
     add_subdirectory(dumprwtree)
+    add_subdirectory(ska2anm)
 endif()
 
 if(TARGET librw_skeleton_imgui)
     add_subdirectory(imguitest)
-endif()
-
-if(LIBRW_PLATFORM_PS2)
-    add_subdirectory(ps2test)
-endif()
-
-if(NOT LIBRW_PLATFORM_NULL AND NOT LIBRW_PLATFORM_PS2)
     add_subdirectory(playground)
     add_subdirectory(lights)
     add_subdirectory(subrast)
     add_subdirectory(camera)
     add_subdirectory(im2d)
     add_subdirectory(im3d)
-    add_subdirectory(ska2anm)
+endif()
+
+if(LIBRW_PLATFORM_PS2)
+    add_subdirectory(ps2test)
 endif()
