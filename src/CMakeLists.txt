@@ -148,13 +148,16 @@ set_target_properties(librw
 )
 
 if(LIBRW_PLATFORM_GL3)
-    set(OpenGL_GL_PREFERENCE GLVND)
-    find_package(OpenGL REQUIRED)
+    if(NOT NINTENDO_SWITCH)
+        set(OpenGL_GL_PREFERENCE GLVND)
+        find_package(OpenGL REQUIRED)
 
-    target_link_libraries(librw
-        PUBLIC
-            OpenGL::GL
-    )
+        target_link_libraries(librw
+            PUBLIC
+                OpenGL::GL
+        )
+    endif()
+
     if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
         find_package(glfw3 REQUIRED)
         target_link_libraries(librw
@@ -174,6 +177,15 @@ if(LIBRW_PLATFORM_GL3)
                     SDL2::SDL2main
             )
         endif()
+    endif()
+
+    if(NINTENDO_SWITCH)
+        target_link_libraries(librw
+            PUBLIC
+                EGL
+                glapi
+                drm_nouveau
+        )
     endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
