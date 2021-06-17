@@ -13,3 +13,21 @@ if(LIBRW_INSTALL)
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     )
 endif()
+
+if(NINTENDO_SWITCH)
+    nx_generate_nacp( imguitest.nacp
+        NAME "librw imguitest"
+        AUTHOR "aap"
+        VERSION "1.0.0"
+    )
+
+    nx_create_nro(imguitest
+        NACP imguitest.nacp
+    )
+
+    if(LIBRW_INSTALL)
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/imguitest.nro"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        )
+    endif()
+endif()
