@@ -1,12 +1,23 @@
 cmake_minimum_required(VERSION 3.8)
-project(librw C CXX)
+project(librw
+    VERSION 0.0.1
+    LANGUAGES C CXX
+)
+set(librw_AUTHOR aap)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 if(WIN32)
     set(LIBRW_PLATFORMS "NULL" "GL3" "D3D9")
+    set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL ON)
+elseif(NINTENDO_SWITCH)
+    set(LIBRW_PLATFORMS "NULL" "GL3")
+    set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL OFF)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/nxtoolchain")
+    include(CheckNXFunctions)
 else()
     set(LIBRW_PLATFORMS "NULL" "GL3" "PS2")
+    set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL ON)
 endif()
 set(LIBRW_PLATFORM "NULL" CACHE STRING "Platform")
 set_property(CACHE LIBRW_PLATFORM PROPERTY STRINGS ${LIBRW_PLATFORMS})
@@ -59,6 +70,19 @@ if(LIBRW_INSTALL)
         EXPORT librw-targets NAMESPACE librw::
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
+
+    if(LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+        install(
+            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/FindSDL2.cmake"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
+        )
+    endif()
+    if(NINTENDO_SWITCH)
+        install(
+            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/nxtoolchain/FindNXGL.cmake"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
+        )
+    endif()
 
     string(REPLACE "." ";" cmake_c_compiler_version_list "${CMAKE_C_COMPILER_VERSION}")
     list(GET cmake_c_compiler_version_list 0 cmake_c_compiler_version_major)

@@ -14,10 +14,10 @@ if(LIBRW_INSTALL)
 endif()
 
 if(NINTENDO_SWITCH)
-    nx_generate_nacp( dumprwtree.nacp
+    nx_generate_nacp(dumprwtree.nacp
         NAME "dumprwtree"
-        AUTHOR "aap"
-        VERSION "1.0.0"
+        AUTHOR "${librw_AUTHOR}"
+        VERSION "${librw_VERSION}"
     )
 
     nx_create_nro(dumprwtree

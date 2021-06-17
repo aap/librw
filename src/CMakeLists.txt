@@ -148,7 +148,7 @@ set_target_properties(librw
 )
 
 if(LIBRW_PLATFORM_GL3)
-    if(NOT NINTENDO_SWITCH)
+    if(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL)
         set(OpenGL_GL_PREFERENCE GLVND)
         find_package(OpenGL REQUIRED)
 
@@ -180,15 +180,10 @@ if(LIBRW_PLATFORM_GL3)
     endif()
 
     if(NINTENDO_SWITCH)
-        find_library(SWITCH_EGL_LIBRARY EGL)
-        find_library(SWITCH_GLAPI_LIBRARY glapi)
-        find_library(SWITCH_DRM_NOUVEAU_LIBRARY drm_nouveau)
-
+        find_package(NXGL REQUIRED)
         target_link_libraries(librw
             PUBLIC
-                ${SWITCH_EGL_LIBRARY}
-                ${SWITCH_GLAPI_LIBRARY}
-                ${SWITCH_DRM_NOUVEAU_LIBRARY}
+                NXGL::OpenGL
         )
     endif()
 elseif(LIBRW_PLATFORM_D3D9)

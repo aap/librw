@@ -13,7 +13,7 @@ jobs:
       - name: "Build files"
         run: |
           /opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-cmake -S. -Bbuild .. -DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW -DLIBRW_INSTALL=True
-          cmake --build build -j
+          cmake --build build --parallel
       - name: "Create binary package (cpack)"
         working-directory: ./build
         run: |

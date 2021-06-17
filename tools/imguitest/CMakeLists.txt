@@ -15,10 +15,10 @@ if(LIBRW_INSTALL)
 endif()
 
 if(NINTENDO_SWITCH)
-    nx_generate_nacp( imguitest.nacp
+    nx_generate_nacp(imguitest.nacp
         NAME "librw imguitest"
-        AUTHOR "aap"
-        VERSION "1.0.0"
+        AUTHOR "${librw_AUTHOR}"
+        VERSION "${librw_VERSION}"
     )
 
     nx_create_nro(imguitest
