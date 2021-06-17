@@ -180,11 +180,15 @@ if(LIBRW_PLATFORM_GL3)
     endif()
 
     if(NINTENDO_SWITCH)
+        find_library(SWITCH_EGL_LIBRARY EGL)
+        find_library(SWITCH_GLAPI_LIBRARY glapi)
+        find_library(SWITCH_DRM_NOUVEAU_LIBRARY drm_nouveau)
+
         target_link_libraries(librw
             PUBLIC
-                EGL
-                glapi
-                drm_nouveau
+                ${SWITCH_EGL_LIBRARY}
+                ${SWITCH_GLAPI_LIBRARY}
+                ${SWITCH_DRM_NOUVEAU_LIBRARY}
         )
     endif()
 elseif(LIBRW_PLATFORM_D3D9)
