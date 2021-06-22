@@ -24,7 +24,12 @@ function(librw_platform_target TARGET)
         )
 
         if(LIBRW_INSTALL AND LPT_INSTALL)
-            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.nro"
+            get_target_property(TARGET_OUTPUT_NAME ${TARGET} OUTPUT_NAME)
+            if(NOT TARGET_OUTPUT_NAME)
+                set(TARGET_OUTPUT_NAME "${TARGET}")
+            endif()
+
+            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_OUTPUT_NAME}.nro"
                 DESTINATION "${CMAKE_INSTALL_BINDIR}"
             )
         endif()
