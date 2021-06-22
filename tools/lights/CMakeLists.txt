@@ -1,10 +1,12 @@
 add_executable(lights WIN32
-    main.cpp lights.cpp
+    main.cpp
+    lights.cpp
 )
 
 target_link_libraries(lights
-    PUBLIC
-        librw librw_skeleton librw_skeleton_imgui
+    PRIVATE
+        librw::skeleton
+        librw::librw
 )
 
 add_custom_command(

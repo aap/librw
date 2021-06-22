@@ -4,7 +4,8 @@ add_executable(subrast WIN32
 
 target_link_libraries(subrast
     PUBLIC
-        librw librw_skeleton librw_skeleton_imgui
+        librw::skeleton
+        librw::librw
 )
 
 librw_platform_target(subrast)

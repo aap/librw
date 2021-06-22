@@ -1,10 +1,17 @@
 add_executable(im2d WIN32
-    im2d.cpp linelist.cpp main.cpp polyline.cpp trifan.cpp trilist.cpp tristrip.cpp
+    im2d.cpp
+    linelist.cpp
+    main.cpp
+    polyline.cpp
+    trifan.cpp
+    trilist.cpp
+    tristrip.cpp
 )
 
 target_link_libraries(im2d
-    PUBLIC
-        librw librw_skeleton librw_skeleton_imgui
+    PRIVATE
+        librw::skeleton
+        librw::librw
 )
 
 add_custom_command(

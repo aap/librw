@@ -1,10 +1,17 @@
 add_executable(im3d WIN32
-    im3d.cpp linelist.cpp main.cpp polyline.cpp trifan.cpp trilist.cpp tristrip.cpp
+    im3d.cpp
+    linelist.cpp
+    main.cpp
+    polyline.cpp
+    trifan.cpp
+    trilist.cpp
+    tristrip.cpp
 )
 
 target_link_libraries(im3d
-    PUBLIC
-        librw librw_skeleton librw_skeleton_imgui
+    PRIVATE
+        librw::skeleton
+        librw::librw
 )
 
 add_custom_command(

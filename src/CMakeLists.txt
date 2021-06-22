@@ -100,6 +100,7 @@ add_library(librw::librw ALIAS librw)
 target_include_directories(librw
     INTERFACE
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${LIBRW_INSTALL_INCLUDEDIR}>
 )
 
 target_compile_definitions(librw
@@ -153,7 +154,7 @@ if(LIBRW_PLATFORM_GL3)
         find_package(OpenGL REQUIRED)
 
         target_link_libraries(librw
-            PUBLIC
+            PRIVATE
                 OpenGL::GL
         )
     endif()
@@ -171,35 +172,24 @@ if(LIBRW_PLATFORM_GL3)
             PUBLIC
                 SDL2::SDL2
         )
-        if(TARGET SDL2::SDL2main)
-            target_link_libraries(librw
-                PUBLIC
-                    SDL2::SDL2main
-            )
-        endif()
     endif()
 
     if(NINTENDO_SWITCH)
         find_package(NXGL REQUIRED)
         target_link_libraries(librw
-            PUBLIC
+            PRIVATE
                 NXGL::OpenGL
         )
     endif()
 elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
-        PUBLIC
+        PRIVATE
             d3d9
             xinput
     )
 endif()
 
 if(LIBRW_INSTALL)
-    target_include_directories(librw
-        INTERFACE
-            $<INSTALL_INTERFACE:${LIBRW_INSTALL_INCLUDEDIR}>
-    )
-
     install(
         FILES
             "${PROJECT_SOURCE_DIR}/args.h"

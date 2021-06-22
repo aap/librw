@@ -1,10 +1,16 @@
 add_executable(playground WIN32
-    camera.cpp font.cpp main.cpp ras_test.cpp splines.cpp tl_tests.cpp
+    camera.cpp
+    font.cpp
+    main.cpp
+    ras_test.cpp
+    splines.cpp
+    tl_tests.cpp
 )
 
 target_link_libraries(playground
-    PUBLIC
-        librw librw_skeleton_imgui
+    PRIVATE
+        librw::skeleton
+        librw::librw
 )
 
 add_custom_command(

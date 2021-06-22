@@ -8,18 +8,15 @@ add_executable(ps2test
 )
 
 target_link_libraries(ps2test
-    PUBLIC
-        librw
+    PRIVATE
+        librw::librw
         kernel
 )
 
-add_erl_executable(PS2TEST_ERL ps2test)
+librw_platform_target(ps2test)
 
 if(LIBRW_INSTALL)
     install(TARGETS ps2test
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    )
-    install(FILES "${PS2TEST_ERL}"
-        DESTINATION "${CMAKE_INSTALL_BINDIR}"
     )
 endif()

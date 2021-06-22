@@ -4,8 +4,8 @@ add_executable(imguitest WIN32
 
 target_link_libraries(imguitest
     PUBLIC
-        librw
-        librw_skeleton_imgui
+        librw::skeleton
+        librw::librw
 )
 
 if(LIBRW_INSTALL)

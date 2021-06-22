@@ -51,8 +51,11 @@ if(NOT COMMAND librw_platform_target)
     endfunction()
 endif()
 
+include(CMakeDependentOption)
+
 option(LIBRW_TOOLS "Build librw tools" ON)
 option(LIBRW_INSTALL "Install librw files" OFF)
+cmake_dependent_option(LIBRW_EXAMPLES "Build librw examples" ON "NOT LIBRW_PLATFORM_PS2;NOT LIBRW_PLATFORM_NULL" OFF)
 
 if(LIBRW_INSTALL)
     include(GNUInstallDirs)
@@ -61,11 +64,11 @@ endif()
 
 add_subdirectory(src)
 
-if(LIBRW_TOOLS)
+if(NOT LIBRW_PLATFORM_PS2 AND NOT LIBRW_PLATFORM_NULL)
     add_subdirectory(skeleton)
-
-    add_subdirectory(tools)
 endif()
+
+add_subdirectory(tools)
 
 if(LIBRW_INSTALL)
     include(CMakePackageConfigHelpers)

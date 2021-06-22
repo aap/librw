@@ -3,8 +3,8 @@ add_executable(dumprwtree
 )
 
 target_link_libraries(dumprwtree
-    PUBLIC
-        librw
+    PRIVATE
+        librw::librw
 )
 
 if(LIBRW_INSTALL)
