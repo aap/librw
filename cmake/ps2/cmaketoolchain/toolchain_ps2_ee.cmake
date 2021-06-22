@@ -45,7 +45,7 @@ set(CMAKE_C_FLAGS_INIT "-G0 -fno-common -I\"${PS2SDK}/ee/include\" -I\"${PS2SDK}
 set(CMAKE_CXX_FLAGS_INIT "-G0 -fno-common -I\"${PS2SDK}/ee/include\" -I\"${PS2SDK}/common/include\"")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-G0 -L\"${PS2SDK}/ee/lib\" -Wl,-r -Wl,-d")
 
-set(CMAKE_FIND_ROOT_PATH "${PS2DEV}/ee;${PS2SDK}/ee")
+set(CMAKE_FIND_ROOT_PATH "${PS2DEV}/ee" "${PS2SDK}/ee")
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
@@ -53,9 +53,19 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(PS2 1)
 set(EE 1)
 
-function(add_erl_executable OUTFILE TARGET)
-    get_property(output_dir TARGET ${TARGET} PROPERTY RUNTIME_OUTPUT_DIRECTORY)
-    set(outfile "${output_dir}/${TARGET}.erl")
+set(CMAKE_EXECUTABLE_SUFFIX ".elf")
+
+function(add_erl_executable TARGET)
+    cmake_parse_arguments("AEE" "" "OUTPUT_VAR" "" ${ARGN})
+
+    get_target_property(output_dir ${TARGET} RUNTIME_OUTPUT_DIRECTORY)
+
+    get_target_property(output_name ${TARGET} OUTPUT_NAME)
+    if(NOT output_name)
+        set(output_name ${TARGET})
+    endif()
+    set(outfile "${output_dir}/${output_name}.erl")
+
     add_custom_command(OUTPUT "${outfile}"
         COMMAND "${CMAKE_COMMAND}" -E copy  "$<TARGET_FILE:${TARGET}>" "${outfile}"
         COMMAND "${CMAKE_STRIP}" --strip-unneeded -R .mdebug.eabi64 -R .reginfo -R .comment "${outfile}"
@@ -64,5 +74,8 @@ function(add_erl_executable OUTFILE TARGET)
     add_custom_target("${TARGET}_erl" ALL
         DEPENDS "${outfile}"
     )
-    set("${OUTFILE}" "${outfile}" PARENT_SCOPE)
+
+    if(AEE_OUTPUT_VAR)
+        set("${AEE_OUTPUT_VAR}" "${outfile}" PARENT_SCOPE)
+    endif()
 endfunction()

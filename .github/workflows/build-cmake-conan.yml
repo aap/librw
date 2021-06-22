@@ -59,10 +59,10 @@ jobs:
           fi
       - name: "Export Playstation 2 CMake toolchain conan recipe"
         run: |
-          conan export cmake/ps2toolchain ps2dev-cmaketoolchain/master@
+          conan export cmake/ps2/cmaketoolchain ps2dev-cmaketoolchain/master@
       - name: "Download/build dependencies (conan install)"
         run: |
-          conan install ${{ github.workspace }} librw/master@ -if build -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib}} --build missing -pr:h ./host_profile -pr:b default
+          conan install ${{ github.workspace }} librw/master@ -if build -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib }} --build missing -pr:h ./host_profile -pr:b default
         env:
           CONAN_SYSREQUIRES_MODE: enabled
       - name: "Build librw (conan build)"

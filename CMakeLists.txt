@@ -84,7 +84,7 @@ if(LIBRW_INSTALL)
     endif()
     if(NINTENDO_SWITCH)
         install(
-            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/nxtoolchain/FindNXGL.cmake"
+            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/nx/FindNXGL.cmake"
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
         )
     endif()
