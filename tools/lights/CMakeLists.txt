@@ -11,3 +11,5 @@ add_custom_command(
     TARGET lights POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/checker.dff" "$<TARGET_FILE_DIR:lights>"
 )
+
+librw_platform_target(lights)

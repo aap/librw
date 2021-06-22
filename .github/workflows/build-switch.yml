@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: "Build files"
         run: |
-          /opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-cmake -S. -Bbuild .. -DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW -DLIBRW_INSTALL=True
+          /opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-cmake -S. -Bbuild -DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW -DLIBRW_INSTALL=True
           cmake --build build --parallel
       - name: "Create binary package (cpack)"
         working-directory: ./build
