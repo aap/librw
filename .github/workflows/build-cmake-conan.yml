@@ -62,7 +62,7 @@ jobs:
           conan export cmake/ps2toolchain ps2dev-cmaketoolchain/master@
       - name: "Download/build dependencies (conan install)"
         run: |
-          conan install ${{ github.workspace }} librw/master@ -if build -o platform=${{ matrix.platform }} -o gl3_gfxlib=${{ matrix.gl3_gfxlib}} --build missing -pr:h ./host_profile -pr:b default
+          conan install ${{ github.workspace }} librw/master@ -if build -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib}} --build missing -pr:h ./host_profile -pr:b default
         env:
           CONAN_SYSREQUIRES_MODE: enabled
       - name: "Build librw (conan build)"
