@@ -90,12 +90,6 @@ if(LIBRW_INSTALL)
             DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
         )
     endif()
-    if(NINTENDO_SWITCH)
-        install(
-            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/nx/FindNXGL.cmake"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
-        )
-    endif()
 
     string(REPLACE "." ";" cmake_c_compiler_version_list "${CMAKE_C_COMPILER_VERSION}")
     list(GET cmake_c_compiler_version_list 0 cmake_c_compiler_version_major)

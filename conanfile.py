@@ -45,7 +45,7 @@ class LibrwConan(ConanFile):
 
     def validate(self):
         if self.options.platform == "d3d9" and self.settings.os != "Windows":
-            raise ConanInvalidConfiguration("d3d9 can only be built for Windows")
+            raise ConanInvalidConfiguration("platform=d3d9 can only be built for os=Windows")
         if self._os_is_playstation2:
             if self.options.platform not in ("null", "ps2"):
                 raise ConanInvalidConfiguration("os=Playstation2 only supports platform=(null,ps2)")
