@@ -188,7 +188,6 @@ elseif(LIBRW_PLATFORM_D3D9)
     target_link_libraries(librw
         PRIVATE
             d3d9
-            xinput
     )
 endif()
 
