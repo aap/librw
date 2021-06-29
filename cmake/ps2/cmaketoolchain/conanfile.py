@@ -18,4 +18,7 @@ class Ps2devCMakeToolchainConan(ConanFile):
 
     def package_info(self):
         self.user_info.cmake_dir = os.path.join(self.package_folder, "cmake").replace("\\", "/")
-        self.user_info.cmake_toolchain_file = os.path.join(self.package_folder, "cmake", "cmaketoolchain.cmake").replace("\\", "/")
+
+        cmake_toolchain_file = os.path.join(self.package_folder, "cmake", "toolchain_ps2_ee.cmake").replace("\\", "/")
+        self.user_info.cmake_toolchain_file = cmake_toolchain_file
+        self.cpp_info.CONAN_CMAKE_TOOLCHAIN_FILE = cmake_toolchain_file

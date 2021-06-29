@@ -4,8 +4,8 @@ add_executable(imguitest WIN32
 
 target_link_libraries(imguitest
     PUBLIC
-        librw
-        librw_skeleton_imgui
+        librw::skeleton
+        librw::librw
 )
 
 if(LIBRW_INSTALL)
@@ -14,20 +14,4 @@ if(LIBRW_INSTALL)
     )
 endif()
 
-if(NINTENDO_SWITCH)
-    nx_generate_nacp(imguitest.nacp
-        NAME "librw imguitest"
-        AUTHOR "${librw_AUTHOR}"
-        VERSION "${librw_VERSION}"
-    )
-
-    nx_create_nro(imguitest
-        NACP imguitest.nacp
-    )
-
-    if(LIBRW_INSTALL)
-        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/imguitest.nro"
-            DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        )
-    endif()
-endif()
+librw_platform_target(imguitest INSTALL)
