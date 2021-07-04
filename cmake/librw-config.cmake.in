@@ -11,7 +11,7 @@ if(LIBRW_PLATFORM_GL3)
     set(OpenGL_GL_PREFERENCE GLVND)
     find_package(OpenGL)
     if(NOT TARGET OpenGL::OpenGL AND NOT TARGET OpenGL::EGL AND NOT TARGET OpenGL::GL)
-        message(FATAL_ERROR )
+        message(FATAL_ERROR "find_package(OpenGL) failed: no target was created")
     endif()
 
     if(LIBRW_GL3_GFXLIB STREQUAL "GLFW")
