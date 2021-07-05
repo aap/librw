@@ -38,7 +38,6 @@ jobs:
           conan config set log.print_run_commands=True
           conan config set general.revisions_enabled=1
           conan remote add bincrafters https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
-          # conan remote add madebr_ps2dev https://api.bintray.com/conan/madebr/ps2dev
       - name: "Add os=Playstation2 + gcc.version=3.2 to .conan/settings.yml"
         if: ${{ matrix.platform == 'ps2' }}
         shell: python
