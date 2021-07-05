@@ -1,0 +1,59 @@
+name: Build using cmake+msys2+mingw(32|64)
+on:
+  pull_request:
+  push:
+  release:
+    types: published
+jobs:
+  build-mingw:
+    strategy:
+      matrix:
+        arch: ['i686', 'x86_64']
+        platform: ['gl3-glfw', 'gl3-sdl2', 'd3d9']
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - name: "Calculate variables"
+        id: "variables"
+        shell: python
+        run: |
+          cmake_args = {
+            "gl3-glfw": "-DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=GLFW",
+            "gl3-sdl2": "-DLIBRW_PLATFORM=GL3 -DLIBRW_GL3_GFXLIB=SDL2",
+            "d3d9": "-DLIBRW_PLATFORM=D3D9"
+          }["${{ matrix.platform }}"]
+          print("::set-output name=cmake_args::{}".format(cmake_args))
+          msystem = {
+            "i686": "MINGW32",
+            "x86_64": "MINGW64",
+          }["${{ matrix.arch }}"]
+          print("::set-output name=msystem::{}".format(msystem))
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ steps.variables.outputs.msystem }}
+          install: >-
+            mingw-w64-${{ matrix.arch }}-gcc
+            mingw-w64-${{ matrix.arch }}-cmake
+            mingw-w64-${{ matrix.arch }}-make
+            mingw-w64-${{ matrix.arch }}-glfw
+            mingw-w64-${{ matrix.arch }}-SDL2
+      - name: "Build files (CMake)"
+        shell: "msys2 {0}"
+        run: |
+          cmake -S. -Bbuild ${{ steps.variables.outputs.cmake_args }} -DLIBRW_INSTALL=True -G "MinGW Makefiles"
+          cmake --build build --parallel
+      - name: "Create binary package (CPack)"
+        shell: "msys2 {0}"
+        working-directory: ./build
+        run: |
+          cpack
+      - name: "Archive binary package (github artifacts)"
+        uses: actions/upload-artifact@v2
+        with:
+          name: "mingw-${{ matrix.platform }}-${{ matrix.arch }}"
+          path: build/*.tar.xz
+          if-no-files-found: error
