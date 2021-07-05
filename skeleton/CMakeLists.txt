@@ -44,8 +44,7 @@ target_include_directories(librw_skeleton
 # TODO: Use SDL_main on platforms that require it
 if(MINGW AND LIBRW_PLATFORM_D3D9)
     add_library(librw_skeleton_main INTERFACE)
-    find_library(MINGW32_LIBRARY NAMES mingw32)
-    target_link_libraries(librw_skeleton_main INTERFACE ${MINGW32_LIBRARY} librw_skeleton)
+    target_link_libraries(librw_skeleton_main INTERFACE -lmingw32 librw_skeleton)
     add_library(librw::skeleton ALIAS librw_skeleton_main)
 else()
     add_library(librw::skeleton ALIAS librw_skeleton)
