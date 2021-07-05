@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 
+#define SDL_MAIN_HANDLED
 #include <rw.h>
 
 using namespace std;

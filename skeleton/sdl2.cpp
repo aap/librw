@@ -1,5 +1,8 @@
 #ifdef LIBRW_SDL2
 
+#ifdef _WIN32
+#define SDL_MAIN_HANDLED
+#endif
 #include <rw.h>
 #include "skeleton.h"
 

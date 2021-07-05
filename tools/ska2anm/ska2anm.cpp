@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 
+#define SDL_MAIN_HANDLED
 #include <rw.h>
 #include <args.h>
 

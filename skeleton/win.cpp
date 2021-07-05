@@ -1,4 +1,5 @@
 #ifdef _WIN32
+#define SDL_MAIN_HANDLED
 #include <windows.h>
 #include <rw.h>
 #include "skeleton.h"
@@ -291,7 +292,7 @@ SetMousePosition(int x, int y)
 
 #endif
 
-#ifdef RW_OPENGL
+#if defined(RW_OPENGL) && !defined(__MINGW32__)
 int main(int argc, char *argv[]);
 
 int WINAPI
