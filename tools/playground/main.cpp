@@ -255,10 +255,10 @@ InitRW(void)
 	foreground.blue = 255.0f;
 	testfont->setColors(&foreground, &background);
 
-	tex = rw::Texture::read("maze", nil);
-	tex2 = rw::Texture::read("checkers", nil);
+	tex = rw::Texture::read("files/maze", nil);
+	tex2 = rw::Texture::read("files/checkers", nil);
 
-	const char *filename = "teapot.dff";
+	const char *filename = "files/teapot.dff";
 	if(sk::args.argc > 1)
 		filename = sk::args.argv[1];
 	rw::StreamFile in;

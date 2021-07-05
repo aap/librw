@@ -109,8 +109,8 @@ printScreen(const char *s, float32 x, float32 y)
 void
 initFont(void)
 {
-	vga.tex = Texture::read("Bm437_IBM_VGA8", "");
-	bios.tex = Texture::read("Bm437_IBM_BIOS", "");
+	vga.tex = Texture::read("files/Bm437_IBM_VGA8", "");
+	bios.tex = Texture::read("files/Bm437_IBM_BIOS", "");
 
 /*
 	FILE *foo = fopen("font.c", "w");
@@ -141,8 +141,8 @@ convertFont(void)
 	int32 i, x, y;
 	uint8 *px, *line, *glyph;
 //	f = fopen("font0.bin", "rb");
-	f = fopen("Bm437_IBM_VGA8.FON", "rb");
-//	f = fopen("Bm437_IBM_BIOS.FON", "rb");
+	f = fopen("files/Bm437_IBM_VGA8.FON", "rb");
+//	f = fopen("files/Bm437_IBM_BIOS.FON", "rb");
 	if(f == nil)
 		return;
 fseek(f, 0x65A, 0);
@@ -175,7 +175,7 @@ fseek(f, 0x65A, 0);
 			line += img->stride;
 		}
 	}
-//	writeTGA(img, "Bm437_IBM_BIOS.tga");
-	writeTGA(img, "Bm437_IBM_VGA8.tga");
+//	writeTGA(img, "files/Bm437_IBM_BIOS.tga");
+	writeTGA(img, "files/Bm437_IBM_VGA8.tga");
 }
 */
