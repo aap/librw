@@ -15,6 +15,7 @@ target_link_libraries(playground
 
 add_custom_command(
     TARGET playground POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:playground>/files"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory  "${CMAKE_CURRENT_SOURCE_DIR}/files" "$<TARGET_FILE_DIR:playground>/files"
 )
 

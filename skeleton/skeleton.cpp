@@ -167,6 +167,10 @@ EventStatus
 EventHandler(Event e, void *param)
 {
 	EventStatus s;
+	if (e == INITIALIZE) {
+		ImGui::CreateContext();
+	}
+
 	s = AppEventHandler(e, param);
 	if(e == QUIT){
 		globals.quit = 1;
