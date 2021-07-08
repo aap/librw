@@ -1,3 +1,10 @@
+set(librw_SUBPROJECT OFF)
+set(librw_MAINPROJECT ON)
+if(DEFINED PROJECT_NAME)
+    set(librw_SUBPROJECT ON)
+    set(librw_MAINPROJECT OFF)
+endif()
+
 cmake_minimum_required(VERSION 3.8)
 project(librw
     VERSION 0.0.1
@@ -55,8 +62,8 @@ endif()
 
 include(CMakeDependentOption)
 
-option(LIBRW_TOOLS "Build librw tools" ON)
-option(LIBRW_INSTALL "Install librw files" OFF)
+option(LIBRW_TOOLS "Build librw tools" ${librw_MAINPROJECT})
+option(LIBRW_INSTALL "Install librw files" ${librw_MAINPROJECT})
 cmake_dependent_option(LIBRW_EXAMPLES "Build librw examples" ON "NOT LIBRW_PLATFORM_PS2;NOT LIBRW_PLATFORM_NULL" OFF)
 
 if(LIBRW_INSTALL)
