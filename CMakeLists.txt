@@ -10,6 +10,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 if(WIN32)
     set(LIBRW_PLATFORMS "NULL" "GL3" "D3D9")
     set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL ON)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake/win")
+    include(WinFunctions)
 elseif(NINTENDO_SWITCH)
     set(LIBRW_PLATFORMS "NULL" "GL3")
     set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL OFF)
@@ -84,12 +86,12 @@ if(LIBRW_INSTALL)
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
 
-    if(LIBRW_GL3_GFXLIB STREQUAL "SDL2")
-        install(
-            FILES "${CMAKE_CURRENT_LIST_DIR}/cmake/FindSDL2.cmake"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
-        )
-    endif()
+    install(
+        FILES
+            "${CMAKE_CURRENT_LIST_DIR}/cmake/Findglfw3.cmake"
+            "${CMAKE_CURRENT_LIST_DIR}/cmake/FindSDL2.cmake"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake"
+    )
 
     string(REPLACE "." ";" cmake_c_compiler_version_list "${CMAKE_C_COMPILER_VERSION}")
     list(GET cmake_c_compiler_version_list 0 cmake_c_compiler_version_major)

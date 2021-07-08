@@ -111,6 +111,10 @@ class LibrwConan(ConanFile):
         cmake.definitions["LIBRW_TOOLS"] = True
         if self.options.platform == "gl3":
             cmake.definitions["LIBRW_GL3_GFXLIB"] = str(self.options.gl3_gfxlib).upper()
+            if self.options.gl3_gfxlib == "sdl2":
+                cmake.definitions["SDL2_STATIC"] = not self.options["sdl2"].shared
+            if self.options.gl3_gfxlib == "glfw":
+                cmake.definitions["GLFW3_STATIC"] = not self.options["glfw"].shared
         if self._os_is_playstation2:
             env["PS2SDK"] = self.deps_cpp_info["ps2dev-ps2sdk"].rootpath
         with tools.environment_append(env):
