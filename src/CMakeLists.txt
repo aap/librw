@@ -192,6 +192,8 @@ elseif(LIBRW_PLATFORM_D3D9)
     )
 endif()
 
+librw_platform_target(librw INSTALL)
+
 if(LIBRW_INSTALL)
     install(
         FILES

@@ -31,16 +31,18 @@ set_target_properties(librw_skeleton
         EXPORT_NAME skeleton
 )
 
-target_link_libraries(librw_skeleton
-    PRIVATE
-        librw
-)
-
 target_include_directories(librw_skeleton
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${LIBRW_INSTALL_INCLUDEDIR}/skeleton>
 )
+
+target_link_libraries(librw_skeleton
+    PRIVATE
+        librw
+)
+
+librw_platform_target(librw_skeleton PROVIDES_WINMAIN INSTALL)
 
 if(LIBRW_INSTALL)
     install(
