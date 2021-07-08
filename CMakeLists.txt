@@ -14,6 +14,8 @@ set(librw_AUTHOR aap)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
+set(LIBRW_STATIC_RUNTIME_DEFAULT OFF)
+
 if(WIN32)
     set(LIBRW_PLATFORMS "NULL" "GL3" "D3D9")
     set(LIBRW_PLATFORM_GL3_REQUIRES_OPENGL ON)
@@ -65,6 +67,11 @@ include(CMakeDependentOption)
 option(LIBRW_TOOLS "Build librw tools" ${librw_MAINPROJECT})
 option(LIBRW_INSTALL "Install librw files" ${librw_MAINPROJECT})
 cmake_dependent_option(LIBRW_EXAMPLES "Build librw examples" ON "NOT LIBRW_PLATFORM_PS2;NOT LIBRW_PLATFORM_NULL" OFF)
+option(LIBRW_STATIC_RUNTIME "Try very hard to link to static libraries" ${LIBRW_STATIC_RUNTIME_DEFAULT})
+
+if(LIBRW_STATIC_RUNTIME)
+    include(UseStaticRuntime)
+endif()
 
 if(LIBRW_INSTALL)
     include(GNUInstallDirs)
