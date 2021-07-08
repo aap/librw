@@ -17,4 +17,8 @@ function(librw_platform_target TARGET)
             target_link_options(${TARGET} INTERFACE -Wl,--undefined,WinMain)
         endif()
     endif()
+
+    set_target_properties(${TARGET} PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET}>"
+    )
 endfunction()
