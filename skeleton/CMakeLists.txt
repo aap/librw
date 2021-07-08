@@ -31,6 +31,14 @@ set_target_properties(librw_skeleton
         EXPORT_NAME skeleton
 )
 
+
+if(LIBRW_PLATFORM_GL3 AND LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+    target_compile_definitions(librw_skeleton
+        PRIVATE
+            SDL_MAIN_HANDLED
+    )
+endif()
+
 target_include_directories(librw_skeleton
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
