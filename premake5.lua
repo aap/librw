@@ -13,21 +13,21 @@ newoption {
 	trigger     = "glfwdir64",
 	value       = "PATH",
 	description = "Directory of glfw",
-	default     = "../glfw-3.3.2.bin.WIN64",
+	default     = "../glfw-3.3.4.bin.WIN64",
 }
 
 newoption {
 	trigger     = "glfwdir32",
 	value       = "PATH",
 	description = "Directory of glfw",
-	default     = "../glfw-3.3.2.bin.WIN32",
+	default     = "../glfw-3.3.4.bin.WIN32",
 }
 
 newoption {
 	trigger     = "sdl2dir",
 	value       = "PATH",
 	description = "Directory of sdl2",
-	default     = "../SDL2-2.0.8",
+	default     = "../SDL2-2.0.14",
 }
 
 workspace "librw"
