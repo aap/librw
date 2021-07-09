@@ -128,7 +128,6 @@ void
 DestroyCameras(rw::World *world)
 {
 	if(Camera){
-		world->removeCamera(Camera);
 		sk::CameraDestroy(Camera);
 		Camera = nil;
 	}

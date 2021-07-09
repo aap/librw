@@ -298,6 +298,8 @@ MainCameraRender(rw::Camera *camera)
 	ImGui::EndFrame();
 	ImGui::Render();
 
+	ImGui_ImplRW_RenderDrawLists(ImGui::GetDrawData());
+
 	camera->endUpdate();
 
 
@@ -320,6 +322,8 @@ SubCameraRender(rw::Camera *camera)
 	Gui();
 	ImGui::EndFrame();
 	ImGui::Render();
+
+	ImGui_ImplRW_RenderDrawLists(ImGui::GetDrawData());
 
 	camera->endUpdate();
 }

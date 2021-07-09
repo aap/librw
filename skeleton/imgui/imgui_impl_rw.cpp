@@ -112,6 +112,8 @@ bool
 ImGui_ImplRW_Init(void)
 {
 	using namespace sk;
+
+	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
 
 	io.KeyMap[ImGuiKey_Tab] = KEY_TAB;
@@ -133,8 +135,6 @@ ImGui_ImplRW_Init(void)
 	io.KeyMap[ImGuiKey_X] = 'X';
 	io.KeyMap[ImGuiKey_Y] = 'Y';
 	io.KeyMap[ImGuiKey_Z] = 'Z';
-
-	io.RenderDrawListsFn = ImGui_ImplRW_RenderDrawLists;
 
 	return true;
 }
@@ -194,7 +194,7 @@ ImGui_ImplRW_NewFrame(float timeDelta)
 	io.KeyAlt = io.KeysDown[sk::KEY_LALT] || io.KeysDown[sk::KEY_RALT];
 	io.KeySuper = false;
 
-	if(io.WantMoveMouse)
+	if(io.WantSetMousePos)
 		sk::SetMousePosition(io.MousePos.x, io.MousePos.y);
 
 	ImGui::NewFrame();

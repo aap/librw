@@ -148,6 +148,8 @@ Render(void)
 	ImGui::EndFrame();
 	ImGui::Render();
 
+	ImGui_ImplRW_RenderDrawLists(ImGui::GetDrawData());
+
 	Camera->endUpdate();
 
 	Camera->showRaster(0);

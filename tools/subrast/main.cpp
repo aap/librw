@@ -129,9 +129,11 @@ Initialize3D(void)
 	AmbientLight = CreateAmbientLight(World);
 	MainLight = CreateMainLight(World);
 	Clump = CreateClump(World);
+	if (Clump == nil)
+		return false;
 
 	CreateCameras(World);
-UpdateSubRasters(Camera, sk::globals.width, sk::globals.height);
+	UpdateSubRasters(Camera, sk::globals.width, sk::globals.height);
 
 	rw::SetRenderState(rw::CULLMODE, rw::CULLBACK);
 	rw::SetRenderState(rw::ZTESTENABLE, 1);
