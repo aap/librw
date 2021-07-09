@@ -56,7 +56,7 @@ workspace "librw"
 		defines { "NDEBUG" }
 		optimize "On"
 	filter "configurations:ReleaseStatic"
-		flags { "StaticRuntime" }
+		staticruntime("On")
 
 	filter { "platforms:*null" }
 		defines { "RW_NULL" }
@@ -189,7 +189,7 @@ project "playground"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("playground")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" } -- for now
 
@@ -197,7 +197,7 @@ project "imguitest"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("imguitest")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
@@ -205,7 +205,7 @@ project "lights"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("lights")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
@@ -213,7 +213,7 @@ project "subrast"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("subrast")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
@@ -221,7 +221,7 @@ project "camera"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("camera")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
@@ -229,7 +229,7 @@ project "im2d"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("im2d")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
@@ -237,7 +237,7 @@ project "im3d"
 	kind "WindowedApp"
 	characterset ("MBCS")
 	skeltool("im3d")
-	flags { "WinMain" }
+	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
