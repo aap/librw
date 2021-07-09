@@ -224,7 +224,8 @@ main(int argc, char *argv[])
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
 		return 0;
 
-	float lastTime = SDL_GetTicks();
+	Uint64 lastTicks = SDL_GetPerformanceCounter();
+	const float tickPeriod = 1.f / SDL_GetPerformanceFrequency();
 	SDL_Event event;
 	int mouseButtons = 0;
 
@@ -297,12 +298,12 @@ main(int argc, char *argv[])
 			}
 			}
 		}
-		float currTime  = SDL_GetTicks();
-		float timeDelta = (currTime - lastTime) * 0.001f;
+		Uint64 currTicks = SDL_GetPerformanceCounter();
+		float timeDelta = (currTicks - lastTicks) * tickPeriod;
 
 		EventHandler(IDLE, &timeDelta);
 
-		lastTime = currTime;
+		lastTicks = currTicks;
 	}
 
 	SDL_StopTextInput();
