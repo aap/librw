@@ -71,6 +71,7 @@ static int keyCodeToSkKey(SDL_Keycode keycode) {
 	case SDLK_INSERT: return KEY_INS;
 	case SDLK_DELETE: return KEY_DEL;
 	case SDLK_RIGHT: return KEY_RIGHT;
+	case SDLK_LEFT: return KEY_LEFT;
 	case SDLK_DOWN: return KEY_DOWN;
 	case SDLK_UP: return KEY_UP;
 	case SDLK_PAGEUP: return KEY_PGUP;
