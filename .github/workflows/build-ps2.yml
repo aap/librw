@@ -1,0 +1,29 @@
+name: Playstation 2 (by ps2dev)
+on:
+  pull_request:
+  push:
+  release:
+    types: published
+jobs:
+  build-playstation-2:
+    runs-on: ubuntu-latest
+    container: ps2dev/ps2dev
+    steps:
+      - uses: actions/checkout@v2
+      - name: "Install dependencies"
+        run: |
+          apk add build-base cmake
+      - name: "Build files"
+        run: |
+          cmake -S. -Bbuild -DLIBRW_INSTALL=ON -DLIBRW_PLATFORM=PS2 -DCMAKE_TOOLCHAIN_FILE=cmake/ps2/cmaketoolchain/toolchain_ps2_ee.cmake
+          cmake --build build --parallel
+      - name: "Create binary package (cpack)"
+        working-directory: ./build
+        run: |
+          cpack
+      - name: "Archive binary package (github artifacts)"
+        uses: actions/upload-artifact@v2
+        with:
+          name: "ps2"
+          path: build/*.tar.xz
+          if-no-files-found: error
