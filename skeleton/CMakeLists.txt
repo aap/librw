@@ -50,6 +50,13 @@ target_link_libraries(librw_skeleton
         librw
 )
 
+if(WIN32)
+    target_link_libraries(librw_skeleton
+        PRIVATE
+            imm32
+    )
+endif()
+
 librw_platform_target(librw_skeleton PROVIDES_WINMAIN INSTALL)
 
 if(LIBRW_INSTALL)
