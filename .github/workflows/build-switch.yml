@@ -1,4 +1,4 @@
-name: Build for Nintendo Switch using CMake provided by devkitPro
+name: Nintendo Switch (by devkitPro)
 on:
   pull_request:
   push:
