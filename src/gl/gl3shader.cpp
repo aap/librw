@@ -340,6 +340,7 @@ Shader::destroy(void)
 {
 	glDeleteProgram(this->program);
 	rwFree(this->uniformLocations);
+	rwFree(this->serialNums);
 	rwFree(this);
 }
 
