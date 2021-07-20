@@ -1896,7 +1896,7 @@ termOpenGL(void)
 	defaultShader_fullLight_noAT = nil;
 
 	glDeleteTextures(1, &whitetex);
-	whitetex = nil;
+	whitetex = 0;
 
 	return 1;
 }
