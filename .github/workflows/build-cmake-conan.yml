@@ -8,11 +8,11 @@ jobs:
   build-cmake:
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-18.04, macos-latest]
         platform: ['null', 'gl3', 'd3d9']
         gl3_gfxlib: ['glfw', 'sdl2']
         exclude:
-          - os: ubuntu-latest
+          - os: ubuntu-18.04
             platform: d3d9
           - os: macos-latest
             platform: d3d9

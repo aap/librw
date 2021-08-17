@@ -108,7 +108,7 @@ class LibrwConan(ConanFile):
         env = {}
         cmake.definitions["LIBRW_PLATFORM"] = self._librw_platform
         cmake.definitions["LIBRW_INSTALL"] = True
-        cmake.definitions["LIBRW_TOOLS"] = True
+        cmake.definitions["LIBRW_TOOLS"] = False
         if self.options.platform == "gl3":
             cmake.definitions["LIBRW_GL3_GFXLIB"] = str(self.options.gl3_gfxlib).upper()
         if self._os_is_playstation2:

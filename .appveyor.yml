@@ -1,11 +1,11 @@
 image: Visual Studio 2017
 configuration: Release
 environment:
-  GLFW_BASE: glfw-3.3.4.bin.WIN64
-  GLFW_URL: https://github.com/glfw/glfw/releases/download/3.3.4/%GLFW_BASE%.zip
-  SDL2_BASE: SDL2-devel-2.0.14-VC
+  GLFW_BASE: glfw-3.2.1.bin.WIN64
+  GLFW_URL: https://github.com/glfw/glfw/releases/download/3.2.1/%GLFW_BASE%.zip
+  SDL2_BASE: SDL2-devel-2.0.8-VC
   SDL2_URL: https://www.libsdl.org/release/%SDL2_BASE%.zip
-  SDL2_DIRAME: SDL2-2.0.14
+  SDL2_DIRAME: SDL2-2.0.8
   PREMAKE5_URL: https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-windows.zip
   matrix:
   - PLATFORM: win-amd64-null

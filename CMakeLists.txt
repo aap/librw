@@ -65,8 +65,8 @@ endif()
 
 add_subdirectory(src)
 
-if(NOT LIBRW_PLATFORM_PS2 AND NOT LIBRW_PLATFORM_NULL)
-    add_subdirectory(skeleton)
+if(LIBRW_TOOLS AND NOT LIBRW_PLATFORM_PS2 AND NOT LIBRW_PLATFORM_NULL)
+   add_subdirectory(skeleton)
 endif()
 
 add_subdirectory(tools)
