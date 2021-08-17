@@ -500,7 +500,8 @@ readAsImage(Stream *stream, int32 width, int32 height, int32 depth, int32 format
 					line[0] = palette[*idx*4+0];
 					line[1] = palette[*idx*4+1];
 					line[2] = palette[*idx*4+2];
-					line[3] = palette[*idx*4+3];
+					if(img->bpp > 3)
+						line[3] = palette[*idx*4+3];
 					line += img->bpp;
 					idx++;
 				}

@@ -661,6 +661,18 @@ setRasterStage(uint32 stage, Raster *raster)
 }
 
 void
+evictRaster(Raster *raster)
+{
+	int i;
+	for(i = 0; i < MAXNUMSTAGES; i++){
+		//assert(rwStateCache.texstage[i].raster != raster);
+		if(rwStateCache.texstage[i].raster != raster)
+			continue;
+		setRasterStage(i, nil);
+	}
+}
+
+void
 setTexture(int32 stage, Texture *tex)
 {
 	if(tex == nil || tex->raster == nil){

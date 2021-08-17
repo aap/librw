@@ -818,12 +818,15 @@ createNativeRaster(void *object, int32 offset, int32)
 	return object;
 }
 
+void evictRaster(Raster *raster);
+
 static void*
 destroyNativeRaster(void *object, int32 offset, int32)
 {
 	Raster *raster = (Raster*)object;
 	Gl3Raster *natras = PLUGINOFFSET(Gl3Raster, object, offset);
 #ifdef RW_OPENGL
+	evictRaster(raster);
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
