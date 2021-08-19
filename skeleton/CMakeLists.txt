@@ -29,6 +29,7 @@ set_target_properties(librw_skeleton
     PROPERTIES
         PREFIX ""
         EXPORT_NAME skeleton
+        CXX_STANDARD 11
 )
 
 target_link_libraries(librw_skeleton
