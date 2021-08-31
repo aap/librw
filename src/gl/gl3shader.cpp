@@ -45,7 +45,12 @@ registerUniform(const char *name, UniformType type, int32 num)
 {
 	int i;
 	i = findUniform(name);
-	if(i >= 0) return i;
+	if(i >= 0){
+		Uniform *u = &uniformRegistry.uniforms[i];
+		assert(u->type == type);
+		assert(u->num == num);
+		return i;
+	}
 	// TODO: print error
 	if(uniformRegistry.numUniforms+1 >= MAX_UNIFORMS){
 		assert(0 && "no space for uniform");
@@ -340,6 +345,7 @@ Shader::destroy(void)
 {
 	glDeleteProgram(this->program);
 	rwFree(this->uniformLocations);
+	rwFree(this->serialNums);
 	rwFree(this);
 }
 

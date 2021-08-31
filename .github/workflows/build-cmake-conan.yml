@@ -1,4 +1,4 @@
-name: Build using conan+cmake
+name: Conan
 on:
   pull_request:
   push:
@@ -9,11 +9,9 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        platform: ['null', 'gl3', 'd3d9', 'ps2']
+        platform: ['null', 'gl3', 'd3d9']
         gl3_gfxlib: ['glfw', 'sdl2']
         exclude:
-          - os: windows-latest
-            platform: ps2
           - os: ubuntu-latest
             platform: d3d9
           - os: macos-latest
@@ -22,10 +20,7 @@ jobs:
             gl3_gfxlib: sdl2
           - platform: d3d9
             gl3_gfxlib: sdl2
-          - platform: ps2
-            gl3_gfxlib: sdl2
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.platform == 'ps2' }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
@@ -38,28 +33,10 @@ jobs:
           conan config set log.print_run_commands=True
           conan config set general.revisions_enabled=1
           conan remote add bincrafters https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
-      - name: "Add os=Playstation2 + gcc.version=3.2 to .conan/settings.yml"
-        if: ${{ matrix.platform == 'ps2' }}
-        shell: python
-        run: |
-          import os, yaml
-          settings_path = os.path.expanduser("~/.conan/settings.yml")
-          yml = yaml.safe_load(open(settings_path))
-          yml["os"]["Playstation2"] = None
-          yml["compiler"]["gcc"]["version"].append("3.2")
-          yml["compiler"]["gcc"]["version"].sort()
-          yaml.safe_dump(yml, open(settings_path, "w"))
       - name: "Create host profile"
         shell: bash
         run: |
-          if test "${{ matrix.platform }}" = "ps2"; then
-            cp conan/playstation2 host_profile
-          else
-            cp ~/.conan/profiles/default host_profile
-          fi
-      - name: "Export Playstation 2 CMake toolchain conan recipe"
-        run: |
-          conan export cmake/ps2/cmaketoolchain ps2dev-cmaketoolchain/master@
+          cp ~/.conan/profiles/default host_profile
       - name: "Download/build dependencies (conan install)"
         run: |
           conan install ${{ github.workspace }} librw/master@ -if build -o librw:platform=${{ matrix.platform }} -o librw:gl3_gfxlib=${{ matrix.gl3_gfxlib }} --build missing -pr:h ./host_profile -pr:b default
