@@ -43,13 +43,6 @@ class LibrwConan(ConanFile):
         if self.options.platform != "gl3":
             del self.options.gl3_gfxlib
 
-    def validate(self):
-        if self.options.platform == "d3d9" and self.settings.os != "Windows":
-            raise ConanInvalidConfiguration("platform=d3d9 can only be built for os=Windows")
-        if self._os_is_playstation2:
-            if self.options.platform not in ("null", "ps2"):
-                raise ConanInvalidConfiguration("os=Playstation2 only supports platform=(null,ps2)")
-
     def requirements(self):
         if self.options.platform == "gl3":
             if self.options.gl3_gfxlib == "glfw":
@@ -60,6 +53,14 @@ class LibrwConan(ConanFile):
             self.requires("ps2dev-ps2sdk/unknown@madebr/testing")
         if self._os_is_playstation2:
             self.requires("ps2dev-cmaketoolchain/{}".format(self.version))
+
+    def validate(self):
+        if self.options.platform == "d3d9" and self.settings.os != "Windows":
+            raise ConanInvalidConfiguration("platform=d3d9 can only be built for os=Windows")
+        if self.options.platform != "ps2" and self._os_is_playstation2:
+            raise ConanInvalidConfiguration("os=Playstation2 only supports platform=null")
+        if self.options.platform == "ps2" and not self._os_is_playstation2:
+            raise ConanInvalidConfiguration("platform=ps2 is only valid for os=Playstation2")
 
     def export_sources(self):
         for d in ("cmake", "skeleton", "src", "tools"):
