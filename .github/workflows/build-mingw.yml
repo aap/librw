@@ -1,4 +1,4 @@
-name: Build using cmake+msys2+mingw(32|64)
+name: Build using msys2+mingw(32|64)
 on:
   pull_request:
   push:
