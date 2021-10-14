@@ -254,6 +254,13 @@ Engine::open(EngineOpenParams *p)
 	engine = (Engine*)rwNew(Engine::s_plglist.size, MEMDUR_GLOBAL);
 	engine->currentCamera = nil;
 	engine->currentWorld = nil;
+	engine->filefuncs.rwfopen = (void *(*)(const char*, const char*))fopen;
+	engine->filefuncs.rwfclose = (int (*)(void*))fclose;
+	engine->filefuncs.rwfseek = (int (*)(void*, long, int))fseek;
+	engine->filefuncs.rwftell = (long (*)(void*))ftell;
+	engine->filefuncs.rwfread = (size_t (*)(void*, size_t, size_t, void*))fread;
+	engine->filefuncs.rwfwrite = (size_t (*)(const void*, size_t, size_t, void*))fwrite;
+	engine->filefuncs.rwfeof = (int (*)(void*))feof;
 
 	// Initialize device
 	// Device and possibly OS specific!

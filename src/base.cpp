@@ -999,7 +999,7 @@ StreamFile*
 StreamFile::open(const char *path, const char *mode)
 {
 	assert(this->file == nil);
-	this->file = fopen(path, mode);
+	this->file = engine->filefuncs.rwfopen(path, mode);
 	if(this->file == nil){
 		RWERROR((ERR_FILE, path));
 		return nil;
@@ -1011,38 +1011,38 @@ void
 StreamFile::close(void)
 {
 	assert(this->file);
-	fclose(this->file);
+	engine->filefuncs.rwfclose(this->file);
 	this->file = nil;
 }
 
 uint32
 StreamFile::write8(const void *data, uint32 length)
 {
-	return (uint32)fwrite(data, 1, length, this->file);
+	return (uint32)engine->filefuncs.rwfwrite(data, 1, length, this->file);
 }
 
 uint32
 StreamFile::read8(void *data, uint32 length)
 {
-	return (uint32)fread(data, 1, length, this->file);
+	return (uint32)engine->filefuncs.rwfread(data, 1, length, this->file);
 }
 
 void
 StreamFile::seek(int32 offset, int32 whence)
 {
-	fseek(this->file, offset, whence);
+	engine->filefuncs.rwfseek(this->file, offset, whence);
 }
 
 uint32
 StreamFile::tell(void)
 {
-	return ftell(this->file);
+	return engine->filefuncs.rwftell(this->file);
 }
 
 bool
 StreamFile::eof(void)
 {
-	return ( feof(this->file) != 0 );
+	return engine->filefuncs.rwfeof(this->file) != 0;
 }
 
 bool
@@ -1106,15 +1106,15 @@ findPointer(void *p, void **list, int32 num)
 uint8*
 getFileContents(const char *name, uint32 *len)
 {
-	FILE *cf = fopen(name, "rb");
+	void *cf = engine->filefuncs.rwfopen(name, "rb");
 	if(cf == nil)
 		return nil;
-	fseek(cf, 0, SEEK_END);
-	*len = ftell(cf);
-	fseek(cf, 0, SEEK_SET);
+	engine->filefuncs.rwfseek(cf, 0, SEEK_END);
+	*len = engine->filefuncs.rwftell(cf);
+	engine->filefuncs.rwfseek(cf, 0, SEEK_SET);
 	uint8 *data = rwNewT(uint8, *len, MEMDUR_EVENT);
-	fread(data, 1, *len, cf);
-	fclose(cf);
+	engine->filefuncs.rwfread(data, 1, *len, cf);
+	engine->filefuncs.rwfclose(cf);
 	return data;
 }
 

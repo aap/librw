@@ -151,7 +151,7 @@ struct RGBA
 	uint8 blue;
 	uint8 alpha;
 };
-inline RGBA makeRGBA(uint8 r, uint8 g, uint8 b, uint8 a) { RGBA c = { r, g, b, a }; return c; }
+inline RGBA makeRGBA(uint8 r, uint8 g, uint8 b, uint8 a) { RGBA c; c.red = r; c.green = g; c.blue = b; c.alpha = a; return c; }
 inline bool32 equal(const RGBA &c1, const RGBA &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
 #define RWRGBAINT(r, g, b, a) ((uint32)((((a)&0xff)<<24)|(((b)&0xff)<<16)|(((g)&0xff)<<8)|((r)&0xff)))
 
@@ -162,7 +162,7 @@ struct RGBAf
 	float32 blue;
 	float32 alpha;
 };
-inline RGBAf makeRGBAf(float32 r, float32 g, float32 b, float32 a) { RGBAf c = { r, g, b, a }; return c; }
+inline RGBAf makeRGBAf(float32 r, float32 g, float32 b, float32 a) { RGBAf c; c.red = r; c.green = g; c.blue = b; c.alpha = a; return c; }
 inline bool32 equal(const RGBAf &c1, const RGBAf &c2) { return c1.red == c2.red && c1.green == c2.green && c1.blue == c2.blue && c1.alpha == c2.alpha; }
 inline RGBAf add(const RGBAf &a, const RGBAf &b) { return makeRGBAf(a.red+b.red, a.green+b.green, a.blue+b.blue, a.alpha+b.alpha); }
 inline RGBAf modulate(const RGBAf &a, const RGBAf &b) { return makeRGBAf(a.red*b.red, a.green*b.green, a.blue*b.blue, a.alpha*b.alpha); }
@@ -215,7 +215,7 @@ struct V2d
 		this->x = x; this->y = y; }
 };
 
-inline V2d makeV2d(float32 x, float32 y) { V2d v = { x, y }; return v; }
+inline V2d makeV2d(float32 x, float32 y) { V2d v; v.x = x; v.y = y; return v; }
 inline bool32 equal(const V2d &v1, const V2d &v2) { return v1.x == v2.x && v1.y == v2.y; }
 inline V2d neg(const V2d &a) { return makeV2d(-a.x, -a.y); }
 inline V2d add(const V2d &a, const V2d &b) { return makeV2d(a.x+b.x, a.y+b.y); }
@@ -233,7 +233,7 @@ struct V3d
 	static void transformVectors(V3d *out, const V3d *in, int32 n, const Matrix *m);
 };
 
-inline V3d makeV3d(float32 x, float32 y, float32 z) { V3d v = { x, y, z }; return v; }
+inline V3d makeV3d(float32 x, float32 y, float32 z) { V3d v; v.x = x; v.y = y; v.z = z; return v; }
 inline bool32 equal(const V3d &v1, const V3d &v2) { return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z; }
 inline V3d neg(const V3d &a) { return makeV3d(-a.x, -a.y, -a.z); }
 inline V3d add(const V3d &a, const V3d &b) { return makeV3d(a.x+b.x, a.y+b.y, a.z+b.z); }
@@ -281,8 +281,8 @@ struct Quat
 	Quat *rotate(const V3d *axis, float32 angle, CombineOp op = rw::COMBINEPOSTCONCAT);
 };
 
-inline Quat makeQuat(float32 w, float32 x, float32 y, float32 z) { Quat q = { x, y, z, w }; return q; }
-inline Quat makeQuat(float32 w, const V3d &vec) { Quat q = { vec.x, vec.y, vec.z, w }; return q; }
+inline Quat makeQuat(float32 w, float32 x, float32 y, float32 z) { Quat q; q.x = x; q.y = y; q.z = z; q.w = w; return q; }
+inline Quat makeQuat(float32 w, const V3d &vec) { return makeQuat(w, vec.x, vec.y, vec.z); }
 inline Quat add(const Quat &q, const Quat &p) { return makeQuat(q.w+p.w, q.x+p.x, q.y+p.y, q.z+p.z); }
 inline Quat sub(const Quat &q, const Quat &p) { return makeQuat(q.w-p.w, q.x-p.x, q.y-p.y, q.z-p.z); }
 inline Quat negate(const Quat &q) { return makeQuat(-q.w, -q.x, -q.y, -q.z); }
@@ -509,9 +509,8 @@ public:
 
 class StreamFile : public Stream
 {
+	void *file;
 public:
-	FILE *file;
-
 	StreamFile(void) { file = nil; }
 	void close(void);
 	uint32 write8(const void *data, uint32 length);

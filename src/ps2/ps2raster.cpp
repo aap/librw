@@ -1219,7 +1219,7 @@ rasterCreateTexture(Raster *raster)
 				// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
 				*xferchain++ = (uint32)(uintptr)p - 0x50;
 				*xferchain++ = 0;		// VIF nop
-				*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
+				*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT
 			}else{
 				// Add to existing transfer
 				xferchain[-4] = 0x30000000 | (xferchain[-4]&0xFFFF) + sz+5;	// last DMAref
@@ -1243,7 +1243,7 @@ rasterCreateTexture(Raster *raster)
 			*p++ = 0;
 
 			// TRXPOS
-			*(uint64*)p = paltrxpos;
+			*(uint64*)p = (uint64)paltrxpos<<32;
 			p += 2;
 			*p++ = 0x51;
 			*p++ = 0;
@@ -1291,10 +1291,10 @@ rasterCreateTexture(Raster *raster)
 				xferchain[1] = xferchain[-15];
 				xferchain[2] = xferchain[-14];
 				xferchain[3] = xferchain[-13];
+				xferchain += 4;
 				// Add to last transfer
 				xferchain[-16] = 0x30000000 | (xferchain[-16]&0xFFFF) + sz+5;	// last DMAref
 				xferchain[-13] = 0x50000000 | (xferchain[-13]&0xFFFF) + sz+5;	// last DIRECT
-				xferchain += 4;
 				pp->numTransfers--;
 			}
 
@@ -1302,7 +1302,7 @@ rasterCreateTexture(Raster *raster)
 			// this obviously only works with 32 bit pointers, but it's only needed on the PS2 anyway
 			*xferchain++ = (uint32)(uintptr)p - 0x50;
 			*xferchain++ = 0;		// VIF nop
-			*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT 2 qwords
+			*xferchain++ = 0x50000000 | sz+5;	// VIF DIRECT
 		}
 	}
 	raster->originalPixels = raster->pixels;

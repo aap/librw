@@ -931,15 +931,15 @@ char*
 Image::getFilename(const char *name)
 {
 	ImageGlobals *g = PLUGINOFFSET(ImageGlobals, engine, imageModuleOffset);
-	FILE *f;
+	void *f;
 	char *s, *p = g->searchPaths;
 	size_t len = strlen(name)+1;
 	if(g->numSearchPaths == 0){
 		s = rwStrdup(name, MEMDUR_EVENT);
 		makePath(s);
-		f = fopen(s, "rb");
+		f = engine->filefuncs.rwfopen(s, "rb");
 		if(f){
-			fclose(f);
+			engine->filefuncs.rwfclose(f);
 			printf("found %s\n", s);
 			return s;
 		}
@@ -955,9 +955,9 @@ Image::getFilename(const char *name)
 			strcpy(s, p);
 			strcat(s, name);
 			makePath(s);
-			f = fopen(s, "r");
+			f = engine->filefuncs.rwfopen(s, "r");
 			if(f){
-				fclose(f);
+				engine->filefuncs.rwfclose(f);
 				printf("found %s\n", name);
 				return s;
 			}

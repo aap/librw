@@ -121,6 +121,17 @@ struct MemoryFunctions
 	void *(*rwmustrealloc)(void *p, size_t sz, uint32 hint);
 };
 
+struct FileFunctions
+{
+	void *(*rwfopen)(const char *path, const char *mode);
+	int (*rwfclose)(void *fp);
+	int (*rwfseek)(void *fp, long offset, int whence);
+	long (*rwftell)(void *fp);
+	size_t (*rwfread)(void *ptr, size_t size, size_t nmemb, void *fp);
+	size_t (*rwfwrite)(const void *ptr, size_t size, size_t nmemb, void *fp);
+	int (*rwfeof)(void *fp);
+};
+
 struct SubSystemInfo
 {
 	char name[80];
@@ -155,6 +166,7 @@ struct Engine
 	Camera *currentCamera;
 	World *currentWorld;
 	LinkList frameDirtyList;
+	FileFunctions filefuncs;
 
 	// Dynamically allocated because of plugins
 	Driver *driver[NUM_PLATFORMS];
