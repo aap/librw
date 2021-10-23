@@ -509,8 +509,8 @@ public:
 
 class StreamFile : public Stream
 {
-	void *file;
 public:
+	void *file;
 	StreamFile(void) { file = nil; }
 	void close(void);
 	uint32 write8(const void *data, uint32 length);
