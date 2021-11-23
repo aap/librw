@@ -923,6 +923,7 @@ resetRenderState(void)
 	rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
 	alphaFunc = 0;
 	alphaRef = 10.0f/255.0f;
+	uniformStateDirty[RWGL_ALPHAREF] = true;
 	uniformState.fogDisable = 1.0f;
 	uniformState.fogStart = 0.0f;
 	uniformState.fogEnd = 0.0f;
