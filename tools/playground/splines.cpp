@@ -59,6 +59,20 @@ AddVertex(const rw::V3d &vert)
 
 float epsilon = 0.000001;
 
+class BezierSurf
+{
+public:
+	// hardcoded 4x4 for now
+	V3d verts[16];
+
+	void mirrorX(void);
+	void mirrorY(void);
+
+	V3d eval(float u, float v);
+	void drawHull(void);
+	void drawShaded(void);
+};
+
 class RBCurve
 {
 public:
@@ -126,6 +140,113 @@ evalBasisFast(int i, int d, float u, float knots[])
 	return tmp[0];
 }
 
+void
+BezierSurf::mirrorX(void)
+{
+	int i;
+	for(i = 0; i < 16; i++)
+		verts[i].x = -verts[i].x;
+}
+
+void
+BezierSurf::mirrorY(void)
+{
+	int i;
+	for(i = 0; i < 16; i++)
+		verts[i].y = -verts[i].y;
+}
+
+V3d
+BezierSurf::eval(float u, float v)
+{
+	int i, j;
+	V3d out = { 0.0f, 0.0f, 0.0f };
+	float us[4], vs[4];
+	float iu = 1.0f-u;
+	float iv = 1.0f-v;
+	us[0] = iu*iu*iu;
+	us[1] = 3.0f*u*iu*iu;
+	us[2] = 3.0f*u*u*iu;
+	us[3] = u*u*u;
+	vs[0] = iv*iv*iv;
+	vs[1] = 3.0f*v*iv*iv;
+	vs[2] = 3.0f*v*v*iv;
+	vs[3] = v*v*v;
+	for(i = 0; i < 4; i++)
+		for(j = 0; j < 4; j++)
+			out = add(out, scale(verts[j+i*4],us[j]*vs[i]));
+	return out;
+}
+
+void
+BezierSurf::drawHull(void)
+{
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
+	rw::SetRenderState(rw::FOGENABLE, 0);
+
+	imVert.setU(0.0f);
+	imVert.setV(0.0f);
+	imVert.setColor(138, 72, 51, 255);
+//	imVert.setColor(228, 172, 121, 255);
+
+	int iu, iv;
+	for(iv = 0; iv < 4; iv++){
+		BeginIm3D(rw::PRIMTYPEPOLYLINE);
+		for(iu = 0; iu < 4; iu++)
+			AddVertex(verts[iu + iv*4]);
+		EndIm3D();
+	}
+
+	for(iu = 0; iu < 4; iu++){
+		BeginIm3D(rw::PRIMTYPEPOLYLINE);
+		for(iv = 0; iv < 4; iv++)
+			AddVertex(verts[iu + iv*4]);
+		EndIm3D();
+	}
+}
+
+void
+BezierSurf::drawShaded(void)
+{
+	V3d vert;
+	int iu, iv;
+	float u, v;
+
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
+	rw::SetRenderState(rw::FOGENABLE, 0);
+
+	imVert.setU(0.0f);
+	imVert.setV(0.0f);
+	imVert.setColor(0, 128, 240, 255);
+
+	float endu = 1.0f - epsilon;
+	float endv = 1.0f - epsilon;
+	float uinc = (endu-0.0f)/40.0f;
+	float vinc = (endv-0.0f)/40.0f;
+
+	float vnext;
+	for(v = 0.0f;; v = vnext){
+		if(v > endv)
+			v = endv;
+		vnext = v + vinc;
+
+		BeginIm3D(rw::PRIMTYPETRISTRIP);
+		for(u = 0.0f;; u += uinc){
+			if(u > endu)
+				u = endu;
+
+			AddVertex(eval(u, v));
+			AddVertex(eval(u, vnext));
+
+			if(u >= endu)
+				break;
+		}
+		EndIm3D();
+		if(vnext >= endv)
+			break;
+	}
+}
+
 V3d
 RBCurve::eval(float u)
 {
@@ -153,7 +274,7 @@ RBCurve::drawHull(void)
 {
 	int i;
 
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::FOGENABLE, 0);
 
 	BeginIm3D(rw::PRIMTYPEPOLYLINE);
@@ -173,7 +294,7 @@ RBCurve::drawSpline(void)
 	float u, endu;
 	V3d vert;
 
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::FOGENABLE, 0);
 	BeginIm3D(rw::PRIMTYPEPOLYLINE);
 	imVert.setU(0.0f);
@@ -238,7 +359,7 @@ RBSurf::eval(float u, float v)
 void
 RBSurf::drawHull(void)
 {
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::FOGENABLE, 0);
 
 	imVert.setU(0.0f);
@@ -269,7 +390,7 @@ RBSurf::drawIsoparms(void)
 	int iu, iv;
 	float u, v;
 
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::FOGENABLE, 0);
 
 	imVert.setU(0.0f);
@@ -323,7 +444,7 @@ RBSurf::drawShaded(void)
 	int iu, iv;
 	float u, v;
 
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::FOGENABLE, 0);
 
 	imVert.setU(0.0f);
@@ -361,6 +482,92 @@ RBSurf::drawShaded(void)
 
 RBCurve testspline1, testspline2;
 RBSurf testsurf;
+
+V3d teapotVerts[] = {
+	{  0.2000,  0.0000, 2.70000 }, {  0.2000, -0.1120, 2.70000 },
+	{  0.1120, -0.2000, 2.70000 }, {  0.0000, -0.2000, 2.70000 },
+	{  1.3375,  0.0000, 2.53125 }, {  1.3375, -0.7490, 2.53125 },
+	{  0.7490, -1.3375, 2.53125 }, {  0.0000, -1.3375, 2.53125 },
+	{  1.4375,  0.0000, 2.53125 }, {  1.4375, -0.8050, 2.53125 },
+	{  0.8050, -1.4375, 2.53125 }, {  0.0000, -1.4375, 2.53125 },
+	{  1.5000,  0.0000, 2.40000 }, {  1.5000, -0.8400, 2.40000 },
+	{  0.8400, -1.5000, 2.40000 }, {  0.0000, -1.5000, 2.40000 },
+	{  1.7500,  0.0000, 1.87500 }, {  1.7500, -0.9800, 1.87500 },
+	{  0.9800, -1.7500, 1.87500 }, {  0.0000, -1.7500, 1.87500 },
+	{  2.0000,  0.0000, 1.35000 }, {  2.0000, -1.1200, 1.35000 },
+	{  1.1200, -2.0000, 1.35000 }, {  0.0000, -2.0000, 1.35000 },
+	{  2.0000,  0.0000, 0.90000 }, {  2.0000, -1.1200, 0.90000 },
+	{  1.1200, -2.0000, 0.90000 }, {  0.0000, -2.0000, 0.90000 },
+	{ -2.0000,  0.0000, 0.90000 }, {  2.0000,  0.0000, 0.45000 },
+	{  2.0000, -1.1200, 0.45000 }, {  1.1200, -2.0000, 0.45000 },
+	{  0.0000, -2.0000, 0.45000 }, {  1.5000,  0.0000, 0.22500 },
+	{  1.5000, -0.8400, 0.22500 }, {  0.8400, -1.5000, 0.22500 },
+	{  0.0000, -1.5000, 0.22500 }, {  1.5000,  0.0000, 0.15000 },
+	{  1.5000, -0.8400, 0.15000 }, {  0.8400, -1.5000, 0.15000 },
+	{  0.0000, -1.5000, 0.15000 }, { -1.6000,  0.0000, 2.02500 },
+	{ -1.6000, -0.3000, 2.02500 }, { -1.5000, -0.3000, 2.25000 },
+	{ -1.5000,  0.0000, 2.25000 }, { -2.3000,  0.0000, 2.02500 },
+	{ -2.3000, -0.3000, 2.02500 }, { -2.5000, -0.3000, 2.25000 },
+	{ -2.5000,  0.0000, 2.25000 }, { -2.7000,  0.0000, 2.02500 },
+	{ -2.7000, -0.3000, 2.02500 }, { -3.0000, -0.3000, 2.25000 },
+	{ -3.0000,  0.0000, 2.25000 }, { -2.7000,  0.0000, 1.80000 },
+	{ -2.7000, -0.3000, 1.80000 }, { -3.0000, -0.3000, 1.80000 },
+	{ -3.0000,  0.0000, 1.80000 }, { -2.7000,  0.0000, 1.57500 },
+	{ -2.7000, -0.3000, 1.57500 }, { -3.0000, -0.3000, 1.35000 },
+	{ -3.0000,  0.0000, 1.35000 }, { -2.5000,  0.0000, 1.12500 },
+	{ -2.5000, -0.3000, 1.12500 }, { -2.6500, -0.3000, 0.93750 },
+	{ -2.6500,  0.0000, 0.93750 }, { -2.0000, -0.3000, 0.90000 },
+	{ -1.9000, -0.3000, 0.60000 }, { -1.9000,  0.0000, 0.60000 },
+	{  1.7000,  0.0000, 1.42500 }, {  1.7000, -0.6600, 1.42500 },
+	{  1.7000, -0.6600, 0.60000 }, {  1.7000,  0.0000, 0.60000 },
+	{  2.6000,  0.0000, 1.42500 }, {  2.6000, -0.6600, 1.42500 },
+	{  3.1000, -0.6600, 0.82500 }, {  3.1000,  0.0000, 0.82500 },
+	{  2.3000,  0.0000, 2.10000 }, {  2.3000, -0.2500, 2.10000 },
+	{  2.4000, -0.2500, 2.02500 }, {  2.4000,  0.0000, 2.02500 },
+	{  2.7000,  0.0000, 2.40000 }, {  2.7000, -0.2500, 2.40000 },
+	{  3.3000, -0.2500, 2.40000 }, {  3.3000,  0.0000, 2.40000 },
+	{  2.8000,  0.0000, 2.47500 }, {  2.8000, -0.2500, 2.47500 },
+	{  3.5250, -0.2500, 2.49375 }, {  3.5250,  0.0000, 2.49375 },
+	{  2.9000,  0.0000, 2.47500 }, {  2.9000, -0.1500, 2.47500 },
+	{  3.4500, -0.1500, 2.51250 }, {  3.4500,  0.0000, 2.51250 },
+	{  2.8000,  0.0000, 2.40000 }, {  2.8000, -0.1500, 2.40000 },
+	{  3.2000, -0.1500, 2.40000 }, {  3.2000,  0.0000, 2.40000 },
+	{  0.0000,  0.0000, 3.15000 }, {  0.8000,  0.0000, 3.15000 },
+	{  0.8000, -0.4500, 3.15000 }, {  0.4500, -0.8000, 3.15000 },
+	{  0.0000, -0.8000, 3.15000 }, {  0.0000,  0.0000, 2.85000 },
+	{  1.4000,  0.0000, 2.40000 }, {  1.4000, -0.7840, 2.40000 },
+	{  0.7840, -1.4000, 2.40000 }, {  0.0000, -1.4000, 2.40000 },
+	{  0.4000,  0.0000, 2.55000 }, {  0.4000, -0.2240, 2.55000 },
+	{  0.2240, -0.4000, 2.55000 }, {  0.0000, -0.4000, 2.55000 },
+	{  1.3000,  0.0000, 2.55000 }, {  1.3000, -0.7280, 2.55000 },
+	{  0.7280, -1.3000, 2.55000 }, {  0.0000, -1.3000, 2.55000 },
+	{  1.3000,  0.0000, 2.40000 }, {  1.3000, -0.7280, 2.40000 },
+	{  0.7280, -1.3000, 2.40000 }, {  0.0000, -1.3000, 2.40000 }
+};
+int teapotPatches[10][16] = {
+	{ 118, 118, 118, 118, 124, 122, 119, 121,
+	  123, 126, 125, 120,  40,  39,  38,  37 },
+	{ 102, 103, 104, 105,   4,   5,   6,   7,
+	    8,   9,  10,  11,  12,  13,  14,  15 },
+	{  12,  13,  14,  15,  16,  17,  18,  19,
+	   20,  21,  22,  23,  24,  25,  26,  27 },
+	{  24,  25,  26,  27,  29,  30,  31,  32,
+	   33,  34,  35,  36,  37,  38,  39,  40 },
+	{  96,  96,  96,  96,  97,  98,  99, 100,
+	  101, 101, 101, 101,   0,   1,   2,   3 },
+	{   0,   1,   2,   3, 106, 107, 108, 109,
+	  110, 111, 112, 113, 114, 115, 116, 117 },
+	{  41,  42,  43,  44,  45,  46,  47,  48,
+	   49,  50,  51,  52,  53,  54,  55,  56 },
+	{  53,  54,  55,  56,  57,  58,  59,  60,
+	   61,  62,  63,  64,  28,  65,  66,  67 },
+	{  68,  69,  70,  71,  72,  73,  74,  75,
+	   76,  77,  78,  79,  80,  81,  82,  83 },
+	{  80,  81,  82,  83,  84,  85,  86,  87,
+	   88,  89,  90,  91,  92,  93,  94,  95 },
+};
+
+BezierSurf teapotSurfs[32];
 
 void
 initsplines(void)
@@ -412,6 +619,7 @@ initsplines(void)
 	V(-61.9913, 9.158239, 0);
 	V(-32.32231, 27.23371, 0);
 	V(25.80961, -4.820126, 0);
+#undef V
 	testspline2.knots.clear();
 	testspline2.knots.push_back(0);
 	testspline2.knots.push_back(0);
@@ -479,6 +687,7 @@ initsplines(void)
 	V(25.75483, 70.07219, 31.27717);
 	V(56.61724, 70.07219, -2.498198);
 	V(86.35364, 70.07219, 12.53265);
+#undef V
 	testsurf.knotsU.clear();
 	testsurf.knotsU.push_back(0);
 	testsurf.knotsU.push_back(0);
@@ -503,18 +712,39 @@ initsplines(void)
 	testsurf.knotsV.push_back(1);
 
 	testsurf.update();
+
+	int i, j;
+	for(i = 0; i < 10; i++)
+		for(j = 0; j < 16; j++)
+			teapotSurfs[i].verts[j] = teapotVerts[teapotPatches[i][j]];
+	for(i = 0; i < 10; i++){
+		teapotSurfs[i+10] = teapotSurfs[i];
+		teapotSurfs[i+10].mirrorY();
+	}
+	for(i = 0; i < 6; i++){
+		teapotSurfs[i+20] = teapotSurfs[i];
+		teapotSurfs[i+20].mirrorX();
+		teapotSurfs[i+20+6] = teapotSurfs[i+10];
+		teapotSurfs[i+20+6].mirrorX();
+	}
 }
 
 void
 rendersplines(void)
 {
-	testspline1.drawHull();
-	testspline1.drawSpline();
+//	testspline1.drawHull();
+//	testspline1.drawSpline();
 
 //	testspline2.drawHull();
 //	testspline2.drawSpline();
 
-	testsurf.drawHull();
-	testsurf.drawShaded();
-	testsurf.drawIsoparms();
+//	testsurf.drawHull();
+//	testsurf.drawShaded();
+//	testsurf.drawIsoparms();
+
+	int i;
+	for(i = 0; i < 32; i++){
+		teapotSurfs[i].drawHull();
+		teapotSurfs[i].drawShaded();
+	}
 }

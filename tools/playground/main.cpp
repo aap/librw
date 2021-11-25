@@ -302,8 +302,8 @@ InitRW(void)
 	camera->m_aspectRatio = 640.0f/448.0f;
 //	camera->m_near = 0.5f;
 	camera->m_near = 1.5f;
-//	camera->m_far = 450.0f;
-	camera->m_far = 15.0f;
+	camera->m_far = 450.0f;
+//	camera->m_far = 15.0f;
 	camera->m_target.set(0.0f, 0.0f, 0.0f);
 	camera->m_position.set(0.0f, -10.0f, 0.0f);
 //	camera->setPosition(Vec3(0.0f, 5.0f, 0.0f));
@@ -497,7 +497,7 @@ Draw(float timeDelta)
 	getFrontBuffer();
 
 	rw::SetRenderState(rw::FOGCOLOR, 0xFF0000FF);
-	rw::SetRenderState(rw::FOGENABLE, 1);
+//	rw::SetRenderState(rw::FOGENABLE, 1);
 	camera->m_rwcam->fogPlane = camera->m_rwcam->nearPlane;
 
 	static rw::RGBA clearcol = { 161, 161, 161, 0xFF };
@@ -517,7 +517,7 @@ extern void endSoftras(void);
 		endSoftras();
 	}
 		//im2dtest();
-		im2dtest2();
+		//im2dtest2();
 
 //	Scene.clump->render();
 //	im3dtest();
@@ -525,7 +525,7 @@ extern void endSoftras(void);
 
 //	testfont->print("foo ABC", 200, 200, true);
 
-//	rendersplines();
+	rendersplines();
 
 	camera->m_rwcam->endUpdate();
 

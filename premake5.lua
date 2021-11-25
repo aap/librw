@@ -275,3 +275,12 @@ project "ps2test"
 --	includedirs { "." }
 --	libdirs { Libdir }
 --	links { "librw" }
+
+project "hopalong"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("hopalong")
+	entrypoint("WinMainCRTStartup")
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" }
+
