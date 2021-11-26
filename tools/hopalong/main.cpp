@@ -116,7 +116,11 @@ int curOrbit = 0;
 float A = 0.0f;
 float B = 0.0f;
 float C = 0.0f;
+float D = 0.0f;
+float E = 0.0f;
+float Exp = 0.25f;
 float Scale = 50.0f;
+int type;
 bool textured = true;
 bool animateX;
 bool animateY;
@@ -153,9 +157,20 @@ RenderOrbit(Orbit *o)
 		rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	BeginIm2D(rw::PRIMTYPETRILIST);
 	while(n--){
-		x1 = y0 - sgn(x0)*sqrtf(fabs(B*x0 - C));
-//		x1 = y0 - sgn(x0)*logf(fabs(B*x0 - C));
+		switch(type){
+		case 0:
+		default:
+			x1 = y0 - sgn(x0)*(D + sqrtf(fabs(B*x0 - C)));
+			break;
+		case 1:
+			x1 = y0 - sgn(x0)*(D + powf(fabs(B*x0 - C), Exp));
+			break;
+		case 2:
+			x1 = y0 - sgn(x0)*(D + logf(2.0f + sqrtf(fabs(B*x0 - C))));
+			break;
+		}
 		y1 = A - x0;
+		x1 += E;
 		RenderParticle(x1*Scale, y1*Scale, o->PointSz, color);
 		x0 = x1;
 		y0 = y1;
@@ -278,6 +293,12 @@ hopalongGUI(void)
 	ImGui::SliderFloat("A", &A, -10.0f, 10.0f);
 	ImGui::SliderFloat("B", &B, -10.0f, 10.0f);
 	ImGui::SliderFloat("C", &C, -10.0f, 10.0f);
+	ImGui::SliderFloat("D", &D, -10.0f, 10.0f);
+	ImGui::SliderFloat("E", &E, -10.0f, 10.0f);
+	ImGui::SliderFloat("exp", &Exp, 0.001f, 4.0f);
+	ImGui::RadioButton("sqrt", &type, 0);
+	ImGui::RadioButton("^exp", &type, 1);
+	ImGui::RadioButton("log", &type, 2);
 	ImGui::SliderFloat("Scale", &Scale, 1.0f, 100.0f);
 	for(i = 0; i < nelem(orbits); i++){
 		if(orbits[i].used){
