@@ -53,13 +53,9 @@ class LibrwConan(ConanFile):
     def requirements(self):
         if self.options.platform == "gl3":
             if self.options.gl3_gfxlib == "glfw":
-                self.requires("glfw/3.3.2")
+                self.requires("glfw/3.3.7")
             elif self.options.gl3_gfxlib == "sdl2":
-                self.requires("sdl2/2.0.12@bincrafters/stable")
-        elif self.options.platform == "ps2":
-            self.requires("ps2dev-ps2sdk/unknown@madebr/testing")
-        if self._os_is_playstation2:
-            self.requires("ps2dev-cmaketoolchain/{}".format(self.version))
+                self.requires("sdl/2.0.20")
 
     def export_sources(self):
         for d in ("cmake", "skeleton", "src", "tools"):
