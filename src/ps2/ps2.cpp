@@ -21,6 +21,8 @@
 namespace rw {
 namespace ps2 {
 
+bool adcHack = false;
+
 #define ALIGNPTR(p,a) ((uint8*)(((uintptr)(p)+a-1) & ~(uintptr)(a-1)))
 
 static void*
@@ -706,13 +708,21 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 
 		for(uint i = 0; i < nelem(this->attribs); i++)
 			if((a = this->attribs[i]) && (a->attrib & AT_RW) == 0){
-				if(rw::version >= 0x35000)
-					*p++ = VIF_NOP;
-				else
-					*p++ = VIF_MARK | markcnt++;
-				*p++ = VIF_STMOD;
+				uint32 mask;
+				if(adcHack && a == &attribXYZ){
+					*p++ = VIF_STMASK;
+					*p++ = 1 << 6;		// write w field with VIF1_R3
+					mask = 0x10000000;
+				}else{
+					if(rw::version >= 0x35000)
+						*p++ = VIF_NOP;
+					else
+						*p++ = VIF_MARK | markcnt++;
+					*p++ = VIF_STMOD;
+					mask = 0x00000000;
+				}
 				*p++ = VIF_STCYCL1 | this->inputStride;
-				*p++ = (a->attrib&0xFF004000)
+				*p++ = (a->attrib&0xFF004000) | mask
 					| 0x8000 | nverts << 16 | i; // UNPACK
 
 				if(a == &attribXYZ)
