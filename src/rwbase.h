@@ -343,7 +343,7 @@ struct Matrix
 	void destroy(void);
 	void setIdentity(void);
 	void optimize(Tolerance *tolerance = nil);
-	void update(void) { flags &= ~(IDENTITY|TYPEMASK); }
+	void update(void) { flags &= ~(int(IDENTITY) | int(TYPEMASK)); }
 	static Matrix *mult(Matrix *dst, const Matrix *src1, const Matrix *src2);
 	static Matrix *invert(Matrix *dst, const Matrix *src);
 	static Matrix *transpose(Matrix *dst, const Matrix *src);
