@@ -155,6 +155,12 @@ if(LIBRW_PLATFORM_GL3)
             PUBLIC
                 glfw
             )
+        if (MINGW OR MSYS)
+            target_link_options(librw
+                PRIVATE
+                    "-fstack-protector"
+            )
+        endif()
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
         find_package(SDL2 REQUIRED)
         target_compile_definitions(librw PUBLIC LIBRW_SDL2)
