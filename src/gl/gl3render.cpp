@@ -121,7 +121,7 @@ lightingCB(Atomic *atomic)
 	lightData.locals = locals;
 	lightData.numLocals = 8;
 
-	if(atomic->geometry->flags & rw::Geometry::LIGHT){
+	if(atomic->geometry->flags & rw::Geometry::LIGHT && engine->currentWorld){
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
 			// Get rid of lights that need normals when we don't have any
