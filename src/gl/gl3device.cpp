@@ -1553,12 +1553,15 @@ startSDL2(void)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, profiles[i].major);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, profiles[i].minor);
 
+		SDL_Rect bounds;
+		SDL_GetDisplayBounds(glGlobals.currentMonitor, &bounds);
+
 		if(mode->flags & VIDEOMODEEXCLUSIVE) {
-			win = SDL_CreateWindow(glGlobals.winTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
+			win = SDL_CreateWindow(glGlobals.winTitle, bounds.x, bounds.y, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
 			if (win)
 				SDL_SetWindowDisplayMode(win, &mode->mode);
 		} else {
-			win = SDL_CreateWindow(glGlobals.winTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, glGlobals.winWidth, glGlobals.winHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+			win = SDL_CreateWindow(glGlobals.winTitle, bounds.x, bounds.y, glGlobals.winWidth, glGlobals.winHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 			if (win)
 				SDL_SetWindowDisplayMode(win, NULL);
 		}
@@ -1940,7 +1943,20 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 	case DEVICEFINALIZE:
 		return finalizeOpenGL();
 
-	// TODO: implement subsystems
+	case DEVICEGETNUMSUBSYSTEMS:
+		return SDL_GetNumVideoDisplays();
+	case DEVICEGETSUBSSYSTEMINFO:
+		if (n > SDL_GetNumVideoDisplays())
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, SDL_GetDisplayName(n), sizeof(SubSystemInfo::name));
+		return 1;
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return glGlobals.currentMonitor;
+	case DEVICESETSUBSYSTEM:
+		if (n > SDL_GetNumVideoDisplays())
+			return 0;
+		glGlobals.currentMonitor = n;
+		return 1;
 
 	case DEVICEGETNUMVIDEOMODES:
 		return glGlobals.numModes;
@@ -1976,20 +1992,6 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 		return glGlobals.numSamples;
 	case DEVICESETMULTISAMPLINGLEVELS:
 		glGlobals.numSamples = (uint32)n;
-		return 1;
-	case DEVICEGETNUMSUBSYSTEMS:
-		return SDL_GetNumVideoDisplays();
-	case DEVICEGETSUBSSYSTEMINFO:
-		if (n > SDL_GetNumVideoDisplays())
-			return 0;
-		strncpy(((SubSystemInfo*)arg)->name, SDL_GetDisplayName(n), sizeof(SubSystemInfo::name));
-		return 1;
-	case DEVICEGETCURRENTSUBSYSTEM:
-		return 0; // FIXME: Returns first monitor index, instead of current
-	case DEVICESETSUBSYSTEM:
-		if (n > SDL_GetNumVideoDisplays())
-			return 0;
-		// TODO: Set monitor index to be use
 		return 1;
 	default:
 		assert(0 && "not implemented");
