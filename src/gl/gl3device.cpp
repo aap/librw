@@ -1977,6 +1977,20 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 	case DEVICESETMULTISAMPLINGLEVELS:
 		glGlobals.numSamples = (uint32)n;
 		return 1;
+	case DEVICEGETNUMSUBSYSTEMS:
+		return SDL_GetNumVideoDisplays();
+	case DEVICEGETSUBSSYSTEMINFO:
+		if (n > SDL_GetNumVideoDisplays())
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, SDL_GetDisplayName(n), sizeof(SubSystemInfo::name));
+		return 1;
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return 0; // FIXME: Returns first monitor index, instead of current
+	case DEVICESETSUBSYSTEM:
+		if (n > SDL_GetNumVideoDisplays())
+			return 0;
+		// TODO: Set monitor index to be use
+		return 1;
 	default:
 		assert(0 && "not implemented");
 		return 0;
