@@ -727,6 +727,7 @@ MaterialList::deinit(void)
 		for(int32 i = 0; i < this->numMaterials; i++)
 			this->materials[i]->destroy();
 		rwFree(this->materials);
+		this->materials = nil;
 	}
 }
 
