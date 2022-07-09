@@ -45,8 +45,8 @@ struct GlGlobals
 
 	GLFWmonitor *monitor;
 	int numMonitors;
-	int currentMonitor;
 #endif
+	int currentMonitor;
 
 	DisplayMode *modes;
 	int numModes;
