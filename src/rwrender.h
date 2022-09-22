@@ -123,6 +123,7 @@ enum TransformFlags
 	NOCLIP        = 4,	// don't frustum clip
 	VERTEXXYZ     = 8,	// has position
 	VERTEXRGBA    = 16,	// has color
+	LIGHTING      = 32,	// do lighting, assumes normals (librw extension)
 	EVERYTHING = VERTEXUV|VERTEXXYZ|VERTEXRGBA
 };
 

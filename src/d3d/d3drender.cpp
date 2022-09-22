@@ -357,11 +357,6 @@ lightingCB_Shader(Atomic *atomic)
 	if(atomic->geometry->flags & rw::Geometry::LIGHT){
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 		setAmbient(lightData.ambient);
-		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
-			// Get rid of lights that need normals when we don't have any
-			lightData.numDirectionals = 0;
-			lightData.numLocals = 0;
-		}
 		return uploadLights(&lightData);
 	}else{
 		static const RGBAf black = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -369,6 +364,22 @@ lightingCB_Shader(Atomic *atomic)
 		setNumLights(0, 0, 0);
 		return 0;
 	}
+}
+
+int32
+lightingCB_Shader(void)
+{
+	WorldLights lightData;
+	Light *directionals[8];
+	Light *locals[8];
+	lightData.directionals = directionals;
+	lightData.numDirectionals = 8;
+	lightData.locals = locals;
+	lightData.numLocals = 8;
+
+	((World*)engine->currentWorld)->enumerateLights(&lightData);
+	setAmbient(lightData.ambient);
+	return uploadLights(&lightData);
 }
 
 static RawMatrix identityXform = {

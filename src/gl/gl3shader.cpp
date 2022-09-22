@@ -45,6 +45,8 @@ registerUniform(const char *name, UniformType type, int32 num)
 {
 	int i;
 	i = findUniform(name);
+	if(type == UNIFORM_NA)
+		num = 0;
 	if(i >= 0){
 		Uniform *u = &uniformRegistry.uniforms[i];
 		assert(u->type == type);

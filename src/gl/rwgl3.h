@@ -103,12 +103,16 @@ extern Shader *defaultShader_fullLight, *defaultShader_fullLight_noAT;
 struct Im3DVertex
 {
 	V3d     position;
+	V3d     normal;		// librw extension
 	uint8   r, g, b, a;
 	float32 u, v;
 
 	void setX(float32 x) { this->position.x = x; }
 	void setY(float32 y) { this->position.y = y; }
 	void setZ(float32 z) { this->position.z = z; }
+	void setNormalX(float32 x) { this->normal.x = x; }
+	void setNormalY(float32 y) { this->normal.y = y; }
+	void setNormalZ(float32 z) { this->normal.z = z; }
 	void setColor(uint8 r, uint8 g, uint8 b, uint8 a) {
 		this->r = r; this->g = g; this->b = b; this->a = a; }
 	void setU(float32 u) { this->u = u; }
@@ -117,10 +121,15 @@ struct Im3DVertex
 	float getX(void) { return this->position.x; }
 	float getY(void) { return this->position.y; }
 	float getZ(void) { return this->position.z; }
+	float getNormalX(void) { return this->normal.x; }
+	float getNormalY(void) { return this->normal.y; }
+	float getNormalZ(void) { return this->normal.z; }
 	RGBA getColor(void) { return makeRGBA(this->r, this->g, this->b, this->a); }
 	float getU(void) { return this->u; }
 	float getV(void) { return this->v; }
 };
+extern RGBA im3dMaterialColor;
+extern SurfaceProperties im3dSurfaceProps;
 
 struct Im2DVertex
 {
@@ -221,6 +230,7 @@ void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinsta
 void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
 void defaultRenderCB(Atomic *atomic, InstanceDataHeader *header);
 int32 lightingCB(Atomic *atomic);
+int32 lightingCB(void);
 
 void drawInst_simple(InstanceDataHeader *header, InstanceData *inst);
 // Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer

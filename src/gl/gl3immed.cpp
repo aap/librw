@@ -193,9 +193,11 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 
 
 static Shader *im3dShader;
-static AttribDesc im3dattribDesc[3] = {
+static AttribDesc im3dattribDesc[4] = {
 	{ ATTRIB_POS,        GL_FLOAT,         GL_FALSE, 3,
 		sizeof(Im3DVertex), 0 },
+	{ ATTRIB_NORMAL,     GL_FLOAT,         GL_FALSE, 3,
+		sizeof(Im3DVertex), offsetof(Im3DVertex, normal) },
 	{ ATTRIB_COLOR,      GL_UNSIGNED_BYTE, GL_TRUE,  4,
 		sizeof(Im3DVertex), offsetof(Im3DVertex, r) },
 	{ ATTRIB_TEXCOORDS0, GL_FLOAT,         GL_FALSE, 2,
@@ -228,7 +230,7 @@ openIm3D(void)
 #ifdef RW_GL_USE_VAOS
 	glGenVertexArrays(1, &im3DVao);
 	glBindVertexArray(im3DVao);
-	setAttribPointers(im3dattribDesc, 3);
+	setAttribPointers(im3dattribDesc, 4);
 #endif
 }
 
@@ -244,6 +246,10 @@ closeIm3D(void)
 	im3dShader = nil;
 }
 
+// settable by user - TOOD: make this less shit
+RGBA im3dMaterialColor = { 255, 255, 255, 255 };
+SurfaceProperties im3dSurfaceProps = { 1.0f, 1.0f, 1.0f };
+
 void
 im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
@@ -253,7 +259,12 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 		world = &ident;
 	}
 	setWorldMatrix(world);
-	im3dShader->use();
+	if(flags & im3d::LIGHTING){
+		setMaterial(im3dMaterialColor, im3dSurfaceProps);
+		int32 vsBits = lightingCB();
+		defaultShader_fullLight->use();
+	}else
+		im3dShader->use();
 
 	if((flags & im3d::VERTEXUV) == 0)
 		SetRenderStatePtr(TEXTURERASTER, nil);
@@ -266,7 +277,7 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	glBufferData(GL_ARRAY_BUFFER, STARTVERTICES*sizeof(Im3DVertex), nil, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, numVertices*sizeof(Im3DVertex), vertices);
 #ifndef RW_GL_USE_VAOS
-	setAttribPointers(im3dattribDesc, 3);
+	setAttribPointers(im3dattribDesc, 4);
 #endif
 	num3DVertices = numVertices;
 }
@@ -296,7 +307,7 @@ void
 im3DEnd(void)
 {
 #ifndef RW_GL_USE_VAOS
-	disableAttribPointers(im3dattribDesc, 3);
+	disableAttribPointers(im3dattribDesc, 4);
 #endif
 }
 

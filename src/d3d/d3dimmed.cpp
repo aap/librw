@@ -236,8 +236,9 @@ static int32 num3DVertices;
 void
 openIm3D(void)
 {
-	D3DVERTEXELEMENT9 elements[4] = {
+	D3DVERTEXELEMENT9 elements[5] = {
 		{ 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+		{ 0, offsetof(Im3DVertex, normal), D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0 },
 		{ 0, offsetof(Im3DVertex, color), D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
 		{ 0, offsetof(Im3DVertex, u), D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
 		D3DDECL_END()
@@ -273,6 +274,10 @@ closeIm3D(void)
 	im3dindbuf = nil;
 }
 
+// settable by user - TOOD: make this less shit
+RGBA im3dMaterialColor = { 255, 255, 255, 255 };
+SurfaceProperties im3dSurfaceProps = { 1.0f, 1.0f, 1.0f };
+
 void
 im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 {
@@ -284,9 +289,22 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	if((flags & im3d::VERTEXUV) == 0)
 		SetRenderStatePtr(TEXTURERASTER, nil);
 
-	static RGBA white = { 255, 255, 255, 255 };
-	static SurfaceProperties surfprops = { 0.0f, 0.0f, 0.0f };
-	setMaterial(white, surfprops);
+	void *shader = default_amb_VS;
+	if(flags & im3d::LIGHTING){
+		setMaterial(im3dMaterialColor, im3dSurfaceProps);
+		int32 vsBits = lightingCB_Shader();
+		// Pick a shader
+		if((vsBits & VSLIGHT_MASK) == 0)
+			shader = default_amb_VS;
+		else if((vsBits & VSLIGHT_MASK) == VSLIGHT_DIRECT)
+			shader = default_amb_dir_VS;
+		else
+			shader = default_all_VS;
+	}else{
+		static RGBA white = { 255, 255, 255, 255 };
+		static SurfaceProperties surfprops = { 0.0f, 0.0f, 0.0f };
+		setMaterial(white, surfprops);
+	}
 
 	uint8 *lockedvertices = lockVertices(im3dvertbuf, 0, numVertices*sizeof(Im3DVertex), D3DLOCK_DISCARD);
 	memcpy(lockedvertices, vertices, numVertices*sizeof(Im3DVertex));
@@ -295,7 +313,7 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	setStreamSource(0, im3dvertbuf, 0, sizeof(Im3DVertex));
 	setVertexDeclaration(im3ddecl);
 
-	setVertexShader(default_amb_VS);
+	setVertexShader(shader);
 
 	num3DVertices = numVertices;
 }

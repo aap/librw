@@ -121,19 +121,28 @@ lightingCB(Atomic *atomic)
 	lightData.locals = locals;
 	lightData.numLocals = 8;
 
-	if(atomic->geometry->flags & rw::Geometry::LIGHT){
+	if(atomic->geometry->flags & rw::Geometry::LIGHT)
 		((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
-		if((atomic->geometry->flags & rw::Geometry::NORMALS) == 0){
-			// Get rid of lights that need normals when we don't have any
-			lightData.numDirectionals = 0;
-			lightData.numLocals = 0;
-		}
-		return setLights(&lightData);
-	}else{
+	else
 		memset(&lightData, 0, sizeof(lightData));
-		return setLights(&lightData);
-	}
+	return setLights(&lightData);
 }
+
+int32
+lightingCB(void)
+{
+	WorldLights lightData;
+	Light *directionals[8];
+	Light *locals[8];
+	lightData.directionals = directionals;
+	lightData.numDirectionals = 8;
+	lightData.locals = locals;
+	lightData.numLocals = 8;
+
+	((World*)engine->currentWorld)->enumerateLights(&lightData);
+	return setLights(&lightData);
+}
+
 
 void
 defaultRenderCB(Atomic *atomic, InstanceDataHeader *header)

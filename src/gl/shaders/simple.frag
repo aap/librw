@@ -12,4 +12,3 @@ main(void)
 	DoAlphaTest(color.a);
 	FRAGCOLOR(color);
 }
-

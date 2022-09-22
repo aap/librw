@@ -195,4 +195,44 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 	}
 }
 
+// Find all lights, for im3d lighting extension
+// missing flags and bounding spheres so more primitive than above
+void
+World::enumerateLights(WorldLights *lightData)
+{
+	int32 maxDirectionals, maxLocals;
+
+	maxDirectionals = lightData->numDirectionals;
+	maxLocals = lightData->numLocals;
+
+	lightData->numDirectionals = 0;
+	lightData->numLocals = 0;
+	lightData->numAmbients = 0;
+	lightData->ambient.red = 0.0f;
+	lightData->ambient.green = 0.0f;
+	lightData->ambient.blue = 0.0f;
+	lightData->ambient.alpha = 1.0f;
+
+	FORLIST(lnk, this->globalLights){
+		Light *l = Light::fromWorld(lnk);
+		if(l->getType() == Light::AMBIENT){
+			lightData->ambient.red   += l->color.red;
+			lightData->ambient.green += l->color.green;
+			lightData->ambient.blue  += l->color.blue;
+			lightData->numAmbients++;
+		}else if(l->getType() == Light::DIRECTIONAL){
+			if(lightData->numDirectionals < maxDirectionals)
+				lightData->directionals[lightData->numDirectionals++] = l;
+		}
+	}
+
+	FORLIST(lnk, this->localLights){
+		if(lightData->numLocals >= maxLocals)
+			return;
+
+		Light *l = Light::fromWorld(lnk);
+		lightData->locals[lightData->numLocals++] = l;
+	}
+}
+
 }
