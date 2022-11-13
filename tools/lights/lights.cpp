@@ -377,7 +377,7 @@ DrawDirectLight(void)
 void
 DrawCurrentLight(void)
 {
-	rw::SetRenderState(rw::TEXTURERASTER, nil);
+	rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
 	rw::SetRenderState(rw::CULLMODE, rw::CULLBACK);
 	rw::SetRenderState(rw::ZTESTENABLE, 1);
 
