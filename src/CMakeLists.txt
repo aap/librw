@@ -150,13 +150,17 @@ set_target_properties(librw
 
 if(LIBRW_PLATFORM_GL3)
     if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
-        find_package(glfw3 REQUIRED)
+        if (NOT TARGET glfw)
+            find_package(glfw3 REQUIRED)
+        endif()
         target_link_libraries(librw
             PUBLIC
                 glfw
             )
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
-        find_package(SDL2 REQUIRED)
+        if (NOT TARGET SDL2::SDL2)
+            find_package(SDL2 REQUIRED)
+        endif()
         target_compile_definitions(librw PUBLIC LIBRW_SDL2)
         target_link_libraries(librw
             PUBLIC
