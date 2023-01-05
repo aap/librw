@@ -24,9 +24,9 @@ void im3DEnd(void);
 
 struct DisplayMode
 {
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 	SDL_DisplayMode mode;
-#else
+#elif defined(LIBRW_GLFW)
 	GLFWvidmode mode;
 #endif
 	int32 depth;
@@ -35,11 +35,11 @@ struct DisplayMode
 
 struct GlGlobals
 {
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 	SDL_Window **pWindow;
 	SDL_Window *window;
 	SDL_GLContext glcontext;
-#else
+#elif defined(LIBRW_GLFW)
 	GLFWwindow **pWindow;
 	GLFWwindow *window;
 

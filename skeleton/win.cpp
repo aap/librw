@@ -291,7 +291,7 @@ SetMousePosition(int x, int y)
 
 #endif
 
-#ifdef RW_OPENGL
+#if defined(RW_OPENGL) && !defined(LIBRW_EXTGL3)
 int main(int argc, char *argv[]);
 
 int WINAPI
