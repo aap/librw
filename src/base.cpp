@@ -587,6 +587,7 @@ Matrix::makeRotation(Matrix *dst, const V3d *axis, float32 angle)
 	dst->pos.y = 0.0;
 	dst->pos.z = 0.0;
 	dst->flags = TYPEORTHONORMAL;
+	dst->pad1 = dst->pad2 = dst->pad3 = 0;
 }
 
 /* q must be normalized */
@@ -616,6 +617,7 @@ Matrix::makeRotation(Matrix *dst, const Quat &q)
 	dst->pos.y = 0.0;
 	dst->pos.z = 0.0;
 	dst->flags = TYPEORTHONORMAL;
+	dst->pad1 = dst->pad2 = dst->pad3 = 0;
 }
 
 float32

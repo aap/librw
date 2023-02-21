@@ -15,8 +15,8 @@ extern Device renderdevice;
 struct Im2DVertex
 {
 	float32 x, y, z, w;
-	uint32  r, g, b, a;
 	float32 u, v, q, PAD;
+	uint32  r, g, b, a;
 
 	void setScreenX(float32 x) { this->x = x; }
 	void setScreenY(float32 y) { this->y = y; }
@@ -121,6 +121,7 @@ struct PipeAttribute
 	uint32 attrib;
 };
 
+extern bool adcHack;		// use MASK write to initialize ADC field in vertex cluster
 extern PipeAttribute attribXYZ;
 extern PipeAttribute attribXYZW;
 extern PipeAttribute attribUV;
