@@ -18,7 +18,7 @@ Rendering some things on the PS2 is working as a test only.
 
 # Uses
 
-librw can be used for rendering [GTA](https://github.com/gtamodding/re3).
+librw can be used for rendering [GTA](https://github.com/halpz/re3).
 
 # Building
 
