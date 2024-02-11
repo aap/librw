@@ -23,7 +23,6 @@ add_library(librw_skeleton
     imgui/ImGuizmo.cpp
     imgui/ImGuizmo.h
 )
-add_library(librw::skeleton ALIAS librw_skeleton)
 
 set_target_properties(librw_skeleton
     PROPERTIES
@@ -42,6 +41,19 @@ target_include_directories(librw_skeleton
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${LIBRW_INSTALL_INCLUDEDIR}/skeleton>
 )
+
+# HACK: When building with MinGW, it's necessary to link to libmingw32.a *before* the library
+# that provides WinMain. To work around this, an intermediate target is created when using MinGW
+# that specifies the correct linking order.
+#
+# TODO: Use SDL_main on platforms that require it
+if(MINGW AND LIBRW_PLATFORM_D3D9)
+    add_library(librw_skeleton_main INTERFACE)
+    target_link_libraries(librw_skeleton_main INTERFACE -lmingw32 librw_skeleton)
+    add_library(librw::skeleton ALIAS librw_skeleton_main)
+else()
+    add_library(librw::skeleton ALIAS librw_skeleton)
+endif()
 
 if(LIBRW_INSTALL)
     install(
