@@ -6,6 +6,7 @@ newoption {
 	allowed		= {
 		{ "glfw",	"GLFW" },
 		{ "sdl2",	"SDL2" },
+		{ "extgl3",	"EXTGL3" },
 	},
 }
 
@@ -62,8 +63,12 @@ workspace "librw"
 		defines { "RW_NULL" }
 	filter { "platforms:*gl3" }
 		defines { "RW_GL3" }
-		if _OPTIONS["gfxlib"] == "sdl2" then
+		if _OPTIONS["gfxlib"] == "glfw" then
+			defines { "LIBRW_GLFW" }
+		elseif _OPTIONS["gfxlib"] == "sdl2" then
 			defines { "LIBRW_SDL2" }
+		elseif _OPTIONS["gfxlib"] == "extgl3" then
+			defines { "LIBRW_EXTGL3" }
 		end
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
@@ -131,7 +136,7 @@ function findlibs()
 		links { "GL" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw" }
-		else
+		elseif _OPTIONS["gfxlib"] == "sdl2" then
 			links { "SDL2" }
 		end
 	filter { "platforms:win-amd64-gl3" }
@@ -144,7 +149,7 @@ function findlibs()
 		links { "opengl32" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw3" }
-		else
+		elseif _OPTIONS["gfxlib"] == "sdl2" then
 			links { "SDL2" }
 		end
 	filter { "platforms:*d3d9" }

@@ -1,8 +1,8 @@
 #ifdef RW_GL3
 #include "glad/glad.h"
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 #include <SDL.h>
-#else
+#elif defined(LIBRW_GLFW)
 #include <GLFW/glfw3.h>
 #endif
 #endif
@@ -12,11 +12,15 @@ namespace rw {
 #ifdef RW_GL3
 struct EngineOpenParams
 {
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 	SDL_Window **window;
 	bool32 fullscreen;
-#else
+#elif defined(LIBRW_GLFW)
 	GLFWwindow **window;
+#elif defined(LIBRW_EXTGL3)
+	int gles;
+	int glversion;
+	GLADloadproc loadproc;
 #endif
 	int width, height;
 	const char *windowtitle;
@@ -274,6 +278,9 @@ struct Gl3Caps
 {
 	int gles;
 	int glversion;
+#ifdef LIBRW_EXTGL3
+	GLADloadproc loadproc;
+#endif
 	bool dxtSupported;
 	bool astcSupported;	// not used yet
 	float maxAnisotropy;

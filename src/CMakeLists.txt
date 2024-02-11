@@ -153,10 +153,13 @@ if(LIBRW_PLATFORM_GL3)
         if (NOT TARGET glfw)
             find_package(glfw3 REQUIRED)
         endif()
+        target_compile_definitions(librw PUBLIC LIBRW_GLFW)
         target_link_libraries(librw
             PUBLIC
                 glfw
             )
+    elseif (LIBRW_GL3_GFXLIB STREQUAL "EXTGL3")
+        target_compile_definitions(librw PUBLIC LIBRW_EXTGL3)
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
         if (NOT TARGET SDL2::SDL2)
             find_package(SDL2 REQUIRED)

@@ -13,7 +13,7 @@ class LibrwConan(ConanFile):
     generators = "cmake", "cmake_find_package"
     options = {
         "platform": ["null", "gl3", "d3d9", "ps2"],
-        "gl3_gfxlib": ["glfw", "sdl2"],
+        "gl3_gfxlib": ["glfw", "sdl2", "extgl3"],
     }
     default_options = {
         "platform": "gl3",
@@ -124,7 +124,11 @@ class LibrwConan(ConanFile):
             self.cpp_info.defines.append("RW_NULL")
         elif self.options.platform == "gl3":
             self.cpp_info.defines.append("RW_GL3")
-            if self.options.gl3_gfxlib == "sdl2":
+            if self.options.gl3_gfxlib == "glfw":
+                self.cpp_info.defines.append("LIBRW_GLFW")
+            elif self.options.gl3_gfxlib == "extgl3":
+                self.cpp_info.defines.append("LIBRW_EXTGL3")
+            elif self.options.gl3_gfxlib == "sdl2":
                 self.cpp_info.defines.append("LIBRW_SDL2")
         elif self.options.platform == "d3d9":
             self.cpp_info.defines.append("RW_D3D9")

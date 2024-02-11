@@ -11,6 +11,13 @@ void skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance
 void skinRenderCB(Atomic *atomic, InstanceDataHeader *header);
 void uploadSkinMatrices(Atomic *atomic);
 
+#ifdef LIBRW_EXTGL3
+namespace extgl3 {
+
+void init(void);
+
+}
+#endif
 
 }
 }

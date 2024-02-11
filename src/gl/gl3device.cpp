@@ -1244,10 +1244,13 @@ getFramebufferRect(Raster *frameBuffer)
 	Rect r;
 	Raster *fb = frameBuffer->parent;
 	if(fb->type == Raster::CAMERA){
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 		SDL_GetWindowSize(glGlobals.window, &r.w, &r.h);
-#else
+#elif defined(LIBRW_GLFW)
 		glfwGetFramebufferSize(glGlobals.window, &r.w, &r.h);
+#elif defined(LIBRW_EXTGL3)
+		r.w = fb->width;
+		r.h = fb->height;
 #endif
 	}else{
 		r.w = fb->width;
@@ -1406,18 +1409,20 @@ showRaster(Raster *raster, uint32 flags)
 //	glViewport(raster->offsetX, raster->offsetY,
 //		raster->width, raster->height);
 
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 	if(flags & Raster::FLIPWAITVSYNCH)
 		SDL_GL_SetSwapInterval(1);
 	else
 		SDL_GL_SetSwapInterval(0);
 	SDL_GL_SwapWindow(glGlobals.window);
-#else
+#elif defined(LIBRW_GLFW)
 	if(flags & Raster::FLIPWAITVSYNCH)
 		glfwSwapInterval(1);
 	else
 		glfwSwapInterval(0);
 	glfwSwapBuffers(glGlobals.window);
+#elif defined(LIBRW_EXTGL3)
+	// Do nothing
 #endif
 }
 
@@ -1447,7 +1452,7 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 	return 0;
 }
 
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 
 static void
 addVideoMode(int displayIndex, int modeIndex)
@@ -1600,7 +1605,8 @@ stopSDL2(void)
 	SDL_DestroyWindow(glGlobals.window);
 	return 1;
 }
-#else
+
+#elif defined(LIBRW_GLFW)
 
 static void
 addVideoMode(const GLFWvidmode *mode)
@@ -1764,6 +1770,113 @@ stopGLFW(void)
 	glfwDestroyWindow(glGlobals.window);
 	return 1;
 }
+
+#elif defined(LIBRW_EXTGL3)
+
+// Apple defines everything on his own
+#ifndef __APPLE__
+
+#if defined(_WIN32) || defined(__WIN32__)
+#ifndef WIN32_LEAN_AND_MEAN
+	// Reduce a bit header VC++ compilation time
+#define WIN32_LEAN_AND_MEAN 1
+#define LE_ME_ISDEF
+#endif
+
+// APIENTRY is defined in glad.h as well as by windows.h.
+// Undefine it to prevent a macro redefinition warning.
+#undef APIENTRY
+#include <windows.h> //For wglGetProcAddress
+#ifdef LE_ME_ISDEF
+#undef WIN32_LEAN_AND_MEAN
+#undef LE_ME_ISDEF
+#endif
+
+void* __defaultGetProcAddress(const char* name)
+{
+	void* p = (void*)wglGetProcAddress(name);
+	if (p == 0 || (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) || (p == (void*)-1))
+	{
+		HMODULE module = LoadLibraryA("opengl32.dll");
+		p = (void*)GetProcAddress(module, name);
+	}
+	return p;
+}
+#else // Linux
+    // GLX_ARB_get_proc_address
+    // glXGetProcAddressARB is statically exported by all libGL implementations,
+    // while glXGetProcAddress may be not available.
+    #ifdef __cplusplus
+        extern "C" {
+    #endif
+    extern void (*glXGetProcAddressARB(const GLubyte *procName))();
+    #ifdef __cplusplus
+        }
+    #endif
+    #define __defaultGetProcAddress(name) (*glXGetProcAddressARB)((const GLubyte*)name)
+#endif
+
+#endif // __APPLE__
+
+void* defaultGetProcAddress(const char* fname)
+{
+    void* pret = (void*) __defaultGetProcAddress(fname);
+
+    // Some drivers return values from 0, -1, 1, 2 or 3
+    if ( pret == (void*)-1 || pret == (void*)1 || pret == (void*)2 || pret == (void*)3 )
+        pret = (void*)0;
+
+    return pret;
+}
+
+static int
+openEXTGL3(EngineOpenParams *openparams)
+{
+	glGlobals.winWidth = openparams->width;
+	glGlobals.winHeight = openparams->height;
+	glGlobals.winTitle = openparams->windowtitle;
+	glGlobals.modes = NULL;
+	glGlobals.numModes = 0;
+	glGlobals.currentMode = -1;
+	
+	memset(&gl3Caps, 0, sizeof(gl3Caps));
+	gl3Caps.gles = openparams->gles;
+	gl3Caps.glversion = openparams->glversion;
+	gl3Caps.loadproc = openparams->loadproc ? openparams->loadproc : defaultGetProcAddress;
+
+	return 1;
+}
+
+static int
+closeEXTGL3(void)
+{
+	return 1;
+}
+
+static int
+startEXTGL3(void)
+{
+	if (!((gl3Caps.gles ? gladLoadGLES2Loader : gladLoadGLLoader) (gl3Caps.loadproc, gl3Caps.glversion)) ) {
+		RWERROR((ERR_GENERAL, "gladLoadGLLoader failed"));
+		return 0;
+	}
+
+	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
+
+	glGlobals.presentWidth = 0;
+	glGlobals.presentHeight = 0;
+	glGlobals.presentOffX = 0;
+	glGlobals.presentOffY = 0;
+
+	return 1;
+}
+
+static int
+stopEXTGL3(void)
+{
+	return 1;
+}
+
 #endif
 
 static int
@@ -1920,7 +2033,7 @@ finalizeOpenGL(void)
 	return 1;
 }
 
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 static int
 deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 {
@@ -1984,7 +2097,7 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 	return 1;
 }
 
-#else
+#elif defined(LIBRW_GLFW)
 
 static int
 deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
@@ -2071,6 +2184,66 @@ deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 	return 1;
 }
 
+#elif defined(LIBRW_EXTGL3)
+
+static int
+deviceSystemEXTGL3(DeviceReq req, void *arg, int32 n)
+{
+	VideoMode *rwmode;
+
+	switch(req){
+	case DEVICEOPEN:
+		return openEXTGL3((EngineOpenParams*)arg);
+	case DEVICECLOSE:
+		return closeEXTGL3();
+
+	case DEVICEINIT:
+		return startEXTGL3() && initOpenGL();
+	case DEVICETERM:
+		return termOpenGL() && stopEXTGL3();
+
+	case DEVICEFINALIZE:
+		return finalizeOpenGL();
+
+	// no sub-systems
+
+	case DEVICEGETNUMVIDEOMODES:
+		return glGlobals.numModes;
+
+	case DEVICEGETCURRENTVIDEOMODE:
+		return glGlobals.currentMode;
+
+	case DEVICESETVIDEOMODE:
+		if(n >= glGlobals.numModes)
+			return 0;
+		glGlobals.currentMode = n;
+		return 1;
+
+	case DEVICEGETVIDEOMODEINFO:
+		return 0;
+
+	case DEVICEGETMAXMULTISAMPLINGLEVELS:
+		{
+			GLint maxSamples;
+			glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+			if(maxSamples == 0)
+				return 1;
+			return maxSamples;
+		}
+	case DEVICEGETMULTISAMPLINGLEVELS:
+		if(glGlobals.numSamples == 0)
+			return 1;
+		return glGlobals.numSamples;
+	case DEVICESETMULTISAMPLINGLEVELS:
+		glGlobals.numSamples = (uint32)n;
+		return 1;
+	default:
+		assert(0 && "not implemented");
+		return 0;
+	}
+	return 1;
+}
+
 #endif
 
 Device renderdevice = {
@@ -2090,10 +2263,12 @@ Device renderdevice = {
 	gl3::im3DRenderPrimitive,
 	gl3::im3DRenderIndexedPrimitive,
 	gl3::im3DEnd,
-#ifdef LIBRW_SDL2
+#if defined(LIBRW_SDL2)
 	gl3::deviceSystemSDL2
-#else
+#elif defined(LIBRW_GLFW)
 	gl3::deviceSystemGLFW
+#elif defined(LIBRW_EXTGL3)
+	gl3::deviceSystemEXTGL3
 #endif
 };
 
