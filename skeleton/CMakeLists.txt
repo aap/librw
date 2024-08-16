@@ -24,6 +24,7 @@ add_library(librw_skeleton
     imgui/ImGuizmo.h
 )
 add_library(librw::skeleton ALIAS librw_skeleton)
+target_compile_features(librw_skeleton PUBLIC cxx_std_11)
 
 set_target_properties(librw_skeleton
     PROPERTIES
