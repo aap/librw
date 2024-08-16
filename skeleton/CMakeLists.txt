@@ -38,6 +38,10 @@ target_link_libraries(librw_skeleton
         librw
 )
 
+if (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+    target_compile_definitions(librw_skeleton PRIVATE SDL_MAIN_HANDLED)
+endif()
+
 target_include_directories(librw_skeleton
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
