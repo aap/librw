@@ -24,6 +24,7 @@ add_library(librw_skeleton
     imgui/ImGuizmo.h
 )
 add_library(librw::skeleton ALIAS librw_skeleton)
+target_compile_features(librw_skeleton PUBLIC cxx_std_11)
 
 set_target_properties(librw_skeleton
     PROPERTIES
@@ -36,6 +37,10 @@ target_link_libraries(librw_skeleton
     PRIVATE
         librw
 )
+
+if (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+    target_compile_definitions(librw_skeleton PRIVATE SDL_MAIN_HANDLED)
+endif()
 
 target_include_directories(librw_skeleton
     PUBLIC

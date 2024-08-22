@@ -1513,7 +1513,10 @@ openSDL2(EngineOpenParams *openparams)
 		return 0;
 	}
 
-	makeVideoModeList(0);
+	glGlobals.currentDisplay = 0;
+	glGlobals.numDisplays = SDL_GetNumVideoDisplays();
+
+	makeVideoModeList(glGlobals.currentDisplay);
 
 	return 1;
 }
@@ -1627,16 +1630,16 @@ addVideoMode(const GLFWvidmode *mode)
 }
 
 static void
-makeVideoModeList(void)
+makeVideoModeList(GLFWmonitor *monitor)
 {
 	int i, num;
 	const GLFWvidmode *modes;
 
-	modes = glfwGetVideoModes(glGlobals.monitor, &num);
+	modes = glfwGetVideoModes(monitor, &num);
 	rwFree(glGlobals.modes);
 	glGlobals.modes = rwNewT(DisplayMode, num+1, ID_DRIVER | MEMDUR_EVENT);
 
-	glGlobals.modes[0].mode = *glfwGetVideoMode(glGlobals.monitor);
+	glGlobals.modes[0].mode = *glfwGetVideoMode(monitor);
 	glGlobals.modes[0].flags = 0;
 	glGlobals.numModes = 1;
 
@@ -1670,7 +1673,7 @@ openGLFW(EngineOpenParams *openparams)
 
 	glGlobals.monitor = glfwGetMonitors(&glGlobals.numMonitors)[0];
 
-	makeVideoModeList();
+	makeVideoModeList(glGlobals.monitor);
 
 	return 1;
 }
@@ -1940,7 +1943,27 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 	case DEVICEFINALIZE:
 		return finalizeOpenGL();
 
-	// TODO: implement subsystems
+
+	case DEVICEGETNUMSUBSYSTEMS:
+		return glGlobals.numDisplays;
+
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return glGlobals.currentDisplay;
+
+	case DEVICESETSUBSYSTEM:
+		if (n >= SDL_GetNumVideoDisplays())
+			return 0;
+		glGlobals.currentDisplay = n;
+		return 1;
+
+	case DEVICEGETSUBSSYSTEMINFO: {
+		const char *display_name = SDL_GetDisplayName(n);
+		if (display_name == nil)
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, display_name, sizeof(SubSystemInfo::name));
+		return 1;
+	}
+
 
 	case DEVICEGETNUMVIDEOMODES:
 		return glGlobals.numModes;

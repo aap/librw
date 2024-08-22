@@ -39,6 +39,9 @@ struct GlGlobals
 	SDL_Window **pWindow;
 	SDL_Window *window;
 	SDL_GLContext glcontext;
+
+	int numDisplays;
+	int currentDisplay;
 #else
 	GLFWwindow **pWindow;
 	GLFWwindow *window;
