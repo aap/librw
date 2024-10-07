@@ -1,6 +1,8 @@
 #ifdef RW_D3D9
 #ifdef WITH_D3D
 #include <d3d9.h>
+#else
+typedef struct IDirect3DDevice9 IDirect3DDevice9;
 #endif
 #endif
 
@@ -8,7 +10,7 @@ namespace rw {
 
 #ifdef RW_D3D9
 
-#ifdef _WINDOWS_
+#if defined(_WINDOWS_) || defined(_WINDEF_H)
 struct EngineOpenParams
 {
 	HWND window;
@@ -19,10 +21,7 @@ struct EngineOpenParams
 	uint32 please_include_windows_h;
 };
 #endif
-#else
-#ifdef _D3D9_H_
-#error "please don't include d3d9.h for non-d3d9 platforms"
-#endif
+
 #endif
 
 namespace d3d {
@@ -32,10 +31,7 @@ extern bool32 isP8supported;
 extern Device renderdevice;
 
 #ifdef RW_D3D9
-#ifdef _D3D9_H_
 extern IDirect3DDevice9 *d3ddevice;
-void setD3dMaterial(D3DMATERIAL9 *mat9);
-#endif
 
 #define COLOR_ARGB(a, r, g, b) ((rw::uint32)((((a)&0xff)<<24)|(((r)&0xff)<<16)|(((g)&0xff)<<8)|((b)&0xff)))
 
