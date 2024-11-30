@@ -1110,7 +1110,7 @@ flushCache(void)
 	uniformState.fogRange = 1.0f/(rwStateCache.fogStart - rwStateCache.fogEnd);
 
 	if(uniformStateDirty[RWGL_ALPHAFUNC] || uniformStateDirty[RWGL_ALPHAREF]){
-		float alphaTest[4];
+		float alphaTest[4] = {};
 		switch(alphaFunc){
 		case ALPHAALWAYS:
 		default:
