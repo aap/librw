@@ -134,10 +134,10 @@ function findlibs()
 		else
 			links { "SDL2" }
 		end
-	filter { "platforms:win-amd64-gl3" }
+	filter { "platforms:win-amd64-gl3", "action:vs*" }
 		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
-	filter { "platforms:win-x86-gl3" }
+	filter { "platforms:win-x86-gl3", "action:vs*" }
 		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
@@ -149,8 +149,6 @@ function findlibs()
 		end
 	filter { "platforms:*d3d9" }
 		links { "gdi32", "d3d9" }
-	filter { "platforms:*d3d9", "action:vs*" }
-		links { "Xinput9_1_0" }
 	filter {}
 end
 
