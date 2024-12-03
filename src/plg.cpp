@@ -185,8 +185,8 @@ PluginList::registerPlugin(int32 size, uint32 id,
 	p->rightsCallback = nil;
 	p->alwaysCallback = nil;
 	p->parentList = this;
-	this->plugins.add(&p->inParentList);
-	allPlugins.add(&p->inGlobalList);
+	this->plugins.append(&p->inParentList);
+	allPlugins.append(&p->inGlobalList);
 	return p->offset;
 }
 

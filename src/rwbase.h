@@ -70,9 +70,13 @@ typedef int32 bool32;
 typedef uint8 byte;
 typedef uint32 uint;
 
+#ifndef nil
 #define nil NULL
+#endif
 
+#ifndef nelem
 #define nelem(A) (sizeof(A) / sizeof A[0])
+#endif
 
 #ifdef __GNUC__
 #define RWALIGN(n) __attribute__ ((aligned (n)))
