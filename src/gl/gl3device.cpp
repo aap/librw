@@ -1311,8 +1311,9 @@ beginUpdate(Camera *cam)
 	setViewMatrix(view);
 
 	// Projection Matrix
-	float32 invwx = 1.0f/cam->viewWindow.x;
-	float32 invwy = 1.0f/cam->viewWindow.y;
+	V2d dpiScale = engine->device.dpiScale(cam->frameBuffer->width, cam->frameBuffer->height);
+	float32 invwx = 1.0f/cam->viewWindow.x/dpiScale.x;
+	float32 invwy = 1.0f/cam->viewWindow.y/dpiScale.y;
 	float32 invz = 1.0f/(cam->farPlane-cam->nearPlane);
 
 	proj[0] = invwx;
@@ -1421,6 +1422,26 @@ showRaster(Raster *raster, uint32 flags)
 #endif
 }
 
+static V2d dpiScale(float x, float y)
+{
+//TODO SDL2 version of this
+#ifdef LIBRW_SDL2
+	V2d v;
+	v.set(1.f, 1.f);
+	return v;
+#else
+	V2d v;
+	int w = 0;
+        int h = 0;
+        glfwGetFramebufferSize(glGlobals.window, &w, &h);
+	if (w && h)
+		v.set(w / x, h / y);
+	else
+		v.set(1,1);
+	return v;
+#endif
+}
+
 static bool32
 rasterRenderFast(Raster *raster, int32 x, int32 y)
 {
@@ -1428,6 +1449,7 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 	Raster *dst = Raster::getCurrentContext();
 	Gl3Raster *natdst = PLUGINOFFSET(Gl3Raster, dst, nativeRasterOffset);
 	Gl3Raster *natsrc = PLUGINOFFSET(Gl3Raster, src, nativeRasterOffset);
+	V2d dpiScale = engine->device.dpiScale(src->width, src->height);
 
 	switch(dst->type){
 	case Raster::NORMAL:
@@ -1437,8 +1459,11 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 		case Raster::CAMERA:
 			setActiveTexture(0);
 			glBindTexture(GL_TEXTURE_2D, natdst->texid);
+			
 			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x, (dst->height-src->height)-y,
-				0, 0, src->width, src->height);
+			src->width - src->width/dpiScale.x, src->height - src->height/dpiScale.y,
+			src->width, src->height);
+
 			glBindTexture(GL_TEXTURE_2D, boundTexture[0]);
 			return 1;
 		}
@@ -2113,6 +2138,7 @@ Device renderdevice = {
 	gl3::im3DRenderPrimitive,
 	gl3::im3DRenderIndexedPrimitive,
 	gl3::im3DEnd,
+	gl3::dpiScale,
 #ifdef LIBRW_SDL2
 	gl3::deviceSystemSDL2
 #else

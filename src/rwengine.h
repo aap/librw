@@ -66,6 +66,7 @@ struct Device
 	void (*im3DRenderIndexedPrimitive)(PrimitiveType primType, void *indices, int32 numIndices);
 	void (*im3DEnd)(void);
 
+	V2d (*dpiScale)(float x, float y);
 	DeviceSystem *system;
 };
 
@@ -266,6 +267,13 @@ namespace null {
 	void im3DRenderPrimitive(PrimitiveType primType);
 	void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
 	void im3DEnd(void);
+
+	inline V2d dpiScale(float,float)
+	{
+		V2d s;
+		s.set(1.f, 1.f);
+		return s;
+	}
 
 	int deviceSystem(DeviceReq req, void *arg0, int32 n);
 
