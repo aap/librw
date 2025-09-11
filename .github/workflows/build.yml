@@ -16,13 +16,15 @@ jobs:
         case:
         - { name: 'Windows (DirectX 9)',  os: 'windows-latest', platform: 'D3D9' }
         - { name: 'Windows (GL3, glfw)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'GLFW' }
-        - { name: 'Windows (GL3, SDL2)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'SDL2' }
+        - { name: 'Windows (GL3, SDL2)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'SDL2', sdl-version: '2-latest' }
+        - { name: 'Windows (GL3, SDL3)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'SDL3', sdl-version: '3-latest' }
         - { name: 'Windows (null)',       os: 'windows-latest', platform: 'NULL' }
         - { name: 'macOS (GL3, glfw)',    os: 'macos-latest',   platform: 'GL3',  gl3_gfxlib: 'GLFW' }
-        - { name: 'macOS (GL3, SDL2)',    os: 'macos-latest',   platform: 'GL3',  gl3_gfxlib: 'SDL2' }
+        - { name: 'macOS (GL3, SDL2)',    os: 'macos-latest',   platform: 'GL3',  gl3_gfxlib: 'SDL2', sdl-version: '2-latest' }
+        - { name: 'macOS (GL3, SDL3)',    os: 'macos-latest',   platform: 'GL3',  gl3_gfxlib: 'SDL3', sdl-version: '3-latest' }
         - { name: 'macOS (null)',         os: 'macos-latest',   platform: 'NULL' }
         - { name: 'Ubuntu (GL3, glfw)',   os: 'ubuntu-latest',  platform: 'GL3',  gl3_gfxlib: 'GLFW' }
-        - { name: 'Ubuntu (GL3, SDL2)',   os: 'ubuntu-latest',  platform: 'GL3',  gl3_gfxlib: 'SDL2' }
+        - { name: 'Ubuntu (GL3, SDL2)',   os: 'ubuntu-latest',  platform: 'GL3',  gl3_gfxlib: 'SDL2', sdl-version: '2-latest' }
         - { name: 'Ubuntu (null)',        os: 'ubuntu-latest',  platform: 'NULL' }
         - { name: 'PlayStation 2',        os: 'ubuntu-latest',  platform: 'PS2',  ps2: true,                              container: 'ps2dev/ps2dev:latest',        cmake-toolchain-file: 'cmake/ps2/cmaketoolchain/toolchain_ps2_ee.cmake' }
         - { name: 'Nintendo Switch',      os: 'ubuntu-latest',  platform: 'GL3',  gl3_gfxlib: 'GLFW', glfw-nobuild: true, container: 'devkitpro/devkita64:latest',  cmake-toolchain-file: '/opt/devkitpro/cmake/Switch.cmake' }
@@ -36,11 +38,11 @@ jobs:
         if: ${{ matrix.case.ps2 }}
         run: |
           apk add cmake gmp mpc1 mpfr4 make pkgconf git
-      - name: 'Setup SDL2'
-        if: ${{ matrix.case.gl3_gfxlib == 'SDL2' }}
+      - name: 'Setup SDL'
+        if: ${{ !!matrix.case.sdl-version }}
         uses: libsdl-org/setup-sdl@main
         with:
-          version: 2-latest
+          version: ${{ matrix.case.sdl-version }}
           install-linux-dependencies: true
           cmake-toolchain-file: ${{ matrix.case.cmake-toolchain-file }}
       - name: 'Setup GLFW'

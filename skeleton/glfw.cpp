@@ -1,4 +1,4 @@
-#ifndef LIBRW_SDL2
+#ifdef LIBRW_GLFW
 
 #include <rw.h>
 #include "skeleton.h"

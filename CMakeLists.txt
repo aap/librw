@@ -39,7 +39,7 @@ if(NOT LIBRW_PLATFORM IN_LIST LIBRW_PLATFORMS)
 endif()
 
 if(LIBRW_PLATFORM_GL3)
-    set(LIBRW_GL3_GFXLIBS "GLFW" "SDL2")
+    set(LIBRW_GL3_GFXLIBS "GLFW" "SDL2" "SDL3")
     set(LIBRW_GL3_GFXLIB "GLFW" CACHE STRING "gfxlib for gl3 (choices=${LIBRW_GL3_GFXLIBS})")
     set_property(CACHE LIBRW_GL3_GFXLIB PROPERTY STRINGS ${LIBRW_GL3_GFXLIBS})
     if(LIBRW_PLATFORM_GL3)
@@ -91,6 +91,7 @@ if(LIBRW_INSTALL)
         EXPORT librw-targets NAMESPACE librw::
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
+    export(TARGETS librw NAMESPACE librw:: FILE librw-targets.cmake)
 
     if(LIBRW_GL3_GFXLIB STREQUAL "SDL2")
         install(
@@ -126,8 +127,10 @@ if(LIBRW_INSTALL)
     elseif(LIBRW_PLATFORM_GL3)
         if(LIBRW_GL3_GFXLIB STREQUAL "GLFW")
             set(platform "-gl3-glfw")
-        else()
+        elseif(LIBRW_GL3_GFXLIB STREQUAL "SDL2")
             set(platform "-gl3-sdl2")
+        elseif(LIBRW_GL3_GFXLIB STREQUAL "SDL3")
+            set(platform "-gl3-sdl3")
         endif()
     elseif(LIBRW_PLATFORM_D3D9)
         set(platform "-d3d9")

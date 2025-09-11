@@ -6,6 +6,7 @@ newoption {
 	allowed		= {
 		{ "glfw",	"GLFW" },
 		{ "sdl2",	"SDL2" },
+		{ "sdl3",	"SDL3" },
 	},
 }
 
@@ -27,7 +28,14 @@ newoption {
 	trigger     = "sdl2dir",
 	value       = "PATH",
 	description = "Directory of sdl2",
-	default     = "../SDL2-2.0.14",
+	default     = "../SDL2-2.32.10",
+}
+
+newoption {
+	trigger     = "sdl3dir",
+	value       = "PATH",
+	description = "Directory of sdl3",
+	default     = "../SDL3-3.2.22",
 }
 
 workspace "librw"
@@ -64,6 +72,10 @@ workspace "librw"
 		defines { "RW_GL3" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
 			defines { "LIBRW_SDL2" }
+		elseif _OPTIONS["gfxlib"] == "sdl3" then
+			defines { "LIBRW_SDL3" }
+		elseif _OPTIONS["gfxlib"] == "glfw" then
+			defines { "LIBRW_GLFW" }
 		end
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
@@ -131,21 +143,27 @@ function findlibs()
 		links { "GL" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw" }
-		else
+		elseif _OPTIONS["gfxlib"] == "sdl2" then
 			links { "SDL2" }
+		elseif _OPTIONS["gfxlib"] == "sdl3" then
+			links { "SDL3" }
 		end
 	filter { "platforms:win-amd64-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
+		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
+		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
 		links { "opengl32" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw3" }
-		else
+		elseif _OPTIONS["gfxlib"] == "sdl2" then
 			links { "SDL2" }
+		elseif _OPTIONS["gfxlib"] == "sdl3" then
+			links { "SDL3" }
 		end
 	filter { "platforms:*d3d9" }
 		links { "gdi32", "d3d9" }

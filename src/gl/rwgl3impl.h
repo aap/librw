@@ -26,8 +26,12 @@ struct DisplayMode
 {
 #ifdef LIBRW_SDL2
 	SDL_DisplayMode mode;
-#else
+#elif defined(LIBRW_SDL3)
+	SDL_DisplayMode mode;
+#elif defined(LIBRW_GLFW)
 	GLFWvidmode mode;
+#else
+	not implemented
 #endif
 	int32 depth;
 	uint32 flags;
@@ -42,13 +46,22 @@ struct GlGlobals
 
 	int numDisplays;
 	int currentDisplay;
-#else
+#elif defined(LIBRW_SDL3)
+	SDL_Window **pWindow;
+	SDL_Window *window;
+	SDL_GLContext glcontext;
+
+	int numDisplays;
+	int currentDisplay;
+#elif defined(LIBRW_GLFW)
 	GLFWwindow **pWindow;
 	GLFWwindow *window;
 
 	GLFWmonitor *monitor;
 	int numMonitors;
 	int currentMonitor;
+#else
+	not implemented
 #endif
 
 	DisplayMode *modes;

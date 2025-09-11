@@ -2,8 +2,12 @@
 #include "glad/glad.h"
 #ifdef LIBRW_SDL2
 #include <SDL.h>
-#else
+#elif defined(LIBRW_SDL3)
+#include <SDL3/SDL.h>
+#elif defined(LIBRW_GLFW)
 #include <GLFW/glfw3.h>
+#else
+not implemented
 #endif
 #endif
 
@@ -15,8 +19,13 @@ struct EngineOpenParams
 #ifdef LIBRW_SDL2
 	SDL_Window **window;
 	bool32 fullscreen;
-#else
+#elif defined(LIBRW_SDL3)
+	SDL_Window **window;
+	bool32 fullscreen;
+#elif defined(LIBRW_GLFW)
 	GLFWwindow **window;
+#else
+    not implemented
 #endif
 	int width, height;
 	const char *windowtitle;

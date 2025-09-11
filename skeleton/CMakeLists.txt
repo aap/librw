@@ -1,6 +1,7 @@
 add_library(librw_skeleton
     glfw.cpp
     sdl2.cpp
+    sdl3.cpp
     skeleton.cpp
     skeleton.h
     win.cpp
@@ -38,7 +39,7 @@ target_link_libraries(librw_skeleton
         librw
 )
 
-if (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+if (LIBRW_GL3_GFXLIB MATCHES "SDL[23]")
     target_compile_definitions(librw_skeleton PRIVATE SDL_MAIN_HANDLED)
 endif()
 
