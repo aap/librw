@@ -940,7 +940,7 @@ Image::getFilename(const char *name)
 		f = engine->filefuncs.rwfopen(s, "rb");
 		if(f){
 			engine->filefuncs.rwfclose(f);
-			printf("found %s\n", s);
+//			printf("found %s\n", s);
 			return s;
 		}
 		rwFree(s);
@@ -958,7 +958,7 @@ Image::getFilename(const char *name)
 			f = engine->filefuncs.rwfopen(s, "r");
 			if(f){
 				engine->filefuncs.rwfclose(f);
-				printf("found %s\n", name);
+//				printf("found %s\n", name);
 				return s;
 			}
 			rwFree(s);

@@ -71,6 +71,7 @@ struct Frame
 		return !!(this->root->object.privateFlags & HIERARCHYSYNC); }
 	Matrix *getLTM(void);
 	void rotate(const V3d *axis, float32 angle, CombineOp op = rw::COMBINEPOSTCONCAT);
+	void rotate(const Quat *q, CombineOp op = rw::COMBINEPOSTCONCAT);
 	void translate(const V3d *trans, CombineOp op = rw::COMBINEPOSTCONCAT);
 	void scale(const V3d *scale, CombineOp op = rw::COMBINEPOSTCONCAT);
 	void transform(const Matrix *mat, CombineOp op = rw::COMBINEPOSTCONCAT);
