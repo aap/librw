@@ -238,33 +238,9 @@ makeDefaultPipeline(void)
 }
 
 void
-drawInst_simple(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst)
-{
-	// TODO: Implement D3D11 simple draw instance
-}
-
-void
-drawInst_GSemu(d3d11::InstanceDataHeader *header, InstanceData *inst)
-{
-	// TODO: Implement D3D11 GS emulation draw instance
-}
-
-void
-drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst)
-{
-	// TODO: Implement D3D11 draw instance
-}
-
-void
 defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header)
 {
 	// TODO: Implement D3D11 default render callback (fixed function)
-}
-
-void
-defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
-{
-	// TODO: Implement D3D11 default render callback (shader)
 }
 
 // Native Texture and Raster

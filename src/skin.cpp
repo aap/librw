@@ -16,6 +16,7 @@
 #include "d3d/rwxbox.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#include "d3d/rwd3d11.h"
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
 #include "gl/rwgl3plg.h"
@@ -371,6 +372,7 @@ registerSkinPlugin(void)
 	xbox::initSkin();
 	d3d8::initSkin();
 	d3d9::initSkin();
+	d3d11::initSkin();
 	wdgl::initSkin();
 	gl3::initSkin();
 

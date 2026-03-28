@@ -16,6 +16,7 @@
 #include "d3d/rwxbox.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#include "d3d/rwd3d11.h"
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
 
@@ -249,6 +250,8 @@ destroyNativeData(void *object, int32 offset, int32 size)
 		return d3d8::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_D3D9)
 		return d3d9::destroyNativeData(object, offset, size);
+	if(geometry->instData->platform == PLATFORM_D3D11)
+		return d3d11::destroyNativeData(object, offset, size);
 	if(geometry->instData->platform == PLATFORM_GL3)
 		return gl3::destroyNativeData(object, offset, size);
 	return object;
@@ -276,6 +279,8 @@ readNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 			return d3d8::readNativeData(stream, len, object, o, s);
 		else if(platform == PLATFORM_D3D9)
 			return d3d9::readNativeData(stream, len, object, o, s);
+		else if(platform == PLATFORM_D3D11)
+			return d3d11::readNativeData(stream, len, object, o, s);
 		else{
 			fprintf(stderr, "unknown platform %d\n", platform);
 			stream->seek(len);
@@ -303,6 +308,8 @@ writeNativeData(Stream *stream, int32 len, void *object, int32 o, int32 s)
 		return d3d8::writeNativeData(stream, len, object, o, s);
 	else if(geometry->instData->platform == PLATFORM_D3D9)
 		return d3d9::writeNativeData(stream, len, object, o, s);
+	else if(geometry->instData->platform == PLATFORM_D3D11)
+		return d3d11::writeNativeData(stream, len, object, o, s);
 	return stream;
 }
 
@@ -322,6 +329,8 @@ getSizeNativeData(void *object, int32 offset, int32 size)
 		return d3d8::getSizeNativeData(object, offset, size);
 	else if(geometry->instData->platform == PLATFORM_D3D9)
 		return d3d9::getSizeNativeData(object, offset, size);
+	else if(geometry->instData->platform == PLATFORM_D3D11)
+		return d3d11::getSizeNativeData(object, offset, size);
 	return 0;
 }
 

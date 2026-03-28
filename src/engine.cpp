@@ -15,6 +15,7 @@
 #include "d3d/rwd3d.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#include "d3d/rwd3d11.h"
 #include "gl/rwgl3.h"
 #include "gl/rwwdgl.h"
 
@@ -234,6 +235,7 @@ Engine::init(MemoryFunctions *memfuncs)
 	xbox::registerPlatformPlugins();
 	d3d8::registerPlatformPlugins();
 	d3d9::registerPlatformPlugins();
+	d3d11::registerPlatformPlugins();
 	wdgl::registerPlatformPlugins();
 	gl3::registerPlatformPlugins();
 
