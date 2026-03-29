@@ -10,6 +10,7 @@
 #include "../rwengine.h"
 #include "../rwpipeline.h"
 #include "../rwobjects.h"
+
 #ifdef RW_OPENGL
 
 #include "rwgl3.h"
@@ -24,11 +25,83 @@ namespace gl3 {
 GlGlobals glGlobals;
 
 Gl3Caps gl3Caps;
-// terrible hack for GLES
 bool32 needToReadBackTextures;
 
 int32   alphaFunc;
 float32 alphaRef;
+
+// Helper function to log OpenGL info
+static void
+logGLInfo(void)
+{
+#if defined(LIBRW_SDL2) || defined(LIBRW_SDL3)
+	const char *version     = (const char *)glGetString(GL_VERSION);
+	const char *vendor      = (const char *)glGetString(GL_VENDOR);
+	const char *renderer    = (const char *)glGetString(GL_RENDERER);
+	const char *extensions  = (const char *)glGetString(GL_EXTENSIONS);
+	const char *shadingLang = (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+
+	GLint maxVertexAttribs, maxVertexUniforms, maxFragmentUniforms, maxTextureSize;
+	glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttribs);
+	glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxVertexUniforms);
+	glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &maxFragmentUniforms);
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+
+	// Always log to SDL_Log (shows in logcat on Android)
+	SDL_Log("== OpenGL Info ==");
+	SDL_Log("GL_VERSION: %s", version ? version : "N/A");
+	SDL_Log("GL_VENDOR: %s", vendor ? vendor : "N/A");
+	SDL_Log("GL_RENDERER: %s", renderer ? renderer : "N/A");
+	SDL_Log("GL_SHADING_LANGUAGE_VERSION: %s", shadingLang ? shadingLang : "N/A");
+	SDL_Log("GL_MAX_VERTEX_ATTRIBS: %d", maxVertexAttribs);
+	SDL_Log("GL_MAX_VERTEX_UNIFORM_VECTORS: %d", maxVertexUniforms);
+	SDL_Log("GL_MAX_FRAGMENT_UNIFORM_VECTORS: %d", maxFragmentUniforms);
+	SDL_Log("GL_MAX_TEXTURE_SIZE: %d", maxTextureSize);
+
+#if defined(LIBRW_GL_LOG_INFO)
+	const char *basePath = SDL_GetBasePath();
+
+	if(basePath) {
+		char logPath[512];
+		snprintf(logPath, sizeof(logPath), "%sGL_info.txt", basePath);
+		FILE *log = fopen(logPath, "w");
+
+		if(log) {
+			fprintf(log, "== OpenGL Info ==\n");
+			fprintf(log, "GL_VERSION: %s\n", version ? version : "N/A");
+			fprintf(log, "GL_VENDOR: %s\n", vendor ? vendor : "N/A");
+			fprintf(log, "GL_RENDERER: %s\n", renderer ? renderer : "N/A");
+			fprintf(log, "GL_SHADING_LANGUAGE_VERSION: %s\n", shadingLang ? shadingLang : "N/A");
+
+			fprintf(log, "\n== Supported Extensions ==\n");
+			if(extensions) {
+				char *extCopy = strdup(extensions);
+				char *token = strtok(extCopy, " ");
+				while(token) {
+					fprintf(log, "%s\n", token);
+					token = strtok(NULL, " ");
+				}
+				free(extCopy);
+			} else {
+				fprintf(log, "No extension info available.\n");
+			}
+
+			fprintf(log, "\n== Numeric GL Limits ==\n");
+			fprintf(log, "GL_MAX_VERTEX_ATTRIBS: %d\n", maxVertexAttribs);
+			fprintf(log, "GL_MAX_VERTEX_UNIFORM_VECTORS: %d\n", maxVertexUniforms);
+			fprintf(log, "GL_MAX_FRAGMENT_UNIFORM_VECTORS: %d\n", maxFragmentUniforms);
+			fprintf(log, "GL_MAX_TEXTURE_SIZE: %d\n", maxTextureSize);
+
+			fclose(log);
+			SDL_Log("GL info saved to: %sGL_info.txt", basePath);
+		}
+	}
+#endif
+#else
+	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
+#endif
+}
+
 
 struct UniformState
 {
@@ -1362,6 +1435,14 @@ beginUpdate(Camera *cam)
 
 	setFrameBuffer(cam);
 
+	if(gl3Caps.gles) {
+		// glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		glDisable(GL_STENCIL_TEST);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glDepthMask(rwStateCache.zwrite);
+	}
+	
 	setViewport(cam->frameBuffer);
 }
 
@@ -1570,14 +1651,16 @@ startSDL2(void)
 
 		if(mode->flags & VIDEOMODEEXCLUSIVE) {
 			win = SDL_CreateWindow(glGlobals.winTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-			if (win)
+			if (win) {
 				SDL_SetWindowDisplayMode(win, &mode->mode);
+			}
 		} else {
 			win = SDL_CreateWindow(glGlobals.winTitle, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, glGlobals.winWidth, glGlobals.winHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-			if (win)
+			if (win) {
 				SDL_SetWindowDisplayMode(win, NULL);
+			}
 		}
-		if(win){
+		if(win) {
 			gl3Caps.gles = profiles[i].gl == SDL_GL_CONTEXT_PROFILE_ES;
 			gl3Caps.glversion = profiles[i].major*10 + profiles[i].minor;
 			break;
@@ -1596,7 +1679,7 @@ startSDL2(void)
 		return 0;
 	}
 
-	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
+	logGLInfo();
 
 	glGlobals.window = win;
 	glGlobals.glcontext = ctx;
@@ -1651,11 +1734,17 @@ makeVideoModeList(SDL_DisplayID displayIndex, SDL_DisplayID *displays)
 	modes = SDL_GetFullscreenDisplayModes(displayIndex, &num);
 
 	rwFree(glGlobals.modes);
-	glGlobals.modes = rwNewT(DisplayMode, num+(currentMode != NULL ? 1 : 0), ID_DRIVER | MEMDUR_EVENT);
+	glGlobals.modes = rwNewT(DisplayMode, num+(currentMode != NULL ? 1 : 0) + 1, ID_DRIVER | MEMDUR_EVENT);
+	glGlobals.numModes = 0;
 
 	if (currentMode) {
 		glGlobals.modes[0].mode = *currentMode;
+#if defined(__ANDROID__)
+		// Android always runs fullscreen, so mark the mode as exclusive
+		glGlobals.modes[0].flags = VIDEOMODEEXCLUSIVE;
+#else
 		glGlobals.modes[0].flags = 0;
+#endif
 		glGlobals.numModes = 1;
 	}
 
@@ -1737,14 +1826,16 @@ startSDL3(void)
 
 		if(mode->flags & VIDEOMODEEXCLUSIVE) {
 			win = SDL_CreateWindow(glGlobals.winTitle, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-			if (win)
+			if (win) {
 				SDL_SetWindowFullscreenMode(win, &mode->mode);
+			}
 		} else {
 			win = SDL_CreateWindow(glGlobals.winTitle, glGlobals.winWidth, glGlobals.winHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-			if (win)
+			if (win) {
 				SDL_SetWindowFullscreenMode(win, NULL);
+			}
 		}
-		if(win){
+		if(win) {
 			gl3Caps.gles = profiles[i].gl == SDL_GL_CONTEXT_PROFILE_ES;
 			gl3Caps.glversion = profiles[i].major*10 + profiles[i].minor;
 			break;
@@ -1763,7 +1854,7 @@ startSDL3(void)
 		return 0;
 	}
 
-	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
+	logGLInfo();
 
 	glGlobals.window = win;
 	glGlobals.glcontext = ctx;
@@ -2153,7 +2244,7 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 		return glGlobals.currentMode;
 
 	case DEVICESETVIDEOMODE:
-		if(n >= glGlobals.numModes)
+        if (n <= 0 || n >= glGlobals.numModes)
 			return 0;
 		glGlobals.currentMode = n;
 		return 1;
@@ -2244,8 +2335,6 @@ deviceSystemSDL3(DeviceReq req, void *arg, int32 n)
 		return 1;
 
 	case DEVICEGETVIDEOMODEINFO:
-		if (n <= 0)
-			return 0;
 		rwmode = (VideoMode*)arg;
 		rwmode->width = glGlobals.modes[n].mode.w;
 		rwmode->height = glGlobals.modes[n].mode.h;
@@ -2327,7 +2416,7 @@ deviceSystemGLFW(DeviceReq req, void *arg, int32 n)
 		return glGlobals.currentMode;
 
 	case DEVICESETVIDEOMODE:
-		if(n >= glGlobals.numModes)
+        if (n <= 0 || n >= glGlobals.numModes)
 			return 0;
 		glGlobals.currentMode = n;
 		return 1;

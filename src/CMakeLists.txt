@@ -171,7 +171,9 @@ if(LIBRW_PLATFORM_GL3)
                 SDL2::SDL2
         )
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL3")
-        find_package(SDL3 CONFIG REQUIRED)
+        if (NOT TARGET SDL3::SDL3)
+            find_package(SDL3 CONFIG REQUIRED)
+        endif()
         target_compile_definitions(librw PUBLIC LIBRW_SDL3)
         target_link_libraries(librw
             PUBLIC
