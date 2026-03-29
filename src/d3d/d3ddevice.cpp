@@ -2017,6 +2017,7 @@ Device renderdevice = {
 	d3d::deviceSystem,
 };
 
+
 #endif
 }
 }

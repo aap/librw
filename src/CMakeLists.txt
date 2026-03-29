@@ -53,6 +53,7 @@ add_library(librw
     d3d/d3dimmed.cpp
     d3d/d3drender.cpp
     d3d/d3d11.cpp
+    d3d/d3d11device.cpp
     d3d/d3d11matfx.cpp
     d3d/d3d11skin.cpp
     d3d/d3d11render.cpp

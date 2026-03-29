@@ -1,7 +1,9 @@
 namespace rw {
+struct Device;
 namespace d3d11 {
 
 void registerPlatformPlugins(void);
+extern Device renderdevice;
 
 struct VertexElement
 {
