@@ -182,7 +182,7 @@ mousebtn(GLFWwindow *window, int button, int action, int mods)
 {
 	static int buttons = 0;
 	sk::MouseState ms;
-	
+
 	switch(button){
 	case GLFW_MOUSE_BUTTON_LEFT:
 		if(action == GLFW_PRESS)
@@ -208,6 +208,14 @@ mousebtn(GLFWwindow *window, int button, int action, int mods)
 	EventHandler(MOUSEBTN, &ms);
 }
 
+static void
+mousewheel(GLFWwindow *window, double x, double y)
+{
+	sk::MouseState ms;
+	ms.wheelDelta = y;
+	EventHandler(MOUSEWHEEL, &ms);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -231,6 +239,7 @@ main(int argc, char *argv[])
 	glfwSetWindowSizeCallback(window, resize);
 	glfwSetCursorPosCallback(window, mousemove);
 	glfwSetMouseButtonCallback(window, mousebtn);
+	glfwSetScrollCallback(window, mousewheel);
 
 	float lastTime = glfwGetTime()*1000;
 	while(!sk::globals.quit && !glfwWindowShouldClose(window)){
