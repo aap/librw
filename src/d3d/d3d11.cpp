@@ -38,13 +38,13 @@ driverOpen(void *o, int32, int32)
 	engine->driver[PLATFORM_D3D11]->defaultPipeline = makeDefaultPipeline();
 
 	engine->driver[PLATFORM_D3D11]->rasterNativeOffset = nativeRasterOffset;
-	engine->driver[PLATFORM_D3D11]->rasterCreate       = rasterCreate;
-	engine->driver[PLATFORM_D3D11]->rasterLock         = rasterLock;
-	engine->driver[PLATFORM_D3D11]->rasterUnlock       = rasterUnlock;
-	engine->driver[PLATFORM_D3D11]->rasterNumLevels    = rasterNumLevels;
-	engine->driver[PLATFORM_D3D11]->imageFindRasterFormat = imageFindRasterFormat;
-	engine->driver[PLATFORM_D3D11]->rasterFromImage    = rasterFromImage;
-	engine->driver[PLATFORM_D3D11]->rasterToImage      = rasterToImage;
+	engine->driver[PLATFORM_D3D11]->rasterCreate       = d3d11::rasterCreate;
+	engine->driver[PLATFORM_D3D11]->rasterLock         = d3d11::rasterLock;
+	engine->driver[PLATFORM_D3D11]->rasterUnlock       = d3d11::rasterUnlock;
+	engine->driver[PLATFORM_D3D11]->rasterNumLevels    = d3d11::rasterNumLevels;
+	engine->driver[PLATFORM_D3D11]->imageFindRasterFormat = d3d11::imageFindRasterFormat;
+	engine->driver[PLATFORM_D3D11]->rasterFromImage    = d3d11::rasterFromImage;
+	engine->driver[PLATFORM_D3D11]->rasterToImage      = d3d11::rasterToImage;
 	return o;
 }
 

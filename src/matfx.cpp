@@ -16,7 +16,9 @@
 #include "d3d/rwxbox.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#ifdef RW_D3D11
 #include "d3d/rwd3d11.h"
+#endif
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
 #include "gl/rwgl3plg.h"
@@ -618,7 +620,9 @@ registerMatFXPlugin(void)
 	xbox::initMatFX();
 	d3d8::initMatFX();
 	d3d9::initMatFX();
+	#ifdef RW_D3D11
 	d3d11::initMatFX();
+	#endif
 	wdgl::initMatFX();
 	gl3::initMatFX();
 

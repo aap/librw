@@ -15,7 +15,9 @@
 #include "d3d/rwxbox.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#ifdef RW_D3D11
 #include "d3d/rwd3d11.h"
+#endif
 #include "d3d/rwd3dimpl.h"
 #include "gl/rwgl3.h"
 
@@ -478,8 +480,10 @@ Texture::streamReadNative(Stream *stream)
 		return d3d8::readNativeTexture(stream);
 	if(platform == PLATFORM_D3D9)
 		return d3d9::readNativeTexture(stream);
+#ifdef RW_D3D11
 	if(platform == PLATFORM_D3D11)
 		return d3d11::readNativeTexture(stream);
+#endif
 	if(platform == PLATFORM_XBOX)
 		return xbox::readNativeTexture(stream);
 	if(platform == PLATFORM_GL3)
@@ -497,8 +501,10 @@ Texture::streamWriteNative(Stream *stream)
 		d3d8::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_D3D9)
 		d3d9::writeNativeTexture(this, stream);
+#ifdef RW_D3D11
 	else if(this->raster->platform == PLATFORM_D3D11)
 		d3d11::writeNativeTexture(this, stream);
+#endif
 	else if(this->raster->platform == PLATFORM_XBOX)
 		xbox::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_GL3)
@@ -516,8 +522,10 @@ Texture::streamGetSizeNative(void)
 		return d3d8::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_D3D9)
 		return d3d9::getSizeNativeTexture(this);
+#ifdef RW_D3D11
 	if(this->raster->platform == PLATFORM_D3D11)
 		return d3d11::getSizeNativeTexture(this);
+#endif
 	if(this->raster->platform == PLATFORM_XBOX)
 		return xbox::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_GL3)

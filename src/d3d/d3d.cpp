@@ -11,6 +11,7 @@
 #include "../rwobjects.h"
 #include "../rwengine.h"
 #include "rwd3d.h"
+#include "rwd3d11.h"
 #include "rwd3dimpl.h"
 
 #define PLUGIN_ID ID_DRIVER
@@ -1033,6 +1034,12 @@ destroyNativeRaster(void *object, int32 offset, int32)
 {
 	Raster *raster = (Raster*)object;
 	D3dRaster *natras = PLUGINOFFSET(D3dRaster, raster, offset);
+#ifdef RW_D3D11
+	if(raster->platform == PLATFORM_D3D11){
+		d3d11::destroyRaster(raster);
+		return object;
+	}
+#endif
 #ifdef RW_D3D9
 	removeVidmemRaster(raster);
 	evictD3D9Raster(raster);

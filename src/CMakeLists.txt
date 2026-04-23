@@ -214,6 +214,14 @@ elseif(LIBRW_PLATFORM_D3D9)
             dxgi
             d3dcompiler
     )
+elseif(LIBRW_PLATFORM_D3D11)
+    target_link_libraries(librw
+        PRIVATE
+            d3d11
+            dxgi
+            d3dcompiler
+            xinput
+    )
 endif()
 
 if(LIBRW_INSTALL)

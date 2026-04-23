@@ -4,6 +4,15 @@ namespace d3d11 {
 
 void registerPlatformPlugins(void);
 extern Device renderdevice;
+Raster *rasterCreate(Raster *raster);
+uint8 *rasterLock(Raster *raster, int32 level, int32 lockMode);
+void rasterUnlock(Raster *raster, int32 level);
+int32 rasterNumLevels(Raster *raster);
+bool32 imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format);
+bool32 rasterFromImage(Raster *raster, Image *image);
+Image *rasterToImage(Raster *raster);
+void destroyRaster(Raster *raster);
 
 struct VertexElement
 {
