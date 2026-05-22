@@ -301,7 +301,8 @@ decompressDXT5(uint8 *adst, int32 w, int32 h, uint8 *src)
 			indices >>= 2;
 		}
 		// only 6 indices
-		uint64 alphas = *((uint64*)&src[j+2]);
+		uint64 alphas;
+		memcpy(&alphas, src+j+2, sizeof(alphas));
 		for(int32 k = 0; k < 16; k++){
 			aidx[k] = alphas & 0x7;
 			alphas >>= 3;
@@ -431,7 +432,7 @@ flipDXT1(uint8 *dst, uint8 *src, uint32 width, uint32 height)
 			uint8 *s = src;
 			uint8 *d = dst;
 			for(x = 0; x < bw; x++){
-				flipBlock_half(dst, src);
+				flipBlock_half(d, s);
 				s += 8;
 				d += 8;
 			}
