@@ -73,7 +73,7 @@ textureClose(void *object, int32 offset, int32 size)
 
 	FORLIST(lnk, TEXTUREGLOBAL(textures)){
 		Texture *tex = LLLinkGetData(lnk, Texture, inGlobalList);
-		printf("Tex still allocated: %d %s %s\n", tex->refCount, tex->name, tex->mask);
+//		printf("Tex still allocated: %d %s %s\n", tex->refCount, tex->name, tex->mask);
 		assert(tex->dict == nil);
 		tex->destroy();
 	}

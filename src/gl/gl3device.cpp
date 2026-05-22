@@ -2020,7 +2020,7 @@ startGLFW(void)
 		return 0;
 	}
 
-	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
+//	printf("OpenGL version: %s\n", glGetString(GL_VERSION));
 
 	glGlobals.window = win;
 	*glGlobals.pWindow = win;
