@@ -58,6 +58,8 @@ enum PipelineKind
 {
 	PIPE_IM2D,
 	PIPE_IM2D_ZTEST,
+	PIPE_IM2D_ZWRITE,
+	PIPE_IM2D_ZTEST_ZWRITE,
 	PIPE_COLOR3D,
 	PIPE_COLOR3D_NOZWRITE,
 	PIPE_COLOR3D_NOZTEST,
@@ -72,6 +74,12 @@ enum BlendPipelineMode
 	PIPE_BLEND_ADD,
 	PIPE_BLEND_SRCALPHA_ADD,
 	PIPE_BLEND_ONE_INVSRCALPHA,
+	PIPE_BLEND_ZERO_ONE,
+	PIPE_BLEND_ZERO_SRCCOLOR,
+	PIPE_BLEND_ZERO_INVSRCCOLOR,
+	PIPE_BLEND_INVDESTCOLOR_ZERO,
+	PIPE_BLEND_SRCALPHA_INVDESTALPHA,
+	PIPE_BLEND_DESTALPHA_INVDESTALPHA,
 	PIPE_BLEND_COUNT
 };
 
@@ -923,15 +931,88 @@ selectBlendMode(bool32 alpha)
 	uint32 src = getRenderStateUInt(SRCBLEND, BLENDSRCALPHA);
 	uint32 dst = getRenderStateUInt(DESTBLEND, BLENDINVSRCALPHA);
 
+	if(src == BLENDZERO && dst == BLENDONE)
+		return PIPE_BLEND_ZERO_ONE;
+	if(src == BLENDONE && dst == BLENDZERO)
+		return PIPE_BLEND_OPAQUE;
 	if(src == BLENDONE && dst == BLENDONE)
 		return PIPE_BLEND_ADD;
 	if(src == BLENDSRCALPHA && dst == BLENDONE)
 		return PIPE_BLEND_SRCALPHA_ADD;
 	if(src == BLENDONE && dst == BLENDINVSRCALPHA)
 		return PIPE_BLEND_ONE_INVSRCALPHA;
+	if(src == BLENDZERO && dst == BLENDSRCCOLOR)
+		return PIPE_BLEND_ZERO_SRCCOLOR;
+	if(src == BLENDZERO && dst == BLENDINVSRCCOLOR)
+		return PIPE_BLEND_ZERO_INVSRCCOLOR;
+	if(src == BLENDINVDESTCOLOR && dst == BLENDZERO)
+		return PIPE_BLEND_INVDESTCOLOR_ZERO;
+	if(src == BLENDSRCALPHA && dst == BLENDINVDESTALPHA)
+		return PIPE_BLEND_SRCALPHA_INVDESTALPHA;
+	if(src == BLENDDESTALPHA && dst == BLENDINVDESTALPHA)
+		return PIPE_BLEND_DESTALPHA_INVDESTALPHA;
 	if(alpha || getRenderStateUInt(VERTEXALPHA, 0))
 		return PIPE_BLEND_ALPHA;
 	return PIPE_BLEND_OPAQUE;
+}
+
+static void
+getBlendFactors(BlendPipelineMode blendMode, VkBlendFactor *src, VkBlendFactor *dst)
+{
+	switch(blendMode){
+	case PIPE_BLEND_ADD:
+		*src = VK_BLEND_FACTOR_ONE;
+		*dst = VK_BLEND_FACTOR_ONE;
+		break;
+	case PIPE_BLEND_SRCALPHA_ADD:
+		*src = VK_BLEND_FACTOR_SRC_ALPHA;
+		*dst = VK_BLEND_FACTOR_ONE;
+		break;
+	case PIPE_BLEND_ONE_INVSRCALPHA:
+		*src = VK_BLEND_FACTOR_ONE;
+		*dst = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		break;
+	case PIPE_BLEND_ZERO_ONE:
+		*src = VK_BLEND_FACTOR_ZERO;
+		*dst = VK_BLEND_FACTOR_ONE;
+		break;
+	case PIPE_BLEND_ZERO_SRCCOLOR:
+		*src = VK_BLEND_FACTOR_ZERO;
+		*dst = VK_BLEND_FACTOR_SRC_COLOR;
+		break;
+	case PIPE_BLEND_ZERO_INVSRCCOLOR:
+		*src = VK_BLEND_FACTOR_ZERO;
+		*dst = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+		break;
+	case PIPE_BLEND_INVDESTCOLOR_ZERO:
+		*src = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+		*dst = VK_BLEND_FACTOR_ZERO;
+		break;
+	case PIPE_BLEND_SRCALPHA_INVDESTALPHA:
+		*src = VK_BLEND_FACTOR_SRC_ALPHA;
+		*dst = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+		break;
+	case PIPE_BLEND_DESTALPHA_INVDESTALPHA:
+		*src = VK_BLEND_FACTOR_DST_ALPHA;
+		*dst = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+		break;
+	case PIPE_BLEND_ALPHA:
+	case PIPE_BLEND_OPAQUE:
+	default:
+		*src = VK_BLEND_FACTOR_SRC_ALPHA;
+		*dst = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		break;
+	}
+}
+
+static PipelineKind
+selectIm2DPipelineKind(void)
+{
+	bool32 ztest = getRenderStateUInt(ZTESTENABLE, 1);
+	bool32 zwrite = getRenderStateUInt(ZWRITEENABLE, 1);
+	if(ztest)
+		return zwrite ? PIPE_IM2D_ZTEST_ZWRITE : PIPE_IM2D_ZTEST;
+	return zwrite ? PIPE_IM2D_ZWRITE : PIPE_IM2D;
 }
 
 static PipelineKind
@@ -1074,9 +1155,14 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	VkPipelineDepthStencilStateCreateInfo depthStencil;
 	memset(&depthStencil, 0, sizeof(depthStencil));
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencil.depthTestEnable = (kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZWRITE || kind == PIPE_IM2D_ZTEST) ? VK_TRUE : VK_FALSE;
-	depthStencil.depthWriteEnable = kind == PIPE_COLOR3D ? VK_TRUE : VK_FALSE;
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	bool32 depthTest = kind == PIPE_IM2D_ZTEST || kind == PIPE_IM2D_ZTEST_ZWRITE ||
+		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZWRITE;
+	bool32 depthWrite = kind == PIPE_IM2D_ZWRITE || kind == PIPE_IM2D_ZTEST_ZWRITE ||
+		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZTEST;
+	bool32 depthAlways = kind == PIPE_IM2D_ZWRITE || kind == PIPE_COLOR3D_NOZTEST;
+	depthStencil.depthTestEnable = (depthTest || depthWrite) ? VK_TRUE : VK_FALSE;
+	depthStencil.depthWriteEnable = depthWrite ? VK_TRUE : VK_FALSE;
+	depthStencil.depthCompareOp = depthAlways ? VK_COMPARE_OP_ALWAYS : VK_COMPARE_OP_LESS_OR_EQUAL;
 	depthStencil.depthBoundsTestEnable = VK_FALSE;
 	depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -1085,29 +1171,10 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	blendAttachment.colorWriteMask =
 		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	blendAttachment.blendEnable = blendMode == PIPE_BLEND_OPAQUE ? VK_FALSE : VK_TRUE;
-	switch(blendMode){
-	case PIPE_BLEND_ADD:
-		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		break;
-	case PIPE_BLEND_SRCALPHA_ADD:
-		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		break;
-	case PIPE_BLEND_ONE_INVSRCALPHA:
-		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		break;
-	case PIPE_BLEND_ALPHA:
-	case PIPE_BLEND_OPAQUE:
-	default:
-		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		break;
-	}
+	getBlendFactors(blendMode, &blendAttachment.srcColorBlendFactor, &blendAttachment.dstColorBlendFactor);
 	blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	blendAttachment.srcAlphaBlendFactor = blendAttachment.srcColorBlendFactor;
+	blendAttachment.dstAlphaBlendFactor = blendAttachment.dstColorBlendFactor;
 	blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo colorBlending;
@@ -1152,6 +1219,8 @@ createDrawPipelines(void)
 {
 	if(!createPipelineLayout(PIPE_IM2D, sizeof(Im2DPushConstants)) ||
 	   !createPipelineLayout(PIPE_IM2D_ZTEST, sizeof(Im2DPushConstants)) ||
+	   !createPipelineLayout(PIPE_IM2D_ZWRITE, sizeof(Im2DPushConstants)) ||
+	   !createPipelineLayout(PIPE_IM2D_ZTEST_ZWRITE, sizeof(Im2DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D_NOZWRITE, sizeof(Color3DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST, sizeof(Color3DPushConstants)) ||
@@ -1213,6 +1282,14 @@ createDrawPipelines(void)
 			      &im2dBinding, im2dAttribs, 3))
 				return 0;
 			if(!createGraphicsPipeline(PIPE_IM2D_ZTEST, (BlendPipelineMode)b, prims[i],
+			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      &im2dBinding, im2dAttribs, 3))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_IM2D_ZWRITE, (BlendPipelineMode)b, prims[i],
+			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      &im2dBinding, im2dAttribs, 3))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_IM2D_ZTEST_ZWRITE, (BlendPipelineMode)b, prims[i],
 			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
 			      &im2dBinding, im2dAttribs, 3))
 				return 0;
@@ -2478,7 +2555,7 @@ im2DRenderTriangle(void *vertices, int32, int32 vert1, int32 vert2, int32 vert3)
 static void
 im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 {
-	PipelineKind k = getRenderStateUInt(ZTESTENABLE, 1) ? PIPE_IM2D_ZTEST : PIPE_IM2D;
+	PipelineKind k = selectIm2DPipelineKind();
 	if(!validDrawState(k, primType) || numVertices <= 0)
 		return;
 
@@ -2528,7 +2605,7 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 static void
 im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices)
 {
-	PipelineKind k = getRenderStateUInt(ZTESTENABLE, 1) ? PIPE_IM2D_ZTEST : PIPE_IM2D;
+	PipelineKind k = selectIm2DPipelineKind();
 	if(!validDrawState(k, primType) || numVertices <= 0 || numIndices <= 0)
 		return;
 

@@ -9,8 +9,8 @@ layout(location = 1) out vec2 v_uv;
 void main() {
     gl_Position = in_pos;
     gl_Position.xy = gl_Position.xy * pc.xform.xy + pc.xform.zw;
-    gl_Position.z = in_pos.z;
-    gl_Position.w = 1.0;
+    gl_Position.w = in_pos.w;
+    gl_Position.xyz *= gl_Position.w;
     v_color = in_color * pc.matColor;
     v_uv = in_uv;
 }
