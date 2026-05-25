@@ -19,6 +19,9 @@
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
 #include "gl/rwgl3plg.h"
+#ifdef RW_VULKAN
+#include "vulkan/rwvulkan.h"
+#endif
 
 #define PLUGIN_ID ID_MATFX
 
@@ -619,6 +622,9 @@ registerMatFXPlugin(void)
 	d3d9::initMatFX();
 	wdgl::initMatFX();
 	gl3::initMatFX();
+#ifdef RW_VULKAN
+	vulkan::initMatFX();
+#endif
 
 	matFXGlobals.atomicOffset =
 	Atomic::registerPlugin(sizeof(int32), ID_MATFX,

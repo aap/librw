@@ -38,6 +38,13 @@ newoption {
 	default     = "../SDL3-3.2.22",
 }
 
+newoption {
+	trigger     = "vulkansdkdir",
+	value       = "PATH",
+	description = "Directory of the Vulkan SDK",
+	default     = os.getenv("VULKAN_SDK") or "",
+}
+
 workspace "librw"
 	location "build"
 	language "C++"
@@ -46,11 +53,16 @@ workspace "librw"
 	filter { "system:windows" }
 		configurations { "ReleaseStatic" }
 		platforms { "win-x86-null", "win-x86-gl3", "win-x86-d3d9",
-			"win-amd64-null", "win-amd64-gl3", "win-amd64-d3d9" }
+			"win-x86-vulkan",
+			"win-amd64-null", "win-amd64-gl3", "win-amd64-d3d9",
+			"win-amd64-vulkan" }
 	filter { "system:linux" }
 		platforms { "linux-x86-null", "linux-x86-gl3",
+		"linux-x86-vulkan",
 		"linux-amd64-null", "linux-amd64-gl3",
+		"linux-amd64-vulkan",
 		"linux-arm-null", "linux-arm-gl3",
+		"linux-arm-vulkan",
 		"ps2" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
 			includedirs { "/usr/include/SDL2" }
@@ -71,12 +83,14 @@ workspace "librw"
 	filter { "platforms:*gl3" }
 		defines { "RW_GL3" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
-			defines { "LIBRW_SDL2" }
+			defines { "LIBRW_SDL2", "SDL_MAIN_HANDLED" }
 		elseif _OPTIONS["gfxlib"] == "sdl3" then
-			defines { "LIBRW_SDL3" }
+			defines { "LIBRW_SDL3", "SDL_MAIN_HANDLED" }
 		elseif _OPTIONS["gfxlib"] == "glfw" then
 			defines { "LIBRW_GLFW" }
 		end
+	filter { "platforms:*vulkan" }
+		defines { "RW_VULKAN", "LIBRW_SDL3", "SDL_MAIN_HANDLED" }
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
 	filter { "platforms:ps2" }
@@ -100,7 +114,16 @@ workspace "librw"
 		system "linux"
 
 	filter { "platforms:win*gl3" }
-		includedirs { path.join(_OPTIONS["sdl2dir"], "include") }
+		if _OPTIONS["gfxlib"] == "sdl2" then
+			includedirs { path.join(_OPTIONS["sdl2dir"], "include") }
+		elseif _OPTIONS["gfxlib"] == "sdl3" then
+			includedirs { path.join(_OPTIONS["sdl3dir"], "include") }
+		end
+	filter { "platforms:win*vulkan" }
+		includedirs { path.join(_OPTIONS["sdl3dir"], "include") }
+		if _OPTIONS["vulkansdkdir"] ~= "" then
+			includedirs { path.join(_OPTIONS["vulkansdkdir"], "Include") }
+		end
 	filter { "platforms:win-x86-gl3" }
 		includedirs { path.join(_OPTIONS["glfwdir32"], "include") }
 	filter { "platforms:win-amd64-gl3" }
@@ -112,6 +135,8 @@ workspace "librw"
 	filter { "platforms:win*gl3", "action:not vs*" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
 			includedirs { "/mingw/include/SDL2" } -- TODO: Detect this properly
+		elseif _OPTIONS["gfxlib"] == "sdl3" then
+			includedirs { "/mingw/include" } -- TODO: Detect this properly
 		end
 
 	filter {}
@@ -148,14 +173,26 @@ function findlibs()
 		elseif _OPTIONS["gfxlib"] == "sdl3" then
 			links { "SDL3" }
 		end
+	filter { "platforms:linux*vulkan" }
+		links { "SDL3", "vulkan" }
 	filter { "platforms:win-amd64-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
 		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x64") }
+	filter { "platforms:win-amd64-vulkan" }
+		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x64") }
+		if _OPTIONS["vulkansdkdir"] ~= "" then
+			libdirs { path.join(_OPTIONS["vulkansdkdir"], "Lib") }
+		end
 	filter { "platforms:win-x86-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
 		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x86") }
+	filter { "platforms:win-x86-vulkan" }
+		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x86") }
+		if _OPTIONS["vulkansdkdir"] ~= "" then
+			libdirs { path.join(_OPTIONS["vulkansdkdir"], "Lib32") }
+		end
 	filter { "platforms:win*gl3" }
 		links { "opengl32" }
 		if _OPTIONS["gfxlib"] == "glfw" then
@@ -165,6 +202,8 @@ function findlibs()
 		elseif _OPTIONS["gfxlib"] == "sdl3" then
 			links { "SDL3" }
 		end
+	filter { "platforms:win*vulkan" }
+		links { "SDL3", "vulkan-1" }
 	filter { "platforms:*d3d9" }
 		links { "gdi32", "d3d9" }
 	filter { "platforms:*d3d9", "action:vs*" }

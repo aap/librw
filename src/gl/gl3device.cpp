@@ -1731,7 +1731,7 @@ makeVideoModeList(SDL_DisplayID displayIndex, SDL_DisplayID *displays)
 	SDL_DisplayMode **modes;
 
 	currentMode = SDL_GetCurrentDisplayMode(displays[displayIndex]);
-	modes = SDL_GetFullscreenDisplayModes(displayIndex, &num);
+	modes = SDL_GetFullscreenDisplayModes(displays[displayIndex], &num);
 
 	rwFree(glGlobals.modes);
 	glGlobals.modes = rwNewT(DisplayMode, num+(currentMode != NULL ? 1 : 0) + 1, ID_DRIVER | MEMDUR_EVENT);
@@ -2229,7 +2229,16 @@ deviceSystemSDL2(DeviceReq req, void *arg, int32 n)
 		return 1;
 
 	case DEVICEGETSUBSSYSTEMINFO: {
-		const char *display_name = SDL_GetDisplayName(n);
+		int numDisplays;
+		SDL_DisplayID *displays = SDL_GetDisplays(&numDisplays);
+		if(displays == nil)
+			return 0;
+		if(n >= numDisplays) {
+			SDL_free(displays);
+			return 0;
+		}
+		const char *display_name = SDL_GetDisplayName(displays[n]);
+		SDL_free(displays);
 		if (display_name == nil)
 			return 0;
 		strncpy(((SubSystemInfo*)arg)->name, display_name, sizeof(SubSystemInfo::name));

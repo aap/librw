@@ -19,6 +19,9 @@
 #include "gl/rwwdgl.h"
 #include "gl/rwgl3.h"
 #include "gl/rwgl3plg.h"
+#ifdef RW_VULKAN
+#include "vulkan/rwvulkan.h"
+#endif
 
 #define PLUGIN_ID ID_SKIN
 
@@ -373,6 +376,9 @@ registerSkinPlugin(void)
 	d3d9::initSkin();
 	wdgl::initSkin();
 	gl3::initSkin();
+#ifdef RW_VULKAN
+	vulkan::initSkin();
+#endif
 
 	int32 o;
 	o = Geometry::registerPlugin(sizeof(Skin*), ID_SKIN,

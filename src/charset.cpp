@@ -12,6 +12,7 @@
 #include "ps2/rwps2.h"
 #include "d3d/rwd3d.h"
 #include "gl/rwgl3.h"
+#include "vulkan/rwvulkan.h"
 
 
 #define PLUGIN_ID 1000	// TODO: find a better ID

@@ -17,6 +17,7 @@
 #include "d3d/rwd3d9.h"
 #include "d3d/rwd3dimpl.h"
 #include "gl/rwgl3.h"
+#include "vulkan/rwvulkan.h"
 
 #define PLUGIN_ID 0
 
@@ -481,6 +482,10 @@ Texture::streamReadNative(Stream *stream)
 		return xbox::readNativeTexture(stream);
 	if(platform == PLATFORM_GL3)
 		return gl3::readNativeTexture(stream);
+#ifdef RW_VULKAN
+	if(platform == PLATFORM_VULKAN)
+		return vulkan::readNativeTexture(stream);
+#endif
 	assert(0 && "unsupported platform");
 	return nil;
 }
@@ -498,6 +503,10 @@ Texture::streamWriteNative(Stream *stream)
 		xbox::writeNativeTexture(this, stream);
 	else if(this->raster->platform == PLATFORM_GL3)
 		gl3::writeNativeTexture(this, stream);
+#ifdef RW_VULKAN
+	else if(this->raster->platform == PLATFORM_VULKAN)
+		vulkan::writeNativeTexture(this, stream);
+#endif
 	else
 		assert(0 && "unsupported platform");
 }
@@ -515,6 +524,10 @@ Texture::streamGetSizeNative(void)
 		return xbox::getSizeNativeTexture(this);
 	if(this->raster->platform == PLATFORM_GL3)
 		return gl3::getSizeNativeTexture(this);
+#ifdef RW_VULKAN
+	if(this->raster->platform == PLATFORM_VULKAN)
+		return vulkan::getSizeNativeTexture(this);
+#endif
 	assert(0 && "unsupported platform");
 	return 0;
 }

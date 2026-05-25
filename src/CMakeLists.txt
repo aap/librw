@@ -82,6 +82,11 @@ add_library(librw
     gl/glad/glad.c
     gl/glad/khrplatform.h
 
+    vulkan/rwvulkan.h
+    vulkan/vulkan.cpp
+    vulkan/vulkandevice.cpp
+    vulkan/vulkanraster.cpp
+
     lodepng/lodepng.h
     lodepng/lodepng.cpp
 
@@ -171,9 +176,7 @@ if(LIBRW_PLATFORM_GL3)
                 SDL2::SDL2
         )
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL3")
-        if (NOT TARGET SDL3::SDL3)
-            find_package(SDL3 CONFIG REQUIRED)
-        endif()
+        librw_ensure_sdl3()
         target_compile_definitions(librw PUBLIC LIBRW_SDL3)
         target_link_libraries(librw
             PUBLIC
@@ -206,6 +209,16 @@ elseif(LIBRW_PLATFORM_D3D9)
         PRIVATE
             d3d9
             xinput
+    )
+elseif(LIBRW_PLATFORM_VULKAN)
+    librw_ensure_sdl3()
+    find_package(Vulkan REQUIRED)
+
+    target_compile_definitions(librw PUBLIC LIBRW_SDL3)
+    target_link_libraries(librw
+        PUBLIC
+            SDL3::SDL3
+            Vulkan::Vulkan
     )
 endif()
 
@@ -253,6 +266,12 @@ if(LIBRW_INSTALL)
             gl/rwgl3plg.h
             gl/rwgl3shader.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/gl"
+    )
+
+    install(
+        FILES
+            vulkan/rwvulkan.h
+        DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/vulkan"
     )
 
     install(

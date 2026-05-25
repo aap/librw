@@ -1,0 +1,2946 @@
+#ifdef RW_VULKAN
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <stddef.h>
+
+#include "../rwbase.h"
+#include "../rwerror.h"
+#include "../rwplg.h"
+#include "../rwrender.h"
+#include "../rwengine.h"
+#include "../rwpipeline.h"
+#include "../rwobjects.h"
+#include "../rwanim.h"
+#include "../rwplugins.h"
+
+#include "rwvulkan.h"
+
+#define PLUGIN_ID ID_DRIVER
+
+namespace rw {
+namespace vulkan {
+
+#include "vulkanshaders.inc"
+
+struct DisplayMode
+{
+	SDL_DisplayMode mode;
+	int32 depth;
+	uint32 flags;
+};
+
+struct VulkanBuffer
+{
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	VkDeviceSize capacity;
+};
+
+struct Im2DPushConstants
+{
+	float xform[4];
+	float matColor[4];
+	float alphaRef[4];
+};
+
+struct Color3DPushConstants
+{
+	float mvp[16];
+	float matColor[4];
+	float alphaRef[4];
+};
+
+enum PipelineKind
+{
+	PIPE_IM2D,
+	PIPE_COLOR3D,
+	PIPE_COUNT
+};
+
+enum BlendPipelineMode
+{
+	PIPE_BLEND_OPAQUE,
+	PIPE_BLEND_ALPHA,
+	PIPE_BLEND_ADD,
+	PIPE_BLEND_SRCALPHA_ADD,
+	PIPE_BLEND_ONE_INVSRCALPHA,
+	PIPE_BLEND_COUNT
+};
+
+enum {
+	MAX_PRIM_PIPELINES = 7,
+	MAX_FRAMES_IN_FLIGHT = 2,
+	MAX_PENDING_TEXTURE_UPLOADS = 4096
+};
+
+static const VkDeviceSize DYNAMIC_VERTEX_BUFFER_SIZE = 32ull * 1024ull * 1024ull;
+static const VkDeviceSize DYNAMIC_INDEX_BUFFER_SIZE = 8ull * 1024ull * 1024ull;
+
+struct VulkanGlobals
+{
+	Context context;
+	SDL_Window **pWindow;
+	SDL_DisplayID *displays;
+	int numDisplays;
+	int currentDisplay;
+	DisplayMode *modes;
+	int numModes;
+	int currentMode;
+	int winWidth, winHeight;
+	const char *winTitle;
+	RGBA clearColor;
+	uint32 clearMode;
+	bool32 commandReady;
+	void *renderStates[GSALPHATESTREF + 1];
+	float view[16];
+	float proj[16];
+	VulkanBuffer dynamicVertexBuffers[MAX_FRAMES_IN_FLIGHT];
+	VulkanBuffer dynamicIndexBuffers[MAX_FRAMES_IN_FLIGHT];
+	VkDeviceSize dynamicVertexOffset;
+	VkDeviceSize dynamicIndexOffset;
+	VkDescriptorSetLayout textureSetLayout;
+	VkDescriptorPool descriptorPool;
+	VkImage whiteImage;
+	VkDeviceMemory whiteImageMemory;
+	VkImageView whiteImageView;
+	VkSampler whiteSampler;
+	VkDescriptorSet whiteDescriptorSet;
+	Raster *pendingTextureUploads[MAX_PENDING_TEXTURE_UPLOADS];
+	uint32 numPendingTextureUploads;
+	VkPipelineLayout pipelineLayouts[PIPE_COUNT];
+	VkPipeline pipelines[PIPE_COUNT][PIPE_BLEND_COUNT][MAX_PRIM_PIPELINES];
+	Im3DVertex *im3dVertices;
+	uint32 im3dNumVertices;
+	Matrix im3dWorld;
+	uint32 im3dFlags;
+	Im3DVertex *tempVertices;
+	uint32 tempVertexCapacity;
+	uint16 *tempIndices;
+	uint32 tempIndexCapacity;
+};
+
+static VulkanGlobals vkGlobals;
+
+static bool32
+vkOk(VkResult result, const char *what)
+{
+	if(result == VK_SUCCESS)
+		return 1;
+	fprintf(stderr, "Vulkan error in %s: %d\n", what, result);
+	RWERROR((ERR_GENERAL, what));
+	return 0;
+}
+
+static void copyIdentity(float *m);
+
+static uint32
+findMemoryType(uint32 typeFilter, VkMemoryPropertyFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(vkGlobals.context.physicalDevice, &memProperties);
+	for(uint32 i = 0; i < memProperties.memoryTypeCount; i++)
+		if((typeFilter & (1u << i)) &&
+		   (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+			return i;
+	assert(0 && "No compatible Vulkan memory type");
+	return 0;
+}
+
+static void
+destroyBuffer(VulkanBuffer *buffer)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+	if(buffer->buffer != VK_NULL_HANDLE)
+		vkDestroyBuffer(ctx->device, buffer->buffer, nil);
+	if(buffer->memory != VK_NULL_HANDLE)
+		vkFreeMemory(ctx->device, buffer->memory, nil);
+	buffer->buffer = VK_NULL_HANDLE;
+	buffer->memory = VK_NULL_HANDLE;
+	buffer->capacity = 0;
+}
+
+static bool32
+createBuffer(VulkanBuffer *buffer, VkDeviceSize size, VkBufferUsageFlags usage)
+{
+	Context *ctx = &vkGlobals.context;
+	memset(buffer, 0, sizeof(*buffer));
+	buffer->buffer = VK_NULL_HANDLE;
+	buffer->memory = VK_NULL_HANDLE;
+
+	VkBufferCreateInfo bufferInfo;
+	memset(&bufferInfo, 0, sizeof(bufferInfo));
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = size;
+	bufferInfo.usage = usage;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(!vkOk(vkCreateBuffer(ctx->device, &bufferInfo, nil, &buffer->buffer), "vkCreateBuffer"))
+		return 0;
+
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(ctx->device, buffer->buffer, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	if(!vkOk(vkAllocateMemory(ctx->device, &allocInfo, nil, &buffer->memory), "vkAllocateMemory")){
+		destroyBuffer(buffer);
+		return 0;
+	}
+	if(!vkOk(vkBindBufferMemory(ctx->device, buffer->buffer, buffer->memory, 0), "vkBindBufferMemory")){
+		destroyBuffer(buffer);
+		return 0;
+	}
+	buffer->capacity = size;
+	return 1;
+}
+
+static bool32
+ensureBuffer(VulkanBuffer *buffer, VkDeviceSize size, VkBufferUsageFlags usage)
+{
+	if(size == 0)
+		size = 1;
+	if(buffer->buffer != VK_NULL_HANDLE && buffer->capacity >= size)
+		return 1;
+	if(vkGlobals.context.device != VK_NULL_HANDLE)
+		vkDeviceWaitIdle(vkGlobals.context.device);
+	destroyBuffer(buffer);
+	VkDeviceSize capacity = 4096;
+	while(capacity < size)
+		capacity *= 2;
+	return createBuffer(buffer, capacity, usage);
+}
+
+static bool32
+uploadBuffer(VulkanBuffer *buffer, const void *data, VkDeviceSize size, VkBufferUsageFlags usage)
+{
+	Context *ctx = &vkGlobals.context;
+	if(!ensureBuffer(buffer, size, usage))
+		return 0;
+	void *mapped = nil;
+	if(!vkOk(vkMapMemory(ctx->device, buffer->memory, 0, size, 0, &mapped), "vkMapMemory"))
+		return 0;
+	memcpy(mapped, data, (size_t)size);
+	vkUnmapMemory(ctx->device, buffer->memory);
+	return 1;
+}
+
+static VkDeviceSize
+alignDynamicOffset(VkDeviceSize offset, VkDeviceSize alignment)
+{
+	return (offset + alignment - 1) & ~(alignment - 1);
+}
+
+static bool32
+uploadDynamicBuffer(VulkanBuffer *buffer, VkDeviceSize *cursor, const void *data,
+	VkDeviceSize size, VkBufferUsageFlags usage, VkDeviceSize alignment, VkDeviceSize *offsetOut)
+{
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize offset = alignDynamicOffset(*cursor, alignment);
+	VkDeviceSize end = offset + size;
+
+	if(buffer->buffer == VK_NULL_HANDLE || buffer->capacity < end){
+		if(*cursor != 0){
+			fprintf(stderr, "Vulkan dynamic buffer exhausted: requested %llu bytes, capacity %llu bytes\n",
+				(unsigned long long)end, (unsigned long long)buffer->capacity);
+			return 0;
+		}
+		if(!ensureBuffer(buffer, end, usage))
+			return 0;
+	}
+
+	void *mapped = nil;
+	if(!vkOk(vkMapMemory(ctx->device, buffer->memory, offset, size, 0, &mapped), "vkMapMemory"))
+		return 0;
+	memcpy(mapped, data, (size_t)size);
+	vkUnmapMemory(ctx->device, buffer->memory);
+
+	*offsetOut = offset;
+	*cursor = end;
+	return 1;
+}
+
+static VkCommandBuffer
+beginSingleTimeCommands(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VkCommandBufferAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandPool = ctx->commandPool;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+	if(!vkOk(vkAllocateCommandBuffers(ctx->device, &allocInfo, &commandBuffer), "vkAllocateCommandBuffers"))
+		return VK_NULL_HANDLE;
+
+	VkCommandBufferBeginInfo beginInfo;
+	memset(&beginInfo, 0, sizeof(beginInfo));
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	if(!vkOk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "vkBeginCommandBuffer")){
+		vkFreeCommandBuffers(ctx->device, ctx->commandPool, 1, &commandBuffer);
+		return VK_NULL_HANDLE;
+	}
+	return commandBuffer;
+}
+
+static bool32
+endSingleTimeCommands(VkCommandBuffer commandBuffer)
+{
+	Context *ctx = &vkGlobals.context;
+	if(!vkOk(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer"))
+		return 0;
+
+	VkSubmitInfo submitInfo;
+	memset(&submitInfo, 0, sizeof(submitInfo));
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	bool32 ok = vkOk(vkQueueSubmit(ctx->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit");
+	if(ok)
+		ok = vkOk(vkQueueWaitIdle(ctx->graphicsQueue), "vkQueueWaitIdle");
+	vkFreeCommandBuffers(ctx->device, ctx->commandPool, 1, &commandBuffer);
+	return ok;
+}
+
+static void
+transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
+{
+	VkImageMemoryBarrier barrier;
+	memset(&barrier, 0, sizeof(barrier));
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = oldLayout;
+	barrier.newLayout = newLayout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL){
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	}else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL){
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+
+	vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0,
+		0, nil, 0, nil, 1, &barrier);
+}
+
+static bool32
+createTextureImage(uint32 width, uint32 height, const uint8 *rgba,
+	VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler, VkDescriptorSet *descriptorSet)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE || ctx->commandPool == VK_NULL_HANDLE ||
+	   vkGlobals.textureSetLayout == VK_NULL_HANDLE || vkGlobals.descriptorPool == VK_NULL_HANDLE)
+		return 0;
+
+	VkDeviceSize imageSize = (VkDeviceSize)width * height * 4;
+	VulkanBuffer staging;
+	memset(&staging, 0, sizeof(staging));
+	if(!uploadBuffer(&staging, rgba, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT))
+		return 0;
+
+	VkImageCreateInfo imageInfo;
+	memset(&imageInfo, 0, sizeof(imageInfo));
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(!vkOk(vkCreateImage(ctx->device, &imageInfo, nil, image), "vkCreateImage")){
+		destroyBuffer(&staging);
+		return 0;
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(ctx->device, *image, &memRequirements);
+	VkMemoryAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	if(!vkOk(vkAllocateMemory(ctx->device, &allocInfo, nil, memory), "vkAllocateMemory") ||
+	   !vkOk(vkBindImageMemory(ctx->device, *image, *memory, 0), "vkBindImageMemory")){
+		destroyBuffer(&staging);
+		return 0;
+	}
+
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	if(commandBuffer == VK_NULL_HANDLE){
+		destroyBuffer(&staging);
+		return 0;
+	}
+	transitionImageLayout(commandBuffer, *image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	VkBufferImageCopy region;
+	memset(&region, 0, sizeof(region));
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+	region.imageExtent.width = width;
+	region.imageExtent.height = height;
+	region.imageExtent.depth = 1;
+	vkCmdCopyBufferToImage(commandBuffer, staging.buffer, *image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	transitionImageLayout(commandBuffer, *image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	bool32 ok = endSingleTimeCommands(commandBuffer);
+	destroyBuffer(&staging);
+	if(!ok)
+		return 0;
+
+	VkImageViewCreateInfo viewInfo;
+	memset(&viewInfo, 0, sizeof(viewInfo));
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = *image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+	if(!vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, view), "vkCreateImageView"))
+		return 0;
+
+	VkSamplerCreateInfo samplerInfo;
+	memset(&samplerInfo, 0, sizeof(samplerInfo));
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.maxAnisotropy = 1.0f;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler"))
+		return 0;
+
+	VkDescriptorSetAllocateInfo descAlloc;
+	memset(&descAlloc, 0, sizeof(descAlloc));
+	descAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descAlloc.descriptorPool = vkGlobals.descriptorPool;
+	descAlloc.descriptorSetCount = 1;
+	descAlloc.pSetLayouts = &vkGlobals.textureSetLayout;
+	if(!vkOk(vkAllocateDescriptorSets(ctx->device, &descAlloc, descriptorSet), "vkAllocateDescriptorSets"))
+		return 0;
+
+	VkDescriptorImageInfo imageDesc;
+	memset(&imageDesc, 0, sizeof(imageDesc));
+	imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageDesc.imageView = *view;
+	imageDesc.sampler = *sampler;
+
+	VkWriteDescriptorSet write;
+	memset(&write, 0, sizeof(write));
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = *descriptorSet;
+	write.dstBinding = 0;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	write.pImageInfo = &imageDesc;
+	vkUpdateDescriptorSets(ctx->device, 1, &write, 0, nil);
+	return 1;
+}
+
+static void
+destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+	if(*sampler != VK_NULL_HANDLE)
+		vkDestroySampler(ctx->device, *sampler, nil);
+	if(*view != VK_NULL_HANDLE)
+		vkDestroyImageView(ctx->device, *view, nil);
+	if(*image != VK_NULL_HANDLE)
+		vkDestroyImage(ctx->device, *image, nil);
+	if(*memory != VK_NULL_HANDLE)
+		vkFreeMemory(ctx->device, *memory, nil);
+	*image = VK_NULL_HANDLE;
+	*memory = VK_NULL_HANDLE;
+	*view = VK_NULL_HANDLE;
+	*sampler = VK_NULL_HANDLE;
+}
+
+void
+destroyRasterTexture(Raster *raster)
+{
+	if(raster == nil || nativeRasterOffset == 0)
+		return;
+	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+	destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
+	natras->descriptorSet = VK_NULL_HANDLE;
+	natras->gpuReady = 0;
+	natras->gpuDirty = 1;
+}
+
+static void
+convertRasterToRGBA(Raster *raster, uint8 *dst)
+{
+	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+	RasterLevels *levels = natras->levels;
+	if(levels == nil || levels->numlevels <= 0)
+		return;
+
+	uint8 *src = levels->levels[0].data;
+	uint32 pixels = (uint32)levels->levels[0].width * levels->levels[0].height;
+	for(uint32 i = 0; i < pixels; i++){
+		if(natras->bpp == 4){
+			dst[0] = src[0];
+			dst[1] = src[1];
+			dst[2] = src[2];
+			dst[3] = src[3];
+			src += 4;
+		}else if(natras->bpp == 3){
+			dst[0] = src[0];
+			dst[1] = src[1];
+			dst[2] = src[2];
+			dst[3] = 255;
+			src += 3;
+		}else{
+			uint16 p = (uint16)(src[0] | (src[1] << 8));
+			switch(raster->format & 0xF00){
+			case Raster::C565:
+				dst[0] = (uint8)(((p >> 11) & 0x1F) * 255 / 31);
+				dst[1] = (uint8)(((p >> 5) & 0x3F) * 255 / 63);
+				dst[2] = (uint8)((p & 0x1F) * 255 / 31);
+				dst[3] = 255;
+				break;
+			case Raster::C555:
+				dst[0] = (uint8)(((p >> 10) & 0x1F) * 255 / 31);
+				dst[1] = (uint8)(((p >> 5) & 0x1F) * 255 / 31);
+				dst[2] = (uint8)((p & 0x1F) * 255 / 31);
+				dst[3] = 255;
+				break;
+			case Raster::C4444:
+				dst[0] = (uint8)(((p >> 8) & 0x0F) * 255 / 15);
+				dst[1] = (uint8)(((p >> 4) & 0x0F) * 255 / 15);
+				dst[2] = (uint8)((p & 0x0F) * 255 / 15);
+				dst[3] = (uint8)(((p >> 12) & 0x0F) * 255 / 15);
+				break;
+			case Raster::C1555:
+			default:
+				dst[0] = (uint8)(((p >> 11) & 0x1F) * 255 / 31);
+				dst[1] = (uint8)(((p >> 6) & 0x1F) * 255 / 31);
+				dst[2] = (uint8)(((p >> 1) & 0x1F) * 255 / 31);
+				dst[3] = (p & 1) ? 255 : 0;
+				break;
+			}
+			src += 2;
+		}
+		dst += 4;
+	}
+}
+
+bool32
+ensureTextureUploaded(Raster *raster)
+{
+	if(raster == nil || nativeRasterOffset == 0)
+		return 0;
+
+	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+	if(natras->gpuReady && !natras->gpuDirty)
+		return 1;
+
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE || ctx->commandPool == VK_NULL_HANDLE)
+		return 0;
+	if(vkGlobals.descriptorPool == VK_NULL_HANDLE || vkGlobals.textureSetLayout == VK_NULL_HANDLE)
+		return 0;
+	if(ctx->frameStarted)
+		return 0;
+	if(natras->levels == nil)
+		return 0;
+
+	int32 width = natras->levels->levels[0].width;
+	int32 height = natras->levels->levels[0].height;
+	if(width <= 0 || height <= 0)
+		return 0;
+
+	uint8 *rgba = rwNewT(uint8, (uint32)width * height * 4, MEMDUR_FUNCTION | ID_DRIVER);
+	convertRasterToRGBA(raster, rgba);
+
+	destroyRasterTexture(raster);
+	bool32 ok = createTextureImage((uint32)width, (uint32)height, rgba,
+		&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler, &natras->descriptorSet);
+	rwFree(rgba);
+	natras->gpuReady = ok;
+	natras->gpuDirty = !ok;
+	return ok;
+}
+
+static void
+queueTextureUpload(Raster *raster)
+{
+	if(raster == nil || nativeRasterOffset == 0)
+		return;
+
+	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+	if(natras->gpuReady && !natras->gpuDirty)
+		return;
+
+	for(uint32 i = 0; i < vkGlobals.numPendingTextureUploads; i++)
+		if(vkGlobals.pendingTextureUploads[i] == raster)
+			return;
+
+	if(vkGlobals.numPendingTextureUploads < MAX_PENDING_TEXTURE_UPLOADS)
+		vkGlobals.pendingTextureUploads[vkGlobals.numPendingTextureUploads++] = raster;
+}
+
+static void
+flushPendingTextureUploads(void)
+{
+	uint32 n = vkGlobals.numPendingTextureUploads;
+	vkGlobals.numPendingTextureUploads = 0;
+	for(uint32 i = 0; i < n; i++){
+		Raster *raster = vkGlobals.pendingTextureUploads[i];
+		if(!ensureTextureUploaded(raster))
+			queueTextureUpload(raster);
+	}
+}
+
+static VkDescriptorSet
+getTextureDescriptor(Raster *raster)
+{
+	if(raster && ensureTextureUploaded(raster)){
+		VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+		return natras->descriptorSet;
+	}
+	queueTextureUpload(raster);
+	return vkGlobals.whiteDescriptorSet;
+}
+
+static VkShaderModule
+createShaderModule(const uint32 *code, size_t size)
+{
+	Context *ctx = &vkGlobals.context;
+	VkShaderModuleCreateInfo createInfo;
+	memset(&createInfo, 0, sizeof(createInfo));
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = size;
+	createInfo.pCode = code;
+
+	VkShaderModule shader = VK_NULL_HANDLE;
+	if(!vkOk(vkCreateShaderModule(ctx->device, &createInfo, nil, &shader), "vkCreateShaderModule"))
+		return VK_NULL_HANDLE;
+	return shader;
+}
+
+static VkPrimitiveTopology
+mapTopology(PrimitiveType primType)
+{
+	switch(primType){
+	case PRIMTYPELINELIST: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	case PRIMTYPEPOLYLINE: return VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+	case PRIMTYPETRILIST: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	case PRIMTYPETRISTRIP: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	case PRIMTYPETRIFAN: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+	case PRIMTYPEPOINTLIST: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+	default: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	}
+}
+
+static void
+copyIdentity(float *m)
+{
+	memset(m, 0, sizeof(float)*16);
+	m[0] = 1.0f;
+	m[5] = 1.0f;
+	m[10] = 1.0f;
+	m[15] = 1.0f;
+}
+
+static void
+multiplyMat4(float *dst, const float *a, const float *b)
+{
+	float out[16];
+	for(int c = 0; c < 4; c++)
+		for(int r = 0; r < 4; r++)
+			out[c*4 + r] =
+				a[0*4 + r]*b[c*4 + 0] +
+				a[1*4 + r]*b[c*4 + 1] +
+				a[2*4 + r]*b[c*4 + 2] +
+				a[3*4 + r]*b[c*4 + 3];
+	memcpy(dst, out, sizeof(out));
+}
+
+static void
+makeRawMatrix(float *dst, Matrix *src)
+{
+	RawMatrix raw;
+	convMatrix(&raw, src);
+	memcpy(dst, &raw, sizeof(raw));
+}
+
+static void
+makeMVP(float *dst, Matrix *world)
+{
+	float worldRaw[16], viewWorld[16];
+	makeRawMatrix(worldRaw, world);
+	multiplyMat4(viewWorld, vkGlobals.view, worldRaw);
+	multiplyMat4(dst, vkGlobals.proj, viewWorld);
+}
+
+static void
+colorToFloat(float *dst, const RGBA &color)
+{
+	RGBAf c;
+	convColor(&c, &color);
+	dst[0] = c.red;
+	dst[1] = c.green;
+	dst[2] = c.blue;
+	dst[3] = c.alpha;
+}
+
+static uint32
+getRenderStateUInt(int32 state, uint32 fallback)
+{
+	if(state < 0 || state > GSALPHATESTREF || vkGlobals.renderStates[state] == nil)
+		return fallback;
+	return (uint32)(uintptr)vkGlobals.renderStates[state];
+}
+
+static bool32
+rasterHasAlpha(Raster *raster)
+{
+	if(raster == nil)
+		return 0;
+	if(nativeRasterOffset){
+		VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+		if(natras->hasAlpha)
+			return 1;
+	}
+	return Raster::formatHasAlpha(raster->format);
+}
+
+static bool32
+geometryHasVertexAlpha(Geometry *geo)
+{
+	if(geo == nil || (geo->flags & Geometry::PRELIT) == 0 || geo->colors == nil)
+		return 0;
+	for(int32 i = 0; i < geo->numVertices; i++)
+		if(geo->colors[i].alpha != 0xFF)
+			return 1;
+	return 0;
+}
+
+static void
+makeAlphaRef(float *dst, bool32 enable)
+{
+	uint32 func = getRenderStateUInt(ALPHATESTFUNC, ALPHAGREATEREQUAL);
+	float ref = getRenderStateUInt(ALPHATESTREF, 10) / 255.0f;
+
+	if(!enable || func == ALPHAALWAYS){
+		dst[0] = 0.0f;
+		dst[1] = 2.0f;
+	}else if(func == ALPHALESS){
+		dst[0] = 0.0f;
+		dst[1] = ref;
+	}else{
+		dst[0] = ref;
+		dst[1] = 2.0f;
+	}
+	dst[2] = 0.0f;
+	dst[3] = 0.0f;
+}
+
+static void
+resetRenderState(void)
+{
+	memset(vkGlobals.renderStates, 0, sizeof(vkGlobals.renderStates));
+	vkGlobals.renderStates[SRCBLEND] = (void*)(uintptr)BLENDSRCALPHA;
+	vkGlobals.renderStates[DESTBLEND] = (void*)(uintptr)BLENDINVSRCALPHA;
+	vkGlobals.renderStates[ZTESTENABLE] = (void*)(uintptr)1;
+	vkGlobals.renderStates[ZWRITEENABLE] = (void*)(uintptr)1;
+	vkGlobals.renderStates[CULLMODE] = (void*)(uintptr)CULLNONE;
+	vkGlobals.renderStates[ALPHATESTFUNC] = (void*)(uintptr)ALPHAGREATEREQUAL;
+	vkGlobals.renderStates[ALPHATESTREF] = (void*)(uintptr)10;
+	vkGlobals.renderStates[GSALPHATESTREF] = (void*)(uintptr)128;
+}
+
+static BlendPipelineMode
+selectBlendMode(bool32 alpha)
+{
+	uint32 src = getRenderStateUInt(SRCBLEND, BLENDSRCALPHA);
+	uint32 dst = getRenderStateUInt(DESTBLEND, BLENDINVSRCALPHA);
+
+	if(src == BLENDONE && dst == BLENDONE)
+		return PIPE_BLEND_ADD;
+	if(src == BLENDSRCALPHA && dst == BLENDONE)
+		return PIPE_BLEND_SRCALPHA_ADD;
+	if(src == BLENDONE && dst == BLENDINVSRCALPHA)
+		return PIPE_BLEND_ONE_INVSRCALPHA;
+	if(alpha || getRenderStateUInt(VERTEXALPHA, 0))
+		return PIPE_BLEND_ALPHA;
+	return PIPE_BLEND_OPAQUE;
+}
+
+static bool32 createDrawPipelines(void);
+static void destroyDrawPipelines(void);
+static void destroyDrawResources(void);
+
+static bool32
+createTextureDescriptors(void)
+{
+	Context *ctx = &vkGlobals.context;
+
+	VkDescriptorSetLayoutBinding samplerBinding;
+	memset(&samplerBinding, 0, sizeof(samplerBinding));
+	samplerBinding.binding = 0;
+	samplerBinding.descriptorCount = 1;
+	samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo;
+	memset(&layoutInfo, 0, sizeof(layoutInfo));
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &samplerBinding;
+	if(!vkOk(vkCreateDescriptorSetLayout(ctx->device, &layoutInfo, nil, &vkGlobals.textureSetLayout),
+	         "vkCreateDescriptorSetLayout"))
+		return 0;
+
+	VkDescriptorPoolSize poolSize;
+	memset(&poolSize, 0, sizeof(poolSize));
+	poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSize.descriptorCount = 8192;
+
+	VkDescriptorPoolCreateInfo poolInfo;
+	memset(&poolInfo, 0, sizeof(poolInfo));
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+	poolInfo.maxSets = 8192;
+	if(!vkOk(vkCreateDescriptorPool(ctx->device, &poolInfo, nil, &vkGlobals.descriptorPool),
+	         "vkCreateDescriptorPool"))
+		return 0;
+
+	uint8 white[] = { 255, 255, 255, 255 };
+	return createTextureImage(1, 1, white, &vkGlobals.whiteImage, &vkGlobals.whiteImageMemory,
+		&vkGlobals.whiteImageView, &vkGlobals.whiteSampler, &vkGlobals.whiteDescriptorSet);
+}
+
+static bool32
+createPipelineLayout(PipelineKind kind, uint32 pushSize)
+{
+	Context *ctx = &vkGlobals.context;
+	VkPushConstantRange pushRange;
+	memset(&pushRange, 0, sizeof(pushRange));
+	pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	pushRange.offset = 0;
+	pushRange.size = pushSize;
+
+	VkPipelineLayoutCreateInfo layoutInfo;
+	memset(&layoutInfo, 0, sizeof(layoutInfo));
+	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	layoutInfo.setLayoutCount = 1;
+	layoutInfo.pSetLayouts = &vkGlobals.textureSetLayout;
+	layoutInfo.pushConstantRangeCount = 1;
+	layoutInfo.pPushConstantRanges = &pushRange;
+	return vkOk(vkCreatePipelineLayout(ctx->device, &layoutInfo, nil, &vkGlobals.pipelineLayouts[kind]),
+	            "vkCreatePipelineLayout");
+}
+
+static bool32
+createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, PrimitiveType primType,
+	const uint32 *vertCode, size_t vertSize, const uint32 *fragCode, size_t fragSize,
+	VkVertexInputBindingDescription *bindingDesc,
+	VkVertexInputAttributeDescription *attribDescs, uint32 attribCount)
+{
+	Context *ctx = &vkGlobals.context;
+	VkShaderModule vertShader = createShaderModule(vertCode, vertSize);
+	VkShaderModule fragShader = createShaderModule(fragCode, fragSize);
+	if(vertShader == VK_NULL_HANDLE || fragShader == VK_NULL_HANDLE)
+		return 0;
+
+	VkPipelineShaderStageCreateInfo stages[2];
+	memset(stages, 0, sizeof(stages));
+	stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	stages[0].module = vertShader;
+	stages[0].pName = "main";
+	stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	stages[1].module = fragShader;
+	stages[1].pName = "main";
+
+	VkPipelineVertexInputStateCreateInfo vertexInput;
+	memset(&vertexInput, 0, sizeof(vertexInput));
+	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInput.vertexBindingDescriptionCount = 1;
+	vertexInput.pVertexBindingDescriptions = bindingDesc;
+	vertexInput.vertexAttributeDescriptionCount = attribCount;
+	vertexInput.pVertexAttributeDescriptions = attribDescs;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly;
+	memset(&inputAssembly, 0, sizeof(inputAssembly));
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssembly.topology = mapTopology(primType);
+	inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportState;
+	memset(&viewportState, 0, sizeof(viewportState));
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.scissorCount = 1;
+
+	VkPipelineRasterizationStateCreateInfo rasterizer;
+	memset(&rasterizer, 0, sizeof(rasterizer));
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.lineWidth = 1.0f;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+	VkPipelineMultisampleStateCreateInfo multisampling;
+	memset(&multisampling, 0, sizeof(multisampling));
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil;
+	memset(&depthStencil, 0, sizeof(depthStencil));
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = kind == PIPE_COLOR3D ? VK_TRUE : VK_FALSE;
+	depthStencil.depthWriteEnable = kind == PIPE_COLOR3D ? VK_TRUE : VK_FALSE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.stencilTestEnable = VK_FALSE;
+
+	VkPipelineColorBlendAttachmentState blendAttachment;
+	memset(&blendAttachment, 0, sizeof(blendAttachment));
+	blendAttachment.colorWriteMask =
+		VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	blendAttachment.blendEnable = blendMode == PIPE_BLEND_OPAQUE ? VK_FALSE : VK_TRUE;
+	switch(blendMode){
+	case PIPE_BLEND_ADD:
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		break;
+	case PIPE_BLEND_SRCALPHA_ADD:
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		break;
+	case PIPE_BLEND_ONE_INVSRCALPHA:
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		break;
+	case PIPE_BLEND_ALPHA:
+	case PIPE_BLEND_OPAQUE:
+	default:
+		blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		break;
+	}
+	blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	VkPipelineColorBlendStateCreateInfo colorBlending;
+	memset(&colorBlending, 0, sizeof(colorBlending));
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &blendAttachment;
+
+	VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo dynamicState;
+	memset(&dynamicState, 0, sizeof(dynamicState));
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = 2;
+	dynamicState.pDynamicStates = dynamicStates;
+
+	VkGraphicsPipelineCreateInfo pipelineInfo;
+	memset(&pipelineInfo, 0, sizeof(pipelineInfo));
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2;
+	pipelineInfo.pStages = stages;
+	pipelineInfo.pVertexInputState = &vertexInput;
+	pipelineInfo.pInputAssemblyState = &inputAssembly;
+	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pRasterizationState = &rasterizer;
+	pipelineInfo.pMultisampleState = &multisampling;
+	pipelineInfo.pDepthStencilState = &depthStencil;
+	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pDynamicState = &dynamicState;
+	pipelineInfo.layout = vkGlobals.pipelineLayouts[kind];
+	pipelineInfo.renderPass = ctx->renderPass;
+	pipelineInfo.subpass = 0;
+
+	bool32 ok = vkOk(vkCreateGraphicsPipelines(ctx->device, VK_NULL_HANDLE, 1, &pipelineInfo, nil,
+		&vkGlobals.pipelines[kind][blendMode][primType]), "vkCreateGraphicsPipelines");
+	vkDestroyShaderModule(ctx->device, vertShader, nil);
+	vkDestroyShaderModule(ctx->device, fragShader, nil);
+	return ok;
+}
+
+static bool32
+createDrawPipelines(void)
+{
+	if(!createPipelineLayout(PIPE_IM2D, sizeof(Im2DPushConstants)) ||
+	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)))
+		return 0;
+
+	VkVertexInputBindingDescription im2dBinding;
+	memset(&im2dBinding, 0, sizeof(im2dBinding));
+	im2dBinding.binding = 0;
+	im2dBinding.stride = sizeof(Im2DVertex);
+	im2dBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	VkVertexInputAttributeDescription im2dAttribs[3];
+	memset(im2dAttribs, 0, sizeof(im2dAttribs));
+	im2dAttribs[0].location = 0;
+	im2dAttribs[0].binding = 0;
+	im2dAttribs[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	im2dAttribs[0].offset = offsetof(Im2DVertex, x);
+	im2dAttribs[1].location = 1;
+	im2dAttribs[1].binding = 0;
+	im2dAttribs[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+	im2dAttribs[1].offset = offsetof(Im2DVertex, r);
+	im2dAttribs[2].location = 2;
+	im2dAttribs[2].binding = 0;
+	im2dAttribs[2].format = VK_FORMAT_R32G32_SFLOAT;
+	im2dAttribs[2].offset = offsetof(Im2DVertex, u);
+
+	VkVertexInputBindingDescription color3dBinding;
+	memset(&color3dBinding, 0, sizeof(color3dBinding));
+	color3dBinding.binding = 0;
+	color3dBinding.stride = sizeof(Im3DVertex);
+	color3dBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	VkVertexInputAttributeDescription color3dAttribs[4];
+	memset(color3dAttribs, 0, sizeof(color3dAttribs));
+	color3dAttribs[0].location = 0;
+	color3dAttribs[0].binding = 0;
+	color3dAttribs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	color3dAttribs[0].offset = offsetof(Im3DVertex, position);
+	color3dAttribs[1].location = 1;
+	color3dAttribs[1].binding = 0;
+	color3dAttribs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	color3dAttribs[1].offset = offsetof(Im3DVertex, normal);
+	color3dAttribs[2].location = 2;
+	color3dAttribs[2].binding = 0;
+	color3dAttribs[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+	color3dAttribs[2].offset = offsetof(Im3DVertex, r);
+	color3dAttribs[3].location = 3;
+	color3dAttribs[3].binding = 0;
+	color3dAttribs[3].format = VK_FORMAT_R32G32_SFLOAT;
+	color3dAttribs[3].offset = offsetof(Im3DVertex, u);
+
+	PrimitiveType prims[] = {
+		PRIMTYPELINELIST, PRIMTYPEPOLYLINE, PRIMTYPETRILIST,
+		PRIMTYPETRISTRIP, PRIMTYPETRIFAN, PRIMTYPEPOINTLIST
+	};
+	for(uint32 i = 0; i < sizeof(prims)/sizeof(prims[0]); i++){
+		for(int b = 0; b < PIPE_BLEND_COUNT; b++){
+			if(!createGraphicsPipeline(PIPE_IM2D, (BlendPipelineMode)b, prims[i],
+			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      &im2dBinding, im2dAttribs, 3))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_COLOR3D, (BlendPipelineMode)b, prims[i],
+			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
+			      &color3dBinding, color3dAttribs, 4))
+				return 0;
+		}
+	}
+	return 1;
+}
+
+static void
+destroyDrawPipelines(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+	for(int k = 0; k < PIPE_COUNT; k++){
+		for(int b = 0; b < PIPE_BLEND_COUNT; b++){
+			for(int i = 0; i < MAX_PRIM_PIPELINES; i++){
+				if(vkGlobals.pipelines[k][b][i] != VK_NULL_HANDLE){
+					vkDestroyPipeline(ctx->device, vkGlobals.pipelines[k][b][i], nil);
+					vkGlobals.pipelines[k][b][i] = VK_NULL_HANDLE;
+				}
+			}
+		}
+		if(vkGlobals.pipelineLayouts[k] != VK_NULL_HANDLE){
+			vkDestroyPipelineLayout(ctx->device, vkGlobals.pipelineLayouts[k], nil);
+			vkGlobals.pipelineLayouts[k] = VK_NULL_HANDLE;
+		}
+	}
+}
+
+static bool32
+createDrawResources(void)
+{
+	if(!createTextureDescriptors())
+		return 0;
+	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
+		if(!ensureBuffer(&vkGlobals.dynamicVertexBuffers[i], DYNAMIC_VERTEX_BUFFER_SIZE, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT) ||
+		   !ensureBuffer(&vkGlobals.dynamicIndexBuffers[i], DYNAMIC_INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
+			return 0;
+	}
+	return createDrawPipelines();
+}
+
+static void
+destroyDrawResources(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+	destroyDrawPipelines();
+	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
+		destroyBuffer(&vkGlobals.dynamicVertexBuffers[i]);
+		destroyBuffer(&vkGlobals.dynamicIndexBuffers[i]);
+	}
+	vkGlobals.dynamicVertexOffset = 0;
+	vkGlobals.dynamicIndexOffset = 0;
+	destroyTextureHandles(&vkGlobals.whiteImage, &vkGlobals.whiteImageMemory,
+		&vkGlobals.whiteImageView, &vkGlobals.whiteSampler);
+	vkGlobals.whiteDescriptorSet = VK_NULL_HANDLE;
+	if(vkGlobals.descriptorPool != VK_NULL_HANDLE){
+		vkDestroyDescriptorPool(ctx->device, vkGlobals.descriptorPool, nil);
+		vkGlobals.descriptorPool = VK_NULL_HANDLE;
+	}
+	if(vkGlobals.textureSetLayout != VK_NULL_HANDLE){
+		vkDestroyDescriptorSetLayout(ctx->device, vkGlobals.textureSetLayout, nil);
+		vkGlobals.textureSetLayout = VK_NULL_HANDLE;
+	}
+	rwFree(vkGlobals.tempVertices);
+	vkGlobals.tempVertices = nil;
+	vkGlobals.tempVertexCapacity = 0;
+	rwFree(vkGlobals.tempIndices);
+	vkGlobals.tempIndices = nil;
+	vkGlobals.tempIndexCapacity = 0;
+}
+
+static void
+resetContext(Context *ctx)
+{
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->instance = VK_NULL_HANDLE;
+	ctx->surface = VK_NULL_HANDLE;
+	ctx->physicalDevice = VK_NULL_HANDLE;
+	ctx->device = VK_NULL_HANDLE;
+	ctx->swapchain = VK_NULL_HANDLE;
+	ctx->renderPass = VK_NULL_HANDLE;
+	ctx->commandPool = VK_NULL_HANDLE;
+	ctx->graphicsQueueFamily = 0xFFFFFFFF;
+	ctx->presentQueueFamily = 0xFFFFFFFF;
+	for(int i = 0; i < 2; i++){
+		ctx->imageAvailable[i] = VK_NULL_HANDLE;
+		ctx->renderFinished[i] = VK_NULL_HANDLE;
+		ctx->inFlight[i] = VK_NULL_HANDLE;
+	}
+}
+
+Context*
+getContext(void)
+{
+	return &vkGlobals.context;
+}
+
+VkInstance getInstance(void) { return vkGlobals.context.instance; }
+VkDevice getDevice(void) { return vkGlobals.context.device; }
+VkPhysicalDevice getPhysicalDevice(void) { return vkGlobals.context.physicalDevice; }
+VkSurfaceKHR getSurface(void) { return vkGlobals.context.surface; }
+VkQueue getGraphicsQueue(void) { return vkGlobals.context.graphicsQueue; }
+VkQueue getPresentQueue(void) { return vkGlobals.context.presentQueue; }
+uint32 getGraphicsQueueFamily(void) { return vkGlobals.context.graphicsQueueFamily; }
+uint32 getPresentQueueFamily(void) { return vkGlobals.context.presentQueueFamily; }
+
+static void
+addVideoMode(const SDL_DisplayMode *mode)
+{
+	for(int i = 1; i < vkGlobals.numModes; i++){
+		if(vkGlobals.modes[i].mode.w == mode->w &&
+		   vkGlobals.modes[i].mode.h == mode->h &&
+		   vkGlobals.modes[i].mode.format == mode->format){
+			if(mode->refresh_rate > vkGlobals.modes[i].mode.refresh_rate)
+				vkGlobals.modes[i].mode.refresh_rate = mode->refresh_rate;
+			return;
+		}
+	}
+
+	vkGlobals.modes[vkGlobals.numModes].mode = *mode;
+	vkGlobals.modes[vkGlobals.numModes].flags = VIDEOMODEEXCLUSIVE;
+	vkGlobals.numModes++;
+}
+
+static void
+makeVideoModeList(int displayIndex)
+{
+	int num = 0;
+	const SDL_DisplayMode *currentMode;
+	SDL_DisplayMode **modes;
+
+	currentMode = SDL_GetCurrentDisplayMode(vkGlobals.displays[displayIndex]);
+	modes = SDL_GetFullscreenDisplayModes(vkGlobals.displays[displayIndex], &num);
+
+	rwFree(vkGlobals.modes);
+	vkGlobals.modes = rwNewT(DisplayMode, num + (currentMode != nil ? 1 : 0) + 1, ID_DRIVER | MEMDUR_EVENT);
+	vkGlobals.numModes = 0;
+
+	if(currentMode){
+		vkGlobals.modes[0].mode = *currentMode;
+#if defined(__ANDROID__)
+		vkGlobals.modes[0].flags = VIDEOMODEEXCLUSIVE;
+#else
+		vkGlobals.modes[0].flags = 0;
+#endif
+		vkGlobals.numModes = 1;
+	}
+
+	for(int i = 0; i < num; i++)
+		addVideoMode(modes[i]);
+
+	for(int i = 0; i < vkGlobals.numModes; i++){
+		int depth = SDL_BITSPERPIXEL(vkGlobals.modes[i].mode.format);
+		for(vkGlobals.modes[i].depth = 1; vkGlobals.modes[i].depth < depth; vkGlobals.modes[i].depth <<= 1);
+	}
+	SDL_free(modes);
+	vkGlobals.currentMode = 0;
+}
+
+static int
+openSDL3(EngineOpenParams *openparams)
+{
+	resetContext(&vkGlobals.context);
+	vkGlobals.winWidth = openparams->width;
+	vkGlobals.winHeight = openparams->height;
+	vkGlobals.winTitle = openparams->windowtitle;
+	vkGlobals.pWindow = openparams->window;
+	vkGlobals.clearColor = makeRGBA(0, 0, 0, 255);
+	vkGlobals.clearMode = Camera::CLEARIMAGE | Camera::CLEARZ;
+	vkGlobals.commandReady = 0;
+	memset(vkGlobals.renderStates, 0, sizeof(vkGlobals.renderStates));
+	copyIdentity(vkGlobals.view);
+	copyIdentity(vkGlobals.proj);
+	vkGlobals.im3dWorld.setIdentity();
+
+	if(!SDL_InitSubSystem(SDL_INIT_VIDEO)){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+	if(!SDL_Vulkan_LoadLibrary(nil)){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+
+	vkGlobals.currentDisplay = 0;
+	vkGlobals.displays = SDL_GetDisplays(&vkGlobals.numDisplays);
+	if(vkGlobals.displays == nil || vkGlobals.numDisplays <= 0){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+
+	makeVideoModeList(vkGlobals.currentDisplay);
+	return 1;
+}
+
+static int
+closeSDL3(void)
+{
+	rwFree(vkGlobals.modes);
+	vkGlobals.modes = nil;
+	SDL_free(vkGlobals.displays);
+	vkGlobals.displays = nil;
+	SDL_Vulkan_UnloadLibrary();
+	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	return 1;
+}
+
+static bool32
+createInstance(void)
+{
+	Context *ctx = &vkGlobals.context;
+	Uint32 extensionCount = 0;
+	const char * const *extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
+	if(extensions == nil){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+
+	VkApplicationInfo appInfo;
+	memset(&appInfo, 0, sizeof(appInfo));
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = "librw";
+	appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
+	appInfo.pEngineName = "librw";
+	appInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
+	appInfo.apiVersion = VK_API_VERSION_1_0;
+
+	VkInstanceCreateInfo createInfo;
+	memset(&createInfo, 0, sizeof(createInfo));
+	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	createInfo.pApplicationInfo = &appInfo;
+	createInfo.enabledExtensionCount = extensionCount;
+	createInfo.ppEnabledExtensionNames = extensions;
+
+	return vkOk(vkCreateInstance(&createInfo, nil, &ctx->instance), "vkCreateInstance");
+}
+
+static bool32
+createSurface(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(!SDL_Vulkan_CreateSurface(ctx->window, ctx->instance, nil, &ctx->surface)){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+	return 1;
+}
+
+static bool32
+deviceHasSwapchain(VkPhysicalDevice device)
+{
+	uint32 count = 0;
+	vkEnumerateDeviceExtensionProperties(device, nil, &count, nil);
+	VkExtensionProperties *extensions = rwNewT(VkExtensionProperties, count, MEMDUR_FUNCTION | ID_DRIVER);
+	vkEnumerateDeviceExtensionProperties(device, nil, &count, extensions);
+	for(uint32 i = 0; i < count; i++){
+		if(strcmp(extensions[i].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0){
+			rwFree(extensions);
+			return 1;
+		}
+	}
+	rwFree(extensions);
+	return 0;
+}
+
+static bool32
+findQueueFamilies(VkPhysicalDevice device, uint32 *graphicsFamily, uint32 *presentFamily)
+{
+	Context *ctx = &vkGlobals.context;
+	uint32 count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nil);
+	VkQueueFamilyProperties *families = rwNewT(VkQueueFamilyProperties, count, MEMDUR_FUNCTION | ID_DRIVER);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families);
+
+	*graphicsFamily = 0xFFFFFFFF;
+	*presentFamily = 0xFFFFFFFF;
+	for(uint32 i = 0; i < count; i++){
+		if(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			*graphicsFamily = i;
+		VkBool32 presentSupport = VK_FALSE;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, ctx->surface, &presentSupport);
+		if(presentSupport)
+			*presentFamily = i;
+		if(*graphicsFamily != 0xFFFFFFFF && *presentFamily != 0xFFFFFFFF)
+			break;
+	}
+	rwFree(families);
+	return *graphicsFamily != 0xFFFFFFFF && *presentFamily != 0xFFFFFFFF;
+}
+
+static bool32
+selectPhysicalDevice(void)
+{
+	Context *ctx = &vkGlobals.context;
+	uint32 count = 0;
+	if(!vkOk(vkEnumeratePhysicalDevices(ctx->instance, &count, nil), "vkEnumeratePhysicalDevices") || count == 0)
+		return 0;
+
+	VkPhysicalDevice *devices = rwNewT(VkPhysicalDevice, count, MEMDUR_FUNCTION | ID_DRIVER);
+	vkEnumeratePhysicalDevices(ctx->instance, &count, devices);
+
+	for(uint32 i = 0; i < count; i++){
+		uint32 graphicsFamily, presentFamily;
+		if(deviceHasSwapchain(devices[i]) &&
+		   findQueueFamilies(devices[i], &graphicsFamily, &presentFamily)){
+			ctx->physicalDevice = devices[i];
+			ctx->graphicsQueueFamily = graphicsFamily;
+			ctx->presentQueueFamily = presentFamily;
+			rwFree(devices);
+			return 1;
+		}
+	}
+	rwFree(devices);
+	RWERROR((ERR_GENERAL, "No Vulkan device with graphics and present support"));
+	return 0;
+}
+
+static bool32
+createLogicalDevice(void)
+{
+	Context *ctx = &vkGlobals.context;
+	float priority = 1.0f;
+	VkDeviceQueueCreateInfo queues[2];
+	uint32 queueCount = ctx->graphicsQueueFamily == ctx->presentQueueFamily ? 1 : 2;
+	memset(queues, 0, sizeof(queues));
+	queues[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queues[0].queueFamilyIndex = ctx->graphicsQueueFamily;
+	queues[0].queueCount = 1;
+	queues[0].pQueuePriorities = &priority;
+	if(queueCount == 2){
+		queues[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queues[1].queueFamilyIndex = ctx->presentQueueFamily;
+		queues[1].queueCount = 1;
+		queues[1].pQueuePriorities = &priority;
+	}
+
+	const char *extensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	VkPhysicalDeviceFeatures features;
+	memset(&features, 0, sizeof(features));
+
+	VkDeviceCreateInfo createInfo;
+	memset(&createInfo, 0, sizeof(createInfo));
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.queueCreateInfoCount = queueCount;
+	createInfo.pQueueCreateInfos = queues;
+	createInfo.pEnabledFeatures = &features;
+	createInfo.enabledExtensionCount = 1;
+	createInfo.ppEnabledExtensionNames = extensions;
+
+	if(!vkOk(vkCreateDevice(ctx->physicalDevice, &createInfo, nil, &ctx->device), "vkCreateDevice"))
+		return 0;
+
+	vkGetDeviceQueue(ctx->device, ctx->graphicsQueueFamily, 0, &ctx->graphicsQueue);
+	vkGetDeviceQueue(ctx->device, ctx->presentQueueFamily, 0, &ctx->presentQueue);
+	return 1;
+}
+
+static VkSurfaceFormatKHR
+chooseSurfaceFormat(VkSurfaceFormatKHR *formats, uint32 count)
+{
+	for(uint32 i = 0; i < count; i++){
+		if(formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+		   formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+			return formats[i];
+	}
+	for(uint32 i = 0; i < count; i++){
+		if(formats[i].format == VK_FORMAT_B8G8R8A8_UNORM)
+			return formats[i];
+	}
+	return formats[0];
+}
+
+static VkPresentModeKHR
+choosePresentMode(VkPresentModeKHR *modes, uint32 count)
+{
+	for(uint32 i = 0; i < count; i++)
+		if(modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
+			return modes[i];
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+static VkExtent2D
+chooseExtent(VkSurfaceCapabilitiesKHR *caps)
+{
+	if(caps->currentExtent.width != 0xFFFFFFFF)
+		return caps->currentExtent;
+
+	int w = 0, h = 0;
+	SDL_GetWindowSizeInPixels(vkGlobals.context.window, &w, &h);
+	VkExtent2D extent;
+	extent.width = w < 1 ? 1 : (uint32)w;
+	extent.height = h < 1 ? 1 : (uint32)h;
+	if(extent.width < caps->minImageExtent.width) extent.width = caps->minImageExtent.width;
+	if(extent.width > caps->maxImageExtent.width) extent.width = caps->maxImageExtent.width;
+	if(extent.height < caps->minImageExtent.height) extent.height = caps->minImageExtent.height;
+	if(extent.height > caps->maxImageExtent.height) extent.height = caps->maxImageExtent.height;
+	return extent;
+}
+
+static void destroySwapchain(void);
+
+static VkFormat
+chooseDepthFormat(void)
+{
+	VkFormat candidates[] = {
+		VK_FORMAT_D32_SFLOAT,
+		VK_FORMAT_D24_UNORM_S8_UINT,
+		VK_FORMAT_D16_UNORM
+	};
+	for(uint32 i = 0; i < nelem(candidates); i++){
+		VkFormatProperties props;
+		vkGetPhysicalDeviceFormatProperties(vkGlobals.context.physicalDevice, candidates[i], &props);
+		if(props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+			return candidates[i];
+	}
+	return VK_FORMAT_D16_UNORM;
+}
+
+static bool32
+createDepthResources(void)
+{
+	Context *ctx = &vkGlobals.context;
+	ctx->depthFormat = chooseDepthFormat();
+
+	VkImageCreateInfo imageInfo;
+	memset(&imageInfo, 0, sizeof(imageInfo));
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = ctx->swapchainExtent.width;
+	imageInfo.extent.height = ctx->swapchainExtent.height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = ctx->depthFormat;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(!vkOk(vkCreateImage(ctx->device, &imageInfo, nil, &ctx->depthImage), "vkCreateImage(depth)"))
+		return 0;
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(ctx->device, ctx->depthImage, &memRequirements);
+	VkMemoryAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	if(!vkOk(vkAllocateMemory(ctx->device, &allocInfo, nil, &ctx->depthImageMemory), "vkAllocateMemory(depth)") ||
+	   !vkOk(vkBindImageMemory(ctx->device, ctx->depthImage, ctx->depthImageMemory, 0), "vkBindImageMemory(depth)"))
+		return 0;
+
+	VkImageViewCreateInfo viewInfo;
+	memset(&viewInfo, 0, sizeof(viewInfo));
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = ctx->depthImage;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = ctx->depthFormat;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+	return vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, &ctx->depthImageView), "vkCreateImageView(depth)");
+}
+
+static void
+destroyDepthResources(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->depthImageView != VK_NULL_HANDLE)
+		vkDestroyImageView(ctx->device, ctx->depthImageView, nil);
+	if(ctx->depthImage != VK_NULL_HANDLE)
+		vkDestroyImage(ctx->device, ctx->depthImage, nil);
+	if(ctx->depthImageMemory != VK_NULL_HANDLE)
+		vkFreeMemory(ctx->device, ctx->depthImageMemory, nil);
+	ctx->depthImageView = VK_NULL_HANDLE;
+	ctx->depthImage = VK_NULL_HANDLE;
+	ctx->depthImageMemory = VK_NULL_HANDLE;
+}
+
+static bool32
+createRenderPass(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VkAttachmentDescription colorAttachment;
+	memset(&colorAttachment, 0, sizeof(colorAttachment));
+	colorAttachment.format = ctx->swapchainFormat;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentDescription depthAttachment;
+	memset(&depthAttachment, 0, sizeof(depthAttachment));
+	depthAttachment.format = ctx->depthFormat;
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference colorRef;
+	colorRef.attachment = 0;
+	colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthRef;
+	depthRef.attachment = 1;
+	depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass;
+	memset(&subpass, 0, sizeof(subpass));
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorRef;
+	subpass.pDepthStencilAttachment = &depthRef;
+
+	VkSubpassDependency dependency;
+	memset(&dependency, 0, sizeof(dependency));
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+		VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
+
+	VkRenderPassCreateInfo createInfo;
+	memset(&createInfo, 0, sizeof(createInfo));
+	createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	createInfo.attachmentCount = nelem(attachments);
+	createInfo.pAttachments = attachments;
+	createInfo.subpassCount = 1;
+	createInfo.pSubpasses = &subpass;
+	createInfo.dependencyCount = 1;
+	createInfo.pDependencies = &dependency;
+
+	return vkOk(vkCreateRenderPass(ctx->device, &createInfo, nil, &ctx->renderPass), "vkCreateRenderPass");
+}
+
+static bool32
+createSwapchain(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VkSurfaceCapabilitiesKHR caps;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ctx->physicalDevice, ctx->surface, &caps);
+
+	uint32 formatCount = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(ctx->physicalDevice, ctx->surface, &formatCount, nil);
+	if(formatCount == 0)
+		return 0;
+	VkSurfaceFormatKHR *formats = rwNewT(VkSurfaceFormatKHR, formatCount, MEMDUR_FUNCTION | ID_DRIVER);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(ctx->physicalDevice, ctx->surface, &formatCount, formats);
+	VkSurfaceFormatKHR surfaceFormat = chooseSurfaceFormat(formats, formatCount);
+	rwFree(formats);
+
+	uint32 presentModeCount = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(ctx->physicalDevice, ctx->surface, &presentModeCount, nil);
+	VkPresentModeKHR *presentModes = rwNewT(VkPresentModeKHR, presentModeCount, MEMDUR_FUNCTION | ID_DRIVER);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(ctx->physicalDevice, ctx->surface, &presentModeCount, presentModes);
+	VkPresentModeKHR presentMode = choosePresentMode(presentModes, presentModeCount);
+	rwFree(presentModes);
+
+	VkExtent2D extent = chooseExtent(&caps);
+	uint32 imageCount = caps.minImageCount + 1;
+	if(caps.maxImageCount > 0 && imageCount > caps.maxImageCount)
+		imageCount = caps.maxImageCount;
+
+	VkSwapchainCreateInfoKHR createInfo;
+	memset(&createInfo, 0, sizeof(createInfo));
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	createInfo.surface = ctx->surface;
+	createInfo.minImageCount = imageCount;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageExtent = extent;
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	uint32 queueFamilyIndices[] = { ctx->graphicsQueueFamily, ctx->presentQueueFamily };
+	if(ctx->graphicsQueueFamily != ctx->presentQueueFamily){
+		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		createInfo.queueFamilyIndexCount = 2;
+		createInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}else{
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+	VkSurfaceTransformFlagBitsKHR preTransform =
+		(caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) ?
+		VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : caps.currentTransform;
+	createInfo.preTransform = preTransform;
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.presentMode = presentMode;
+	createInfo.clipped = VK_TRUE;
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	fprintf(stderr, "Vulkan swapchain extent=%ux%u current=%ux%u transform=0x%x pre=0x%x supported=0x%x\n",
+		extent.width, extent.height, caps.currentExtent.width, caps.currentExtent.height,
+		(uint32)caps.currentTransform, (uint32)preTransform, (uint32)caps.supportedTransforms);
+
+	if(!vkOk(vkCreateSwapchainKHR(ctx->device, &createInfo, nil, &ctx->swapchain), "vkCreateSwapchainKHR"))
+		return 0;
+
+	ctx->swapchainFormat = surfaceFormat.format;
+	ctx->swapchainExtent = extent;
+	vkGetSwapchainImagesKHR(ctx->device, ctx->swapchain, &ctx->numSwapchainImages, nil);
+	ctx->swapchainImages = rwNewT(VkImage, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	vkGetSwapchainImagesKHR(ctx->device, ctx->swapchain, &ctx->numSwapchainImages, ctx->swapchainImages);
+
+	ctx->swapchainImageViews = rwNewT(VkImageView, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	for(uint32 i = 0; i < ctx->numSwapchainImages; i++){
+		VkImageViewCreateInfo viewInfo;
+		memset(&viewInfo, 0, sizeof(viewInfo));
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = ctx->swapchainImages[i];
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = ctx->swapchainFormat;
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		viewInfo.subresourceRange.baseMipLevel = 0;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.baseArrayLayer = 0;
+		viewInfo.subresourceRange.layerCount = 1;
+		if(!vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, &ctx->swapchainImageViews[i]), "vkCreateImageView"))
+			return 0;
+	}
+
+	if(!createDepthResources() || !createRenderPass())
+		return 0;
+
+	ctx->framebuffers = rwNewT(VkFramebuffer, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	for(uint32 i = 0; i < ctx->numSwapchainImages; i++){
+		VkImageView attachments[] = { ctx->swapchainImageViews[i], ctx->depthImageView };
+		VkFramebufferCreateInfo fbInfo;
+		memset(&fbInfo, 0, sizeof(fbInfo));
+		fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fbInfo.renderPass = ctx->renderPass;
+		fbInfo.attachmentCount = nelem(attachments);
+		fbInfo.pAttachments = attachments;
+		fbInfo.width = ctx->swapchainExtent.width;
+		fbInfo.height = ctx->swapchainExtent.height;
+		fbInfo.layers = 1;
+		if(!vkOk(vkCreateFramebuffer(ctx->device, &fbInfo, nil, &ctx->framebuffers[i]), "vkCreateFramebuffer"))
+			return 0;
+	}
+
+	if(ctx->commandPool == VK_NULL_HANDLE){
+		VkCommandPoolCreateInfo poolInfo;
+		memset(&poolInfo, 0, sizeof(poolInfo));
+		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		poolInfo.queueFamilyIndex = ctx->graphicsQueueFamily;
+		if(!vkOk(vkCreateCommandPool(ctx->device, &poolInfo, nil, &ctx->commandPool), "vkCreateCommandPool"))
+			return 0;
+	}
+
+	ctx->commandBuffers = rwNewT(VkCommandBuffer, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	VkCommandBufferAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = ctx->commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = ctx->numSwapchainImages;
+	if(!vkOk(vkAllocateCommandBuffers(ctx->device, &allocInfo, ctx->commandBuffers), "vkAllocateCommandBuffers"))
+		return 0;
+
+	return 1;
+}
+
+static void
+destroySwapchain(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+
+	if(ctx->commandBuffers){
+		vkFreeCommandBuffers(ctx->device, ctx->commandPool, ctx->numSwapchainImages, ctx->commandBuffers);
+		rwFree(ctx->commandBuffers);
+		ctx->commandBuffers = nil;
+	}
+	if(ctx->framebuffers){
+		for(uint32 i = 0; i < ctx->numSwapchainImages; i++)
+			if(ctx->framebuffers[i] != VK_NULL_HANDLE)
+				vkDestroyFramebuffer(ctx->device, ctx->framebuffers[i], nil);
+		rwFree(ctx->framebuffers);
+		ctx->framebuffers = nil;
+	}
+	if(ctx->renderPass != VK_NULL_HANDLE){
+		vkDestroyRenderPass(ctx->device, ctx->renderPass, nil);
+		ctx->renderPass = VK_NULL_HANDLE;
+	}
+	destroyDepthResources();
+	if(ctx->swapchainImageViews){
+		for(uint32 i = 0; i < ctx->numSwapchainImages; i++)
+			if(ctx->swapchainImageViews[i] != VK_NULL_HANDLE)
+				vkDestroyImageView(ctx->device, ctx->swapchainImageViews[i], nil);
+		rwFree(ctx->swapchainImageViews);
+		ctx->swapchainImageViews = nil;
+	}
+	rwFree(ctx->swapchainImages);
+	ctx->swapchainImages = nil;
+	if(ctx->swapchain != VK_NULL_HANDLE){
+		vkDestroySwapchainKHR(ctx->device, ctx->swapchain, nil);
+		ctx->swapchain = VK_NULL_HANDLE;
+	}
+	ctx->numSwapchainImages = 0;
+}
+
+static bool32
+createSyncObjects(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VkSemaphoreCreateInfo semInfo;
+	memset(&semInfo, 0, sizeof(semInfo));
+	semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkFenceCreateInfo fenceInfo;
+	memset(&fenceInfo, 0, sizeof(fenceInfo));
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for(int i = 0; i < 2; i++){
+		if(!vkOk(vkCreateSemaphore(ctx->device, &semInfo, nil, &ctx->imageAvailable[i]), "vkCreateSemaphore") ||
+		   !vkOk(vkCreateSemaphore(ctx->device, &semInfo, nil, &ctx->renderFinished[i]), "vkCreateSemaphore") ||
+		   !vkOk(vkCreateFence(ctx->device, &fenceInfo, nil, &ctx->inFlight[i]), "vkCreateFence"))
+			return 0;
+	}
+	return 1;
+}
+
+static void
+destroySyncObjects(void)
+{
+	Context *ctx = &vkGlobals.context;
+	for(int i = 0; i < 2; i++){
+		if(ctx->imageAvailable[i] != VK_NULL_HANDLE)
+			vkDestroySemaphore(ctx->device, ctx->imageAvailable[i], nil);
+		if(ctx->renderFinished[i] != VK_NULL_HANDLE)
+			vkDestroySemaphore(ctx->device, ctx->renderFinished[i], nil);
+		if(ctx->inFlight[i] != VK_NULL_HANDLE)
+			vkDestroyFence(ctx->device, ctx->inFlight[i], nil);
+		ctx->imageAvailable[i] = VK_NULL_HANDLE;
+		ctx->renderFinished[i] = VK_NULL_HANDLE;
+		ctx->inFlight[i] = VK_NULL_HANDLE;
+	}
+}
+
+static bool32
+recreateSwapchain(void)
+{
+	Context *ctx = &vkGlobals.context;
+	vkDeviceWaitIdle(ctx->device);
+	destroyDrawPipelines();
+	destroySwapchain();
+	return createSwapchain() && createDrawPipelines();
+}
+
+static int
+startSDL3(void)
+{
+	Context *ctx = &vkGlobals.context;
+	DisplayMode *mode = &vkGlobals.modes[vkGlobals.currentMode];
+	SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN;
+
+	if(mode->flags & VIDEOMODEEXCLUSIVE) {
+		flags |= SDL_WINDOW_FULLSCREEN;
+		ctx->window = SDL_CreateWindow(vkGlobals.winTitle, mode->mode.w, mode->mode.h, flags);
+		if(ctx->window)
+			SDL_SetWindowFullscreenMode(ctx->window, &mode->mode);
+	}else{
+		ctx->window = SDL_CreateWindow(vkGlobals.winTitle, vkGlobals.winWidth, vkGlobals.winHeight, flags);
+		if(ctx->window)
+			SDL_SetWindowFullscreenMode(ctx->window, nil);
+	}
+	if(ctx->window == nil){
+		RWERROR((ERR_GENERAL, SDL_GetError()));
+		return 0;
+	}
+
+	if(!createInstance() || !createSurface() || !selectPhysicalDevice() ||
+	   !createLogicalDevice() || !createSwapchain() || !createSyncObjects() || !createDrawResources())
+		return 0;
+
+	resetRenderState();
+	*vkGlobals.pWindow = ctx->window;
+	return 1;
+}
+
+static int
+stopSDL3(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device != VK_NULL_HANDLE)
+		vkDeviceWaitIdle(ctx->device);
+	destroyDrawResources();
+	destroySyncObjects();
+	destroySwapchain();
+	if(ctx->commandPool != VK_NULL_HANDLE)
+		vkDestroyCommandPool(ctx->device, ctx->commandPool, nil);
+	if(ctx->device != VK_NULL_HANDLE)
+		vkDestroyDevice(ctx->device, nil);
+	if(ctx->surface != VK_NULL_HANDLE)
+		vkDestroySurfaceKHR(ctx->instance, ctx->surface, nil);
+	if(ctx->instance != VK_NULL_HANDLE)
+		vkDestroyInstance(ctx->instance, nil);
+	if(ctx->window)
+		SDL_DestroyWindow(ctx->window);
+	resetContext(ctx);
+	return 1;
+}
+
+static bool32
+beginFrame(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->frameStarted)
+		return 1;
+
+	vkWaitForFences(ctx->device, 1, &ctx->inFlight[ctx->currentFrame], VK_TRUE, UINT64_MAX);
+	flushPendingTextureUploads();
+
+	VkResult result = vkAcquireNextImageKHR(ctx->device, ctx->swapchain, UINT64_MAX,
+		ctx->imageAvailable[ctx->currentFrame], VK_NULL_HANDLE, &ctx->currentImage);
+	if(result == VK_ERROR_OUT_OF_DATE_KHR)
+		return recreateSwapchain() && beginFrame();
+	if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+		return vkOk(result, "vkAcquireNextImageKHR");
+
+	vkResetFences(ctx->device, 1, &ctx->inFlight[ctx->currentFrame]);
+	vkResetCommandBuffer(ctx->commandBuffers[ctx->currentImage], 0);
+
+	VkCommandBufferBeginInfo beginInfo;
+	memset(&beginInfo, 0, sizeof(beginInfo));
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	if(!vkOk(vkBeginCommandBuffer(ctx->commandBuffers[ctx->currentImage], &beginInfo), "vkBeginCommandBuffer"))
+		return 0;
+
+	RGBAf clear;
+	convColor(&clear, &vkGlobals.clearColor);
+	VkClearValue clearValues[2];
+	clearValues[0].color.float32[0] = clear.red;
+	clearValues[0].color.float32[1] = clear.green;
+	clearValues[0].color.float32[2] = clear.blue;
+	clearValues[0].color.float32[3] = clear.alpha;
+	clearValues[1].depthStencil.depth = 1.0f;
+	clearValues[1].depthStencil.stencil = 0;
+
+	VkRenderPassBeginInfo rpInfo;
+	memset(&rpInfo, 0, sizeof(rpInfo));
+	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	rpInfo.renderPass = ctx->renderPass;
+	rpInfo.framebuffer = ctx->framebuffers[ctx->currentImage];
+	rpInfo.renderArea.offset.x = 0;
+	rpInfo.renderArea.offset.y = 0;
+	rpInfo.renderArea.extent = ctx->swapchainExtent;
+	rpInfo.clearValueCount = nelem(clearValues);
+	rpInfo.pClearValues = clearValues;
+	vkCmdBeginRenderPass(ctx->commandBuffers[ctx->currentImage], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	VkViewport viewport;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)ctx->swapchainExtent.width;
+	viewport.height = (float)ctx->swapchainExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
+
+	VkRect2D scissor;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent = ctx->swapchainExtent;
+	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &scissor);
+
+	ctx->frameStarted = 1;
+	vkGlobals.commandReady = 0;
+	vkGlobals.dynamicVertexOffset = 0;
+	vkGlobals.dynamicIndexOffset = 0;
+	return 1;
+}
+
+static void
+beginUpdate(Camera *cam)
+{
+	float view[16], proj[16];
+	Matrix inv;
+	Matrix::invert(&inv, cam->getFrame()->getLTM());
+	view[0]  = -inv.right.x;
+	view[1]  =  inv.right.y;
+	view[2]  =  inv.right.z;
+	view[3]  =  0.0f;
+	view[4]  = -inv.up.x;
+	view[5]  =  inv.up.y;
+	view[6]  =  inv.up.z;
+	view[7]  =  0.0f;
+	view[8]  = -inv.at.x;
+	view[9]  =  inv.at.y;
+	view[10] =  inv.at.z;
+	view[11] =  0.0f;
+	view[12] = -inv.pos.x;
+	view[13] =  inv.pos.y;
+	view[14] =  inv.pos.z;
+	view[15] =  1.0f;
+	memcpy(&cam->devView, &view, sizeof(RawMatrix));
+	memcpy(vkGlobals.view, view, sizeof(view));
+
+	float32 invwx = 1.0f/cam->viewWindow.x;
+	float32 invwy = 1.0f/cam->viewWindow.y;
+	float32 invz = 1.0f/(cam->farPlane-cam->nearPlane);
+	proj[0] = invwx;
+	proj[1] = 0.0f;
+	proj[2] = 0.0f;
+	proj[3] = 0.0f;
+	proj[4] = 0.0f;
+	proj[5] = invwy;
+	proj[6] = 0.0f;
+	proj[7] = 0.0f;
+	proj[8] = cam->viewOffset.x*invwx;
+	proj[9] = cam->viewOffset.y*invwy;
+	proj[12] = -proj[8];
+	proj[13] = -proj[9];
+	if(cam->projection == Camera::PERSPECTIVE){
+		proj[10] = (cam->farPlane+cam->nearPlane)*invz;
+		proj[11] = 1.0f;
+		proj[14] = -2.0f*cam->nearPlane*cam->farPlane*invz;
+		proj[15] = 0.0f;
+	}else{
+		proj[10] = 2.0f*invz;
+		proj[11] = 0.0f;
+		proj[14] = -(cam->farPlane+cam->nearPlane)*invz;
+		proj[15] = 1.0f;
+	}
+	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
+	memcpy(vkGlobals.proj, proj, sizeof(proj));
+
+	engine->currentCamera = cam;
+	if(cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
+		return;
+	beginFrame();
+}
+
+static void
+endUpdate(Camera *cam)
+{
+	if(cam && cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
+		return;
+	Context *ctx = &vkGlobals.context;
+	if(!ctx->frameStarted || vkGlobals.commandReady)
+		return;
+	vkCmdEndRenderPass(ctx->commandBuffers[ctx->currentImage]);
+	vkOk(vkEndCommandBuffer(ctx->commandBuffers[ctx->currentImage]), "vkEndCommandBuffer");
+	vkGlobals.commandReady = 1;
+}
+
+static void
+clearCamera(Camera*, RGBA *col, uint32 mode)
+{
+	vkGlobals.clearColor = *col;
+	vkGlobals.clearMode = mode;
+}
+
+static void
+showRaster(Raster*, uint32)
+{
+	Context *ctx = &vkGlobals.context;
+	if(!ctx->frameStarted)
+		return;
+	if(!vkGlobals.commandReady)
+		endUpdate(nil);
+
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSubmitInfo submitInfo;
+	memset(&submitInfo, 0, sizeof(submitInfo));
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &ctx->imageAvailable[ctx->currentFrame];
+	submitInfo.pWaitDstStageMask = waitStages;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &ctx->commandBuffers[ctx->currentImage];
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &ctx->renderFinished[ctx->currentFrame];
+
+	if(!vkOk(vkQueueSubmit(ctx->graphicsQueue, 1, &submitInfo, ctx->inFlight[ctx->currentFrame]), "vkQueueSubmit"))
+		return;
+
+	VkPresentInfoKHR presentInfo;
+	memset(&presentInfo, 0, sizeof(presentInfo));
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &ctx->renderFinished[ctx->currentFrame];
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &ctx->swapchain;
+	presentInfo.pImageIndices = &ctx->currentImage;
+
+	VkResult result = vkQueuePresentKHR(ctx->presentQueue, &presentInfo);
+	if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+		recreateSwapchain();
+	else
+		vkOk(result, "vkQueuePresentKHR");
+
+	ctx->currentFrame = (ctx->currentFrame + 1) % 2;
+	ctx->frameStarted = 0;
+	vkGlobals.commandReady = 0;
+}
+
+static bool32
+rasterRenderFast(Raster*, int32, int32)
+{
+	return 0;
+}
+
+static void setRenderState(int32 state, void *value)
+{
+	if(state >= 0 && state <= GSALPHATESTREF){
+		vkGlobals.renderStates[state] = value;
+		if(state == TEXTURERASTER && value && !ensureTextureUploaded((Raster*)value))
+			queueTextureUpload((Raster*)value);
+	}
+}
+
+static void *getRenderState(int32 state)
+{
+	if(state >= 0 && state <= GSALPHATESTREF)
+		return vkGlobals.renderStates[state];
+	return nil;
+}
+
+static bool32
+validDrawState(PipelineKind kind, PrimitiveType primType)
+{
+	Context *ctx = &vkGlobals.context;
+	if(!ctx->frameStarted || primType <= PRIMTYPENONE || primType >= MAX_PRIM_PIPELINES)
+		return 0;
+	return vkGlobals.pipelineLayouts[kind] != VK_NULL_HANDLE;
+}
+
+static VkPipeline
+getDrawPipeline(PipelineKind kind, PrimitiveType primType, bool32 alpha)
+{
+	return vkGlobals.pipelines[kind][selectBlendMode(alpha)][primType];
+}
+
+static void
+bindTextureSet(PipelineKind kind, VkDescriptorSet set)
+{
+	Context *ctx = &vkGlobals.context;
+	if(set == VK_NULL_HANDLE)
+		set = vkGlobals.whiteDescriptorSet;
+	vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentImage],
+		VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[kind],
+		0, 1, &set, 0, nil);
+}
+
+static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
+static void im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices);
+
+static void
+im2DRenderLine(void *vertices, int32, int32 vert1, int32 vert2)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	Im2DVertex tmp[2] = { verts[vert1], verts[vert2] };
+	im2DRenderPrimitive(PRIMTYPELINELIST, tmp, 2);
+}
+
+static void
+im2DRenderTriangle(void *vertices, int32, int32 vert1, int32 vert2, int32 vert3)
+{
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	Im2DVertex tmp[3] = { verts[vert1], verts[vert2], verts[vert3] };
+	im2DRenderPrimitive(PRIMTYPETRILIST, tmp, 3);
+}
+
+static void
+im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
+{
+	if(!validDrawState(PIPE_IM2D, primType) || numVertices <= 0)
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im2DVertex);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
+		return;
+
+	Raster *textureRaster = (Raster*)vkGlobals.renderStates[TEXTURERASTER];
+	bool32 vertexAlpha = 0;
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	for(int32 i = 0; i < numVertices; i++)
+		if(verts[i].a != 0xFF)
+			vertexAlpha = 1;
+	bool32 alpha = vertexAlpha || rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0);
+
+	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_IM2D, primType, alpha));
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+
+	Im2DPushConstants pc;
+	Camera *cam = (Camera*)engine->currentCamera;
+	float w = cam && cam->frameBuffer ? (float)cam->frameBuffer->width : (float)ctx->swapchainExtent.width;
+	float h = cam && cam->frameBuffer ? (float)cam->frameBuffer->height : (float)ctx->swapchainExtent.height;
+	pc.xform[0] = 2.0f/w;
+	pc.xform[1] = 2.0f/h;
+	pc.xform[2] = -1.0f;
+	pc.xform[3] = -1.0f;
+	RGBA white = { 255, 255, 255, 255 };
+	colorToFloat(pc.matColor, white);
+	makeAlphaRef(pc.alphaRef, alpha);
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_IM2D],
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+	bindTextureSet(PIPE_IM2D, getTextureDescriptor(textureRaster));
+	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
+}
+
+static void
+im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices)
+{
+	if(!validDrawState(PIPE_IM2D, primType) || numVertices <= 0 || numIndices <= 0)
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im2DVertex);
+	VkDeviceSize indexSize = (VkDeviceSize)numIndices * sizeof(uint16);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VulkanBuffer *indexBuffer = &vkGlobals.dynamicIndexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset, indexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset) ||
+	   !uploadDynamicBuffer(indexBuffer, &vkGlobals.dynamicIndexOffset, indices,
+		indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 2, &indexOffset))
+		return;
+
+	Raster *textureRaster = (Raster*)vkGlobals.renderStates[TEXTURERASTER];
+	bool32 vertexAlpha = 0;
+	Im2DVertex *verts = (Im2DVertex*)vertices;
+	for(int32 i = 0; i < numVertices; i++)
+		if(verts[i].a != 0xFF)
+			vertexAlpha = 1;
+	bool32 alpha = vertexAlpha || rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0);
+
+	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_IM2D, primType, alpha));
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+
+	Im2DPushConstants pc;
+	Camera *cam = (Camera*)engine->currentCamera;
+	float w = cam && cam->frameBuffer ? (float)cam->frameBuffer->width : (float)ctx->swapchainExtent.width;
+	float h = cam && cam->frameBuffer ? (float)cam->frameBuffer->height : (float)ctx->swapchainExtent.height;
+	pc.xform[0] = 2.0f/w;
+	pc.xform[1] = 2.0f/h;
+	pc.xform[2] = -1.0f;
+	pc.xform[3] = -1.0f;
+	RGBA white = { 255, 255, 255, 255 };
+	colorToFloat(pc.matColor, white);
+	makeAlphaRef(pc.alphaRef, alpha);
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_IM2D],
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+	bindTextureSet(PIPE_IM2D, getTextureDescriptor(textureRaster));
+	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
+}
+
+static void
+drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
+	Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
+{
+	if(!validDrawState(PIPE_COLOR3D, primType) || numVertices <= 0)
+		return;
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im3DVertex);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
+		return;
+
+	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+
+	Color3DPushConstants pc;
+	makeMVP(pc.mvp, world);
+	colorToFloat(pc.matColor, matColor);
+	makeAlphaRef(pc.alphaRef, alpha);
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+	bindTextureSet(PIPE_COLOR3D, descriptorSet);
+	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
+}
+
+static void
+drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
+	void *indices, int32 numIndices, Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
+{
+	if(!validDrawState(PIPE_COLOR3D, primType) || numVertices <= 0 || numIndices <= 0)
+		return;
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im3DVertex);
+	VkDeviceSize indexSize = (VkDeviceSize)numIndices * sizeof(uint16);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VulkanBuffer *indexBuffer = &vkGlobals.dynamicIndexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset, indexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset) ||
+	   !uploadDynamicBuffer(indexBuffer, &vkGlobals.dynamicIndexOffset, indices,
+		indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 2, &indexOffset))
+		return;
+
+	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+
+	Color3DPushConstants pc;
+	makeMVP(pc.mvp, world);
+	colorToFloat(pc.matColor, matColor);
+	makeAlphaRef(pc.alphaRef, alpha);
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+	bindTextureSet(PIPE_COLOR3D, descriptorSet);
+	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
+}
+
+static void
+im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
+{
+	if(world == nil){
+		vkGlobals.im3dWorld.setIdentity();
+	}else
+		vkGlobals.im3dWorld = *world;
+	vkGlobals.im3dFlags = flags;
+	vkGlobals.im3dVertices = (Im3DVertex*)vertices;
+	vkGlobals.im3dNumVertices = numVertices;
+}
+
+static void
+im3DRenderPrimitive(PrimitiveType primType)
+{
+	RGBA white = { 255, 255, 255, 255 };
+	VkDescriptorSet set = (vkGlobals.im3dFlags & im3d::VERTEXUV) ?
+		getTextureDescriptor((Raster*)vkGlobals.renderStates[TEXTURERASTER]) :
+		vkGlobals.whiteDescriptorSet;
+	Raster *textureRaster = (vkGlobals.im3dFlags & im3d::VERTEXUV) ?
+		(Raster*)vkGlobals.renderStates[TEXTURERASTER] : nil;
+	bool32 alpha = rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0) ||
+		(vkGlobals.im3dFlags & im3d::ALLOPAQUE) == 0;
+	drawColor3DPrimitive(primType, vkGlobals.im3dVertices, vkGlobals.im3dNumVertices,
+		&vkGlobals.im3dWorld, white, set, alpha);
+}
+
+static void
+im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
+{
+	RGBA white = { 255, 255, 255, 255 };
+	VkDescriptorSet set = (vkGlobals.im3dFlags & im3d::VERTEXUV) ?
+		getTextureDescriptor((Raster*)vkGlobals.renderStates[TEXTURERASTER]) :
+		vkGlobals.whiteDescriptorSet;
+	Raster *textureRaster = (vkGlobals.im3dFlags & im3d::VERTEXUV) ?
+		(Raster*)vkGlobals.renderStates[TEXTURERASTER] : nil;
+	bool32 alpha = rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0) ||
+		(vkGlobals.im3dFlags & im3d::ALLOPAQUE) == 0;
+	drawColor3DIndexed(primType, vkGlobals.im3dVertices, vkGlobals.im3dNumVertices,
+		indices, numIndices, &vkGlobals.im3dWorld, white, set, alpha);
+}
+
+static void im3DEnd(void) {}
+
+static V3d
+transformVector(Matrix *m, const V3d &v)
+{
+	V3d out;
+	out.x = m->right.x*v.x + m->up.x*v.y + m->at.x*v.z;
+	out.y = m->right.y*v.x + m->up.y*v.y + m->at.y*v.z;
+	out.z = m->right.z*v.x + m->up.z*v.y + m->at.z*v.z;
+	return out;
+}
+
+static void
+normalizeVector(V3d *v)
+{
+	float len = sqrtf(v->x*v->x + v->y*v->y + v->z*v->z);
+	if(len > 0.0001f){
+		v->x /= len;
+		v->y /= len;
+		v->z /= len;
+	}
+}
+
+static float
+dotVector(const V3d &a, const V3d &b)
+{
+	return a.x*b.x + a.y*b.y + a.z*b.z;
+}
+
+struct SimpleLightSet
+{
+	bool32 enabled;
+	RGBAf ambient;
+	Light *directionals[8];
+	int32 numDirectionals;
+};
+
+static void
+collectSimpleLights(Atomic *atomic, SimpleLightSet *lights)
+{
+	memset(lights, 0, sizeof(*lights));
+	Geometry *geo = atomic->geometry;
+	if(engine->currentWorld == nil || (geo->flags & Geometry::LIGHT) == 0 ||
+	   (geo->flags & Geometry::NORMALS) == 0)
+		return;
+
+	WorldLights lightData;
+	Light *locals[8];
+	lightData.directionals = lights->directionals;
+	lightData.numDirectionals = 8;
+	lightData.locals = locals;
+	lightData.numLocals = 8;
+	((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
+	lights->ambient = lightData.ambient;
+	lights->numDirectionals = lightData.numDirectionals;
+	lights->enabled = 1;
+}
+
+static RGBA
+applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, const RGBA &base)
+{
+	if(!lights->enabled)
+		return base;
+
+	V3d n = transformVector(world, normal);
+	normalizeVector(&n);
+
+	float r = base.red / 255.0f + lights->ambient.red;
+	float g = base.green / 255.0f + lights->ambient.green;
+	float b = base.blue / 255.0f + lights->ambient.blue;
+
+	for(int32 i = 0; i < lights->numDirectionals; i++){
+		Light *l = lights->directionals[i];
+		V3d dir = l->getFrame()->getLTM()->at;
+		dir.x = -dir.x;
+		dir.y = -dir.y;
+		dir.z = -dir.z;
+		normalizeVector(&dir);
+		float f = dotVector(n, dir);
+		if(f > 0.0f){
+			r += f*l->color.red;
+			g += f*l->color.green;
+			b += f*l->color.blue;
+		}
+	}
+
+	if(r > 1.0f) r = 1.0f;
+	if(g > 1.0f) g = 1.0f;
+	if(b > 1.0f) b = 1.0f;
+	RGBA out = base;
+	out.red = (uint8)(r*255.0f);
+	out.green = (uint8)(g*255.0f);
+	out.blue = (uint8)(b*255.0f);
+	return out;
+}
+
+static bool32
+ensureTempGeometry(uint32 numVertices, uint32 numIndices)
+{
+	if(vkGlobals.tempVertexCapacity < numVertices){
+		rwFree(vkGlobals.tempVertices);
+		vkGlobals.tempVertices = rwNewT(Im3DVertex, numVertices, MEMDUR_EVENT | ID_DRIVER);
+		vkGlobals.tempVertexCapacity = numVertices;
+	}
+	if(vkGlobals.tempIndexCapacity < numIndices){
+		rwFree(vkGlobals.tempIndices);
+		vkGlobals.tempIndices = rwNewT(uint16, numIndices, MEMDUR_EVENT | ID_DRIVER);
+		vkGlobals.tempIndexCapacity = numIndices;
+	}
+	return vkGlobals.tempVertices != nil && vkGlobals.tempIndices != nil;
+}
+
+void
+defaultRenderCB(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
+		return;
+	MeshHeader *meshh = geo->meshHeader;
+	if(!ensureTempGeometry(geo->numVertices, meshh->totalIndices))
+		return;
+
+	bool32 hasNormals = !!(geo->flags & Geometry::NORMALS);
+	bool32 hasPrelit = !!(geo->flags & Geometry::PRELIT);
+	bool32 hasTex = geo->numTexCoordSets > 0 && geo->texCoords[0] != nil;
+	MorphTarget *morph = &geo->morphTargets[0];
+	RGBA white = { 255, 255, 255, 255 };
+	RGBA black = { 0, 0, 0, 255 };
+	Matrix ident;
+	ident.setIdentity();
+	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
+	SimpleLightSet lights;
+	collectSimpleLights(atomic, &lights);
+	for(int32 i = 0; i < geo->numVertices; i++){
+		Im3DVertex &v = vkGlobals.tempVertices[i];
+		v.position = morph->vertices[i];
+		if(hasNormals)
+			v.normal = morph->normals[i];
+		else{
+			v.normal.x = 0.0f;
+			v.normal.y = 0.0f;
+			v.normal.z = 1.0f;
+		}
+		RGBA c = hasPrelit ? geo->colors[i] :
+			((geo->flags & Geometry::LIGHT) ? black : white);
+		c = applySimpleLighting(&lights, world, v.normal, c);
+		v.r = c.red;
+		v.g = c.green;
+		v.b = c.blue;
+		v.a = c.alpha;
+		if(hasTex){
+			v.u = geo->texCoords[0][i].u;
+			v.v = geo->texCoords[0][i].v;
+		}else{
+			v.u = 0.0f;
+			v.v = 0.0f;
+		}
+	}
+
+	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
+	if(!validDrawState(PIPE_COLOR3D, primType))
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)geo->numVertices * sizeof(Im3DVertex);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vkGlobals.tempVertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
+		return;
+
+	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
+	Mesh *mesh = meshh->getMeshes();
+	for(uint32 i = 0; i < meshh->numMeshes; i++){
+		if(mesh[i].numIndices <= 0)
+			continue;
+		Material *mat = mesh[i].material;
+		RGBA matColor = white;
+		VkDescriptorSet tex = vkGlobals.whiteDescriptorSet;
+		Raster *texRaster = nil;
+		if(mat){
+			if(geo->flags & Geometry::MODULATE)
+				matColor = mat->color;
+			if(mat->texture && mat->texture->raster){
+				texRaster = mat->texture->raster;
+				tex = getTextureDescriptor(texRaster);
+			}
+		}
+
+		VulkanBuffer *indexBuffer = &vkGlobals.dynamicIndexBuffers[ctx->currentFrame];
+		VkDeviceSize indexSize = (VkDeviceSize)mesh[i].numIndices * sizeof(uint16);
+		VkDeviceSize indexOffset;
+		if(!uploadDynamicBuffer(indexBuffer, &vkGlobals.dynamicIndexOffset, mesh[i].indices,
+			indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 2, &indexOffset))
+			continue;
+
+		bool32 alpha = vertexAlpha || matColor.alpha != 0xFF ||
+			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+		VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+		VkDeviceSize offsets[] = { vertexOffset };
+		vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+
+		Color3DPushConstants pc;
+		makeMVP(pc.mvp, world);
+		colorToFloat(pc.matColor, matColor);
+		makeAlphaRef(pc.alphaRef, alpha);
+		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+		bindTextureSet(PIPE_COLOR3D, tex);
+		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
+	}
+}
+
+static void vulkanPipeInstance(rw::ObjPipeline*, Atomic*) {}
+static void vulkanPipeUninstance(rw::ObjPipeline*, Atomic*) {}
+static void
+vulkanPipeRender(rw::ObjPipeline *rwpipe, Atomic *atomic)
+{
+	ObjPipeline *pipe = (ObjPipeline*)rwpipe;
+	if(pipe->renderCB)
+		pipe->renderCB(atomic);
+}
+
+void
+ObjPipeline::init(void)
+{
+	this->rw::ObjPipeline::init(PLATFORM_VULKAN);
+	this->impl.instance = vulkanPipeInstance;
+	this->impl.uninstance = vulkanPipeUninstance;
+	this->impl.render = vulkanPipeRender;
+	this->renderCB = nil;
+}
+
+ObjPipeline*
+ObjPipeline::create(void)
+{
+	ObjPipeline *pipe = rwNewT(ObjPipeline, 1, MEMDUR_GLOBAL);
+	pipe->init();
+	return pipe;
+}
+
+ObjPipeline*
+makeDefaultPipeline(void)
+{
+	ObjPipeline *pipe = ObjPipeline::create();
+	pipe->renderCB = defaultRenderCB;
+	return pipe;
+}
+
+static void
+skinRenderCB(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
+		return;
+	MeshHeader *meshh = geo->meshHeader;
+	if(!ensureTempGeometry(geo->numVertices, meshh->totalIndices))
+		return;
+
+	Skin *skin = Skin::get(geo);
+	HAnimHierarchy *hier = skin ? Skin::getHierarchy(atomic) : nil;
+
+	// Compute skin matrices
+	static Matrix skinMats[256];
+	int32 numBones = skin ? skin->numBones : 0;
+	if(numBones > 256) numBones = 256;
+
+	if(skin && hier){
+		Matrix *invMats = (Matrix*)skin->inverseMatrices;
+		if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
+			for(int32 i = 0; i < numBones; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(&skinMats[i], &invMats[i], &hier->matrices[i]);
+			}
+		}else{
+			Matrix invAtmMat;
+			Matrix::invert(&invAtmMat, atomic->getFrame()->getLTM());
+			Matrix tmp;
+			for(int32 i = 0; i < numBones; i++){
+				invMats[i].flags = 0;
+				Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+				Matrix::mult(&skinMats[i], &invMats[i], &tmp);
+			}
+		}
+	}else{
+		for(int32 i = 0; i < numBones; i++)
+			skinMats[i].setIdentity();
+	}
+
+	bool32 hasNormals = !!(geo->flags & Geometry::NORMALS);
+	bool32 hasPrelit = !!(geo->flags & Geometry::PRELIT);
+	bool32 hasTex = geo->numTexCoordSets > 0 && geo->texCoords[0] != nil;
+	MorphTarget *morph = &geo->morphTargets[0];
+	RGBA white = { 255, 255, 255, 255 };
+	RGBA black = { 0, 0, 0, 255 };
+	Matrix ident;
+	ident.setIdentity();
+	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
+	SimpleLightSet lights;
+	collectSimpleLights(atomic, &lights);
+
+	for(int32 i = 0; i < geo->numVertices; i++){
+		Im3DVertex &v = vkGlobals.tempVertices[i];
+		V3d srcPos = morph->vertices[i];
+		V3d srcNrm;
+		if(hasNormals)
+			srcNrm = morph->normals[i];
+		else{
+			srcNrm.x = 0.0f;
+			srcNrm.y = 0.0f;
+			srcNrm.z = 1.0f;
+		}
+
+		// CPU skinning: blend by bone weights
+		if(skin && skin->weights && skin->indices){
+			V3d pos = {0,0,0};
+			V3d nrm = {0,0,0};
+			uint8 *idx = &skin->indices[i*4];
+			float *wgt = &skin->weights[i*4];
+			for(int32 j = 0; j < 4; j++){
+				float w = wgt[j];
+				if(w == 0.0f) continue;
+				Matrix *m = &skinMats[idx[j]];
+				// Transform point: pos += w * (m * srcPos)
+				V3d tp;
+				tp.x = m->right.x*srcPos.x + m->up.x*srcPos.y + m->at.x*srcPos.z + m->pos.x;
+				tp.y = m->right.y*srcPos.x + m->up.y*srcPos.y + m->at.y*srcPos.z + m->pos.y;
+				tp.z = m->right.z*srcPos.x + m->up.z*srcPos.y + m->at.z*srcPos.z + m->pos.z;
+				pos.x += w*tp.x;
+				pos.y += w*tp.y;
+				pos.z += w*tp.z;
+				// Transform vector: nrm += w * (m * srcNrm)
+				V3d tn;
+				tn.x = m->right.x*srcNrm.x + m->up.x*srcNrm.y + m->at.x*srcNrm.z;
+				tn.y = m->right.y*srcNrm.x + m->up.y*srcNrm.y + m->at.y*srcNrm.z;
+				tn.z = m->right.z*srcNrm.x + m->up.z*srcNrm.y + m->at.z*srcNrm.z;
+				nrm.x += w*tn.x;
+				nrm.y += w*tn.y;
+				nrm.z += w*tn.z;
+			}
+			v.position = pos;
+			// Normalize
+			float len = sqrtf(nrm.x*nrm.x + nrm.y*nrm.y + nrm.z*nrm.z);
+			if(len > 0.0001f){
+				nrm.x /= len;
+				nrm.y /= len;
+				nrm.z /= len;
+			}
+			v.normal = nrm;
+		}else{
+			v.position = srcPos;
+			v.normal = srcNrm;
+		}
+
+		RGBA c = hasPrelit ? geo->colors[i] :
+			((geo->flags & Geometry::LIGHT) ? black : white);
+		c = applySimpleLighting(&lights, world, v.normal, c);
+		v.r = c.red;
+		v.g = c.green;
+		v.b = c.blue;
+		v.a = c.alpha;
+		if(hasTex){
+			v.u = geo->texCoords[0][i].u;
+			v.v = geo->texCoords[0][i].v;
+		}else{
+			v.u = 0.0f;
+			v.v = 0.0f;
+		}
+	}
+
+	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
+	if(!validDrawState(PIPE_COLOR3D, primType))
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkDeviceSize vertexSize = (VkDeviceSize)geo->numVertices * sizeof(Im3DVertex);
+	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
+	VkDeviceSize vertexOffset;
+	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vkGlobals.tempVertices,
+		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
+		return;
+
+	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
+	Mesh *mesh = meshh->getMeshes();
+	for(uint32 i = 0; i < meshh->numMeshes; i++){
+		if(mesh[i].numIndices <= 0)
+			continue;
+		Material *mat = mesh[i].material;
+		RGBA matColor = white;
+		VkDescriptorSet tex = vkGlobals.whiteDescriptorSet;
+		Raster *texRaster = nil;
+		if(mat){
+			if(geo->flags & Geometry::MODULATE)
+				matColor = mat->color;
+			if(mat->texture && mat->texture->raster){
+				texRaster = mat->texture->raster;
+				tex = getTextureDescriptor(texRaster);
+			}
+		}
+
+		VulkanBuffer *indexBuffer = &vkGlobals.dynamicIndexBuffers[ctx->currentFrame];
+		VkDeviceSize indexSize = (VkDeviceSize)mesh[i].numIndices * sizeof(uint16);
+		VkDeviceSize indexOffset;
+		if(!uploadDynamicBuffer(indexBuffer, &vkGlobals.dynamicIndexOffset, mesh[i].indices,
+			indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 2, &indexOffset))
+			continue;
+
+		bool32 alpha = vertexAlpha || matColor.alpha != 0xFF ||
+			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+		VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+		VkDeviceSize offsets[] = { vertexOffset };
+		vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+
+		Color3DPushConstants pc;
+		makeMVP(pc.mvp, world);
+		colorToFloat(pc.matColor, matColor);
+		makeAlphaRef(pc.alphaRef, alpha);
+		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+		bindTextureSet(PIPE_COLOR3D, tex);
+		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
+	}
+}
+
+static ObjPipeline*
+makeSkinPipeline(void)
+{
+	ObjPipeline *pipe = ObjPipeline::create();
+	pipe->renderCB = skinRenderCB;
+	pipe->pluginID = ID_SKIN;
+	pipe->pluginData = 1;
+	return pipe;
+}
+
+static void*
+vkSkinOpen(void *o, int32, int32)
+{
+	skinGlobals.pipelines[PLATFORM_VULKAN] = makeSkinPipeline();
+	return o;
+}
+
+static void*
+vkSkinClose(void *o, int32, int32)
+{
+	((ObjPipeline*)skinGlobals.pipelines[PLATFORM_VULKAN])->destroy();
+	skinGlobals.pipelines[PLATFORM_VULKAN] = nil;
+	return o;
+}
+
+void
+initSkin(void)
+{
+	Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_SKIN,
+	                       vkSkinOpen, vkSkinClose);
+}
+
+static ObjPipeline*
+makeMatFXPipeline(void)
+{
+	ObjPipeline *pipe = makeDefaultPipeline();
+	pipe->pluginID = ID_MATFX;
+	pipe->pluginData = 1;
+	return pipe;
+}
+
+static void*
+vkMatFXOpen(void *o, int32, int32)
+{
+	matFXGlobals.pipelines[PLATFORM_VULKAN] = makeMatFXPipeline();
+	return o;
+}
+
+static void*
+vkMatFXClose(void *o, int32, int32)
+{
+	if(matFXGlobals.pipelines[PLATFORM_VULKAN]){
+		((ObjPipeline*)matFXGlobals.pipelines[PLATFORM_VULKAN])->destroy();
+		matFXGlobals.pipelines[PLATFORM_VULKAN] = nil;
+	}
+	return o;
+}
+
+void
+initMatFX(void)
+{
+	Driver::registerPlugin(PLATFORM_VULKAN, 0, ID_MATFX,
+	                       vkMatFXOpen, vkMatFXClose);
+}
+
+static int
+deviceSystemSDL3(DeviceReq req, void *arg, int32 n)
+{
+	VideoMode *rwmode;
+	switch(req){
+	case DEVICEOPEN:
+		return openSDL3((EngineOpenParams*)arg);
+	case DEVICECLOSE:
+		return closeSDL3();
+	case DEVICEINIT:
+		return startSDL3();
+	case DEVICETERM:
+		return stopSDL3();
+	case DEVICEFINALIZE:
+		return 1;
+
+	case DEVICEGETNUMSUBSYSTEMS:
+		return vkGlobals.numDisplays;
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return vkGlobals.currentDisplay;
+	case DEVICESETSUBSYSTEM:
+		if(n < 0 || n >= vkGlobals.numDisplays)
+			return 0;
+		vkGlobals.currentDisplay = n;
+		makeVideoModeList(vkGlobals.currentDisplay);
+		return 1;
+	case DEVICEGETSUBSSYSTEMINFO: {
+		if(n < 0 || n >= vkGlobals.numDisplays)
+			return 0;
+		const char *displayName = SDL_GetDisplayName(vkGlobals.displays[n]);
+		if(displayName == nil)
+			return 0;
+		strncpy(((SubSystemInfo*)arg)->name, displayName, sizeof(SubSystemInfo::name));
+		((SubSystemInfo*)arg)->name[sizeof(SubSystemInfo::name)-1] = '\0';
+		return 1;
+	}
+
+	case DEVICEGETNUMVIDEOMODES:
+		return vkGlobals.numModes;
+	case DEVICEGETCURRENTVIDEOMODE:
+		return vkGlobals.currentMode;
+	case DEVICESETVIDEOMODE:
+		if(n < 0 || n >= vkGlobals.numModes)
+			return 0;
+		vkGlobals.currentMode = n;
+		return 1;
+	case DEVICEGETVIDEOMODEINFO:
+		if(n < 0 || n >= vkGlobals.numModes)
+			return 0;
+		rwmode = (VideoMode*)arg;
+		rwmode->width = vkGlobals.modes[n].mode.w;
+		rwmode->height = vkGlobals.modes[n].mode.h;
+		rwmode->depth = vkGlobals.modes[n].depth;
+		rwmode->flags = vkGlobals.modes[n].flags;
+		return 1;
+
+	case DEVICEGETMAXMULTISAMPLINGLEVELS:
+	case DEVICEGETMULTISAMPLINGLEVELS:
+		return 1;
+	case DEVICESETMULTISAMPLINGLEVELS:
+		return n == 1;
+	default:
+		assert(0 && "not implemented");
+		return 0;
+	}
+	return 1;
+}
+
+Device renderdevice = {
+	0.0f, 1.0f,
+	vulkan::beginUpdate,
+	vulkan::endUpdate,
+	vulkan::clearCamera,
+	vulkan::showRaster,
+	vulkan::rasterRenderFast,
+	vulkan::setRenderState,
+	vulkan::getRenderState,
+	vulkan::im2DRenderLine,
+	vulkan::im2DRenderTriangle,
+	vulkan::im2DRenderPrimitive,
+	vulkan::im2DRenderIndexedPrimitive,
+	vulkan::im3DTransform,
+	vulkan::im3DRenderPrimitive,
+	vulkan::im3DRenderIndexedPrimitive,
+	vulkan::im3DEnd,
+	vulkan::deviceSystemSDL3
+};
+
+}
+}
+
+#endif
