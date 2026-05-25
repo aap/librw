@@ -45,7 +45,9 @@ struct Context
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 	VkRenderPass renderPass;
+	VkRenderPass loadRenderPass;
 	VkFramebuffer *framebuffers;
+	VkFramebuffer *loadFramebuffers;
 	VkCommandPool commandPool;
 	VkCommandBuffer *commandBuffers;
 	VkSemaphore imageAvailable[3];
@@ -132,6 +134,8 @@ struct VulkanRaster
 	VkImageView imageView;
 	VkSampler sampler;
 	VkDescriptorSet descriptorSet;
+	VkFormat imageFormat;
+	VkImageLayout imageLayout;
 	bool32 gpuDirty;
 	bool32 gpuReady;
 };

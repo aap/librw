@@ -60,6 +60,8 @@ enum PipelineKind
 	PIPE_IM2D_ZTEST,
 	PIPE_COLOR3D,
 	PIPE_COLOR3D_NOZWRITE,
+	PIPE_COLOR3D_NOZTEST,
+	PIPE_COLOR3D_NOZTEST_NOZWRITE,
 	PIPE_COUNT
 };
 
@@ -96,6 +98,7 @@ struct VulkanGlobals
 	const char *winTitle;
 	RGBA clearColor;
 	uint32 clearMode;
+	bool32 canCopyFromSwapchain;
 	bool32 commandReady;
 	void *renderStates[GSALPHATESTREF + 1];
 	float view[16];
@@ -339,11 +342,29 @@ transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayou
 	if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL){
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	}else if(oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL){
+		barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		srcStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL){
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}else if((oldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR ||
+	          oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) &&
+	         newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL){
+		barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+	         newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL){
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		dstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	}
 
 	vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0,
@@ -477,6 +498,100 @@ createTextureImage(uint32 width, uint32 height, const uint8 *rgba,
 	return 1;
 }
 
+static bool32
+createEmptySampledImage(uint32 width, uint32 height, VkFormat format, VkImageUsageFlags usage,
+	VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler, VkDescriptorSet *descriptorSet)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE || vkGlobals.textureSetLayout == VK_NULL_HANDLE ||
+	   vkGlobals.descriptorPool == VK_NULL_HANDLE)
+		return 0;
+
+	VkImageCreateInfo imageInfo;
+	memset(&imageInfo, 0, sizeof(imageInfo));
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	if(!vkOk(vkCreateImage(ctx->device, &imageInfo, nil, image), "vkCreateImage(sampled)"))
+		return 0;
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(ctx->device, *image, &memRequirements);
+	VkMemoryAllocateInfo allocInfo;
+	memset(&allocInfo, 0, sizeof(allocInfo));
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	if(!vkOk(vkAllocateMemory(ctx->device, &allocInfo, nil, memory), "vkAllocateMemory(sampled)") ||
+	   !vkOk(vkBindImageMemory(ctx->device, *image, *memory, 0), "vkBindImageMemory(sampled)"))
+		return 0;
+
+	VkImageViewCreateInfo viewInfo;
+	memset(&viewInfo, 0, sizeof(viewInfo));
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = *image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+	if(!vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, view), "vkCreateImageView(sampled)"))
+		return 0;
+
+	VkSamplerCreateInfo samplerInfo;
+	memset(&samplerInfo, 0, sizeof(samplerInfo));
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.maxAnisotropy = 1.0f;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler(sampled)"))
+		return 0;
+
+	VkDescriptorSetAllocateInfo descAlloc;
+	memset(&descAlloc, 0, sizeof(descAlloc));
+	descAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descAlloc.descriptorPool = vkGlobals.descriptorPool;
+	descAlloc.descriptorSetCount = 1;
+	descAlloc.pSetLayouts = &vkGlobals.textureSetLayout;
+	if(!vkOk(vkAllocateDescriptorSets(ctx->device, &descAlloc, descriptorSet), "vkAllocateDescriptorSets(sampled)"))
+		return 0;
+
+	VkDescriptorImageInfo imageDesc;
+	memset(&imageDesc, 0, sizeof(imageDesc));
+	imageDesc.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageDesc.imageView = *view;
+	imageDesc.sampler = *sampler;
+
+	VkWriteDescriptorSet write;
+	memset(&write, 0, sizeof(write));
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.dstSet = *descriptorSet;
+	write.dstBinding = 0;
+	write.descriptorCount = 1;
+	write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	write.pImageInfo = &imageDesc;
+	vkUpdateDescriptorSets(ctx->device, 1, &write, 0, nil);
+	return 1;
+}
+
 static void
 destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler)
 {
@@ -505,6 +620,8 @@ destroyRasterTexture(Raster *raster)
 	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
 	destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
 	natras->descriptorSet = VK_NULL_HANDLE;
+	natras->imageFormat = VK_FORMAT_UNDEFINED;
+	natras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	natras->gpuReady = 0;
 	natras->gpuDirty = 1;
 }
@@ -601,6 +718,8 @@ ensureTextureUploaded(Raster *raster)
 	rwFree(rgba);
 	natras->gpuReady = ok;
 	natras->gpuDirty = !ok;
+	natras->imageFormat = ok ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_UNDEFINED;
+	natras->imageLayout = ok ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
 	return ok;
 }
 
@@ -815,6 +934,16 @@ selectBlendMode(bool32 alpha)
 	return PIPE_BLEND_OPAQUE;
 }
 
+static PipelineKind
+selectColor3DPipelineKind(void)
+{
+	bool32 ztest = getRenderStateUInt(ZTESTENABLE, 1);
+	bool32 zwrite = getRenderStateUInt(ZWRITEENABLE, 1);
+	if(!ztest)
+		return zwrite ? PIPE_COLOR3D_NOZTEST : PIPE_COLOR3D_NOZTEST_NOZWRITE;
+	return zwrite ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+}
+
 static bool32 createDrawPipelines(void);
 static void destroyDrawPipelines(void);
 static void destroyDrawResources(void);
@@ -1024,7 +1153,9 @@ createDrawPipelines(void)
 	if(!createPipelineLayout(PIPE_IM2D, sizeof(Im2DPushConstants)) ||
 	   !createPipelineLayout(PIPE_IM2D_ZTEST, sizeof(Im2DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)) ||
-	   !createPipelineLayout(PIPE_COLOR3D_NOZWRITE, sizeof(Color3DPushConstants)))
+	   !createPipelineLayout(PIPE_COLOR3D_NOZWRITE, sizeof(Color3DPushConstants)) ||
+	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST, sizeof(Color3DPushConstants)) ||
+	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST_NOZWRITE, sizeof(Color3DPushConstants)))
 		return 0;
 
 	VkVertexInputBindingDescription im2dBinding;
@@ -1090,6 +1221,14 @@ createDrawPipelines(void)
 			      &color3dBinding, color3dAttribs, 4))
 				return 0;
 			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZWRITE, (BlendPipelineMode)b, prims[i],
+			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
+			      &color3dBinding, color3dAttribs, 4))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZTEST, (BlendPipelineMode)b, prims[i],
+			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
+			      &color3dBinding, color3dAttribs, 4))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
 			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
 			      &color3dBinding, color3dAttribs, 4))
 				return 0;
@@ -1175,6 +1314,7 @@ resetContext(Context *ctx)
 	ctx->device = VK_NULL_HANDLE;
 	ctx->swapchain = VK_NULL_HANDLE;
 	ctx->renderPass = VK_NULL_HANDLE;
+	ctx->loadRenderPass = VK_NULL_HANDLE;
 	ctx->commandPool = VK_NULL_HANDLE;
 	ctx->graphicsQueueFamily = 0xFFFFFFFF;
 	ctx->presentQueueFamily = 0xFFFFFFFF;
@@ -1577,29 +1717,30 @@ destroyDepthResources(void)
 }
 
 static bool32
-createRenderPass(void)
+createOneRenderPass(VkAttachmentLoadOp colorLoadOp, VkAttachmentLoadOp depthLoadOp,
+	VkImageLayout colorInitialLayout, VkImageLayout depthInitialLayout, VkRenderPass *renderPass)
 {
 	Context *ctx = &vkGlobals.context;
 	VkAttachmentDescription colorAttachment;
 	memset(&colorAttachment, 0, sizeof(colorAttachment));
 	colorAttachment.format = ctx->swapchainFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.loadOp = colorLoadOp;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.initialLayout = colorInitialLayout;
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 	VkAttachmentDescription depthAttachment;
 	memset(&depthAttachment, 0, sizeof(depthAttachment));
 	depthAttachment.format = ctx->depthFormat;
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.loadOp = depthLoadOp;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.initialLayout = depthInitialLayout;
 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentReference colorRef;
@@ -1640,7 +1781,18 @@ createRenderPass(void)
 	createInfo.dependencyCount = 1;
 	createInfo.pDependencies = &dependency;
 
-	return vkOk(vkCreateRenderPass(ctx->device, &createInfo, nil, &ctx->renderPass), "vkCreateRenderPass");
+	return vkOk(vkCreateRenderPass(ctx->device, &createInfo, nil, renderPass), "vkCreateRenderPass");
+}
+
+static bool32
+createRenderPass(void)
+{
+	Context *ctx = &vkGlobals.context;
+	return createOneRenderPass(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_LOAD_OP_CLEAR,
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_UNDEFINED, &ctx->renderPass) &&
+	       createOneRenderPass(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_LOAD_OP_LOAD,
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		&ctx->loadRenderPass);
 }
 
 static bool32
@@ -1681,6 +1833,9 @@ createSwapchain(void)
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	vkGlobals.canCopyFromSwapchain = (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+	if(vkGlobals.canCopyFromSwapchain)
+		createInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	uint32 queueFamilyIndices[] = { ctx->graphicsQueueFamily, ctx->presentQueueFamily };
 	if(ctx->graphicsQueueFamily != ctx->presentQueueFamily){
@@ -1737,6 +1892,9 @@ createSwapchain(void)
 		return 0;
 
 	ctx->framebuffers = rwNewT(VkFramebuffer, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	ctx->loadFramebuffers = rwNewT(VkFramebuffer, ctx->numSwapchainImages, MEMDUR_EVENT | ID_DRIVER);
+	memset(ctx->framebuffers, 0, sizeof(VkFramebuffer)*ctx->numSwapchainImages);
+	memset(ctx->loadFramebuffers, 0, sizeof(VkFramebuffer)*ctx->numSwapchainImages);
 	for(uint32 i = 0; i < ctx->numSwapchainImages; i++){
 		VkImageView attachments[] = { ctx->swapchainImageViews[i], ctx->depthImageView };
 		VkFramebufferCreateInfo fbInfo;
@@ -1749,6 +1907,9 @@ createSwapchain(void)
 		fbInfo.height = ctx->swapchainExtent.height;
 		fbInfo.layers = 1;
 		if(!vkOk(vkCreateFramebuffer(ctx->device, &fbInfo, nil, &ctx->framebuffers[i]), "vkCreateFramebuffer"))
+			return 0;
+		fbInfo.renderPass = ctx->loadRenderPass;
+		if(!vkOk(vkCreateFramebuffer(ctx->device, &fbInfo, nil, &ctx->loadFramebuffers[i]), "vkCreateFramebuffer(load)"))
 			return 0;
 	}
 
@@ -1794,9 +1955,20 @@ destroySwapchain(void)
 		rwFree(ctx->framebuffers);
 		ctx->framebuffers = nil;
 	}
+	if(ctx->loadFramebuffers){
+		for(uint32 i = 0; i < ctx->numSwapchainImages; i++)
+			if(ctx->loadFramebuffers[i] != VK_NULL_HANDLE)
+				vkDestroyFramebuffer(ctx->device, ctx->loadFramebuffers[i], nil);
+		rwFree(ctx->loadFramebuffers);
+		ctx->loadFramebuffers = nil;
+	}
 	if(ctx->renderPass != VK_NULL_HANDLE){
 		vkDestroyRenderPass(ctx->device, ctx->renderPass, nil);
 		ctx->renderPass = VK_NULL_HANDLE;
+	}
+	if(ctx->loadRenderPass != VK_NULL_HANDLE){
+		vkDestroyRenderPass(ctx->device, ctx->loadRenderPass, nil);
+		ctx->loadRenderPass = VK_NULL_HANDLE;
 	}
 	destroyDepthResources();
 	if(ctx->swapchainImageViews){
@@ -1863,6 +2035,66 @@ recreateSwapchain(void)
 	return createSwapchain() && createDrawPipelines();
 }
 
+static void
+resetCommandBindings(void)
+{
+	vkGlobals.currentPipeline = VK_NULL_HANDLE;
+	vkGlobals.currentDescriptorSet = VK_NULL_HANDLE;
+	vkGlobals.currentDescriptorSetKind = PIPE_COUNT;
+}
+
+static void
+setSwapchainViewportAndScissor(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VkViewport viewport;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)ctx->swapchainExtent.width;
+	viewport.height = (float)ctx->swapchainExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
+
+	VkRect2D scissor;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent = ctx->swapchainExtent;
+	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &scissor);
+}
+
+static void
+beginSwapchainRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, bool32 clear)
+{
+	Context *ctx = &vkGlobals.context;
+	VkClearValue clearValues[2];
+	memset(clearValues, 0, sizeof(clearValues));
+	if(clear){
+		RGBAf clearColor;
+		convColor(&clearColor, &vkGlobals.clearColor);
+		clearValues[0].color.float32[0] = clearColor.red;
+		clearValues[0].color.float32[1] = clearColor.green;
+		clearValues[0].color.float32[2] = clearColor.blue;
+		clearValues[0].color.float32[3] = clearColor.alpha;
+		clearValues[1].depthStencil.depth = 1.0f;
+		clearValues[1].depthStencil.stencil = 0;
+	}
+
+	VkRenderPassBeginInfo rpInfo;
+	memset(&rpInfo, 0, sizeof(rpInfo));
+	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	rpInfo.renderPass = renderPass;
+	rpInfo.framebuffer = framebuffer;
+	rpInfo.renderArea.offset.x = 0;
+	rpInfo.renderArea.offset.y = 0;
+	rpInfo.renderArea.extent = ctx->swapchainExtent;
+	rpInfo.clearValueCount = clear ? nelem(clearValues) : 0;
+	rpInfo.pClearValues = clear ? clearValues : nil;
+	vkCmdBeginRenderPass(ctx->commandBuffers[ctx->currentImage], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+	setSwapchainViewportAndScissor();
+	resetCommandBindings();
+}
+
 static int
 startSDL3(void)
 {
@@ -1924,8 +2156,7 @@ beginFrame(void)
 	if(ctx->frameStarted)
 		return 1;
 
-	vkGlobals.currentPipeline = VK_NULL_HANDLE;
-	vkGlobals.currentDescriptorSet = VK_NULL_HANDLE;
+	resetCommandBindings();
 
 	vkWaitForFences(ctx->device, 1, &ctx->inFlight[ctx->currentFrame], VK_TRUE, UINT64_MAX);
 	flushPendingTextureUploads();
@@ -1946,42 +2177,7 @@ beginFrame(void)
 	if(!vkOk(vkBeginCommandBuffer(ctx->commandBuffers[ctx->currentImage], &beginInfo), "vkBeginCommandBuffer"))
 		return 0;
 
-	RGBAf clear;
-	convColor(&clear, &vkGlobals.clearColor);
-	VkClearValue clearValues[2];
-	clearValues[0].color.float32[0] = clear.red;
-	clearValues[0].color.float32[1] = clear.green;
-	clearValues[0].color.float32[2] = clear.blue;
-	clearValues[0].color.float32[3] = clear.alpha;
-	clearValues[1].depthStencil.depth = 1.0f;
-	clearValues[1].depthStencil.stencil = 0;
-
-	VkRenderPassBeginInfo rpInfo;
-	memset(&rpInfo, 0, sizeof(rpInfo));
-	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	rpInfo.renderPass = ctx->renderPass;
-	rpInfo.framebuffer = ctx->framebuffers[ctx->currentImage];
-	rpInfo.renderArea.offset.x = 0;
-	rpInfo.renderArea.offset.y = 0;
-	rpInfo.renderArea.extent = ctx->swapchainExtent;
-	rpInfo.clearValueCount = nelem(clearValues);
-	rpInfo.pClearValues = clearValues;
-	vkCmdBeginRenderPass(ctx->commandBuffers[ctx->currentImage], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)ctx->swapchainExtent.width;
-	viewport.height = (float)ctx->swapchainExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
-
-	VkRect2D scissor;
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent = ctx->swapchainExtent;
-	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &scissor);
+	beginSwapchainRenderPass(ctx->renderPass, ctx->framebuffers[ctx->currentImage], 1);
 
 	ctx->frameStarted = 1;
 	vkGlobals.commandReady = 0;
@@ -2115,9 +2311,102 @@ showRaster(Raster*, uint32)
 }
 
 static bool32
-rasterRenderFast(Raster*, int32, int32)
+rasterCopyTargetReady(Raster *raster)
 {
-	return 0;
+	if(raster == nil || nativeRasterOffset == 0)
+		return 0;
+	if(raster->type != Raster::NORMAL &&
+	   raster->type != Raster::TEXTURE &&
+	   raster->type != Raster::CAMERATEXTURE)
+		return 0;
+
+	Context *ctx = &vkGlobals.context;
+	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
+	if(natras->image != VK_NULL_HANDLE &&
+	   natras->descriptorSet != VK_NULL_HANDLE &&
+	   natras->imageFormat == ctx->swapchainFormat)
+		return 1;
+
+	destroyRasterTexture(raster);
+	if(!createEmptySampledImage((uint32)raster->width, (uint32)raster->height, ctx->swapchainFormat,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT, &natras->image, &natras->imageMemory,
+		&natras->imageView, &natras->sampler, &natras->descriptorSet)){
+		destroyRasterTexture(raster);
+		return 0;
+	}
+
+	natras->imageFormat = ctx->swapchainFormat;
+	natras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	natras->gpuReady = 1;
+	natras->gpuDirty = 0;
+	return 1;
+}
+
+static bool32
+rasterRenderFast(Raster *raster, int32 x, int32 y)
+{
+	Context *ctx = &vkGlobals.context;
+	Raster *src = raster;
+	Raster *dst = Raster::getCurrentContext();
+	if(src == nil || dst == nil || src->type != Raster::CAMERA)
+		return 0;
+	if(!ctx->frameStarted || vkGlobals.commandReady || !vkGlobals.canCopyFromSwapchain)
+		return 0;
+	if(x < 0 || y < 0 || x >= dst->width || y >= dst->height)
+		return 0;
+	if(!rasterCopyTargetReady(dst))
+		return 0;
+
+	VulkanRaster *natdst = GETVULKANRASTEREXT(dst);
+	uint32 copyWidth = (uint32)src->width;
+	uint32 copyHeight = (uint32)src->height;
+	if(copyWidth > ctx->swapchainExtent.width)
+		copyWidth = ctx->swapchainExtent.width;
+	if(copyHeight > ctx->swapchainExtent.height)
+		copyHeight = ctx->swapchainExtent.height;
+	if(copyWidth > (uint32)(dst->width - x))
+		copyWidth = (uint32)(dst->width - x);
+	if(copyHeight > (uint32)(dst->height - y))
+		copyHeight = (uint32)(dst->height - y);
+	if(copyWidth == 0 || copyHeight == 0)
+		return 0;
+
+	VkCommandBuffer commandBuffer = ctx->commandBuffers[ctx->currentImage];
+	vkCmdEndRenderPass(commandBuffer);
+	resetCommandBindings();
+
+	transitionImageLayout(commandBuffer, ctx->swapchainImages[ctx->currentImage],
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	transitionImageLayout(commandBuffer, natdst->image, natdst->imageLayout,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	VkImageCopy region;
+	memset(&region, 0, sizeof(region));
+	region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.srcSubresource.mipLevel = 0;
+	region.srcSubresource.baseArrayLayer = 0;
+	region.srcSubresource.layerCount = 1;
+	region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.dstSubresource.mipLevel = 0;
+	region.dstSubresource.baseArrayLayer = 0;
+	region.dstSubresource.layerCount = 1;
+	region.dstOffset.x = x;
+	region.dstOffset.y = y;
+	region.extent.width = copyWidth;
+	region.extent.height = copyHeight;
+	region.extent.depth = 1;
+	vkCmdCopyImage(commandBuffer,
+		ctx->swapchainImages[ctx->currentImage], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		natdst->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	transitionImageLayout(commandBuffer, natdst->image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	natdst->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	transitionImageLayout(commandBuffer, ctx->swapchainImages[ctx->currentImage],
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	beginSwapchainRenderPass(ctx->loadRenderPass, ctx->loadFramebuffers[ctx->currentImage], 0);
+	return 1;
 }
 
 static void setRenderState(int32 state, void *value)
@@ -2295,7 +2584,7 @@ static void
 drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
 	Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
 {
-	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	PipelineKind k = selectColor3DPipelineKind();
 	if(!validDrawState(k, primType) || numVertices <= 0)
 		return;
 	Context *ctx = &vkGlobals.context;
@@ -2330,7 +2619,7 @@ static void
 drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
 	void *indices, int32 numIndices, Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
 {
-	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	PipelineKind k = selectColor3DPipelineKind();
 	if(!validDrawState(k, primType) || numVertices <= 0 || numIndices <= 0)
 		return;
 	Context *ctx = &vkGlobals.context;
@@ -2597,7 +2886,7 @@ defaultRenderCB(Atomic *atomic)
 	}
 
 	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
-	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	PipelineKind k = selectColor3DPipelineKind();
 	if(!validDrawState(k, primType))
 		return;
 
@@ -2817,7 +3106,7 @@ skinRenderCB(Atomic *atomic)
 	}
 
 	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
-	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	PipelineKind k = selectColor3DPipelineKind();
 	if(!validDrawState(k, primType))
 		return;
 

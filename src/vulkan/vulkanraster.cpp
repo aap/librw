@@ -150,6 +150,8 @@ rasterCreate(Raster *raster)
 	natras->imageView = VK_NULL_HANDLE;
 	natras->sampler = VK_NULL_HANDLE;
 	natras->descriptorSet = VK_NULL_HANDLE;
+	natras->imageFormat = VK_FORMAT_UNDEFINED;
+	natras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	natras->gpuDirty = 1;
 	natras->gpuReady = 0;
 	raster->originalWidth = 0;
@@ -465,6 +467,8 @@ createNativeRaster(void *object, int32 offset, int32)
 	ras->imageView = VK_NULL_HANDLE;
 	ras->sampler = VK_NULL_HANDLE;
 	ras->descriptorSet = VK_NULL_HANDLE;
+	ras->imageFormat = VK_FORMAT_UNDEFINED;
+	ras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	ras->gpuDirty = 1;
 	ras->gpuReady = 0;
 	return object;
@@ -492,6 +496,8 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	d->imageView = VK_NULL_HANDLE;
 	d->sampler = VK_NULL_HANDLE;
 	d->descriptorSet = VK_NULL_HANDLE;
+	d->imageFormat = VK_FORMAT_UNDEFINED;
+	d->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	d->gpuDirty = 1;
 	d->gpuReady = 0;
 	return dst;
