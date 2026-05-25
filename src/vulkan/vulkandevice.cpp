@@ -57,7 +57,9 @@ struct Color3DPushConstants
 enum PipelineKind
 {
 	PIPE_IM2D,
+	PIPE_IM2D_ZTEST,
 	PIPE_COLOR3D,
+	PIPE_COLOR3D_NOZWRITE,
 	PIPE_COUNT
 };
 
@@ -121,6 +123,10 @@ struct VulkanGlobals
 	uint32 tempVertexCapacity;
 	uint16 *tempIndices;
 	uint32 tempIndexCapacity;
+	VkPipeline currentPipeline;
+	VkDescriptorSet currentDescriptorSet;
+	PipelineKind currentDescriptorSetKind;
+	bool renderStateSet[GSALPHATESTREF+1];
 };
 
 static VulkanGlobals vkGlobals;
@@ -553,6 +559,9 @@ convertRasterToRGBA(Raster *raster, uint8 *dst)
 				dst[1] = (uint8)(((p >> 6) & 0x1F) * 255 / 31);
 				dst[2] = (uint8)(((p >> 1) & 0x1F) * 255 / 31);
 				dst[3] = (p & 1) ? 255 : 0;
+				dst[1] = (uint8)(((p >> 5) & 0x1F) * 255 / 31);
+				dst[2] = (uint8)((p & 0x1F) * 255 / 31);
+				dst[3] = (p & 0x8000) ? 255 : 0;
 				break;
 			}
 			src += 2;
@@ -724,7 +733,9 @@ colorToFloat(float *dst, const RGBA &color)
 static uint32
 getRenderStateUInt(int32 state, uint32 fallback)
 {
-	if(state < 0 || state > GSALPHATESTREF || vkGlobals.renderStates[state] == nil)
+	if(state < 0 || state > GSALPHATESTREF)
+		return fallback;
+	if(!vkGlobals.renderStateSet[state])
 		return fallback;
 	return (uint32)(uintptr)vkGlobals.renderStates[state];
 }
@@ -773,18 +784,21 @@ makeAlphaRef(float *dst, bool32 enable)
 	dst[3] = 0.0f;
 }
 
+static void setRenderState(int32 state, void *value);
+
 static void
 resetRenderState(void)
 {
 	memset(vkGlobals.renderStates, 0, sizeof(vkGlobals.renderStates));
-	vkGlobals.renderStates[SRCBLEND] = (void*)(uintptr)BLENDSRCALPHA;
-	vkGlobals.renderStates[DESTBLEND] = (void*)(uintptr)BLENDINVSRCALPHA;
-	vkGlobals.renderStates[ZTESTENABLE] = (void*)(uintptr)1;
-	vkGlobals.renderStates[ZWRITEENABLE] = (void*)(uintptr)1;
-	vkGlobals.renderStates[CULLMODE] = (void*)(uintptr)CULLNONE;
-	vkGlobals.renderStates[ALPHATESTFUNC] = (void*)(uintptr)ALPHAGREATEREQUAL;
-	vkGlobals.renderStates[ALPHATESTREF] = (void*)(uintptr)10;
-	vkGlobals.renderStates[GSALPHATESTREF] = (void*)(uintptr)128;
+	memset(vkGlobals.renderStateSet, 0, sizeof(vkGlobals.renderStateSet));
+	setRenderState(SRCBLEND, (void*)(uintptr)BLENDSRCALPHA);
+	setRenderState(DESTBLEND, (void*)(uintptr)BLENDINVSRCALPHA);
+	setRenderState(ZTESTENABLE, (void*)(uintptr)1);
+	setRenderState(ZWRITEENABLE, (void*)(uintptr)1);
+	setRenderState(CULLMODE, (void*)(uintptr)CULLNONE);
+	setRenderState(ALPHATESTFUNC, (void*)(uintptr)ALPHAGREATEREQUAL);
+	setRenderState(ALPHATESTREF, (void*)(uintptr)10);
+	setRenderState(GSALPHATESTREF, (void*)(uintptr)128);
 }
 
 static BlendPipelineMode
@@ -931,7 +945,7 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	VkPipelineDepthStencilStateCreateInfo depthStencil;
 	memset(&depthStencil, 0, sizeof(depthStencil));
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencil.depthTestEnable = kind == PIPE_COLOR3D ? VK_TRUE : VK_FALSE;
+	depthStencil.depthTestEnable = (kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZWRITE || kind == PIPE_IM2D_ZTEST) ? VK_TRUE : VK_FALSE;
 	depthStencil.depthWriteEnable = kind == PIPE_COLOR3D ? VK_TRUE : VK_FALSE;
 	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 	depthStencil.depthBoundsTestEnable = VK_FALSE;
@@ -1008,7 +1022,9 @@ static bool32
 createDrawPipelines(void)
 {
 	if(!createPipelineLayout(PIPE_IM2D, sizeof(Im2DPushConstants)) ||
-	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)))
+	   !createPipelineLayout(PIPE_IM2D_ZTEST, sizeof(Im2DPushConstants)) ||
+	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)) ||
+	   !createPipelineLayout(PIPE_COLOR3D_NOZWRITE, sizeof(Color3DPushConstants)))
 		return 0;
 
 	VkVertexInputBindingDescription im2dBinding;
@@ -1065,7 +1081,15 @@ createDrawPipelines(void)
 			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
 			      &im2dBinding, im2dAttribs, 3))
 				return 0;
+			if(!createGraphicsPipeline(PIPE_IM2D_ZTEST, (BlendPipelineMode)b, prims[i],
+			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      &im2dBinding, im2dAttribs, 3))
+				return 0;
 			if(!createGraphicsPipeline(PIPE_COLOR3D, (BlendPipelineMode)b, prims[i],
+			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
+			      &color3dBinding, color3dAttribs, 4))
+				return 0;
+			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZWRITE, (BlendPipelineMode)b, prims[i],
 			      color3d_vert_spv, color3d_vert_spv_size, color3d_frag_spv, color3d_frag_spv_size,
 			      &color3dBinding, color3dAttribs, 4))
 				return 0;
@@ -1900,6 +1924,9 @@ beginFrame(void)
 	if(ctx->frameStarted)
 		return 1;
 
+	vkGlobals.currentPipeline = VK_NULL_HANDLE;
+	vkGlobals.currentDescriptorSet = VK_NULL_HANDLE;
+
 	vkWaitForFences(ctx->device, 1, &ctx->inFlight[ctx->currentFrame], VK_TRUE, UINT64_MAX);
 	flushPendingTextureUploads();
 
@@ -2077,9 +2104,9 @@ showRaster(Raster*, uint32)
 	presentInfo.pImageIndices = &ctx->currentImage;
 
 	VkResult result = vkQueuePresentKHR(ctx->presentQueue, &presentInfo);
-	if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	if(result == VK_ERROR_OUT_OF_DATE_KHR)
 		recreateSwapchain();
-	else
+	else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		vkOk(result, "vkQueuePresentKHR");
 
 	ctx->currentFrame = (ctx->currentFrame + 1) % 2;
@@ -2097,6 +2124,7 @@ static void setRenderState(int32 state, void *value)
 {
 	if(state >= 0 && state <= GSALPHATESTREF){
 		vkGlobals.renderStates[state] = value;
+		vkGlobals.renderStateSet[state] = 1;
 		if(state == TEXTURERASTER && value && !ensureTextureUploaded((Raster*)value))
 			queueTextureUpload((Raster*)value);
 	}
@@ -2130,9 +2158,13 @@ bindTextureSet(PipelineKind kind, VkDescriptorSet set)
 	Context *ctx = &vkGlobals.context;
 	if(set == VK_NULL_HANDLE)
 		set = vkGlobals.whiteDescriptorSet;
-	vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentImage],
-		VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[kind],
-		0, 1, &set, 0, nil);
+	if(vkGlobals.currentDescriptorSet != set || vkGlobals.currentDescriptorSetKind != kind){
+		vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[kind],
+			0, 1, &set, 0, nil);
+		vkGlobals.currentDescriptorSet = set;
+		vkGlobals.currentDescriptorSetKind = kind;
+	}
 }
 
 static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
@@ -2157,7 +2189,8 @@ im2DRenderTriangle(void *vertices, int32, int32 vert1, int32 vert2, int32 vert3)
 static void
 im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 {
-	if(!validDrawState(PIPE_IM2D, primType) || numVertices <= 0)
+	PipelineKind k = getRenderStateUInt(ZTESTENABLE, 1) ? PIPE_IM2D_ZTEST : PIPE_IM2D;
+	if(!validDrawState(k, primType) || numVertices <= 0)
 		return;
 
 	Context *ctx = &vkGlobals.context;
@@ -2176,8 +2209,12 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 			vertexAlpha = 1;
 	bool32 alpha = vertexAlpha || rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0);
 
-	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_IM2D, primType, alpha));
+	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+	if(vkGlobals.currentPipeline != pipeline){
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		vkGlobals.currentPipeline = pipeline;
+	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
 	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
@@ -2193,16 +2230,17 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	RGBA white = { 255, 255, 255, 255 };
 	colorToFloat(pc.matColor, white);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_IM2D],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-	bindTextureSet(PIPE_IM2D, getTextureDescriptor(textureRaster));
+	bindTextureSet(k, getTextureDescriptor(textureRaster));
 	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
 }
 
 static void
 im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices)
 {
-	if(!validDrawState(PIPE_IM2D, primType) || numVertices <= 0 || numIndices <= 0)
+	PipelineKind k = getRenderStateUInt(ZTESTENABLE, 1) ? PIPE_IM2D_ZTEST : PIPE_IM2D;
+	if(!validDrawState(k, primType) || numVertices <= 0 || numIndices <= 0)
 		return;
 
 	Context *ctx = &vkGlobals.context;
@@ -2225,8 +2263,12 @@ im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVert
 			vertexAlpha = 1;
 	bool32 alpha = vertexAlpha || rasterHasAlpha(textureRaster) || getRenderStateUInt(VERTEXALPHA, 0);
 
-	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_IM2D, primType, alpha));
+	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+	if(vkGlobals.currentPipeline != pipeline){
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		vkGlobals.currentPipeline = pipeline;
+	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
 	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
@@ -2243,9 +2285,9 @@ im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVert
 	RGBA white = { 255, 255, 255, 255 };
 	colorToFloat(pc.matColor, white);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_IM2D],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-	bindTextureSet(PIPE_IM2D, getTextureDescriptor(textureRaster));
+	bindTextureSet(k, getTextureDescriptor(textureRaster));
 	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
 }
 
@@ -2253,7 +2295,8 @@ static void
 drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
 	Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
 {
-	if(!validDrawState(PIPE_COLOR3D, primType) || numVertices <= 0)
+	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	if(!validDrawState(k, primType) || numVertices <= 0)
 		return;
 	Context *ctx = &vkGlobals.context;
 	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im3DVertex);
@@ -2263,8 +2306,12 @@ drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVert
 		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
 		return;
 
-	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+	if(vkGlobals.currentPipeline != pipeline){
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		vkGlobals.currentPipeline = pipeline;
+	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
 	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
@@ -2273,9 +2320,9 @@ drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVert
 	makeMVP(pc.mvp, world);
 	colorToFloat(pc.matColor, matColor);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-	bindTextureSet(PIPE_COLOR3D, descriptorSet);
+	bindTextureSet(k, descriptorSet);
 	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
 }
 
@@ -2283,7 +2330,8 @@ static void
 drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertices,
 	void *indices, int32 numIndices, Matrix *world, const RGBA &matColor, VkDescriptorSet descriptorSet, bool32 alpha)
 {
-	if(!validDrawState(PIPE_COLOR3D, primType) || numVertices <= 0 || numIndices <= 0)
+	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	if(!validDrawState(k, primType) || numVertices <= 0 || numIndices <= 0)
 		return;
 	Context *ctx = &vkGlobals.context;
 	VkDeviceSize vertexSize = (VkDeviceSize)numVertices * sizeof(Im3DVertex);
@@ -2297,8 +2345,12 @@ drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertic
 		indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 2, &indexOffset))
 		return;
 
-	vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-		VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
+	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+	if(vkGlobals.currentPipeline != pipeline){
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		vkGlobals.currentPipeline = pipeline;
+	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
 	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
@@ -2308,9 +2360,9 @@ drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertic
 	makeMVP(pc.mvp, world);
 	colorToFloat(pc.matColor, matColor);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-	bindTextureSet(PIPE_COLOR3D, descriptorSet);
+	bindTextureSet(k, descriptorSet);
 	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
 }
 
@@ -2390,6 +2442,8 @@ struct SimpleLightSet
 	bool32 enabled;
 	RGBAf ambient;
 	Light *directionals[8];
+	V3d directionalsNormalized[8];
+	RGBAf directionalsColor[8];
 	int32 numDirectionals;
 };
 
@@ -2412,6 +2466,18 @@ collectSimpleLights(Atomic *atomic, SimpleLightSet *lights)
 	lights->ambient = lightData.ambient;
 	lights->numDirectionals = lightData.numDirectionals;
 	lights->enabled = 1;
+
+	// Pre-calculate normalized directions and colors of all directionals
+	for(int32 i = 0; i < lights->numDirectionals; i++){
+		Light *l = lights->directionals[i];
+		V3d dir = l->getFrame()->getLTM()->at;
+		dir.x = -dir.x;
+		dir.y = -dir.y;
+		dir.z = -dir.z;
+		normalizeVector(&dir);
+		lights->directionalsNormalized[i] = dir;
+		lights->directionalsColor[i] = l->color;
+	}
 }
 
 static RGBA
@@ -2428,17 +2494,11 @@ applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, co
 	float b = base.blue / 255.0f + lights->ambient.blue;
 
 	for(int32 i = 0; i < lights->numDirectionals; i++){
-		Light *l = lights->directionals[i];
-		V3d dir = l->getFrame()->getLTM()->at;
-		dir.x = -dir.x;
-		dir.y = -dir.y;
-		dir.z = -dir.z;
-		normalizeVector(&dir);
-		float f = dotVector(n, dir);
+		float f = dotVector(n, lights->directionalsNormalized[i]);
 		if(f > 0.0f){
-			r += f*l->color.red;
-			g += f*l->color.green;
-			b += f*l->color.blue;
+			r += f*lights->directionalsColor[i].red;
+			g += f*lights->directionalsColor[i].green;
+			b += f*lights->directionalsColor[i].blue;
 		}
 	}
 
@@ -2451,6 +2511,7 @@ applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, co
 	out.blue = (uint8)(b*255.0f);
 	return out;
 }
+
 
 static bool32
 ensureTempGeometry(uint32 numVertices, uint32 numIndices)
@@ -2516,7 +2577,8 @@ defaultRenderCB(Atomic *atomic)
 	}
 
 	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
-	if(!validDrawState(PIPE_COLOR3D, primType))
+	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	if(!validDrawState(k, primType))
 		return;
 
 	Context *ctx = &vkGlobals.context;
@@ -2529,6 +2591,10 @@ defaultRenderCB(Atomic *atomic)
 
 	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
 	Mesh *mesh = meshh->getMeshes();
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+
 	for(uint32 i = 0; i < meshh->numMeshes; i++){
 		if(mesh[i].numIndices <= 0)
 			continue;
@@ -2554,20 +2620,21 @@ defaultRenderCB(Atomic *atomic)
 
 		bool32 alpha = vertexAlpha || matColor.alpha != 0xFF ||
 			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-			VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
-		VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
-		VkDeviceSize offsets[] = { vertexOffset };
-		vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+		VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+		if(vkGlobals.currentPipeline != pipeline){
+			vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+				VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkGlobals.currentPipeline = pipeline;
+		}
 		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
 		Color3DPushConstants pc;
 		makeMVP(pc.mvp, world);
 		colorToFloat(pc.matColor, matColor);
 		makeAlphaRef(pc.alphaRef, alpha);
-		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-		bindTextureSet(PIPE_COLOR3D, tex);
+		bindTextureSet(k, tex);
 		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
 	}
 }
@@ -2730,7 +2797,8 @@ skinRenderCB(Atomic *atomic)
 	}
 
 	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
-	if(!validDrawState(PIPE_COLOR3D, primType))
+	PipelineKind k = getRenderStateUInt(ZWRITEENABLE, 1) ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
+	if(!validDrawState(k, primType))
 		return;
 
 	Context *ctx = &vkGlobals.context;
@@ -2743,6 +2811,10 @@ skinRenderCB(Atomic *atomic)
 
 	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
 	Mesh *mesh = meshh->getMeshes();
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize offsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+
 	for(uint32 i = 0; i < meshh->numMeshes; i++){
 		if(mesh[i].numIndices <= 0)
 			continue;
@@ -2768,20 +2840,21 @@ skinRenderCB(Atomic *atomic)
 
 		bool32 alpha = vertexAlpha || matColor.alpha != 0xFF ||
 			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-			VK_PIPELINE_BIND_POINT_GRAPHICS, getDrawPipeline(PIPE_COLOR3D, primType, alpha));
-		VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
-		VkDeviceSize offsets[] = { vertexOffset };
-		vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+		VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+		if(vkGlobals.currentPipeline != pipeline){
+			vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+				VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkGlobals.currentPipeline = pipeline;
+		}
 		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
 		Color3DPushConstants pc;
 		makeMVP(pc.mvp, world);
 		colorToFloat(pc.matColor, matColor);
 		makeAlphaRef(pc.alphaRef, alpha);
-		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[PIPE_COLOR3D],
+		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
 			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
-		bindTextureSet(PIPE_COLOR3D, tex);
+		bindTextureSet(k, tex);
 		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
 	}
 }
