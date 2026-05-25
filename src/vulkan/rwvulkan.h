@@ -48,9 +48,9 @@ struct Context
 	VkFramebuffer *framebuffers;
 	VkCommandPool commandPool;
 	VkCommandBuffer *commandBuffers;
-	VkSemaphore imageAvailable[2];
-	VkSemaphore renderFinished[2];
-	VkFence inFlight[2];
+	VkSemaphore imageAvailable[3];
+	VkSemaphore renderFinished[3];
+	VkFence inFlight[3];
 	uint32 currentFrame;
 	uint32 currentImage;
 	bool32 frameStarted;

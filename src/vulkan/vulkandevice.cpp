@@ -75,7 +75,7 @@ enum BlendPipelineMode
 
 enum {
 	MAX_PRIM_PIPELINES = 7,
-	MAX_FRAMES_IN_FLIGHT = 2,
+	MAX_FRAMES_IN_FLIGHT = 3,
 	MAX_PENDING_TEXTURE_UPLOADS = 4096
 };
 
@@ -555,10 +555,7 @@ convertRasterToRGBA(Raster *raster, uint8 *dst)
 				break;
 			case Raster::C1555:
 			default:
-				dst[0] = (uint8)(((p >> 11) & 0x1F) * 255 / 31);
-				dst[1] = (uint8)(((p >> 6) & 0x1F) * 255 / 31);
-				dst[2] = (uint8)(((p >> 1) & 0x1F) * 255 / 31);
-				dst[3] = (p & 1) ? 255 : 0;
+				dst[0] = (uint8)(((p >> 10) & 0x1F) * 255 / 31);
 				dst[1] = (uint8)(((p >> 5) & 0x1F) * 255 / 31);
 				dst[2] = (uint8)((p & 0x1F) * 255 / 31);
 				dst[3] = (p & 0x8000) ? 255 : 0;
@@ -936,6 +933,9 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_NONE;
 	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = (kind == PIPE_IM2D_ZTEST) ? VK_TRUE : VK_FALSE;
+	rasterizer.depthBiasConstantFactor = (kind == PIPE_IM2D_ZTEST) ? -2.0f : 0.0f;
+	rasterizer.depthBiasSlopeFactor = (kind == PIPE_IM2D_ZTEST) ? -2.0f : 0.0f;
 
 	VkPipelineMultisampleStateCreateInfo multisampling;
 	memset(&multisampling, 0, sizeof(multisampling));
@@ -1178,7 +1178,7 @@ resetContext(Context *ctx)
 	ctx->commandPool = VK_NULL_HANDLE;
 	ctx->graphicsQueueFamily = 0xFFFFFFFF;
 	ctx->presentQueueFamily = 0xFFFFFFFF;
-	for(int i = 0; i < 2; i++){
+	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
 		ctx->imageAvailable[i] = VK_NULL_HANDLE;
 		ctx->renderFinished[i] = VK_NULL_HANDLE;
 		ctx->inFlight[i] = VK_NULL_HANDLE;
@@ -1827,7 +1827,7 @@ createSyncObjects(void)
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	for(int i = 0; i < 2; i++){
+	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
 		if(!vkOk(vkCreateSemaphore(ctx->device, &semInfo, nil, &ctx->imageAvailable[i]), "vkCreateSemaphore") ||
 		   !vkOk(vkCreateSemaphore(ctx->device, &semInfo, nil, &ctx->renderFinished[i]), "vkCreateSemaphore") ||
 		   !vkOk(vkCreateFence(ctx->device, &fenceInfo, nil, &ctx->inFlight[i]), "vkCreateFence"))
@@ -1840,7 +1840,7 @@ static void
 destroySyncObjects(void)
 {
 	Context *ctx = &vkGlobals.context;
-	for(int i = 0; i < 2; i++){
+	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
 		if(ctx->imageAvailable[i] != VK_NULL_HANDLE)
 			vkDestroySemaphore(ctx->device, ctx->imageAvailable[i], nil);
 		if(ctx->renderFinished[i] != VK_NULL_HANDLE)
@@ -2109,7 +2109,7 @@ showRaster(Raster*, uint32)
 	else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		vkOk(result, "vkQueuePresentKHR");
 
-	ctx->currentFrame = (ctx->currentFrame + 1) % 2;
+	ctx->currentFrame = (ctx->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	ctx->frameStarted = 0;
 	vkGlobals.commandReady = 0;
 }
@@ -2440,6 +2440,7 @@ dotVector(const V3d &a, const V3d &b)
 struct SimpleLightSet
 {
 	bool32 enabled;
+	bool32 hasNormals;
 	RGBAf ambient;
 	Light *directionals[8];
 	V3d directionalsNormalized[8];
@@ -2452,9 +2453,14 @@ collectSimpleLights(Atomic *atomic, SimpleLightSet *lights)
 {
 	memset(lights, 0, sizeof(*lights));
 	Geometry *geo = atomic->geometry;
-	if(engine->currentWorld == nil || (geo->flags & Geometry::LIGHT) == 0 ||
-	   (geo->flags & Geometry::NORMALS) == 0)
+	if(engine->currentWorld == nil)
 		return;
+
+	lights->hasNormals = (geo->flags & Geometry::NORMALS) != 0;
+	if((geo->flags & Geometry::LIGHT) == 0){
+		lights->enabled = 0;
+		return;
+	}
 
 	WorldLights lightData;
 	Light *locals[8];
@@ -2485,6 +2491,20 @@ applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, co
 {
 	if(!lights->enabled)
 		return base;
+
+	if(!lights->hasNormals){
+		float r = base.red / 255.0f + lights->ambient.red;
+		float g = base.green / 255.0f + lights->ambient.green;
+		float b = base.blue / 255.0f + lights->ambient.blue;
+		if(r > 1.0f) r = 1.0f;
+		if(g > 1.0f) g = 1.0f;
+		if(b > 1.0f) b = 1.0f;
+		RGBA out = base;
+		out.red = (uint8)(r*255.0f);
+		out.green = (uint8)(g*255.0f);
+		out.blue = (uint8)(b*255.0f);
+		return out;
+	}
 
 	V3d n = transformVector(world, normal);
 	normalizeVector(&n);
