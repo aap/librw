@@ -37,6 +37,7 @@ struct VulkanBuffer
 	VkBuffer buffer;
 	VkDeviceMemory memory;
 	VkDeviceSize capacity;
+	void *mapped;
 };
 
 struct Im2DPushConstants
@@ -157,10 +158,13 @@ destroyBuffer(VulkanBuffer *buffer)
 		return;
 	if(buffer->buffer != VK_NULL_HANDLE)
 		vkDestroyBuffer(ctx->device, buffer->buffer, nil);
+	if(buffer->mapped != nil)
+		vkUnmapMemory(ctx->device, buffer->memory);
 	if(buffer->memory != VK_NULL_HANDLE)
 		vkFreeMemory(ctx->device, buffer->memory, nil);
 	buffer->buffer = VK_NULL_HANDLE;
 	buffer->memory = VK_NULL_HANDLE;
+	buffer->mapped = nil;
 	buffer->capacity = 0;
 }
 
@@ -171,6 +175,7 @@ createBuffer(VulkanBuffer *buffer, VkDeviceSize size, VkBufferUsageFlags usage)
 	memset(buffer, 0, sizeof(*buffer));
 	buffer->buffer = VK_NULL_HANDLE;
 	buffer->memory = VK_NULL_HANDLE;
+	buffer->mapped = nil;
 
 	VkBufferCreateInfo bufferInfo;
 	memset(&bufferInfo, 0, sizeof(bufferInfo));
@@ -198,6 +203,10 @@ createBuffer(VulkanBuffer *buffer, VkDeviceSize size, VkBufferUsageFlags usage)
 		destroyBuffer(buffer);
 		return 0;
 	}
+	if(!vkOk(vkMapMemory(ctx->device, buffer->memory, 0, size, 0, &buffer->mapped), "vkMapMemory")){
+		destroyBuffer(buffer);
+		return 0;
+	}
 	buffer->capacity = size;
 	return 1;
 }
@@ -221,14 +230,9 @@ ensureBuffer(VulkanBuffer *buffer, VkDeviceSize size, VkBufferUsageFlags usage)
 static bool32
 uploadBuffer(VulkanBuffer *buffer, const void *data, VkDeviceSize size, VkBufferUsageFlags usage)
 {
-	Context *ctx = &vkGlobals.context;
 	if(!ensureBuffer(buffer, size, usage))
 		return 0;
-	void *mapped = nil;
-	if(!vkOk(vkMapMemory(ctx->device, buffer->memory, 0, size, 0, &mapped), "vkMapMemory"))
-		return 0;
-	memcpy(mapped, data, (size_t)size);
-	vkUnmapMemory(ctx->device, buffer->memory);
+	memcpy(buffer->mapped, data, (size_t)size);
 	return 1;
 }
 
@@ -242,7 +246,6 @@ static bool32
 uploadDynamicBuffer(VulkanBuffer *buffer, VkDeviceSize *cursor, const void *data,
 	VkDeviceSize size, VkBufferUsageFlags usage, VkDeviceSize alignment, VkDeviceSize *offsetOut)
 {
-	Context *ctx = &vkGlobals.context;
 	VkDeviceSize offset = alignDynamicOffset(*cursor, alignment);
 	VkDeviceSize end = offset + size;
 
@@ -256,11 +259,7 @@ uploadDynamicBuffer(VulkanBuffer *buffer, VkDeviceSize *cursor, const void *data
 			return 0;
 	}
 
-	void *mapped = nil;
-	if(!vkOk(vkMapMemory(ctx->device, buffer->memory, offset, size, 0, &mapped), "vkMapMemory"))
-		return 0;
-	memcpy(mapped, data, (size_t)size);
-	vkUnmapMemory(ctx->device, buffer->memory);
+	memcpy((uint8*)buffer->mapped + offset, data, (size_t)size);
 
 	*offsetOut = offset;
 	*cursor = end;
