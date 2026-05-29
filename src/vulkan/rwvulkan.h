@@ -30,6 +30,17 @@ struct Context
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
+	bool32 rayQuerySupported;
+	bool32 rayQueryEnabled;
+	bool32 accelerationStructureSupported;
+	bool32 bufferDeviceAddressSupported;
+	bool32 deferredHostOperationsSupported;
+	PFN_vkCreateAccelerationStructureKHR createAccelerationStructureKHR;
+	PFN_vkDestroyAccelerationStructureKHR destroyAccelerationStructureKHR;
+	PFN_vkGetAccelerationStructureBuildSizesKHR getAccelerationStructureBuildSizesKHR;
+	PFN_vkCmdBuildAccelerationStructuresKHR cmdBuildAccelerationStructuresKHR;
+	PFN_vkGetAccelerationStructureDeviceAddressKHR getAccelerationStructureDeviceAddressKHR;
+	PFN_vkGetBufferDeviceAddressKHR getBufferDeviceAddressKHR;
 	uint32 graphicsQueueFamily;
 	uint32 presentQueueFamily;
 	VkQueue graphicsQueue;
@@ -50,6 +61,7 @@ struct Context
 	VkFramebuffer *loadFramebuffers;
 	VkCommandPool commandPool;
 	VkCommandBuffer *commandBuffers;
+	VkFence *imagesInFlight;
 	VkSemaphore imageAvailable[3];
 	VkSemaphore renderFinished[3];
 	VkFence inFlight[3];
@@ -67,6 +79,11 @@ VkQueue getGraphicsQueue(void);
 VkQueue getPresentQueue(void);
 uint32 getGraphicsQueueFamily(void);
 uint32 getPresentQueueFamily(void);
+bool32 isRayQueryEnabled(void);
+bool32 isRayTracingEnabled(void);
+void setRayTracingEnabled(bool32 enabled);
+int32 getPresentModePreference(void);
+void setPresentModePreference(int32 preference);
 
 struct Im3DVertex
 {
@@ -138,6 +155,7 @@ struct VulkanRaster
 	VkImageLayout imageLayout;
 	bool32 gpuDirty;
 	bool32 gpuReady;
+	bool32 uploadSubmitted;
 };
 
 struct InstanceData

@@ -471,6 +471,7 @@ createNativeRaster(void *object, int32 offset, int32)
 	ras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	ras->gpuDirty = 1;
 	ras->gpuReady = 0;
+	ras->uploadSubmitted = 0;
 	return object;
 }
 
@@ -500,6 +501,7 @@ copyNativeRaster(void *dst, void *, int32 offset, int32)
 	d->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	d->gpuDirty = 1;
 	d->gpuReady = 0;
+	d->uploadSubmitted = 0;
 	return dst;
 }
 
