@@ -6,7 +6,7 @@
 using namespace sk;
 using namespace rw;
 
-#ifdef RW_OPENGL
+#if defined(RW_OPENGL) || defined(RW_VULKAN)
 
 SDL_Window *window;
 
@@ -220,6 +220,7 @@ main(int argc, char *argv[])
 	engineOpenParams.height = sk::globals.height;
 	engineOpenParams.windowtitle = sk::globals.windowtitle;
 	engineOpenParams.window = &window;
+	engineOpenParams.fullscreen = 0;
 
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
 		return 0;

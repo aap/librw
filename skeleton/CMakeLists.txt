@@ -39,7 +39,7 @@ target_link_libraries(librw_skeleton
         librw
 )
 
-if (LIBRW_GL3_GFXLIB MATCHES "SDL[23]")
+if ((LIBRW_PLATFORM_GL3 AND LIBRW_GL3_GFXLIB MATCHES "SDL[23]") OR LIBRW_PLATFORM_VULKAN)
     target_compile_definitions(librw_skeleton PRIVATE SDL_MAIN_HANDLED)
 endif()
 

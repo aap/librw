@@ -23,3 +23,4 @@
 #include "src/gl/rwgl3.h"
 #include "src/gl/rwgl3shader.h"
 #include "src/gl/rwgl3plg.h"
+#include "src/vulkan/rwvulkan.h"

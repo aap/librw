@@ -549,13 +549,13 @@ rasterUnlock(Raster *raster, int32 level)
 					memcpy(natras->backingStore->levels[level].data, raster->pixels,
 						natras->backingStore->levels[level].size);
 				}
-			}else{
+			} else if(level == 0) {
 				glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 				glTexImage2D(GL_TEXTURE_2D, level, natras->internalFormat,
 					     raster->width, raster->height,
 					     0, natras->format, natras->type, raster->pixels);
 			}
-			if(level == 0 && natras->autogenMipmap)
+			// if(level == 0 && natras->autogenMipmap)
 				glGenerateMipmap(GL_TEXTURE_2D);
 			bindTexture(prev);
 		}

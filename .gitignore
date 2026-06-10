@@ -8,3 +8,8 @@ librw.vcxproj.user
 librw.VC.db
 librw.VC.VC.opendb
 imgui.ini
+/build-android-vulkan-src/_deps
+/build-android-vulkan-src
+/build-android-vulkan
+/build-vulkan-tools
+/build-vulkan
