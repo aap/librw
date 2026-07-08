@@ -1648,7 +1648,7 @@ makeVideoModeList(SDL_DisplayID displayIndex, SDL_DisplayID *displays)
 	SDL_DisplayMode **modes;
 
 	currentMode = SDL_GetCurrentDisplayMode(displays[displayIndex]);
-	modes = SDL_GetFullscreenDisplayModes(displayIndex, &num);
+	modes = SDL_GetFullscreenDisplayModes(displays[displayIndex], &num);
 
 	rwFree(glGlobals.modes);
 	glGlobals.modes = rwNewT(DisplayMode, num+(currentMode != NULL ? 1 : 0), ID_DRIVER | MEMDUR_EVENT);
@@ -1667,6 +1667,7 @@ makeVideoModeList(SDL_DisplayID displayIndex, SDL_DisplayID *displays)
 		// set depth to power of two
 		for(glGlobals.modes[i].depth = 1; glGlobals.modes[i].depth < depth; glGlobals.modes[i].depth <<= 1);
 	}
+
 	SDL_free(modes);
 }
 
@@ -1736,9 +1737,12 @@ startSDL3(void)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, profiles[i].minor);
 
 		if(mode->flags & VIDEOMODEEXCLUSIVE) {
-			win = SDL_CreateWindow(glGlobals.winTitle, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-			if (win)
+			win = SDL_CreateWindow(glGlobals.winTitle, mode->mode.w, mode->mode.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+			// This is the recommended way for SDL3.
+			if (win) {
 				SDL_SetWindowFullscreenMode(win, &mode->mode);
+				SDL_SetWindowFullscreen(win, true);
+			}
 		} else {
 			win = SDL_CreateWindow(glGlobals.winTitle, glGlobals.winWidth, glGlobals.winHeight, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 			if (win)
@@ -2244,7 +2248,7 @@ deviceSystemSDL3(DeviceReq req, void *arg, int32 n)
 		return 1;
 
 	case DEVICEGETVIDEOMODEINFO:
-		if (n <= 0)
+		if (n < 0)
 			return 0;
 		rwmode = (VideoMode*)arg;
 		rwmode->width = glGlobals.modes[n].mode.w;
