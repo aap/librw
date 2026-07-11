@@ -582,7 +582,7 @@ createTextureResources(Raster *raster, bool32 renderTarget)
 	}
 
 	natras->texture = texture;
-	natras->palette = srv;
+	natras->srv = srv;
 	natras->format = desc.Format;
 	natras->bpp = 4;
 	natras->customFormat = 0;
@@ -698,12 +698,12 @@ destroyRaster(Raster *raster)
 	case Raster::TEXTURE:
 		freeLevels((RasterLevels*)natras->lockedSurf);
 		natras->lockedSurf = nil;
-		safeRelease((ID3D11ShaderResourceView*&)natras->palette);
+		safeRelease((ID3D11ShaderResourceView*&)natras->srv);
 		safeRelease((ID3D11Texture2D*&)natras->texture);
 		break;
 	case Raster::CAMERATEXTURE:
 		safeRelease((ID3D11RenderTargetView*&)natras->lockedSurf);
-		safeRelease((ID3D11ShaderResourceView*&)natras->palette);
+		safeRelease((ID3D11ShaderResourceView*&)natras->srv);
 		safeRelease((ID3D11Texture2D*&)natras->texture);
 		break;
 	case Raster::CAMERA:
@@ -712,7 +712,7 @@ destroyRaster(Raster *raster)
 		break;
 	}
 	natras->texture = nil;
-	natras->palette = nil;
+	natras->srv = nil;
 	natras->lockedSurf = nil;
 }
 
@@ -1156,8 +1156,8 @@ applyDrawState(void)
 	Raster *raster = rwStateCache.texstage[0].raster;
 	if(raster){
 		D3dRaster *natras = GETD3DRASTEREXT(raster);
-		if(natras->palette)
-			srv = (ID3D11ShaderResourceView*)natras->palette;
+		if(natras->srv)
+			srv = (ID3D11ShaderResourceView*)natras->srv;
 	}
 	d3d11Globals.context->PSSetShaderResources(0, 1, &srv);
 }

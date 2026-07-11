@@ -281,6 +281,9 @@ struct D3dRaster
 {
 	void *texture;
 	void *palette;
+#ifdef RW_D3D11
+	void *srv;
+#endif
 	void *lockedSurf;
 	uint32 format;
 	uint32 bpp;	// bytes per pixel
