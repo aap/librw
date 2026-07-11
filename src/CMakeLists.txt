@@ -103,6 +103,44 @@ add_library(librw
 )
 add_library(librw::librw ALIAS librw)
 
+if(LIBRW_PLATFORM_D3D11)
+    set(IM3D_D11_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/d3d/shaders")
+    set(IM3D_D11_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    file(MAKE_DIRECTORY "${IM3D_D11_GENERATED_DIR}")
+
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${IM3D_D11_SHADER_DIR}/im3d_VS_d11.hlsl"
+        "${IM3D_D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+    )
+
+    file(READ "${IM3D_D11_SHADER_DIR}/im3d_VS_d11.hlsl" SHADER_SOURCE)
+    set(SHADER_VARIABLE im3d_VS_d11_source)
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+        "${IM3D_D11_GENERATED_DIR}/im3d_VS_d11.h"
+        @ONLY
+    )
+
+    file(READ "${IM3D_D11_SHADER_DIR}/im3d_PS_d11.hlsl" SHADER_SOURCE)
+    set(SHADER_VARIABLE im3d_PS_d11_source)
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+        "${IM3D_D11_GENERATED_DIR}/im3d_PS_d11.h"
+        @ONLY
+    )
+
+    target_sources(librw PRIVATE
+        "${IM3D_D11_SHADER_DIR}/im3d_VS_d11.hlsl"
+        "${IM3D_D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+    )
+    set_source_files_properties(
+        "${IM3D_D11_SHADER_DIR}/im3d_VS_d11.hlsl"
+        "${IM3D_D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+        PROPERTIES HEADER_FILE_ONLY TRUE
+    )
+    target_include_directories(librw PRIVATE "${IM3D_D11_GENERATED_DIR}")
+endif()
+
 target_include_directories(librw
     INTERFACE
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>

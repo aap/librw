@@ -19,6 +19,8 @@
 #include "rwd3d.h"
 #include "rwd3d11.h"
 #include "rwd3dimpl.h"
+#include "im3d_VS_d11.h"
+#include "im3d_PS_d11.h"
 
 #define PLUGIN_ID 0
 
@@ -77,6 +79,13 @@ struct Im2DConstants
 	float xform[4];
 };
 
+struct Im3DConstants
+{
+	float combined[16];
+	float world[16];
+	float normal[16];
+};
+
 static DynamicVB *dynamicVBs;
 static DynamicIB *dynamicIBs;
 static RwStateCache rwStateCache;
@@ -94,6 +103,19 @@ static ID3D11Buffer *im2dVertexBuffer;
 static ID3D11Buffer *im2dIndexBuffer;
 static uint32 im2dVertexBufferSize;
 static uint32 im2dIndexBufferSize;
+
+static ID3D11VertexShader *im3dVS;
+static ID3D11PixelShader *im3dPS;
+static ID3D11InputLayout *im3dLayout;
+static ID3D11Buffer *im3dConstantBuffer;
+static ID3D11Buffer *im3dVertexBuffer;
+static ID3D11Buffer *im3dIndexBuffer;
+static const uint32 im3dMaxVertices = 10000;
+static const uint32 im3dMaxIndices = 10000;
+static int32 num3DVertices;
+static void *default_amb_VS;
+static void *default_amb_dir_VS;
+static void *default_all_VS;
 
 static ID3D11Texture2D *whiteTexture;
 static ID3D11ShaderResourceView *whiteSRV;
@@ -129,6 +151,11 @@ static void setRwRenderState(int32 state, void *value);
 static void *getRwRenderState(int32 state);
 static bool32 openIm2D(void);
 static void closeIm2D(void);
+static bool32 openIm3D(void);
+static void closeIm3D(void);
+static void uploadMatrices(void);
+static void uploadMatrices(Matrix *world);
+static void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
 static void im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2);
 static void im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3);
 static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
@@ -495,12 +522,17 @@ initD3D11(void)
 	resetRenderState();
 	if(!openIm2D())
 		return 0;
+	if(!openIm3D()){
+		closeIm2D();
+		return 0;
+	}
 	return 1;
 }
 
 static int
 termD3D11(void)
 {
+	closeIm3D();
 	closeIm2D();
 	releaseDefaultViews();
 	if(d3d11Globals.context){
@@ -1270,6 +1302,50 @@ setViewport(Raster *fb)
 static void
 beginUpdate(Camera *cam)
 {
+	float view[16], proj[16];
+	Matrix inv;
+	Matrix::invert(&inv, cam->getFrame()->getLTM());
+
+	view[0]  = -inv.right.x;
+	view[1]  =  inv.right.y;
+	view[2]  =  inv.right.z;
+	view[3]  =  0.0f;
+	view[4]  = -inv.up.x;
+	view[5]  =  inv.up.y;
+	view[6]  =  inv.up.z;
+	view[7]  =  0.0f;
+	view[8]  = -inv.at.x;
+	view[9]  =  inv.at.y;
+	view[10] =  inv.at.z;
+	view[11] =  0.0f;
+	view[12] = -inv.pos.x;
+	view[13] =  inv.pos.y;
+	view[14] =  inv.pos.z;
+	view[15] =  1.0f;
+	memcpy(&cam->devView, view, sizeof(RawMatrix));
+
+	float32 invwx = 1.0f/cam->viewWindow.x;
+	float32 invwy = 1.0f/cam->viewWindow.y;
+	float32 invz = 1.0f/(cam->farPlane - cam->nearPlane);
+	memset(proj, 0, sizeof(proj));
+	proj[0] = invwx;
+	proj[5] = invwy;
+	proj[8] = cam->viewOffset.x*invwx;
+	proj[9] = cam->viewOffset.y*invwy;
+	proj[12] = -proj[8];
+	proj[13] = -proj[9];
+	if(cam->projection == Camera::PERSPECTIVE){
+		proj[10] = cam->farPlane*invz;
+		proj[11] = 1.0f;
+		proj[15] = 0.0f;
+	}else{
+		proj[10] = invz;
+		proj[11] = 0.0f;
+		proj[15] = 1.0f;
+	}
+	proj[14] = -cam->nearPlane*proj[10];
+	memcpy(&cam->devProj, proj, sizeof(RawMatrix));
+
 	ensureSwapChainSize();
 	setRenderSurfaces(cam);
 	setViewport(cam->frameBuffer);
@@ -1531,6 +1607,163 @@ closeIm2D(void)
 	im2dIndexBufferSize = 0;
 }
 
+static bool32
+openIm3D(void)
+{
+	D3D11_INPUT_ELEMENT_DESC elements[] = {
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Im3DVertex, position), D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offsetof(Im3DVertex, normal),   D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR",    0, DXGI_FORMAT_R8G8B8A8_UNORM,  0, offsetof(Im3DVertex, color),    D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,     0, offsetof(Im3DVertex, u),        D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+	D3D11_BUFFER_DESC desc;
+
+	ID3DBlob *vsBlob = compileShader(im3d_VS_d11_source, "main", "vs_4_0");
+	ID3DBlob *psBlob = compileShader(im3d_PS_d11_source, "main", "ps_4_0");
+	if(vsBlob == nil || psBlob == nil)
+		goto fail;
+
+	if(FAILED(d3d11Globals.device->CreateVertexShader(vsBlob->GetBufferPointer(),
+		vsBlob->GetBufferSize(), nil, &im3dVS)))
+		goto fail;
+	if(FAILED(d3d11Globals.device->CreatePixelShader(psBlob->GetBufferPointer(),
+		psBlob->GetBufferSize(), nil, &im3dPS)))
+		goto fail;
+	default_amb_VS = im3dVS;
+	default_amb_dir_VS = im3dVS;
+	default_all_VS = im3dVS;
+	d3d11Globals.numVertexShaders++;
+	d3d11Globals.numPixelShaders++;
+
+	if(FAILED(d3d11Globals.device->CreateInputLayout(elements, nelem(elements),
+		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &im3dLayout)))
+		goto fail;
+	d3d11Globals.numInputLayouts++;
+
+	memset(&desc, 0, sizeof(desc));
+	desc.ByteWidth = sizeof(Im3DConstants);
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dConstantBuffer)))
+		goto fail;
+
+	memset(&desc, 0, sizeof(desc));
+	desc.ByteWidth = im3dMaxVertices*sizeof(Im3DVertex);
+	desc.Usage = D3D11_USAGE_DYNAMIC;
+	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dVertexBuffer)))
+		goto fail;
+
+	desc.ByteWidth = im3dMaxIndices*sizeof(uint16);
+	desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dIndexBuffer)))
+		goto fail;
+
+	vsBlob->Release();
+	psBlob->Release();
+	return 1;
+
+fail:
+	if(vsBlob) vsBlob->Release();
+	if(psBlob) psBlob->Release();
+	closeIm3D();
+	return 0;
+}
+
+static void
+closeIm3D(void)
+{
+	default_amb_VS = nil;
+	default_amb_dir_VS = nil;
+	default_all_VS = nil;
+	safeRelease(im3dIndexBuffer);
+	safeRelease(im3dVertexBuffer);
+	safeRelease(im3dConstantBuffer);
+	safeRelease(im3dLayout);
+	safeRelease(im3dPS);
+	safeRelease(im3dVS);
+	num3DVertices = 0;
+}
+
+static void
+uploadMatrices(void)
+{
+	RawMatrix combined, identity;
+	Camera *cam = engine->currentCamera;
+	RawMatrix::setIdentity(&identity);
+	RawMatrix::mult(&combined, &cam->devView, &cam->devProj);
+
+	Im3DConstants constants;
+	memcpy(constants.combined, &combined, sizeof(combined));
+	memcpy(constants.world, &identity, sizeof(identity));
+	memcpy(constants.normal, &identity, sizeof(identity));
+	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
+		&constants, 0, 0);
+	d3d11Globals.context->VSSetConstantBuffers(0, 1, &im3dConstantBuffer);
+}
+
+static void
+uploadMatrices(Matrix *world)
+{
+	RawMatrix combined, worldMatrix, worldView;
+	Camera *cam = engine->currentCamera;
+	convMatrix(&worldMatrix, world);
+	RawMatrix::mult(&worldView, &worldMatrix, &cam->devView);
+	RawMatrix::mult(&combined, &worldView, &cam->devProj);
+
+	Im3DConstants constants;
+	memcpy(constants.combined, &combined, sizeof(combined));
+	memcpy(constants.world, &worldMatrix, sizeof(worldMatrix));
+	// TODO: use the inverse transpose of worldMatrix for normals.
+	memcpy(constants.normal, &worldMatrix, sizeof(worldMatrix));
+	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
+		&constants, 0, 0);
+	d3d11Globals.context->VSSetConstantBuffers(0, 1, &im3dConstantBuffer);
+}
+
+static void
+im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
+{
+	Camera *cam = engine->currentCamera;
+	if(cam == nil || vertices == nil || numVertices <= 0 ||
+	   (uint32)numVertices > im3dMaxVertices)
+		return;
+
+	if(world == nil)
+		uploadMatrices();
+	else
+		uploadMatrices(world);
+
+	if((flags & im3d::VERTEXUV) == 0)
+		SetRenderStatePtr(TEXTURERASTER, nil);
+
+	void *shader = default_amb_VS;
+	if(flags & im3d::LIGHTING){
+		// TODO: upload lights and select the matching D3D11 vertex shader.
+		shader = default_amb_VS;
+	}else{
+		// TODO: upload the unlit material constants.
+	}
+
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	if(FAILED(d3d11Globals.context->Map(im3dVertexBuffer, 0,
+		D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+		return;
+	memcpy(mapped.pData, vertices, numVertices*sizeof(Im3DVertex));
+	d3d11Globals.context->Unmap(im3dVertexBuffer, 0);
+
+	UINT stride = sizeof(Im3DVertex);
+	UINT offset = 0;
+
+	d3d11Globals.context->IASetVertexBuffers(0, 1, &im3dVertexBuffer,
+		&stride, &offset);
+	d3d11Globals.context->IASetInputLayout(im3dLayout);
+	d3d11Globals.context->VSSetShader((ID3D11VertexShader*)shader, nil, 0);
+
+	num3DVertices = numVertices;
+}
+
 static void
 im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2)
 {
@@ -1650,7 +1883,7 @@ Device renderdevice = {
 	d3d11::im2DRenderTriangle,
 	d3d11::im2DRenderPrimitive,
 	d3d11::im2DRenderIndexedPrimitive,
-	null::im3DTransform,
+	d3d11::im3DTransform,
 	null::im3DRenderPrimitive,
 	null::im3DRenderIndexedPrimitive,
 	null::im3DEnd,
