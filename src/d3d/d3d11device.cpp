@@ -116,6 +116,8 @@ static int32 num3DVertices;
 static void *default_amb_VS;
 static void *default_amb_dir_VS;
 static void *default_all_VS;
+static void *default_PS;
+static void *default_tex_PS;
 
 static ID3D11Texture2D *whiteTexture;
 static ID3D11ShaderResourceView *whiteSRV;
@@ -156,6 +158,7 @@ static void closeIm3D(void);
 static void uploadMatrices(void);
 static void uploadMatrices(Matrix *world);
 static void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
+static void im3DRenderPrimitive(PrimitiveType primType);
 static void im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2);
 static void im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3);
 static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
@@ -1143,6 +1146,7 @@ applyRasterizerState(void)
 	D3D11_RASTERIZER_DESC desc;
 	memset(&desc, 0, sizeof(desc));
 	desc.FillMode = D3D11_FILL_SOLID;
+	desc.FrontCounterClockwise = TRUE;
 	switch(rwStateCache.cullmode){
 	case CULLBACK: desc.CullMode = D3D11_CULL_BACK; break;
 	case CULLFRONT: desc.CullMode = D3D11_CULL_FRONT; break;
@@ -1632,6 +1636,8 @@ openIm3D(void)
 	default_amb_VS = im3dVS;
 	default_amb_dir_VS = im3dVS;
 	default_all_VS = im3dVS;
+	default_PS = im3dPS;
+	default_tex_PS = im3dPS;
 	d3d11Globals.numVertexShaders++;
 	d3d11Globals.numPixelShaders++;
 
@@ -1677,6 +1683,8 @@ closeIm3D(void)
 	default_amb_VS = nil;
 	default_amb_dir_VS = nil;
 	default_all_VS = nil;
+	default_PS = nil;
+	default_tex_PS = nil;
 	safeRelease(im3dIndexBuffer);
 	safeRelease(im3dVertexBuffer);
 	safeRelease(im3dConstantBuffer);
@@ -1762,6 +1770,28 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	d3d11Globals.context->VSSetShader((ID3D11VertexShader*)shader, nil, 0);
 
 	num3DVertices = numVertices;
+}
+
+static void
+im3DRenderPrimitive(PrimitiveType primType)
+{
+	if(num3DVertices <= 0)
+		return;
+
+	D3D11_PRIMITIVE_TOPOLOGY topology = primitiveTypeToTopology(primType);
+	if(topology == D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
+		return;
+
+	void *shader;
+	if(engine->device.getRenderState(TEXTURERASTER))
+		shader = default_tex_PS;
+	else
+		shader = default_PS;
+
+	applyDrawState();
+	d3d11Globals.context->PSSetShader((ID3D11PixelShader*)shader, nil, 0);
+	d3d11Globals.context->IASetPrimitiveTopology(topology);
+	d3d11Globals.context->Draw(num3DVertices, 0);
 }
 
 static void
@@ -1884,7 +1914,7 @@ Device renderdevice = {
 	d3d11::im2DRenderPrimitive,
 	d3d11::im2DRenderIndexedPrimitive,
 	d3d11::im3DTransform,
-	null::im3DRenderPrimitive,
+	d3d11::im3DRenderPrimitive,
 	null::im3DRenderIndexedPrimitive,
 	null::im3DEnd,
 	d3d11::deviceSystem

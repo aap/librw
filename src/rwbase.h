@@ -29,7 +29,6 @@
 
 #ifdef RW_D3D11
 #define RWDEVICE d3d
-#define RWHALFPIXEL
 #endif
 
 #ifdef RW_D3D8
