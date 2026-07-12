@@ -15,10 +15,13 @@
 #ifdef RW_D3D11
 
 #include <d3dcompiler.h>
+#include <d3d11_1.h>
 
 #include "rwd3d.h"
 #include "rwd3d11.h"
 #include "rwd3dimpl.h"
+#include "im2d_VS_d11.h"
+#include "im2d_PS_d11.h"
 #include "im3d_VS_d11.h"
 #include "im3d_PS_d11.h"
 
@@ -64,6 +67,8 @@ struct RwStateCache
 {
 	bool32 vertexAlpha;
 	bool32 textureAlpha;
+	uint32 alphaFunc;
+	uint32 alphaRef;
 	uint32 srcblend;
 	uint32 destblend;
 	uint32 zwrite;
@@ -86,6 +91,15 @@ struct Im3DConstants
 	float normal[16];
 };
 
+struct AlphaTestConstants
+{
+	// D3D11 has no fixed-function alpha test, unlike D3D9.
+	uint32 enabled;
+	uint32 function;
+	float reference;
+	float padding;
+};
+
 static DynamicVB *dynamicVBs;
 static DynamicIB *dynamicIBs;
 static RwStateCache rwStateCache;
@@ -94,6 +108,8 @@ static ID3D11BlendState *blendState;
 static ID3D11DepthStencilState *depthStencilState;
 static ID3D11RasterizerState *rasterizerState;
 static ID3D11SamplerState *samplerState;
+static ID3D11Buffer *alphaTestConstantBuffer;
+static ID3D11DeviceContext1 *context1;
 
 static ID3D11VertexShader *im2dVS;
 static ID3D11PixelShader *im2dPS;
@@ -126,6 +142,7 @@ static bool32 blendDirty;
 static bool32 depthDirty;
 static bool32 rasterizerDirty;
 static bool32 samplerDirty;
+static bool32 alphaTestDirty;
 
 static int findFormatDepth11(DXGI_FORMAT format);
 static void initDefaultMode(void);
@@ -159,6 +176,8 @@ static void uploadMatrices(void);
 static void uploadMatrices(Matrix *world);
 static void im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags);
 static void im3DRenderPrimitive(PrimitiveType primType);
+static void im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices);
+static void im3DEnd(void);
 static void im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32 vert2);
 static void im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3);
 static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
@@ -482,6 +501,8 @@ startD3D11(void)
 		RWERROR((ERR_GENERAL, "D3D11CreateDevice() failed"));
 		return 0;
 	}
+	d3d11Globals.context->QueryInterface(__uuidof(ID3D11DeviceContext1),
+		(void**)&context1);
 
 	d3d11Globals.present.BufferDesc.Width = width;
 	d3d11Globals.present.BufferDesc.Height = height;
@@ -543,6 +564,7 @@ termD3D11(void)
 		d3d11Globals.context->Flush();
 	}
 	safeRelease(d3d11Globals.swapChain);
+	safeRelease(context1);
 	safeRelease(d3d11Globals.context);
 	safeRelease(d3d11Globals.device);
 	return 1;
@@ -1021,6 +1043,7 @@ setRasterStage(Raster *raster)
 	if(rwStateCache.textureAlpha != alpha){
 		rwStateCache.textureAlpha = alpha;
 		blendDirty = 1;
+		alphaTestDirty = 1;
 	}
 }
 
@@ -1030,6 +1053,7 @@ setVertexAlpha(bool32 enable)
 	if(rwStateCache.vertexAlpha != enable){
 		rwStateCache.vertexAlpha = enable;
 		blendDirty = 1;
+		alphaTestDirty = 1;
 	}
 }
 
@@ -1084,6 +1108,8 @@ resetRenderState(void)
 	memset(&rwStateCache, 0, sizeof(rwStateCache));
 	rwStateCache.srcblend = BLENDSRCALPHA;
 	rwStateCache.destblend = BLENDINVSRCALPHA;
+	rwStateCache.alphaFunc = ALPHAGREATEREQUAL;
+	rwStateCache.alphaRef = 10;
 	rwStateCache.zwrite = 1;
 	rwStateCache.ztest = 1;
 	rwStateCache.cullmode = CULLNONE;
@@ -1095,6 +1121,7 @@ resetRenderState(void)
 	depthDirty = 1;
 	rasterizerDirty = 1;
 	samplerDirty = 1;
+	alphaTestDirty = 1;
 }
 
 static void
@@ -1181,12 +1208,29 @@ applySamplerState(void)
 }
 
 static void
+applyAlphaTestState(void)
+{
+	if(!alphaTestDirty || alphaTestConstantBuffer == nil)
+		return;
+	AlphaTestConstants constants;
+	constants.enabled = rwStateCache.vertexAlpha || rwStateCache.textureAlpha;
+	constants.function = rwStateCache.alphaFunc;
+	constants.reference = rwStateCache.alphaRef / 255.0f;
+	constants.padding = 0.0f;
+	d3d11Globals.context->UpdateSubresource(alphaTestConstantBuffer, 0, nil,
+		&constants, 0, 0);
+	d3d11Globals.context->PSSetConstantBuffers(1, 1, &alphaTestConstantBuffer);
+	alphaTestDirty = 0;
+}
+
+static void
 applyDrawState(void)
 {
 	applyBlendState();
 	applyDepthState();
 	applyRasterizerState();
 	applySamplerState();
+	applyAlphaTestState();
 
 	ID3D11ShaderResourceView *srv = whiteSRV;
 	Raster *raster = rwStateCache.texstage[0].raster;
@@ -1222,6 +1266,18 @@ setRwRenderState(int32 state, void *pvalue)
 		break;
 	case ZTESTENABLE: setDepthTest(value != 0); break;
 	case ZWRITEENABLE: setDepthWrite(value != 0); break;
+	case ALPHATESTFUNC:
+		if(rwStateCache.alphaFunc != value){
+			rwStateCache.alphaFunc = value;
+			alphaTestDirty = 1;
+		}
+		break;
+	case ALPHATESTREF:
+		if(rwStateCache.alphaRef != value){
+			rwStateCache.alphaRef = value;
+			alphaTestDirty = 1;
+		}
+		break;
 	case CULLMODE:
 		rwStateCache.cullmode = value;
 		rasterizerDirty = 1;
@@ -1259,6 +1315,8 @@ getRwRenderState(int32 state)
 	case DESTBLEND: val = rwStateCache.destblend; break;
 	case ZTESTENABLE: val = rwStateCache.ztest; break;
 	case ZWRITEENABLE: val = rwStateCache.zwrite; break;
+	case ALPHATESTFUNC: val = rwStateCache.alphaFunc; break;
+	case ALPHATESTREF: val = rwStateCache.alphaRef; break;
 	case CULLMODE: val = rwStateCache.cullmode; break;
 	case FOGENABLE: val = rwStateCache.fogenable; break;
 	case FOGCOLOR:
@@ -1375,7 +1433,8 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		c[2] = col->blue / 255.0f;
 		c[3] = col->alpha / 255.0f;
 		ID3D11RenderTargetView *rtv = d3d11Globals.defaultRenderTarget;
-		Raster *fbuf = cam->frameBuffer;
+		Raster *targetRaster = cam->frameBuffer;
+		Raster *fbuf = targetRaster;
 		if(fbuf && fbuf->parent)
 			fbuf = fbuf->parent;
 		if(fbuf && fbuf->type == Raster::CAMERATEXTURE){
@@ -1383,7 +1442,18 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 			if(natras->lockedSurf)
 				rtv = (ID3D11RenderTargetView*)natras->lockedSurf;
 		}
-		d3d11Globals.context->ClearRenderTargetView(rtv, c);
+		if(targetRaster && (targetRaster->flags & Raster::DONTALLOCATE)){
+			D3D11_RECT rect;
+			rect.left = targetRaster->offsetX;
+			rect.top = targetRaster->offsetY;
+			rect.right = rect.left + targetRaster->width;
+			rect.bottom = rect.top + targetRaster->height;
+			if(context1){
+				context1->ClearView(rtv, c, &rect, 1);
+			}else
+				d3d11Globals.context->ClearRenderTargetView(rtv, c);
+		}else
+			d3d11Globals.context->ClearRenderTargetView(rtv, c);
 	}
 	if((mode & (Camera::CLEARZ | Camera::CLEARSTENCIL)) && d3d11Globals.defaultDepthStencilView){
 		UINT flags = 0;
@@ -1509,32 +1579,8 @@ prepareIm2DCommon(void)
 static bool32
 openIm2D(void)
 {
-	static const char *vsSource =
-		"cbuffer Im2DConstants : register(b0) { float4 xform; };\n"
-		"struct VSIn { float4 pos : POSITION; float4 color : COLOR0; float2 tex : TEXCOORD0; };\n"
-		"struct VSOut { float4 pos : SV_POSITION; float4 color : COLOR0; float2 tex : TEXCOORD0; };\n"
-		"VSOut main(VSIn input){\n"
-		"  VSOut output;\n"
-		"  float z = input.pos.w;\n"
-		"  float4 p = input.pos;\n"
-		"  p.xy = p.xy * xform.xy + xform.zw;\n"
-		"  p.xyz *= z;\n"
-		"  p.w = z;\n"
-		"  output.pos = p;\n"
-		"  output.color = float4(input.color.z, input.color.y, input.color.x, input.color.w);\n"
-		"  output.tex = input.tex;\n"
-		"  return output;\n"
-		"}\n";
-	static const char *psSource =
-		"Texture2D tex0 : register(t0);\n"
-		"SamplerState samp0 : register(s0);\n"
-		"struct PSIn { float4 pos : SV_POSITION; float4 color : COLOR0; float2 tex : TEXCOORD0; };\n"
-		"float4 main(PSIn input) : SV_Target {\n"
-		"  return input.color * tex0.Sample(samp0, input.tex);\n"
-		"}\n";
-
-	ID3DBlob *vsBlob = compileShader(vsSource, "main", "vs_4_0");
-	ID3DBlob *psBlob = compileShader(psSource, "main", "ps_4_0");
+	ID3DBlob *vsBlob = compileShader(im2d_VS_d11_source, "main", "vs_4_0");
+	ID3DBlob *psBlob = compileShader(im2d_PS_d11_source, "main", "ps_4_0");
 	if(vsBlob == nil || psBlob == nil){
 		if(vsBlob) vsBlob->Release();
 		if(psBlob) psBlob->Release();
@@ -1576,6 +1622,9 @@ openIm2D(void)
 	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if(FAILED(d3d11Globals.device->CreateBuffer(&cbd, nil, &im2dConstantBuffer)))
 		return 0;
+	cbd.ByteWidth = sizeof(AlphaTestConstants);
+	if(FAILED(d3d11Globals.device->CreateBuffer(&cbd, nil, &alphaTestConstantBuffer)))
+		return 0;
 
 	uint8 whitePixel[4] = { 255, 255, 255, 255 };
 	D3D11_TEXTURE2D_DESC td;
@@ -1604,6 +1653,7 @@ closeIm2D(void)
 	safeRelease(im2dIndexBuffer);
 	safeRelease(im2dVertexBuffer);
 	safeRelease(im2dConstantBuffer);
+	safeRelease(alphaTestConstantBuffer);
 	safeRelease(im2dLayout);
 	safeRelease(im2dPS);
 	safeRelease(im2dVS);
@@ -1777,6 +1827,22 @@ im3DRenderPrimitive(PrimitiveType primType)
 {
 	if(num3DVertices <= 0)
 		return;
+	if(primType == PRIMTYPETRIFAN){
+		if(num3DVertices < 3)
+			return;
+		int32 numIndices = (num3DVertices-2)*3;
+		if((uint32)numIndices > im3dMaxIndices)
+			return;
+		uint16 *indices = rwNewT(uint16, numIndices, MEMDUR_FUNCTION | ID_DRIVER);
+		for(int32 i = 0; i < num3DVertices-2; i++){
+			indices[i*3+0] = 0;
+			indices[i*3+1] = i+1;
+			indices[i*3+2] = i+2;
+		}
+		d3d11::im3DRenderIndexedPrimitive(PRIMTYPETRILIST, indices, numIndices);
+		rwFree(indices);
+		return;
+	}
 
 	D3D11_PRIMITIVE_TOPOLOGY topology = primitiveTypeToTopology(primType);
 	if(topology == D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
@@ -1792,6 +1858,60 @@ im3DRenderPrimitive(PrimitiveType primType)
 	d3d11Globals.context->PSSetShader((ID3D11PixelShader*)shader, nil, 0);
 	d3d11Globals.context->IASetPrimitiveTopology(topology);
 	d3d11Globals.context->Draw(num3DVertices, 0);
+}
+
+static void
+im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndices)
+{
+	if(num3DVertices <= 0 || indices == nil || numIndices <= 0)
+		return;
+	if(primType == PRIMTYPETRIFAN){
+		if(numIndices < 3)
+			return;
+		int32 outCount = (numIndices-2)*3;
+		if((uint32)outCount > im3dMaxIndices)
+			return;
+		uint16 *out = rwNewT(uint16, outCount, MEMDUR_FUNCTION | ID_DRIVER);
+		uint16 *in = (uint16*)indices;
+		for(int32 i = 0; i < numIndices-2; i++){
+			out[i*3+0] = in[0];
+			out[i*3+1] = in[i+1];
+			out[i*3+2] = in[i+2];
+		}
+		d3d11::im3DRenderIndexedPrimitive(PRIMTYPETRILIST, out, outCount);
+		rwFree(out);
+		return;
+	}
+	if((uint32)numIndices > im3dMaxIndices)
+		return;
+
+	D3D11_PRIMITIVE_TOPOLOGY topology = primitiveTypeToTopology(primType);
+	if(topology == D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
+		return;
+
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	if(FAILED(d3d11Globals.context->Map(im3dIndexBuffer, 0,
+		D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+		return;
+	memcpy(mapped.pData, indices, numIndices*sizeof(uint16));
+	d3d11Globals.context->Unmap(im3dIndexBuffer, 0);
+
+	void *shader;
+	if(engine->device.getRenderState(TEXTURERASTER))
+		shader = default_tex_PS;
+	else
+		shader = default_PS;
+
+	applyDrawState();
+	d3d11Globals.context->PSSetShader((ID3D11PixelShader*)shader, nil, 0);
+	d3d11Globals.context->IASetPrimitiveTopology(topology);
+	d3d11Globals.context->IASetIndexBuffer(im3dIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	d3d11Globals.context->DrawIndexed(numIndices, 0, 0);
+}
+
+static void
+im3DEnd(void)
+{
 }
 
 static void
@@ -1915,8 +2035,8 @@ Device renderdevice = {
 	d3d11::im2DRenderIndexedPrimitive,
 	d3d11::im3DTransform,
 	d3d11::im3DRenderPrimitive,
-	null::im3DRenderIndexedPrimitive,
-	null::im3DEnd,
+	d3d11::im3DRenderIndexedPrimitive,
+	d3d11::im3DEnd,
 	d3d11::deviceSystem
 };
 

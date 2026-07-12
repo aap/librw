@@ -13,14 +13,14 @@ cbuffer AlphaTestConstants : register(b1)
     float padding;
 };
 
-struct PSInput
+struct PSIn
 {
     float4 position : SV_POSITION;
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
 };
 
-float4 main(PSInput input) : SV_Target
+float4 main(PSIn input) : SV_Target
 {
     float4 color = input.color * tex0.Sample(samp0, input.texcoord);
     if(alphaEnabled != 0 &&
