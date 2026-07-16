@@ -78,7 +78,7 @@ Rendering a Clump will be render all of its Atomics.
 
 Due to the versatility of librw,
 there are three levels of code:
-Platform indpendent code,
+Platform independent code,
 platform specific code,
 and render device specific code.
 
