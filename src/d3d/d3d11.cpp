@@ -173,7 +173,20 @@ registerNativeDataPlugin(void)
 static InstanceDataHeader*
 instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
 {
-	// TODO: Implement D3D11 mesh instancing
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
+	MeshHeader *meshh = geo->meshHeader;
+	header->platform = PLATFORM_D3D9;
+
+	header->serialNumber = meshh->serialNum;
+	header->numMeshes = meshh->numMeshes;
+	header->primType = meshh->flags == 1 ? D3DPT_TRIANGLESTRIP : D3DPT_TRIANGLELIST;
+	header->useOffsets = 0;
+	header->vertexDeclaration = nil;
+	header->totalNumVertex = geo->numVertices;
+	header->totalNumIndex = meshh->totalIndices;
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
+
+	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2, false);
 	return nil;
 }
 

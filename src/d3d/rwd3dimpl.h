@@ -98,7 +98,7 @@ struct D3d11Globals
 
 	uint32 msLevel;
 
-	ID3D11Device* device;
+	ID3D11Device* d3ddevice;
 	ID3D11DeviceContext* context;
 	IDXGISwapChain* swapChain;
 	D3D_FEATURE_LEVEL featureLevel;
@@ -113,6 +113,7 @@ struct D3d11Globals
 	int numVertexBuffers;
 	int numIndexBuffers;
 	int numInputLayouts;
+
 };
 
 extern D3d11Globals d3d11Globals;

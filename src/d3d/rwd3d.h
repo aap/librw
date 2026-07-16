@@ -264,6 +264,9 @@ void *createIndexBuffer(uint32 length, bool dynamic);
 void destroyIndexBuffer(void *indexBuffer);
 uint16 *lockIndices(void *indexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockIndices(void *indexBuffer);
+#ifdef RW_D3D11
+void *getD3D11IndexBuffer(void *indexBuffer);
+#endif
 
 void *createVertexBuffer(uint32 length, uint32 fvf, bool dynamic);
 void destroyVertexBuffer(void *vertexBuffer);

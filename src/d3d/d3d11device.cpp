@@ -28,6 +28,10 @@
 #define PLUGIN_ID 0
 
 namespace rw {
+namespace d3d {
+D3d11Globals d3d11Globals;
+}
+
 namespace d3d11 {
 using namespace d3d;
 
@@ -182,8 +186,6 @@ static void im2DRenderLine(void *vertices, int32 numVertices, int32 vert1, int32
 static void im2DRenderTriangle(void *vertices, int32 numVertices, int32 vert1, int32 vert2, int32 vert3);
 static void im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices);
 static void im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVertices, void *indices, int32 numIndices);
-
-D3d11Globals d3d11Globals;
 
 void
 addDynamicVB(uint32 length, uint32 stride, ID3D11Buffer **buf)
@@ -346,7 +348,7 @@ createDefaultViews(void)
 		RWERROR((ERR_GENERAL, "IDXGISwapChain::GetBuffer() failed"));
 		return 0;
 	}
-	hr = d3d11Globals.device->CreateRenderTargetView(backBuffer, nil, &d3d11Globals.defaultRenderTarget);
+	hr = d3d11Globals.d3ddevice->CreateRenderTargetView(backBuffer, nil, &d3d11Globals.defaultRenderTarget);
 	safeRelease(backBuffer);
 	if(FAILED(hr)){
 		RWERROR((ERR_GENERAL, "ID3D11Device::CreateRenderTargetView() failed"));
@@ -364,12 +366,12 @@ createDefaultViews(void)
 	depthDesc.Usage = D3D11_USAGE_DEFAULT;
 	depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
-	hr = d3d11Globals.device->CreateTexture2D(&depthDesc, nil, &depthTex);
+	hr = d3d11Globals.d3ddevice->CreateTexture2D(&depthDesc, nil, &depthTex);
 	if(FAILED(hr)){
 		RWERROR((ERR_GENERAL, "ID3D11Device::CreateTexture2D() failed for depth"));
 		return 0;
 	}
-	hr = d3d11Globals.device->CreateDepthStencilView(depthTex, nil, &d3d11Globals.defaultDepthStencilView);
+	hr = d3d11Globals.d3ddevice->CreateDepthStencilView(depthTex, nil, &d3d11Globals.defaultDepthStencilView);
 	safeRelease(depthTex);
 	if(FAILED(hr)){
 		RWERROR((ERR_GENERAL, "ID3D11Device::CreateDepthStencilView() failed"));
@@ -491,11 +493,11 @@ startD3D11(void)
 	hr = D3D11CreateDevice(d3d11Globals.adapters[d3d11Globals.adapter],
 		D3D_DRIVER_TYPE_UNKNOWN, nil, flags,
 		levels, nelem(levels), D3D11_SDK_VERSION,
-		&d3d11Globals.device, &d3d11Globals.featureLevel, &d3d11Globals.context);
+		&d3d11Globals.d3ddevice, &d3d11Globals.featureLevel, &d3d11Globals.context);
 	if(FAILED(hr)){
 		hr = D3D11CreateDevice(nil, D3D_DRIVER_TYPE_HARDWARE, nil, flags,
 			levels, nelem(levels), D3D11_SDK_VERSION,
-			&d3d11Globals.device, &d3d11Globals.featureLevel, &d3d11Globals.context);
+			&d3d11Globals.d3ddevice, &d3d11Globals.featureLevel, &d3d11Globals.context);
 	}
 	if(FAILED(hr)){
 		RWERROR((ERR_GENERAL, "D3D11CreateDevice() failed"));
@@ -514,7 +516,7 @@ startD3D11(void)
 	uint32 requestedSamples = d3d11Globals.msLevel > 1 ? d3d11Globals.msLevel : 1;
 	uint32 quality = 0;
 	if(requestedSamples > 1 &&
-	   FAILED(d3d11Globals.device->CheckMultisampleQualityLevels(getColorFormat(), requestedSamples, &quality)))
+	   FAILED(d3d11Globals.d3ddevice->CheckMultisampleQualityLevels(getColorFormat(), requestedSamples, &quality)))
 		requestedSamples = 1;
 	if(requestedSamples > 1 && quality == 0)
 		requestedSamples = 1;
@@ -522,7 +524,7 @@ startD3D11(void)
 	d3d11Globals.present.SampleDesc.Quality = requestedSamples > 1 ? quality-1 : 0;
 	d3d11Globals.msLevel = requestedSamples;
 
-	hr = d3d11Globals.factory->CreateSwapChain(d3d11Globals.device, &d3d11Globals.present, &d3d11Globals.swapChain);
+	hr = d3d11Globals.factory->CreateSwapChain(d3d11Globals.d3ddevice, &d3d11Globals.present, &d3d11Globals.swapChain);
 	if(FAILED(hr)){
 		RWERROR((ERR_GENERAL, "IDXGIFactory::CreateSwapChain() failed"));
 		return 0;
@@ -566,7 +568,7 @@ termD3D11(void)
 	safeRelease(d3d11Globals.swapChain);
 	safeRelease(context1);
 	safeRelease(d3d11Globals.context);
-	safeRelease(d3d11Globals.device);
+	safeRelease(d3d11Globals.d3ddevice);
 	return 1;
 }
 
@@ -627,12 +629,12 @@ createTextureResources(Raster *raster, bool32 renderTarget)
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | (renderTarget ? D3D11_BIND_RENDER_TARGET : 0);
 
 	ID3D11Texture2D *texture = nil;
-	HRESULT hr = d3d11Globals.device->CreateTexture2D(&desc, nil, &texture);
+	HRESULT hr = d3d11Globals.d3ddevice->CreateTexture2D(&desc, nil, &texture);
 	if(FAILED(hr))
 		return 0;
 
 	ID3D11ShaderResourceView *srv = nil;
-	hr = d3d11Globals.device->CreateShaderResourceView(texture, nil, &srv);
+	hr = d3d11Globals.d3ddevice->CreateShaderResourceView(texture, nil, &srv);
 	if(FAILED(hr)){
 		safeRelease(texture);
 		return 0;
@@ -648,7 +650,7 @@ createTextureResources(Raster *raster, bool32 renderTarget)
 
 	if(renderTarget){
 		ID3D11RenderTargetView *rtv = nil;
-		hr = d3d11Globals.device->CreateRenderTargetView(texture, nil, &rtv);
+		hr = d3d11Globals.d3ddevice->CreateRenderTargetView(texture, nil, &rtv);
 		if(FAILED(hr))
 			return 0;
 		natras->lockedSurf = rtv;
@@ -1140,7 +1142,7 @@ applyBlendState(void)
 	desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	if(SUCCEEDED(d3d11Globals.device->CreateBlendState(&desc, &blendState))){
+	if(SUCCEEDED(d3d11Globals.d3ddevice->CreateBlendState(&desc, &blendState))){
 		float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 		d3d11Globals.context->OMSetBlendState(blendState, blendFactor, 0xFFFFFFFF);
 	}
@@ -1159,7 +1161,7 @@ applyDepthState(void)
 	desc.DepthWriteMask = rwStateCache.zwrite ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
 	desc.DepthFunc = rwStateCache.ztest ? D3D11_COMPARISON_LESS_EQUAL : D3D11_COMPARISON_ALWAYS;
 	desc.StencilEnable = FALSE;
-	if(SUCCEEDED(d3d11Globals.device->CreateDepthStencilState(&desc, &depthStencilState)))
+	if(SUCCEEDED(d3d11Globals.d3ddevice->CreateDepthStencilState(&desc, &depthStencilState)))
 		d3d11Globals.context->OMSetDepthStencilState(depthStencilState, 0);
 	depthDirty = 0;
 }
@@ -1182,7 +1184,7 @@ applyRasterizerState(void)
 	}
 	desc.DepthClipEnable = TRUE;
 	desc.MultisampleEnable = d3d11Globals.present.SampleDesc.Count > 1;
-	if(SUCCEEDED(d3d11Globals.device->CreateRasterizerState(&desc, &rasterizerState)))
+	if(SUCCEEDED(d3d11Globals.d3ddevice->CreateRasterizerState(&desc, &rasterizerState)))
 		d3d11Globals.context->RSSetState(rasterizerState);
 	rasterizerDirty = 0;
 }
@@ -1202,7 +1204,7 @@ applySamplerState(void)
 	desc.MaxLOD = D3D11_FLOAT32_MAX;
 	desc.MaxAnisotropy = 1;
 	desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	if(SUCCEEDED(d3d11Globals.device->CreateSamplerState(&desc, &samplerState)))
+	if(SUCCEEDED(d3d11Globals.d3ddevice->CreateSamplerState(&desc, &samplerState)))
 		d3d11Globals.context->PSSetSamplers(0, 1, &samplerState);
 	samplerDirty = 0;
 }
@@ -1512,7 +1514,7 @@ ensureDynamicVertexBuffer(uint32 bytes)
 	desc.Usage = D3D11_USAGE_DYNAMIC;
 	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im2dVertexBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&desc, nil, &im2dVertexBuffer)))
 		return 0;
 	return 1;
 }
@@ -1533,7 +1535,7 @@ ensureDynamicIndexBuffer(uint32 bytes)
 	desc.Usage = D3D11_USAGE_DYNAMIC;
 	desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im2dIndexBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&desc, nil, &im2dIndexBuffer)))
 		return 0;
 	return 1;
 }
@@ -1587,12 +1589,12 @@ openIm2D(void)
 		return 0;
 	}
 
-	if(FAILED(d3d11Globals.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nil, &im2dVS))){
+	if(FAILED(d3d11Globals.d3ddevice->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nil, &im2dVS))){
 		vsBlob->Release();
 		psBlob->Release();
 		return 0;
 	}
-	if(FAILED(d3d11Globals.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nil, &im2dPS))){
+	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nil, &im2dPS))){
 		vsBlob->Release();
 		psBlob->Release();
 		return 0;
@@ -1605,7 +1607,7 @@ openIm2D(void)
 		{ "COLOR",    0, DXGI_FORMAT_R8G8B8A8_UNORM,    0, offsetof(Im2DVertex, color), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, offsetof(Im2DVertex, u), D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
-	if(FAILED(d3d11Globals.device->CreateInputLayout(elements, nelem(elements),
+	if(FAILED(d3d11Globals.d3ddevice->CreateInputLayout(elements, nelem(elements),
 		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &im2dLayout))){
 		vsBlob->Release();
 		psBlob->Release();
@@ -1620,10 +1622,10 @@ openIm2D(void)
 	cbd.ByteWidth = sizeof(Im2DConstants);
 	cbd.Usage = D3D11_USAGE_DEFAULT;
 	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&cbd, nil, &im2dConstantBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&cbd, nil, &im2dConstantBuffer)))
 		return 0;
 	cbd.ByteWidth = sizeof(AlphaTestConstants);
-	if(FAILED(d3d11Globals.device->CreateBuffer(&cbd, nil, &alphaTestConstantBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&cbd, nil, &alphaTestConstantBuffer)))
 		return 0;
 
 	uint8 whitePixel[4] = { 255, 255, 255, 255 };
@@ -1638,9 +1640,9 @@ openIm2D(void)
 	td.Usage = D3D11_USAGE_DEFAULT;
 	td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	D3D11_SUBRESOURCE_DATA initData = { whitePixel, 4, 0 };
-	if(FAILED(d3d11Globals.device->CreateTexture2D(&td, &initData, &whiteTexture)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateTexture2D(&td, &initData, &whiteTexture)))
 		return 0;
-	if(FAILED(d3d11Globals.device->CreateShaderResourceView(whiteTexture, nil, &whiteSRV)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateShaderResourceView(whiteTexture, nil, &whiteSRV)))
 		return 0;
 	return 1;
 }
@@ -1677,10 +1679,10 @@ openIm3D(void)
 	if(vsBlob == nil || psBlob == nil)
 		goto fail;
 
-	if(FAILED(d3d11Globals.device->CreateVertexShader(vsBlob->GetBufferPointer(),
+	if(FAILED(d3d11Globals.d3ddevice->CreateVertexShader(vsBlob->GetBufferPointer(),
 		vsBlob->GetBufferSize(), nil, &im3dVS)))
 		goto fail;
-	if(FAILED(d3d11Globals.device->CreatePixelShader(psBlob->GetBufferPointer(),
+	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(psBlob->GetBufferPointer(),
 		psBlob->GetBufferSize(), nil, &im3dPS)))
 		goto fail;
 	default_amb_VS = im3dVS;
@@ -1691,7 +1693,7 @@ openIm3D(void)
 	d3d11Globals.numVertexShaders++;
 	d3d11Globals.numPixelShaders++;
 
-	if(FAILED(d3d11Globals.device->CreateInputLayout(elements, nelem(elements),
+	if(FAILED(d3d11Globals.d3ddevice->CreateInputLayout(elements, nelem(elements),
 		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &im3dLayout)))
 		goto fail;
 	d3d11Globals.numInputLayouts++;
@@ -1700,7 +1702,7 @@ openIm3D(void)
 	desc.ByteWidth = sizeof(Im3DConstants);
 	desc.Usage = D3D11_USAGE_DEFAULT;
 	desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dConstantBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&desc, nil, &im3dConstantBuffer)))
 		goto fail;
 
 	memset(&desc, 0, sizeof(desc));
@@ -1708,12 +1710,12 @@ openIm3D(void)
 	desc.Usage = D3D11_USAGE_DYNAMIC;
 	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dVertexBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&desc, nil, &im3dVertexBuffer)))
 		goto fail;
 
 	desc.ByteWidth = im3dMaxIndices*sizeof(uint16);
 	desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	if(FAILED(d3d11Globals.device->CreateBuffer(&desc, nil, &im3dIndexBuffer)))
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&desc, nil, &im3dIndexBuffer)))
 		goto fail;
 
 	vsBlob->Release();
@@ -1849,7 +1851,7 @@ im3DRenderPrimitive(PrimitiveType primType)
 		return;
 
 	void *shader;
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		shader = default_tex_PS;
 	else
 		shader = default_PS;
@@ -1897,7 +1899,7 @@ im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndic
 	d3d11Globals.context->Unmap(im3dIndexBuffer, 0);
 
 	void *shader;
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		shader = default_tex_PS;
 	else
 		shader = default_PS;
