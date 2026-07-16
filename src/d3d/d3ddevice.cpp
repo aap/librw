@@ -2014,6 +2014,7 @@ Device renderdevice = {
 	d3d::im3DRenderPrimitive,
 	d3d::im3DRenderIndexedPrimitive,
 	d3d::im3DEnd,
+	null::dpiScale,
 	d3d::deviceSystem,
 };
 

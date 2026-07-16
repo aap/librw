@@ -216,8 +216,10 @@ cameraSync(ObjectWithFrame *obj)
 	inv.at.x = -inv.at.x;
 	inv.pos.x = -inv.pos.x;
 
-	float32 xscl = 1.0f/(2.0f*cam->viewWindow.x);
-	float32 yscl = 1.0f/(2.0f*cam->viewWindow.y);
+	V2d dpiScale = engine->device.dpiScale(cam->frameBuffer->width, cam->frameBuffer->height);
+
+	float32 xscl = 1.0f/(2.0f*cam->viewWindow.x*dpiScale.x);
+	float32 yscl = 1.0f/(2.0f*cam->viewWindow.y*dpiScale.y);
 
 	proj.flags = 0;
 	proj.right.x = xscl;
