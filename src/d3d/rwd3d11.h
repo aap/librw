@@ -89,6 +89,8 @@ void drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst);
 
 bool32 openDefaultRenderPipeline(void);
 void closeDefaultRenderPipeline(void);
+bool32 setStreamSource(int n, void *buffer, uint32 offset, uint32 stride);
+void clearStreamSource(void *buffer);
 void applyDrawState(void);
 
 

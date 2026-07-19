@@ -1,12 +1,12 @@
 cbuffer StandardConstants : register(b0)
 {
-    row_major float4x4 combinedMat;
-	row_major float4x4 worldMat;
-	row_major float4x4 normalMat;
-	float4 matCol;
-	float4 surfProps;
-	float4 fogData;
-	float4 ambientLight;
+	float4x4 combinedMat : packoffset(c0);
+	float4x4 worldMat : packoffset(c4);
+	float3x3 normalMat : packoffset(c8);
+	float4 matCol : packoffset(c12);
+	float4 surfProps : packoffset(c13);
+	float4 fogData : packoffset(c14);
+	float4 ambientLight : packoffset(c15);
 };
 
 struct Light
@@ -59,7 +59,7 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-	output.Position = mul(float4(input.Position, 1.0f), combinedMat);
+	output.Position = mul(combinedMat, float4(input.Position, 1.0f));
     output.color = input.color * matCol;
     output.texcoord = input.texcoord;
     return output;

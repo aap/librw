@@ -310,6 +310,7 @@ namespace rw
 			if( vertexBuffer )
 			{
 				D3d11VertexBuffer* vbuf = ( D3d11VertexBuffer* )vertexBuffer;
+				d3d11::clearStreamSource( vbuf->gpuBuffer );
 				if( vbuf->gpuBuffer->Release() != 0 )
 					printf( "vertexBuffer wasn't destroyed\n" );
 				rwFree( vbuf->cpuData );

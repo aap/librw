@@ -1,8 +1,8 @@
 cbuffer Im3DConstants : register(b0)
 {
-    row_major float4x4 combined;
-    row_major float4x4 world;
-    row_major float4x4 normal;
+    float4x4 combined;
+    float4x4 world;
+    float4x4 normal;
 };
 
 struct VSInput
@@ -23,7 +23,7 @@ struct VSOutput
 VSOutput main(VSInput input)
 {
     VSOutput output;
-    output.position = mul(float4(input.position, 1.0f), combined);
+    output.position = mul(combined, float4(input.position, 1.0f));
     output.color = float4(input.color.z, input.color.y, input.color.x, input.color.w);
     output.texcoord = input.texcoord;
     return output;

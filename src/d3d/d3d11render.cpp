@@ -32,11 +32,11 @@ void defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header) {}
 
 struct StandardConstants
 {
-	float combined[16];
-	float world[16];
-	float normal[16];
-	float materialColor[4];
-	float surfaceProps[4];
+	float combinedMat[16];
+	float worldMat[16];
+	float normalMat[16];
+	float matCol[4];
+	float surfProps[4];
 	float fogData[4];
 	float ambientLight[4];
 };
@@ -118,10 +118,10 @@ openDefaultRenderPipeline(void)
 
 	memset(&desc, 0, sizeof(desc));
 	memset(&standardConstants, 0, sizeof(standardConstants));
-	standardConstants.materialColor[0] = 1.0f;
-	standardConstants.materialColor[1] = 1.0f;
-	standardConstants.materialColor[2] = 1.0f;
-	standardConstants.materialColor[3] = 1.0f;
+	standardConstants.matCol[0] = 1.0f;
+	standardConstants.matCol[1] = 1.0f;
+	standardConstants.matCol[2] = 1.0f;
+	standardConstants.matCol[3] = 1.0f;
 	standardConstants.fogData[3] = 1.0f;
 	memset(&lightConstants, 0, sizeof(lightConstants));
 
@@ -172,36 +172,44 @@ closeDefaultRenderPipeline(void)
 	}
 }
 
-static void
+static bool32
 uploadDefaultMatrices(Matrix *world)
 {
+	if(world == nil || engine->currentCamera == nil)
+		return 0;
+
 	RawMatrix combined, worldMatrix, worldView;
 	Camera *cam = engine->currentCamera;
 	convMatrix(&worldMatrix, world);
 	RawMatrix::mult(&worldView, &worldMatrix, &cam->devView);
 	RawMatrix::mult(&combined, &worldView, &cam->devProj);
 
-	memcpy(standardConstants.combined, &combined, sizeof(combined));
-	memcpy(standardConstants.world, &worldMatrix, sizeof(worldMatrix));
+	memcpy(standardConstants.combinedMat, &combined, sizeof(combined));
+	memcpy(standardConstants.worldMat, &worldMatrix, sizeof(worldMatrix));
 	// D3D9 currently uploads world as the normal matrix too.
-	memcpy(standardConstants.normal, &worldMatrix, sizeof(worldMatrix));
+	memcpy(standardConstants.normalMat, &worldMatrix, sizeof(worldMatrix));
+	return 1;
 }
 
-static void
+static bool32
 uploadDefaultMaterial(const RGBA &color, const SurfaceProperties &surfaceProps)
 {
-	standardConstants.materialColor[0] = color.red/255.0f;
-	standardConstants.materialColor[1] = color.green/255.0f;
-	standardConstants.materialColor[2] = color.blue/255.0f;
-	standardConstants.materialColor[3] = color.alpha/255.0f;
-	standardConstants.surfaceProps[0] = surfaceProps.ambient;
-	standardConstants.surfaceProps[1] = surfaceProps.specular;
-	standardConstants.surfaceProps[2] = surfaceProps.diffuse;
-	standardConstants.surfaceProps[3] = 0.0f;
+	if(standardConstantBuffer == nil)
+		return 0;
+
+	standardConstants.matCol[0] = color.red/255.0f;
+	standardConstants.matCol[1] = color.green/255.0f;
+	standardConstants.matCol[2] = color.blue/255.0f;
+	standardConstants.matCol[3] = color.alpha/255.0f;
+	standardConstants.surfProps[0] = surfaceProps.ambient;
+	standardConstants.surfProps[1] = surfaceProps.specular;
+	standardConstants.surfProps[2] = surfaceProps.diffuse;
+	standardConstants.surfProps[3] = 0.0f;
 	d3d11Globals.context->UpdateSubresource(standardConstantBuffer, 0,
 		nil, &standardConstants, 0, 0);
 	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
 		&standardConstantBuffer);
+	return 1;
 }
 
 void
@@ -258,29 +266,36 @@ drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst)
 void
 defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 {
-	if(atomic == nil || header == nil || engine->currentCamera == nil ||
-	   defaultVS == nil || defaultPS == nil || defaultLayout == nil ||
-	   standardConstantBuffer == nil || lightConstantBuffer == nil)
+	if(header == nil)
 		return;
 
-	ID3D11Buffer *vertexBuffer = (ID3D11Buffer*)getD3D11VertexBuffer(
-		header->vertexStream[0].vertexBuffer);
+	if(!setStreamSource(0, header->vertexStream[0].vertexBuffer, 0,
+	   header->vertexStream[0].stride))
+		return;
+
 	ID3D11Buffer *indexBuffer = (ID3D11Buffer*)getD3D11IndexBuffer(
 		header->indexBuffer);
-	if(vertexBuffer == nil || indexBuffer == nil)
+	if(indexBuffer == nil)
 		return;
 
-	UINT stride = header->vertexStream[0].stride;
-	UINT offset = header->vertexStream[0].offset;
-	d3d11Globals.context->IASetVertexBuffers(0, 1, &vertexBuffer,
-		&stride, &offset);
 	d3d11Globals.context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	if(defaultLayout == nil)
+		return;
 	d3d11Globals.context->IASetInputLayout(defaultLayout);
 	d3d11Globals.context->IASetPrimitiveTopology(
 		(D3D11_PRIMITIVE_TOPOLOGY)header->primType);
+
+	if(defaultVS == nil || defaultPS == nil)
+		return;
 	d3d11Globals.context->VSSetShader(defaultVS, nil, 0);
 	d3d11Globals.context->PSSetShader(defaultPS, nil, 0);
-	uploadDefaultMatrices(atomic->getFrame()->getLTM());
+
+	if(atomic == nil || atomic->getFrame() == nil)
+		return;
+	if(!uploadDefaultMatrices(atomic->getFrame()->getLTM()))
+		return;
+	if(lightConstantBuffer == nil)
+		return;
 	d3d11Globals.context->VSSetConstantBuffers(VSlotLights, 1,
 		&lightConstantBuffer);
 
@@ -301,8 +316,9 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 		}
 		SetRenderStatePtr(TEXTURERASTER,
 			material->texture ? material->texture->raster : nil);
-		uploadDefaultMaterial((flags & Geometry::MODULATE) ?
-			material->color : white, material->surfaceProps);
+		if(!uploadDefaultMaterial((flags & Geometry::MODULATE) ?
+		   material->color : white, material->surfaceProps))
+			return;
 		drawInst(header, inst);
 	}
 }
