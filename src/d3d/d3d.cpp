@@ -98,6 +98,14 @@ namespace rw
 			uint32 length;
 			bool dynamic;
 		};
+
+		struct D3d11VertexBuffer
+		{
+			ID3D11Buffer* gpuBuffer;
+			uint8* cpuData;
+			uint32 length;
+			bool dynamic;
+		};
 	#endif
 
 		void*
@@ -248,6 +256,40 @@ namespace rw
 			if( vbuf )
 				d3d9Globals.numVertexBuffers++;
 			return vbuf;
+		#elif defined(RW_D3D11)
+			( void )fvf;
+			if( length == 0 )
+				return nil;
+
+			D3d11VertexBuffer* vertexBuffer = rwNewT( D3d11VertexBuffer, 1,
+				MEMDUR_EVENT | ID_DRIVER );
+			memset( vertexBuffer, 0, sizeof( *vertexBuffer ) );
+			vertexBuffer->length = length;
+			vertexBuffer->dynamic = dynamic;
+
+			D3D11_BUFFER_DESC desc;
+			memset( &desc, 0, sizeof( desc ) );
+			desc.ByteWidth = length;
+			desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+			if( dynamic )
+			{
+				desc.Usage = D3D11_USAGE_DYNAMIC;
+				desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+			}
+			else
+			{
+				desc.Usage = D3D11_USAGE_DEFAULT;
+				vertexBuffer->cpuData = rwNewT( uint8, length, MEMDUR_EVENT | ID_DRIVER );
+			}
+
+			if( FAILED( d3d11Globals.d3ddevice->CreateBuffer( &desc, nil, &vertexBuffer->gpuBuffer ) ) )
+			{
+				rwFree( vertexBuffer->cpuData );
+				rwFree( vertexBuffer );
+				return nil;
+			}
+			d3d11Globals.numVertexBuffers++;
+			return vertexBuffer;
 		#else
 			( void )fvf;
 			return rwNewT( uint8, length, MEMDUR_EVENT | ID_DRIVER );
@@ -264,6 +306,16 @@ namespace rw
 					printf( "vertexBuffer wasn't destroyed\n" );
 				d3d9Globals.numVertexBuffers--;
 			}
+		#elif defined(RW_D3D11)
+			if( vertexBuffer )
+			{
+				D3d11VertexBuffer* vbuf = ( D3d11VertexBuffer* )vertexBuffer;
+				if( vbuf->gpuBuffer->Release() != 0 )
+					printf( "vertexBuffer wasn't destroyed\n" );
+				rwFree( vbuf->cpuData );
+				rwFree( vbuf );
+				d3d11Globals.numVertexBuffers--;
+			}
 		#else
 			rwFree( vertexBuffer );
 		#endif
@@ -279,6 +331,19 @@ namespace rw
 			IDirect3DVertexBuffer9* vertbuf = ( IDirect3DVertexBuffer9* )vertexBuffer;
 			vertbuf->Lock( offset, size, ( void** )&verts, flags );
 			return verts;
+		#elif defined(RW_D3D11)
+			D3d11VertexBuffer* vbuf = ( D3d11VertexBuffer* )vertexBuffer;
+			assert( offset <= vbuf->length );
+			assert( size == 0 || size <= vbuf->length - offset );
+			( void )flags;
+			if( !vbuf->dynamic )
+				return vbuf->cpuData + offset;
+
+			D3D11_MAPPED_SUBRESOURCE mapped;
+			if( FAILED( d3d11Globals.context->Map( vbuf->gpuBuffer, 0,
+				D3D11_MAP_WRITE_DISCARD, 0, &mapped ) ) )
+				return nil;
+			return ( uint8* )mapped.pData + offset;
 		#else
 			( void )offset;
 			( void )size;
@@ -295,8 +360,25 @@ namespace rw
 		#ifdef RW_D3D9
 			IDirect3DVertexBuffer9* vertbuf = ( IDirect3DVertexBuffer9* )vertexBuffer;
 			vertbuf->Unlock();
+		#elif defined(RW_D3D11)
+			D3d11VertexBuffer* vbuf = ( D3d11VertexBuffer* )vertexBuffer;
+			if( vbuf->dynamic )
+				d3d11Globals.context->Unmap( vbuf->gpuBuffer, 0 );
+			else
+				d3d11Globals.context->UpdateSubresource( vbuf->gpuBuffer, 0, nil,
+					vbuf->cpuData, 0, 0 );
 		#endif
 		}
+
+	#ifdef RW_D3D11
+		void*
+			getD3D11VertexBuffer( void* vertexBuffer )
+		{
+			if( vertexBuffer == nil )
+				return nil;
+			return (( D3d11VertexBuffer* )vertexBuffer)->gpuBuffer;
+		}
+	#endif
 
 		void*
 			createTexture( int32 width, int32 height, int32 numlevels, uint32 usage, uint32 format )

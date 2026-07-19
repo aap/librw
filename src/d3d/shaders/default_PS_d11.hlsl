@@ -10,17 +10,17 @@ cbuffer D3D9StateConstants : register(b2)
     uint alphaEnabled;
     uint alphaFunction;
     float alphaReference;
-    float padding;
+    float alphaPadding;
 };
 
-struct PSIn
+struct PSInput
 {
     float4 position : SV_POSITION;
     float4 color : COLOR0;
     float2 texcoord : TEXCOORD0;
 };
 
-float4 main(PSIn input) : SV_Target
+float4 main(PSInput input) : SV_Target
 {
     float4 color = input.color * tex0.Sample(samp0, input.texcoord);
     if(alphaEnabled != 0 &&

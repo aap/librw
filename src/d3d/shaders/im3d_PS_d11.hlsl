@@ -5,7 +5,7 @@ SamplerState samp0 : register(s0);
 #define ALPHA_GREATEREQUAL 1
 #define ALPHA_LESS 2
 
-cbuffer AlphaTestConstants : register(b1)
+cbuffer D3D9StateConstants : register(b2)
 {
     uint alphaEnabled;
     uint alphaFunction;

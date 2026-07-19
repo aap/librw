@@ -552,12 +552,18 @@ initD3D11(void)
 		closeIm2D();
 		return 0;
 	}
+	if(!openDefaultRenderPipeline()){
+		closeIm3D();
+		closeIm2D();
+		return 0;
+	}
 	return 1;
 }
 
 static int
 termD3D11(void)
 {
+	closeDefaultRenderPipeline();
 	closeIm3D();
 	closeIm2D();
 	releaseDefaultViews();
@@ -1221,11 +1227,12 @@ applyAlphaTestState(void)
 	constants.padding = 0.0f;
 	d3d11Globals.context->UpdateSubresource(alphaTestConstantBuffer, 0, nil,
 		&constants, 0, 0);
-	d3d11Globals.context->PSSetConstantBuffers(1, 1, &alphaTestConstantBuffer);
+	d3d11Globals.context->PSSetConstantBuffers(PSSlotD3D9States, 1,
+		&alphaTestConstantBuffer);
 	alphaTestDirty = 0;
 }
 
-static void
+void
 applyDrawState(void)
 {
 	applyBlendState();
@@ -1552,7 +1559,8 @@ updateIm2DConstants(void)
 	constants.xform[2] = -1.0f;
 	constants.xform[3] = 1.0f;
 	d3d11Globals.context->UpdateSubresource(im2dConstantBuffer, 0, nil, &constants, 0, 0);
-	d3d11Globals.context->VSSetConstantBuffers(0, 1, &im2dConstantBuffer);
+	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
+		&im2dConstantBuffer);
 }
 
 static D3D11_PRIMITIVE_TOPOLOGY
@@ -1628,7 +1636,7 @@ openIm2D(void)
 	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(&cbd, nil, &alphaTestConstantBuffer)))
 		return 0;
 
-	uint8 whitePixel[4] = { 255, 255, 255, 255 };
+	uint8 defaultPixelColor[4] = { 255, 255, 255, 255 };
 	D3D11_TEXTURE2D_DESC td;
 	memset(&td, 0, sizeof(td));
 	td.Width = 1;
@@ -1639,7 +1647,7 @@ openIm2D(void)
 	td.SampleDesc.Count = 1;
 	td.Usage = D3D11_USAGE_DEFAULT;
 	td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	D3D11_SUBRESOURCE_DATA initData = { whitePixel, 4, 0 };
+	D3D11_SUBRESOURCE_DATA initData = { defaultPixelColor, 4, 0 };
 	if(FAILED(d3d11Globals.d3ddevice->CreateTexture2D(&td, &initData, &whiteTexture)))
 		return 0;
 	if(FAILED(d3d11Globals.d3ddevice->CreateShaderResourceView(whiteTexture, nil, &whiteSRV)))
@@ -1760,7 +1768,8 @@ uploadMatrices(void)
 	memcpy(constants.normal, &identity, sizeof(identity));
 	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
 		&constants, 0, 0);
-	d3d11Globals.context->VSSetConstantBuffers(0, 1, &im3dConstantBuffer);
+	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
+		&im3dConstantBuffer);
 }
 
 static void
@@ -1779,7 +1788,8 @@ uploadMatrices(Matrix *world)
 	memcpy(constants.normal, &worldMatrix, sizeof(worldMatrix));
 	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
 		&constants, 0, 0);
-	d3d11Globals.context->VSSetConstantBuffers(0, 1, &im3dConstantBuffer);
+	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
+		&im3dConstantBuffer);
 }
 
 static void

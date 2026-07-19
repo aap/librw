@@ -272,6 +272,9 @@ void *createVertexBuffer(uint32 length, uint32 fvf, bool dynamic);
 void destroyVertexBuffer(void *vertexBuffer);
 uint8 *lockVertices(void *vertexBuffer, uint32 offset, uint32 size, uint32 flags);
 void unlockVertices(void *vertexBuffer);
+#ifdef RW_D3D11
+void *getD3D11VertexBuffer(void *vertexBuffer);
+#endif
 
 void *createTexture(int32 width, int32 height, int32 levels, uint32 usage, uint32 format);
 void destroyTexture(void *texture);

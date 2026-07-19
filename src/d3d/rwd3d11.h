@@ -2,6 +2,13 @@ namespace rw {
 struct Device;
 namespace d3d11 {
 
+enum ConstantBufferSlot
+{
+	VSlotObjects = 0,
+	VSlotLights = 1,
+	PSSlotD3D9States = 2
+};
+
 void registerPlatformPlugins(void);
 extern Device renderdevice;
 Raster *rasterCreate(Raster *raster);
@@ -32,6 +39,14 @@ struct VertexStream
 	uint16 geometryFlags;
 	uint8  managed;
 	uint8  dynamicLock;
+};
+
+struct DefaultVertex
+{
+	V3d position;
+	V3d normal;
+	RGBA color;
+	TexCoords texcoord;
 };
 
 struct InstanceData
@@ -71,6 +86,10 @@ void drawInst_simple(d3d11::InstanceDataHeader *header, d3d11::InstanceData *ins
 void drawInst_GSemu(d3d11::InstanceDataHeader *header, InstanceData *inst);
 // This one switches between the above two depending on render state;
 void drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst);
+
+bool32 openDefaultRenderPipeline(void);
+void closeDefaultRenderPipeline(void);
+void applyDrawState(void);
 
 
 
