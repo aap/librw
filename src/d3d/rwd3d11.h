@@ -89,8 +89,16 @@ void drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst);
 
 bool32 openDefaultRenderPipeline(void);
 void closeDefaultRenderPipeline(void);
+bool32 setIndices(void *indexBuffer);
+void clearIndices(void *buffer);
 bool32 setStreamSource(int n, void *buffer, uint32 offset, uint32 stride);
 void clearStreamSource(void *buffer);
+bool32 setVertexDeclaration(void *declaration);
+void clearVertexDeclaration(void *declaration);
+bool32 setVertexShader(void *shader);
+void clearVertexShader(void *shader);
+bool32 setPixelShader(void *shader);
+void clearPixelShader(void *shader);
 void applyDrawState(void);
 
 

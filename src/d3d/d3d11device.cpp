@@ -63,6 +63,10 @@ struct DynamicIB
 
 struct D3dDeviceCache
 {
+	ID3D11VertexShader *vertexShader;
+	ID3D11PixelShader *pixelShader;
+	ID3D11InputLayout *vertexDeclaration;
+	ID3D11Buffer *indices;
 	struct {
 		ID3D11Buffer *buffer;
 		uint32 offset;
@@ -1266,6 +1270,38 @@ applyDrawState(void)
 }
 
 static bool32
+setIndicesNative(ID3D11Buffer *buffer)
+{
+	if(buffer == nil || d3d11Globals.context == nil)
+		return 0;
+
+	if(deviceCache.indices != buffer){
+		deviceCache.indices = buffer;
+		d3d11Globals.context->IASetIndexBuffer(deviceCache.indices,
+			DXGI_FORMAT_R16_UINT, 0);
+	}
+	return 1;
+}
+
+bool32
+setIndices(void *indexBuffer)
+{
+	return setIndicesNative(
+		(ID3D11Buffer*)getD3D11IndexBuffer(indexBuffer));
+}
+
+void
+clearIndices(void *buffer)
+{
+	if(buffer == nil || deviceCache.indices != buffer)
+		return;
+
+	deviceCache.indices = nil;
+	if(d3d11Globals.context)
+		d3d11Globals.context->IASetIndexBuffer(nil, DXGI_FORMAT_R16_UINT, 0);
+}
+
+static bool32
 setStreamSourceNative(int n, ID3D11Buffer *buffer, uint32 offset, uint32 stride)
 {
 	if(n < 0 || n >= MAXNUMSTREAMS || buffer == nil ||
@@ -1314,6 +1350,83 @@ clearStreamSource(void *buffer)
 				&zero, &zero);
 		}
 	}
+}
+
+bool32
+setVertexDeclaration(void *declaration)
+{
+	ID3D11InputLayout *vertexDeclaration =
+		(ID3D11InputLayout*)declaration;
+	if(vertexDeclaration == nil || d3d11Globals.context == nil)
+		return 0;
+
+	if(deviceCache.vertexDeclaration != vertexDeclaration){
+		deviceCache.vertexDeclaration = vertexDeclaration;
+		d3d11Globals.context->IASetInputLayout(
+			deviceCache.vertexDeclaration);
+	}
+	return 1;
+}
+
+void
+clearVertexDeclaration(void *declaration)
+{
+	if(declaration == nil || deviceCache.vertexDeclaration != declaration)
+		return;
+
+	deviceCache.vertexDeclaration = nil;
+	if(d3d11Globals.context)
+		d3d11Globals.context->IASetInputLayout(nil);
+}
+
+bool32
+setVertexShader(void *shader)
+{
+	ID3D11VertexShader *vertexShader = (ID3D11VertexShader*)shader;
+	if(vertexShader == nil || d3d11Globals.context == nil)
+		return 0;
+
+	if(deviceCache.vertexShader != vertexShader){
+		deviceCache.vertexShader = vertexShader;
+		d3d11Globals.context->VSSetShader(deviceCache.vertexShader, nil, 0);
+	}
+	return 1;
+}
+
+void
+clearVertexShader(void *shader)
+{
+	if(shader == nil || deviceCache.vertexShader != shader)
+		return;
+
+	deviceCache.vertexShader = nil;
+	if(d3d11Globals.context)
+		d3d11Globals.context->VSSetShader(nil, nil, 0);
+}
+
+bool32
+setPixelShader(void *shader)
+{
+	ID3D11PixelShader *pixelShader = (ID3D11PixelShader*)shader;
+	if(pixelShader == nil || d3d11Globals.context == nil)
+		return 0;
+
+	if(deviceCache.pixelShader != pixelShader){
+		deviceCache.pixelShader = pixelShader;
+		d3d11Globals.context->PSSetShader(deviceCache.pixelShader, nil, 0);
+	}
+	return 1;
+}
+
+void
+clearPixelShader(void *shader)
+{
+	if(shader == nil || deviceCache.pixelShader != shader)
+		return;
+
+	deviceCache.pixelShader = nil;
+	if(d3d11Globals.context)
+		d3d11Globals.context->PSSetShader(nil, nil, 0);
 }
 
 static void
@@ -1597,6 +1710,7 @@ ensureDynamicIndexBuffer(uint32 bytes)
 {
 	if(im2dIndexBuffer && im2dIndexBufferSize >= bytes)
 		return 1;
+	clearIndices(im2dIndexBuffer);
 	safeRelease(im2dIndexBuffer);
 	im2dIndexBufferSize = im2dIndexBufferSize ? im2dIndexBufferSize : 8192*sizeof(uint16);
 	while(im2dIndexBufferSize < bytes)
@@ -1642,14 +1756,14 @@ primitiveTypeToTopology(PrimitiveType primType)
 	}
 }
 
-static void
+static bool32
 prepareIm2DCommon(void)
 {
 	applyDrawState();
 	updateIm2DConstants();
-	d3d11Globals.context->VSSetShader(im2dVS, nil, 0);
-	d3d11Globals.context->PSSetShader(im2dPS, nil, 0);
-	d3d11Globals.context->IASetInputLayout(im2dLayout);
+	if(!setVertexShader(im2dVS) || !setPixelShader(im2dPS))
+		return 0;
+	return setVertexDeclaration(im2dLayout);
 }
 
 static bool32
@@ -1726,13 +1840,17 @@ closeIm2D(void)
 {
 	safeRelease(whiteSRV);
 	safeRelease(whiteTexture);
+	clearIndices(im2dIndexBuffer);
 	safeRelease(im2dIndexBuffer);
 	clearStreamSource(im2dVertexBuffer);
 	safeRelease(im2dVertexBuffer);
 	safeRelease(im2dConstantBuffer);
 	safeRelease(alphaTestConstantBuffer);
+	clearVertexDeclaration(im2dLayout);
 	safeRelease(im2dLayout);
+	clearPixelShader(im2dPS);
 	safeRelease(im2dPS);
+	clearVertexShader(im2dVS);
 	safeRelease(im2dVS);
 	im2dVertexBufferSize = 0;
 	im2dIndexBufferSize = 0;
@@ -1812,12 +1930,16 @@ closeIm3D(void)
 	default_all_VS = nil;
 	default_PS = nil;
 	default_tex_PS = nil;
+	clearIndices(im3dIndexBuffer);
 	safeRelease(im3dIndexBuffer);
 	clearStreamSource(im3dVertexBuffer);
 	safeRelease(im3dVertexBuffer);
 	safeRelease(im3dConstantBuffer);
+	clearVertexDeclaration(im3dLayout);
 	safeRelease(im3dLayout);
+	clearPixelShader(im3dPS);
 	safeRelease(im3dPS);
+	clearVertexShader(im3dVS);
 	safeRelease(im3dVS);
 	num3DVertices = 0;
 }
@@ -1893,8 +2015,10 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 
 	if(!setStreamSourceNative(0, im3dVertexBuffer, 0, sizeof(Im3DVertex)))
 		return;
-	d3d11Globals.context->IASetInputLayout(im3dLayout);
-	d3d11Globals.context->VSSetShader((ID3D11VertexShader*)shader, nil, 0);
+	if(!setVertexDeclaration(im3dLayout))
+		return;
+	if(!setVertexShader(shader))
+		return;
 
 	num3DVertices = numVertices;
 }
@@ -1932,7 +2056,8 @@ im3DRenderPrimitive(PrimitiveType primType)
 		shader = default_PS;
 
 	applyDrawState();
-	d3d11Globals.context->PSSetShader((ID3D11PixelShader*)shader, nil, 0);
+	if(!setPixelShader(shader))
+		return;
 	d3d11Globals.context->IASetPrimitiveTopology(topology);
 	d3d11Globals.context->Draw(num3DVertices, 0);
 }
@@ -1980,9 +2105,11 @@ im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndic
 		shader = default_PS;
 
 	applyDrawState();
-	d3d11Globals.context->PSSetShader((ID3D11PixelShader*)shader, nil, 0);
+	if(!setPixelShader(shader))
+		return;
 	d3d11Globals.context->IASetPrimitiveTopology(topology);
-	d3d11Globals.context->IASetIndexBuffer(im3dIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	if(!setIndicesNative(im3dIndexBuffer))
+		return;
 	d3d11Globals.context->DrawIndexed(numIndices, 0, 0);
 }
 
@@ -2043,7 +2170,8 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	memcpy(mapped.pData, vertices, bytes);
 	d3d11Globals.context->Unmap(im2dVertexBuffer, 0);
 
-	prepareIm2DCommon();
+	if(!prepareIm2DCommon())
+		return;
 	d3d11Globals.context->IASetPrimitiveTopology(topology);
 	if(!setStreamSourceNative(0, im2dVertexBuffer, 0, sizeof(Im2DVertex)))
 		return;
@@ -2087,11 +2215,13 @@ im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVert
 	memcpy(mapped.pData, indices, ibytes);
 	d3d11Globals.context->Unmap(im2dIndexBuffer, 0);
 
-	prepareIm2DCommon();
+	if(!prepareIm2DCommon())
+		return;
 	d3d11Globals.context->IASetPrimitiveTopology(topology);
 	if(!setStreamSourceNative(0, im2dVertexBuffer, 0, sizeof(Im2DVertex)))
 		return;
-	d3d11Globals.context->IASetIndexBuffer(im2dIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	if(!setIndicesNative(im2dIndexBuffer))
+		return;
 	d3d11Globals.context->DrawIndexed(numIndices, 0, 0);
 }
 

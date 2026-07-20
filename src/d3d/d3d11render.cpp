@@ -156,16 +156,19 @@ closeDefaultRenderPipeline(void)
 	safeRelease(lightConstantBuffer);
 	safeRelease(standardConstantBuffer);
 	if(defaultLayout){
+		clearVertexDeclaration(defaultLayout);
 		defaultLayout->Release();
 		defaultLayout = nil;
 		d3d11Globals.numInputLayouts--;
 	}
 	if(defaultPS){
+		clearPixelShader(defaultPS);
 		defaultPS->Release();
 		defaultPS = nil;
 		d3d11Globals.numPixelShaders--;
 	}
 	if(defaultVS){
+		clearVertexShader(defaultVS);
 		defaultVS->Release();
 		defaultVS = nil;
 		d3d11Globals.numVertexShaders--;
@@ -273,22 +276,16 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	   header->vertexStream[0].stride))
 		return;
 
-	ID3D11Buffer *indexBuffer = (ID3D11Buffer*)getD3D11IndexBuffer(
-		header->indexBuffer);
-	if(indexBuffer == nil)
+	if(!setIndices(header->indexBuffer))
+		return;
+	if(!setVertexDeclaration(defaultLayout))
 		return;
 
-	d3d11Globals.context->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-	if(defaultLayout == nil)
-		return;
-	d3d11Globals.context->IASetInputLayout(defaultLayout);
 	d3d11Globals.context->IASetPrimitiveTopology(
 		(D3D11_PRIMITIVE_TOPOLOGY)header->primType);
 
-	if(defaultVS == nil || defaultPS == nil)
+	if(!setVertexShader(defaultVS) || !setPixelShader(defaultPS))
 		return;
-	d3d11Globals.context->VSSetShader(defaultVS, nil, 0);
-	d3d11Globals.context->PSSetShader(defaultPS, nil, 0);
 
 	if(atomic == nil || atomic->getFrame() == nil)
 		return;

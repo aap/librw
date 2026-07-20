@@ -174,6 +174,7 @@ namespace rw
 			if( indexBuffer )
 			{
 				D3d11IndexBuffer* ibuf = ( D3d11IndexBuffer* )indexBuffer;
+				d3d11::clearIndices( ibuf->gpuBuffer );
 				if( ibuf->gpuBuffer->Release() != 0 )
 					printf( "indexBuffer wasn't destroyed\n" );
 				rwFree( ibuf->cpuData );
