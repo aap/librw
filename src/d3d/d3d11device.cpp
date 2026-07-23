@@ -166,11 +166,6 @@ static ID3D11Buffer *im3dIndexBuffer;
 static const uint32 im3dMaxVertices = 10000;
 static const uint32 im3dMaxIndices = 10000;
 static int32 num3DVertices;
-static void *default_amb_VS;
-static void *default_amb_dir_VS;
-static void *default_all_VS;
-static void *default_PS;
-static void *default_tex_PS;
 
 static ID3D11Texture2D *whiteTexture;
 static ID3D11ShaderResourceView *whiteSRV;
@@ -2099,11 +2094,6 @@ openIm3D(void)
 	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(texPsBlob->GetBufferPointer(),
 		texPsBlob->GetBufferSize(), nil, &im3dTexPS)))
 		goto fail;
-	default_amb_VS = im3dVS;
-	default_amb_dir_VS = im3dVS;
-	default_all_VS = im3dVS;
-	default_PS = im3dPS;
-	default_tex_PS = im3dTexPS;
 	d3d11Globals.numVertexShaders++;
 	d3d11Globals.numPixelShaders += 2;
 
@@ -2148,11 +2138,6 @@ fail:
 static void
 closeIm3D(void)
 {
-	default_amb_VS = nil;
-	default_amb_dir_VS = nil;
-	default_all_VS = nil;
-	default_PS = nil;
-	default_tex_PS = nil;
 	clearIndices(im3dIndexBuffer);
 	safeRelease(im3dIndexBuffer);
 	clearStreamSource(im3dVertexBuffer);
@@ -2231,10 +2216,9 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 	if((flags & im3d::VERTEXUV) == 0)
 		SetRenderStatePtr(TEXTURERASTER, nil);
 
-	void *shader = default_amb_VS;
+	ID3D11VertexShader *shader = im3dVS;
 	if(flags & im3d::LIGHTING){
-		// TODO: upload lights and select the matching D3D11 vertex shader.
-		shader = default_amb_VS;
+		// TODO: follow D3D9 and select dedicated Im3D lighting variants.
 	}else{
 		// TODO: upload the unlit material constants.
 	}
@@ -2282,11 +2266,11 @@ im3DRenderPrimitive(PrimitiveType primType)
 	if(topology == D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
 		return;
 
-	void *shader;
+	ID3D11PixelShader *shader;
 	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
-		shader = default_tex_PS;
+		shader = im3dTexPS;
 	else
-		shader = default_PS;
+		shader = im3dPS;
 
 	applyDrawState();
 	if(!setPixelShader(shader))
@@ -2331,11 +2315,11 @@ im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndic
 	memcpy(mapped.pData, indices, numIndices*sizeof(uint16));
 	d3d11Globals.context->Unmap(im3dIndexBuffer, 0);
 
-	void *shader;
+	ID3D11PixelShader *shader;
 	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
-		shader = default_tex_PS;
+		shader = im3dTexPS;
 	else
-		shader = default_PS;
+		shader = im3dPS;
 
 	applyDrawState();
 	if(!setPixelShader(shader))
