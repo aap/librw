@@ -20,6 +20,8 @@
 #include "rwd3d.h"
 #include "rwd3d11.h"
 #include "rwd3dimpl.h"
+#include "clear_VS_d11.h"
+#include "clear_PS_d11.h"
 #include "im2d_VS_d11.h"
 #include "im2d_PS_d11.h"
 #include "im3d_VS_d11.h"
@@ -121,6 +123,11 @@ struct AlphaTestConstants
 	float padding;
 };
 
+struct ClearConstants
+{
+	float color[4];
+};
+
 static DynamicVB *dynamicVBs;
 static DynamicIB *dynamicIBs;
 static RwStateCache rwStateCache;
@@ -130,7 +137,13 @@ static ID3D11DepthStencilState *depthStencilState;
 static ID3D11RasterizerState *rasterizerState;
 static ID3D11SamplerState *samplerState;
 static ID3D11Buffer *alphaTestConstantBuffer;
-static ID3D11DeviceContext1 *context1;
+
+static ID3D11VertexShader *clearVS;
+static ID3D11PixelShader *clearPS;
+static ID3D11Buffer *clearConstantBuffer;
+static ID3D11BlendState *clearBlendState[2];
+static ID3D11DepthStencilState *clearDepthStencilState[4];
+static ID3D11RasterizerState *clearRasterizerState;
 
 static ID3D11VertexShader *im2dVS;
 static ID3D11PixelShader *im2dPS;
@@ -189,6 +202,9 @@ static void showRaster(Raster *raster, uint32 flags);
 static bool32 rasterRenderFast(Raster *raster, int32 x, int32 y);
 static void setRwRenderState(int32 state, void *value);
 static void *getRwRenderState(int32 state);
+static bool32 openClear(void);
+static void closeClear(void);
+static void clearRect(RGBA *color, uint32 mode, bool32 hasDepth);
 static bool32 openIm2D(void);
 static void closeIm2D(void);
 static bool32 openIm3D(void);
@@ -520,8 +536,6 @@ startD3D11(void)
 		RWERROR((ERR_GENERAL, "D3D11CreateDevice() failed"));
 		return 0;
 	}
-	d3d11Globals.context->QueryInterface(__uuidof(ID3D11DeviceContext1),
-		(void**)&context1);
 
 	d3d11Globals.present.BufferDesc.Width = width;
 	d3d11Globals.present.BufferDesc.Height = height;
@@ -564,15 +578,21 @@ initD3D11(void)
 	if(!createDefaultViews())
 		return 0;
 	resetRenderState();
-	if(!openIm2D())
+	if(!openClear())
 		return 0;
+	if(!openIm2D()){
+		closeClear();
+		return 0;
+	}
 	if(!openIm3D()){
 		closeIm2D();
+		closeClear();
 		return 0;
 	}
 	if(!openDefaultRenderPipeline()){
 		closeIm3D();
 		closeIm2D();
+		closeClear();
 		return 0;
 	}
 	return 1;
@@ -584,13 +604,13 @@ termD3D11(void)
 	closeDefaultRenderPipeline();
 	closeIm3D();
 	closeIm2D();
+	closeClear();
 	releaseDefaultViews();
 	if(d3d11Globals.context){
 		d3d11Globals.context->ClearState();
 		d3d11Globals.context->Flush();
 	}
 	safeRelease(d3d11Globals.swapChain);
-	safeRelease(context1);
 	safeRelease(d3d11Globals.context);
 	safeRelease(d3d11Globals.d3ddevice);
 	return 1;
@@ -675,10 +695,46 @@ createTextureResources(Raster *raster, bool32 renderTarget)
 	if(renderTarget){
 		ID3D11RenderTargetView *rtv = nil;
 		hr = d3d11Globals.d3ddevice->CreateRenderTargetView(texture, nil, &rtv);
-		if(FAILED(hr))
+		if(FAILED(hr)){
+			safeRelease((ID3D11ShaderResourceView*&)natras->srv);
+			safeRelease((ID3D11Texture2D*&)natras->texture);
+			d3d11Globals.numTextures--;
 			return 0;
-		natras->lockedSurf = rtv;
+		}
+		natras->rtv = rtv;
 	}
+	return 1;
+}
+
+static bool32
+createDepthResources(Raster *raster)
+{
+	D3dRaster *natras = GETD3DRASTEREXT(raster);
+	D3D11_TEXTURE2D_DESC desc;
+	memset(&desc, 0, sizeof(desc));
+	desc.Width = raster->width;
+	desc.Height = raster->height;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = getDepthFormat();
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+	ID3D11Texture2D *texture = nil;
+	HRESULT hr = d3d11Globals.d3ddevice->CreateTexture2D(&desc, nil, &texture);
+	if(FAILED(hr))
+		return 0;
+
+	ID3D11DepthStencilView *dsv = nil;
+	hr = d3d11Globals.d3ddevice->CreateDepthStencilView(texture, nil, &dsv);
+	if(FAILED(hr)){
+		safeRelease(texture);
+		return 0;
+	}
+
+	natras->texture = texture;
+	natras->dsv = dsv;
 	return 1;
 }
 
@@ -755,6 +811,13 @@ rasterCreate(Raster *raster)
 		raster->depth = findFormatDepth11(getDepthFormat());
 		raster->stride = 0;
 		natras->format = getDepthFormat();
+		if(raster->width != (int32)getClientWidth() ||
+		   raster->height != (int32)getClientHeight()){
+			if(!createDepthResources(raster)){
+				RWERROR((ERR_NOTEXTURE));
+				return nil;
+			}
+		}
 		break;
 	default:
 		RWERROR((ERR_INVRASTER));
@@ -785,17 +848,22 @@ destroyRaster(Raster *raster)
 		safeRelease((ID3D11Texture2D*&)natras->texture);
 		break;
 	case Raster::CAMERATEXTURE:
-		safeRelease((ID3D11RenderTargetView*&)natras->lockedSurf);
+		safeRelease((ID3D11RenderTargetView*&)natras->rtv);
 		safeRelease((ID3D11ShaderResourceView*&)natras->srv);
 		safeRelease((ID3D11Texture2D*&)natras->texture);
 		break;
-	case Raster::CAMERA:
 	case Raster::ZBUFFER:
+		safeRelease((ID3D11DepthStencilView*&)natras->dsv);
+		safeRelease((ID3D11Texture2D*&)natras->texture);
+		break;
+	case Raster::CAMERA:
 	default:
 		break;
 	}
 	natras->texture = nil;
 	natras->srv = nil;
+	natras->rtv = nil;
+	natras->dsv = nil;
 	natras->lockedSurf = nil;
 }
 
@@ -1517,20 +1585,44 @@ getRwRenderState(int32 state)
 }
 
 static void
-setRenderSurfaces(Camera *cam)
+getRenderSurfaces(Camera *cam, ID3D11RenderTargetView **rtv,
+	ID3D11DepthStencilView **dsv)
 {
-	ID3D11RenderTargetView *rtv = d3d11Globals.defaultRenderTarget;
-	ID3D11DepthStencilView *dsv = cam->zBuffer ? d3d11Globals.defaultDepthStencilView : nil;
+	*rtv = d3d11Globals.defaultRenderTarget;
+	*dsv = nil;
 
 	Raster *fbuf = cam->frameBuffer;
+	assert(fbuf);
 	if(fbuf && fbuf->parent)
 		fbuf = fbuf->parent;
 	if(fbuf && fbuf->type == Raster::CAMERATEXTURE){
 		D3dRaster *natras = GETD3DRASTEREXT(fbuf);
-		if(natras->lockedSurf)
-			rtv = (ID3D11RenderTargetView*)natras->lockedSurf;
+		if(natras->rtv)
+			*rtv = (ID3D11RenderTargetView*)natras->rtv;
 	}
 
+	Raster *zbuf = cam->zBuffer;
+	if(zbuf){
+		if(zbuf->parent)
+			zbuf = zbuf->parent;
+		assert(zbuf->type == Raster::ZBUFFER);
+		D3dRaster *natras = GETD3DRASTEREXT(zbuf);
+		if(natras->dsv)
+			*dsv = (ID3D11DepthStencilView*)natras->dsv;
+		else
+			*dsv = d3d11Globals.defaultDepthStencilView;
+	}
+}
+
+static void
+setRenderSurfaces(Camera *cam)
+{
+	ID3D11RenderTargetView *rtv;
+	ID3D11DepthStencilView *dsv;
+	getRenderSurfaces(cam, &rtv, &dsv);
+
+	ID3D11ShaderResourceView *nullSRV = nil;
+	d3d11Globals.context->PSSetShaderResources(0, 1, &nullSRV);
 	d3d11Globals.context->OMSetRenderTargets(1, &rtv, dsv);
 }
 
@@ -1612,6 +1704,15 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	ensureSwapChainSize();
 	setRenderSurfaces(cam);
 	setViewport(cam->frameBuffer);
+	ID3D11RenderTargetView *rtv;
+	ID3D11DepthStencilView *dsv;
+	getRenderSurfaces(cam, &rtv, &dsv);
+
+	Raster *targetRaster = cam->frameBuffer;
+	if(targetRaster && (targetRaster->flags & Raster::DONTALLOCATE)){
+		clearRect(col, mode, dsv != nil);
+		return;
+	}
 
 	if(mode & Camera::CLEARIMAGE){
 		float c[4];
@@ -1619,34 +1720,13 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		c[1] = col->green / 255.0f;
 		c[2] = col->blue / 255.0f;
 		c[3] = col->alpha / 255.0f;
-		ID3D11RenderTargetView *rtv = d3d11Globals.defaultRenderTarget;
-		Raster *targetRaster = cam->frameBuffer;
-		Raster *fbuf = targetRaster;
-		if(fbuf && fbuf->parent)
-			fbuf = fbuf->parent;
-		if(fbuf && fbuf->type == Raster::CAMERATEXTURE){
-			D3dRaster *natras = GETD3DRASTEREXT(fbuf);
-			if(natras->lockedSurf)
-				rtv = (ID3D11RenderTargetView*)natras->lockedSurf;
-		}
-		if(targetRaster && (targetRaster->flags & Raster::DONTALLOCATE)){
-			D3D11_RECT rect;
-			rect.left = targetRaster->offsetX;
-			rect.top = targetRaster->offsetY;
-			rect.right = rect.left + targetRaster->width;
-			rect.bottom = rect.top + targetRaster->height;
-			if(context1){
-				context1->ClearView(rtv, c, &rect, 1);
-			}else
-				d3d11Globals.context->ClearRenderTargetView(rtv, c);
-		}else
-			d3d11Globals.context->ClearRenderTargetView(rtv, c);
+		d3d11Globals.context->ClearRenderTargetView(rtv, c);
 	}
-	if((mode & (Camera::CLEARZ | Camera::CLEARSTENCIL)) && d3d11Globals.defaultDepthStencilView){
+	if((mode & (Camera::CLEARZ | Camera::CLEARSTENCIL)) && dsv){
 		UINT flags = 0;
 		if(mode & Camera::CLEARZ) flags |= D3D11_CLEAR_DEPTH;
 		if(mode & Camera::CLEARSTENCIL) flags |= D3D11_CLEAR_STENCIL;
-		d3d11Globals.context->ClearDepthStencilView(d3d11Globals.defaultDepthStencilView, flags, 1.0f, 0);
+		d3d11Globals.context->ClearDepthStencilView(dsv, flags, 1.0f, 0);
 	}
 }
 
@@ -1681,6 +1761,138 @@ compileShader(const char *src, const char *entry, const char *target)
 	if(FAILED(hr))
 		return nil;
 	return shader;
+}
+
+static bool32
+openClear(void)
+{
+	ID3DBlob *vsBlob = compileShader(clear_VS_d11_source, "main", "vs_4_0");
+	ID3DBlob *psBlob = compileShader(clear_PS_d11_source, "main", "ps_4_0");
+	if(vsBlob == nil || psBlob == nil)
+		goto fail;
+
+	if(FAILED(d3d11Globals.d3ddevice->CreateVertexShader(
+		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nil, &clearVS)))
+		goto fail;
+	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(
+		psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nil, &clearPS)))
+		goto fail;
+	d3d11Globals.numVertexShaders++;
+	d3d11Globals.numPixelShaders++;
+
+	D3D11_BUFFER_DESC bufferDesc;
+	memset(&bufferDesc, 0, sizeof(bufferDesc));
+	bufferDesc.ByteWidth = sizeof(ClearConstants);
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	if(FAILED(d3d11Globals.d3ddevice->CreateBuffer(
+		&bufferDesc, nil, &clearConstantBuffer)))
+		goto fail;
+
+	for(int32 i = 0; i < 2; i++){
+		D3D11_BLEND_DESC blendDesc;
+		memset(&blendDesc, 0, sizeof(blendDesc));
+		blendDesc.RenderTarget[0].RenderTargetWriteMask =
+			i ? D3D11_COLOR_WRITE_ENABLE_ALL : 0;
+		if(FAILED(d3d11Globals.d3ddevice->CreateBlendState(
+			&blendDesc, &clearBlendState[i])))
+			goto fail;
+	}
+
+	for(int32 i = 0; i < 4; i++){
+		D3D11_DEPTH_STENCIL_DESC depthDesc;
+		memset(&depthDesc, 0, sizeof(depthDesc));
+		depthDesc.DepthEnable = (i & 1) != 0;
+		depthDesc.DepthWriteMask = (i & 1) ?
+			D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+		depthDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
+		depthDesc.StencilEnable = (i & 2) != 0;
+		depthDesc.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+		depthDesc.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
+		depthDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		depthDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+		depthDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+		depthDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+		depthDesc.BackFace = depthDesc.FrontFace;
+		if(FAILED(d3d11Globals.d3ddevice->CreateDepthStencilState(
+			&depthDesc, &clearDepthStencilState[i])))
+			goto fail;
+	}
+
+	D3D11_RASTERIZER_DESC rasterizerDesc;
+	memset(&rasterizerDesc, 0, sizeof(rasterizerDesc));
+	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+	rasterizerDesc.CullMode = D3D11_CULL_NONE;
+	rasterizerDesc.DepthClipEnable = TRUE;
+	rasterizerDesc.MultisampleEnable =
+		d3d11Globals.present.SampleDesc.Count > 1;
+	if(FAILED(d3d11Globals.d3ddevice->CreateRasterizerState(
+		&rasterizerDesc, &clearRasterizerState)))
+		goto fail;
+
+	vsBlob->Release();
+	psBlob->Release();
+	return 1;
+
+fail:
+	if(vsBlob) vsBlob->Release();
+	if(psBlob) psBlob->Release();
+	closeClear();
+	return 0;
+}
+
+static void
+closeClear(void)
+{
+	safeRelease(clearRasterizerState);
+	for(int32 i = 0; i < 4; i++)
+		safeRelease(clearDepthStencilState[i]);
+	for(int32 i = 0; i < 2; i++)
+		safeRelease(clearBlendState[i]);
+	safeRelease(clearConstantBuffer);
+	safeRelease(clearPS);
+	safeRelease(clearVS);
+}
+
+static void
+clearRect(RGBA *color, uint32 mode, bool32 hasDepth)
+{
+	uint32 depthState = 0;
+	if(hasDepth && (mode & Camera::CLEARZ))
+		depthState |= 1;
+	if(hasDepth && (mode & Camera::CLEARSTENCIL))
+		depthState |= 2;
+	bool32 clearImage = (mode & Camera::CLEARIMAGE) != 0;
+	if(!clearImage && depthState == 0)
+		return;
+
+	ClearConstants constants;
+	constants.color[0] = color->red / 255.0f;
+	constants.color[1] = color->green / 255.0f;
+	constants.color[2] = color->blue / 255.0f;
+	constants.color[3] = color->alpha / 255.0f;
+	d3d11Globals.context->UpdateSubresource(clearConstantBuffer, 0, nil,
+		&constants, 0, 0);
+
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	d3d11Globals.context->OMSetBlendState(clearBlendState[clearImage],
+		blendFactor, 0xFFFFFFFF);
+	d3d11Globals.context->OMSetDepthStencilState(
+		clearDepthStencilState[depthState], 0);
+	d3d11Globals.context->RSSetState(clearRasterizerState);
+	d3d11Globals.context->IASetInputLayout(nil);
+	d3d11Globals.context->IASetPrimitiveTopology(
+		D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	d3d11Globals.context->VSSetShader(clearVS, nil, 0);
+	d3d11Globals.context->PSSetShader(clearPS, nil, 0);
+	d3d11Globals.context->PSSetConstantBuffers(0, 1,
+		&clearConstantBuffer);
+	d3d11Globals.context->Draw(3, 0);
+
+	memset(&deviceCache, 0, sizeof(deviceCache));
+	blendDirty = 1;
+	depthDirty = 1;
+	rasterizerDirty = 1;
 }
 
 static bool32

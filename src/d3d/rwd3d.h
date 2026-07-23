@@ -289,6 +289,8 @@ struct D3dRaster
 	void *palette;
 #ifdef RW_D3D11
 	void *srv;
+	void *rtv;
+	void *dsv;
 #endif
 	void *lockedSurf;
 	uint32 format;

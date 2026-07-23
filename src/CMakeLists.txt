@@ -109,6 +109,8 @@ if(LIBRW_PLATFORM_D3D11)
     file(MAKE_DIRECTORY "${D3D11_GENERATED_DIR}")
 
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+		"${D3D11_SHADER_DIR}/clear_VS_d11.hlsl"
+		"${D3D11_SHADER_DIR}/clear_PS_d11.hlsl"
 		"${D3D11_SHADER_DIR}/im2d_VS_d11.hlsl"
 		"${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
@@ -116,6 +118,22 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
     )
+
+	file(READ "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl" SHADER_SOURCE)
+	set(SHADER_VARIABLE clear_VS_d11_source)
+	configure_file(
+		"${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+		"${D3D11_GENERATED_DIR}/clear_VS_d11.h"
+		@ONLY
+	)
+
+	file(READ "${D3D11_SHADER_DIR}/clear_PS_d11.hlsl" SHADER_SOURCE)
+	set(SHADER_VARIABLE clear_PS_d11_source)
+	configure_file(
+		"${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+		"${D3D11_GENERATED_DIR}/clear_PS_d11.h"
+		@ONLY
+	)
 
 	file(READ "${D3D11_SHADER_DIR}/im2d_VS_d11.hlsl" SHADER_SOURCE)
 	set(SHADER_VARIABLE im2d_VS_d11_source)
@@ -166,6 +184,8 @@ if(LIBRW_PLATFORM_D3D11)
     )
 
     target_sources(librw PRIVATE
+        "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/clear_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im2d_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
@@ -174,6 +194,8 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
     )
     set_source_files_properties(
+        "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/clear_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im2d_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
