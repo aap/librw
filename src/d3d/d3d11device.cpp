@@ -1704,6 +1704,7 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	ensureSwapChainSize();
 	setRenderSurfaces(cam);
 	setViewport(cam->frameBuffer);
+
 	ID3D11RenderTargetView *rtv;
 	ID3D11DepthStencilView *dsv;
 	getRenderSurfaces(cam, &rtv, &dsv);
@@ -1715,12 +1716,12 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 	}
 
 	if(mode & Camera::CLEARIMAGE){
-		float c[4];
-		c[0] = col->red / 255.0f;
-		c[1] = col->green / 255.0f;
-		c[2] = col->blue / 255.0f;
-		c[3] = col->alpha / 255.0f;
-		d3d11Globals.context->ClearRenderTargetView(rtv, c);
+		float color[4];
+		color[0] = col->red / 255.0f;
+		color[1] = col->green / 255.0f;
+		color[2] = col->blue / 255.0f;
+		color[3] = col->alpha / 255.0f;
+		d3d11Globals.context->ClearRenderTargetView(rtv, color);
 	}
 	if((mode & (Camera::CLEARZ | Camera::CLEARSTENCIL)) && dsv){
 		UINT flags = 0;
