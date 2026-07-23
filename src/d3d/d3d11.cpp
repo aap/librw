@@ -337,13 +337,13 @@ namespace rw
 				geo->morphTargets[ 0 ].normals;
 			bool hasTexCoords = geo->numTexCoordSets > 0 && geo->texCoords[ 0 ];
 			V3d defaultNormal = { 0.0f, 0.0f, 1.0f };
-			RGBA white = { 255, 255, 255, 255 };
+			RGBA black = { 0, 0, 0, 255 };
 			TexCoords zeroTexCoord = { 0.0f, 0.0f };
 			for( uint32 i = 0; i < header->totalNumVertex; i++ )
 			{
 				vertices[ i ].position = geo->morphTargets[ 0 ].vertices[ i ];
 				vertices[ i ].normal = hasNormals ? geo->morphTargets[ 0 ].normals[ i ] : defaultNormal;
-				vertices[ i ].color = isPrelit ? geo->colors[ i ] : white;
+				vertices[ i ].color = isPrelit ? geo->colors[ i ] : black;
 				vertices[ i ].texcoord = hasTexCoords ? geo->texCoords[ 0 ][ i ] : zeroTexCoord;
 			}
 			unlockVertices( stream->vertexBuffer );
