@@ -115,6 +115,7 @@ if(LIBRW_PLATFORM_D3D11)
 		"${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/im3d_tex_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
     )
@@ -167,6 +168,14 @@ if(LIBRW_PLATFORM_D3D11)
         @ONLY
     )
 
+    file(READ "${D3D11_SHADER_DIR}/im3d_tex_PS_d11.hlsl" SHADER_SOURCE)
+    set(SHADER_VARIABLE im3d_tex_PS_d11_source)
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+        "${D3D11_GENERATED_DIR}/im3d_tex_PS_d11.h"
+        @ONLY
+    )
+
     file(READ "${D3D11_SHADER_DIR}/default_VS_d11.hlsl" SHADER_SOURCE)
     set(SHADER_VARIABLE default_VS_d11_source)
     configure_file(
@@ -190,6 +199,7 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/im3d_tex_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
     )
@@ -200,6 +210,7 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/im2d_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/im3d_PS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/im3d_tex_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
         PROPERTIES HEADER_FILE_ONLY TRUE

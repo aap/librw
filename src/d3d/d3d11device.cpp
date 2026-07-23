@@ -26,6 +26,7 @@
 #include "im2d_PS_d11.h"
 #include "im3d_VS_d11.h"
 #include "im3d_PS_d11.h"
+#include "im3d_tex_PS_d11.h"
 
 #define PLUGIN_ID 0
 
@@ -112,6 +113,7 @@ struct Im3DConstants
 	float combined[16];
 	float world[16];
 	float normal[16];
+	float viewportOffset[4];
 };
 
 struct AlphaTestConstants
@@ -156,6 +158,7 @@ static uint32 im2dIndexBufferSize;
 
 static ID3D11VertexShader *im3dVS;
 static ID3D11PixelShader *im3dPS;
+static ID3D11PixelShader *im3dTexPS;
 static ID3D11InputLayout *im3dLayout;
 static ID3D11Buffer *im3dConstantBuffer;
 static ID3D11Buffer *im3dVertexBuffer;
@@ -1304,18 +1307,20 @@ applySamplerState(void)
 static void
 applyAlphaTestState(void)
 {
-	if(!alphaTestDirty || alphaTestConstantBuffer == nil)
+	if(alphaTestConstantBuffer == nil)
 		return;
-	AlphaTestConstants constants;
-	constants.enabled = rwStateCache.vertexAlpha || rwStateCache.textureAlpha;
-	constants.function = rwStateCache.alphaFunc;
-	constants.reference = rwStateCache.alphaRef / 255.0f;
-	constants.padding = 0.0f;
-	d3d11Globals.context->UpdateSubresource(alphaTestConstantBuffer, 0, nil,
-		&constants, 0, 0);
+	if(alphaTestDirty){
+		AlphaTestConstants constants;
+		constants.enabled = rwStateCache.vertexAlpha || rwStateCache.textureAlpha;
+		constants.function = rwStateCache.alphaFunc;
+		constants.reference = rwStateCache.alphaRef / 255.0f;
+		constants.padding = 0.0f;
+		d3d11Globals.context->UpdateSubresource(alphaTestConstantBuffer, 0, nil,
+			&constants, 0, 0);
+		alphaTestDirty = 0;
+	}
 	d3d11Globals.context->PSSetConstantBuffers(PSSlotD3D9States, 1,
 		&alphaTestConstantBuffer);
-	alphaTestDirty = 0;
 }
 
 void
@@ -2081,7 +2086,8 @@ openIm3D(void)
 
 	ID3DBlob *vsBlob = compileShader(im3d_VS_d11_source, "main", "vs_4_0");
 	ID3DBlob *psBlob = compileShader(im3d_PS_d11_source, "main", "ps_4_0");
-	if(vsBlob == nil || psBlob == nil)
+	ID3DBlob *texPsBlob = compileShader(im3d_tex_PS_d11_source, "main", "ps_4_0");
+	if(vsBlob == nil || psBlob == nil || texPsBlob == nil)
 		goto fail;
 
 	if(FAILED(d3d11Globals.d3ddevice->CreateVertexShader(vsBlob->GetBufferPointer(),
@@ -2090,13 +2096,16 @@ openIm3D(void)
 	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(psBlob->GetBufferPointer(),
 		psBlob->GetBufferSize(), nil, &im3dPS)))
 		goto fail;
+	if(FAILED(d3d11Globals.d3ddevice->CreatePixelShader(texPsBlob->GetBufferPointer(),
+		texPsBlob->GetBufferSize(), nil, &im3dTexPS)))
+		goto fail;
 	default_amb_VS = im3dVS;
 	default_amb_dir_VS = im3dVS;
 	default_all_VS = im3dVS;
 	default_PS = im3dPS;
-	default_tex_PS = im3dPS;
+	default_tex_PS = im3dTexPS;
 	d3d11Globals.numVertexShaders++;
-	d3d11Globals.numPixelShaders++;
+	d3d11Globals.numPixelShaders += 2;
 
 	if(FAILED(d3d11Globals.d3ddevice->CreateInputLayout(elements, nelem(elements),
 		vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &im3dLayout)))
@@ -2125,11 +2134,13 @@ openIm3D(void)
 
 	vsBlob->Release();
 	psBlob->Release();
+	texPsBlob->Release();
 	return 1;
 
 fail:
 	if(vsBlob) vsBlob->Release();
 	if(psBlob) psBlob->Release();
+	if(texPsBlob) texPsBlob->Release();
 	closeIm3D();
 	return 0;
 }
@@ -2149,6 +2160,8 @@ closeIm3D(void)
 	safeRelease(im3dConstantBuffer);
 	clearVertexDeclaration(im3dLayout);
 	safeRelease(im3dLayout);
+	clearPixelShader(im3dTexPS);
+	safeRelease(im3dTexPS);
 	clearPixelShader(im3dPS);
 	safeRelease(im3dPS);
 	clearVertexShader(im3dVS);
@@ -2168,6 +2181,10 @@ uploadMatrices(void)
 	memcpy(constants.combined, &combined, sizeof(combined));
 	memcpy(constants.world, &identity, sizeof(identity));
 	memcpy(constants.normal, &identity, sizeof(identity));
+	constants.viewportOffset[0] = 1.0f/cam->frameBuffer->width;
+	constants.viewportOffset[1] = 1.0f/cam->frameBuffer->height;
+	constants.viewportOffset[2] = 0.0f;
+	constants.viewportOffset[3] = 0.0f;
 	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
 		&constants, 0, 0);
 	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
@@ -2188,6 +2205,10 @@ uploadMatrices(Matrix *world)
 	memcpy(constants.world, &worldMatrix, sizeof(worldMatrix));
 	// TODO: use the inverse transpose of worldMatrix for normals.
 	memcpy(constants.normal, &worldMatrix, sizeof(worldMatrix));
+	constants.viewportOffset[0] = 1.0f/cam->frameBuffer->width;
+	constants.viewportOffset[1] = 1.0f/cam->frameBuffer->height;
+	constants.viewportOffset[2] = 0.0f;
+	constants.viewportOffset[3] = 0.0f;
 	d3d11Globals.context->UpdateSubresource(im3dConstantBuffer, 0, nil,
 		&constants, 0, 0);
 	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
