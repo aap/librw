@@ -460,6 +460,66 @@ d3d_to_gl3(rw::Raster *ras)
 #endif
 }
 
+#ifdef RW_D3D11
+static rw::Raster*
+d3d_to_d3d11(rw::Raster *ras)
+{
+	using namespace rw;
+
+	Image *img = ras->toImage();
+	if(img == nil)
+		return nil;
+	img->unpalettize();
+
+	int32 width, height, depth, format;
+	if(!Raster::imageFindRasterFormat(img, Raster::TEXTURE,
+	   &width, &height, &depth, &format)){
+		img->destroy();
+		return nil;
+	}
+
+	format |= ras->format & (Raster::MIPMAP | Raster::AUTOMIPMAP);
+	Raster *newras = Raster::create(width, height, depth, format);
+	if(newras == nil || newras->setFromImage(img) == nil){
+		if(newras)
+			newras->destroy();
+		img->destroy();
+		return nil;
+	}
+	img->destroy();
+
+	int32 numLevels = ras->getNumLevels();
+	int32 newNumLevels = newras->getNumLevels();
+	if(numLevels > newNumLevels)
+		numLevels = newNumLevels;
+	for(int32 i = 1; i < numLevels; i++){
+		if(ras->lock(i, Raster::LOCKREAD) == nil)
+			goto fail;
+		img = ras->toImage();
+		ras->unlock(i);
+		if(img == nil)
+			goto fail;
+		img->unpalettize();
+		if(newras->lock(i, Raster::LOCKWRITE | Raster::LOCKNOFETCH) == nil){
+			img->destroy();
+			goto fail;
+		}
+		bool32 converted = newras->setFromImage(img) != nil;
+		newras->unlock(i);
+		img->destroy();
+		if(!converted)
+			goto fail;
+	}
+
+	GETD3DRASTEREXT(newras)->hasAlpha = GETD3DRASTEREXT(ras)->hasAlpha;
+	return newras;
+
+fail:
+	newras->destroy();
+	return nil;
+}
+#endif
+
 static rw::Raster*
 xbox_to_gl3(rw::Raster *ras)
 {
@@ -515,6 +575,15 @@ Raster::convertTexToCurrentPlatform(rw::Raster *ras)
 			ras->destroy();
 			return newras;
 		}
+#ifdef RW_D3D11
+	}else if((ras->platform == PLATFORM_D3D8 || ras->platform == PLATFORM_D3D9) &&
+	         rw::platform == PLATFORM_D3D11){
+		Raster *newras = d3d_to_d3d11(ras);
+		if(newras){
+			ras->destroy();
+			return newras;
+		}
+#endif
 	}else if(ras->platform == PLATFORM_XBOX && (rw::platform == PLATFORM_D3D9 || rw::platform == PLATFORM_D3D8)){
 		Raster *newras = xbox_to_d3d(ras);
 		if(newras){

@@ -655,14 +655,16 @@ freeLevels(RasterLevels *levels)
 }
 
 static bool32
-createTextureResources(Raster *raster, bool32 renderTarget)
+createTextureResources(Raster *raster, bool32 renderTarget, int32 numLevels)
 {
 	D3dRaster *natras = GETD3DRASTEREXT(raster);
+	if(numLevels < 1)
+		numLevels = 1;
 	D3D11_TEXTURE2D_DESC desc;
 	memset(&desc, 0, sizeof(desc));
 	desc.Width = raster->width;
 	desc.Height = raster->height;
-	desc.MipLevels = 1;
+	desc.MipLevels = numLevels;
 	desc.ArraySize = 1;
 	desc.Format = getColorFormat();
 	desc.SampleDesc.Count = renderTarget ? 1 : 1;
@@ -777,23 +779,27 @@ rasterCreate(Raster *raster)
 	switch(raster->type){
 	case Raster::NORMAL:
 	case Raster::TEXTURE:
+		{
+		int32 numLevels = raster->format & Raster::MIPMAP ?
+			Raster::calculateNumLevels(raster->width, raster->height) : 1;
 		raster->depth = 32;
 		raster->stride = raster->width*4;
 		natras->hasAlpha = Raster::formatHasAlpha(raster->format);
 		natras->bpp = 4;
-		natras->lockedSurf = allocateLevels(raster->width, raster->height, 1);
-		if(!createTextureResources(raster, 0)){
+		natras->lockedSurf = allocateLevels(raster->width, raster->height, numLevels);
+		if(!createTextureResources(raster, 0, numLevels)){
 			freeLevels((RasterLevels*)natras->lockedSurf);
 			natras->lockedSurf = nil;
 			RWERROR((ERR_NOTEXTURE));
 			return nil;
 		}
 		break;
+		}
 	case Raster::CAMERATEXTURE:
 		raster->depth = 32;
 		raster->stride = raster->width*4;
 		natras->hasAlpha = 1;
-		if(!createTextureResources(raster, 1)){
+		if(!createTextureResources(raster, 1, 1)){
 			RWERROR((ERR_NOTEXTURE));
 			return nil;
 		}
