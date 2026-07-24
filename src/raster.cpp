@@ -461,62 +461,77 @@ d3d_to_gl3(rw::Raster *ras)
 }
 
 #ifdef RW_D3D11
-static rw::Raster*
-d3d_to_d3d11(rw::Raster *ras)
+static bool32
+copy_raster_mip(rw::Raster *source, rw::Raster *destination, int32 mipLevel)
 {
 	using namespace rw;
 
-	Image *img = ras->toImage();
-	if(img == nil)
+	if(source->lock(mipLevel, Raster::LOCKREAD) == nil)
+		return 0;
+
+	Image *image = source->toImage();
+	source->unlock(mipLevel);
+	if(image == nil)
+		return 0;
+	image->unpalettize();
+
+	if(destination->lock(mipLevel,
+	   Raster::LOCKWRITE | Raster::LOCKNOFETCH) == nil){
+		image->destroy();
+		return 0;
+	}
+
+	bool32 converted = destination->setFromImage(image) != nil; //Copy only in Cpu memory
+	destination->unlock( mipLevel ); //Here upload the mipmap level to the GPU
+	image->destroy();
+	return converted;
+}
+
+static rw::Raster*
+d3d_to_d3d11(rw::Raster *source)
+{
+	using namespace rw;
+
+	Image *baseImage = source->toImage();
+	if(baseImage == nil)
 		return nil;
-	img->unpalettize();
+	baseImage->unpalettize();
 
 	int32 width, height, depth, format;
-	if(!Raster::imageFindRasterFormat(img, Raster::TEXTURE,
+	if(!Raster::imageFindRasterFormat(baseImage, Raster::TEXTURE,
 	   &width, &height, &depth, &format)){
-		img->destroy();
+		baseImage->destroy();
 		return nil;
 	}
 
-	format |= ras->format & (Raster::MIPMAP | Raster::AUTOMIPMAP);
-	Raster *newras = Raster::create(width, height, depth, format);
-	if(newras == nil || newras->setFromImage(img) == nil){
-		if(newras)
-			newras->destroy();
-		img->destroy();
+	format |= source->format & (Raster::MIPMAP | Raster::AUTOMIPMAP);
+	Raster *destination = Raster::create(width, height, depth, format);
+	if(destination == nil){
+		baseImage->destroy();
 		return nil;
 	}
-	img->destroy();
 
-	int32 numLevels = ras->getNumLevels();
-	int32 newNumLevels = newras->getNumLevels();
-	if(numLevels > newNumLevels)
-		numLevels = newNumLevels;
-	for(int32 i = 1; i < numLevels; i++){
-		if(ras->lock(i, Raster::LOCKREAD) == nil)
-			goto fail;
-		img = ras->toImage();
-		ras->unlock(i);
-		if(img == nil)
-			goto fail;
-		img->unpalettize();
-		if(newras->lock(i, Raster::LOCKWRITE | Raster::LOCKNOFETCH) == nil){
-			img->destroy();
-			goto fail;
+	bool32 baseConverted = destination->setFromImage(baseImage) != nil;
+	baseImage->destroy();
+	if(!baseConverted){
+		destination->destroy();
+		return nil;
+	}
+
+	int32 numLevels = source->getNumLevels();
+	int32 destinationNumLevels = destination->getNumLevels();
+	if(numLevels > destinationNumLevels)
+		numLevels = destinationNumLevels;
+
+	for(int32 mipLevel = 1; mipLevel < numLevels; mipLevel++)
+		if(!copy_raster_mip(source, destination, mipLevel)){
+			destination->destroy();
+			return nil;
 		}
-		bool32 converted = newras->setFromImage(img) != nil;
-		newras->unlock(i);
-		img->destroy();
-		if(!converted)
-			goto fail;
-	}
 
-	GETD3DRASTEREXT(newras)->hasAlpha = GETD3DRASTEREXT(ras)->hasAlpha;
-	return newras;
-
-fail:
-	newras->destroy();
-	return nil;
+	GETD3DRASTEREXT(destination)->hasAlpha =
+		GETD3DRASTEREXT(source)->hasAlpha;
+	return destination;
 }
 #endif
 
