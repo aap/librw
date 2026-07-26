@@ -8,7 +8,9 @@ enum ConstantBufferSlot
 	VSlotLights = 1,
 	// Vertex and pixel shader slots are independent namespaces.
 	VSlotSkin = 2,
-	PSSlotD3D9States = 2
+	VSlotMatFX = 2,
+	PSSlotD3D9States = 2,
+	PSSlotMatFX = 3
 };
 
 void registerPlatformPlugins(void);
@@ -117,6 +119,8 @@ int32 lightingCB_Shader(Atomic *atomic);
 bool32 uploadDefaultMatrices(Matrix *world);
 bool32 uploadDefaultMaterial(const RGBA &color,
 	const SurfaceProperties &surfaceProps);
+bool32 setDefaultVertexDeclaration(void);
+bool32 setDefaultVertexShader(int32 lightBits);
 bool32 setDefaultPixelShader(void);
 
 void *destroyNativeData(void *object, int32, int32);

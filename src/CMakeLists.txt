@@ -119,6 +119,8 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/skin_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_PS_d11.hlsl"
     )
 
 	file(READ "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl" SHADER_SOURCE)
@@ -201,6 +203,22 @@ if(LIBRW_PLATFORM_D3D11)
         @ONLY
     )
 
+    file(READ "${D3D11_SHADER_DIR}/matfx_env_VS_d11.hlsl" SHADER_SOURCE)
+    set(SHADER_VARIABLE matfx_env_VS_d11_source)
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+        "${D3D11_GENERATED_DIR}/matfx_env_VS_d11.h"
+        @ONLY
+    )
+
+    file(READ "${D3D11_SHADER_DIR}/matfx_env_PS_d11.hlsl" SHADER_SOURCE)
+    set(SHADER_VARIABLE matfx_env_PS_d11_source)
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+        "${D3D11_GENERATED_DIR}/matfx_env_PS_d11.h"
+        @ONLY
+    )
+
     target_sources(librw PRIVATE
         "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/clear_PS_d11.hlsl"
@@ -212,6 +230,8 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/skin_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_PS_d11.hlsl"
     )
     set_source_files_properties(
         "${D3D11_SHADER_DIR}/clear_VS_d11.hlsl"
@@ -224,6 +244,8 @@ if(LIBRW_PLATFORM_D3D11)
         "${D3D11_SHADER_DIR}/default_VS_d11.hlsl"
         "${D3D11_SHADER_DIR}/default_PS_d11.hlsl"
         "${D3D11_SHADER_DIR}/skin_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_VS_d11.hlsl"
+        "${D3D11_SHADER_DIR}/matfx_env_PS_d11.hlsl"
         PROPERTIES HEADER_FILE_ONLY TRUE
     )
     target_include_directories(librw PRIVATE "${D3D11_GENERATED_DIR}")

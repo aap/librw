@@ -384,6 +384,22 @@ uploadDefaultMaterial(const RGBA &color, const SurfaceProperties &surfaceProps)
 }
 
 bool32
+setDefaultVertexDeclaration(void)
+{
+	return setVertexDeclaration(defaultLayout);
+}
+
+bool32
+setDefaultVertexShader(int32 lightBits)
+{
+	if((lightBits & VSLIGHT_MASK) == 0)
+		return setVertexShader(default_amb_VS);
+	if((lightBits & VSLIGHT_MASK) == VSLIGHT_DIRECT)
+		return setVertexShader(default_amb_dir_VS);
+	return setVertexShader(default_all_VS);
+}
+
+bool32
 setDefaultPixelShader(void)
 {
 	return setPixelShader(default_PS);
@@ -453,7 +469,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 	if(!setIndices(header->indexBuffer))
 		return;
-	if(!setVertexDeclaration(defaultLayout))
+	if(!setDefaultVertexDeclaration())
 		return;
 
 	d3d11Globals.context->IASetPrimitiveTopology(
@@ -463,14 +479,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	if(!uploadDefaultMatrices(atomic->getFrame()->getLTM()))
 		return;
 
-	void *vertexShader;
-	if((vsBits & VSLIGHT_MASK) == 0)
-		vertexShader = default_amb_VS;
-	else if((vsBits & VSLIGHT_MASK) == VSLIGHT_DIRECT)
-		vertexShader = default_amb_dir_VS;
-	else
-		vertexShader = default_all_VS;
-	if(!setVertexShader(vertexShader) || !setDefaultPixelShader())
+	if(!setDefaultVertexShader(vsBits) || !setDefaultPixelShader())
 		return;
 
 	uint32 flags = atomic->geometry->flags;
