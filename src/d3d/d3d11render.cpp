@@ -318,7 +318,7 @@ uploadLights(WorldLights *lightData)
 	return bits;
 }
 
-static int32
+int32
 lightingCB_Shader(Atomic *atomic)
 {
 	WorldLights lightData;
@@ -343,7 +343,7 @@ lightingCB_Shader(Atomic *atomic)
 	return uploadLights(&lightData);
 }
 
-static bool32
+bool32
 uploadDefaultMatrices(Matrix *world)
 {
 	if(world == nil || engine->currentCamera == nil)
@@ -362,7 +362,7 @@ uploadDefaultMatrices(Matrix *world)
 	return 1;
 }
 
-static bool32
+bool32
 uploadDefaultMaterial(const RGBA &color, const SurfaceProperties &surfaceProps)
 {
 	if(standardConstantBuffer == nil)
@@ -381,6 +381,12 @@ uploadDefaultMaterial(const RGBA &color, const SurfaceProperties &surfaceProps)
 	d3d11Globals.context->VSSetConstantBuffers(VSlotObjects, 1,
 		&standardConstantBuffer);
 	return 1;
+}
+
+bool32
+setDefaultPixelShader(void)
+{
+	return setPixelShader(default_PS);
 }
 
 void
@@ -464,7 +470,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 		vertexShader = default_amb_dir_VS;
 	else
 		vertexShader = default_all_VS;
-	if(!setVertexShader(vertexShader) || !setPixelShader(default_PS))
+	if(!setVertexShader(vertexShader) || !setDefaultPixelShader())
 		return;
 
 	uint32 flags = atomic->geometry->flags;
@@ -477,13 +483,7 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 
 		SetRenderState(VERTEXALPHA,
 			inst->vertexAlpha || material->color.alpha != 255);
-		if(material->texture && material->texture->raster){
-			SetRenderState(TEXTUREFILTER, material->texture->getFilter());
-			SetRenderState(TEXTUREADDRESSU, material->texture->getAddressU());
-			SetRenderState(TEXTUREADDRESSV, material->texture->getAddressV());
-		}
-		SetRenderStatePtr(TEXTURERASTER,
-			material->texture ? material->texture->raster : nil);
+		setTexture(0, material->texture);
 		if(!uploadDefaultMaterial((flags & Geometry::MODULATE) ?
 		   material->color : white, material->surfaceProps))
 			return;

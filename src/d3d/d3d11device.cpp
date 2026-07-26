@@ -67,6 +67,7 @@ namespace rw
 		};
 
 	#define MAXNUMSTREAMS (3)
+	#define MAXNUMSTAGES (2)
 
 		struct D3dDeviceCache
 		{
@@ -105,7 +106,7 @@ namespace rw
 			uint32 cullmode;
 			uint32 fogenable;
 			RGBA fogcolor;
-			RwRasterStateCache texstage[ 1 ];
+			RwRasterStateCache texstage[ MAXNUMSTAGES ];
 		};
 
 		struct Im2DConstants
@@ -142,7 +143,7 @@ namespace rw
 		static ID3D11BlendState* blendState;
 		static ID3D11DepthStencilState* depthStencilState;
 		static ID3D11RasterizerState* rasterizerState;
-		static ID3D11SamplerState* samplerState;
+		static ID3D11SamplerState* samplerState[ MAXNUMSTAGES ];
 		static ID3D11Buffer* alphaTestConstantBuffer;
 
 		static ID3D11VertexShader* clearVS;
@@ -178,7 +179,7 @@ namespace rw
 		static bool32 blendDirty;
 		static bool32 depthDirty;
 		static bool32 rasterizerDirty;
-		static bool32 samplerDirty;
+		static bool32 samplerDirty[ MAXNUMSTAGES ];
 		static bool32 alphaTestDirty;
 
 		static int findFormatDepth11( DXGI_FORMAT format );
@@ -874,8 +875,9 @@ done:
 			destroyRaster( Raster* raster )
 		{
 			D3dRaster* natras = GETD3DRASTEREXT( raster );
-			if( rwStateCache.texstage[ 0 ].raster == raster )
-				rwStateCache.texstage[ 0 ].raster = nil;
+			for( uint32 i = 0; i < MAXNUMSTAGES; i++ )
+				if( rwStateCache.texstage[ i ].raster == raster )
+					rwStateCache.texstage[ i ].raster = nil;
 
 			switch( raster->type )
 			{
@@ -1175,16 +1177,17 @@ done:
 		}
 
 		static void
-			setRasterStage( Raster* raster )
+			setRasterStage( uint32 stage, Raster* raster )
 		{
+			assert( stage < MAXNUMSTAGES );
 			bool32 alpha = 0;
-			rwStateCache.texstage[ 0 ].raster = raster;
+			rwStateCache.texstage[ stage ].raster = raster;
 			if( raster )
 			{
 				D3dRaster* natras = GETD3DRASTEREXT( raster );
 				alpha = natras->hasAlpha;
 			}
-			if( rwStateCache.textureAlpha != alpha )
+			if( stage == 0 && rwStateCache.textureAlpha != alpha )
 			{
 				rwStateCache.textureAlpha = alpha;
 				blendDirty = 1;
@@ -1224,33 +1227,54 @@ done:
 		}
 
 		static void
-			setFilterMode( uint32 filter )
+			setFilterMode( uint32 stage, uint32 filter )
 		{
-			if( rwStateCache.texstage[ 0 ].filter != ( Texture::FilterMode )filter )
+			assert( stage < MAXNUMSTAGES );
+			if( rwStateCache.texstage[ stage ].filter != ( Texture::FilterMode )filter )
 			{
-				rwStateCache.texstage[ 0 ].filter = ( Texture::FilterMode )filter;
-				samplerDirty = 1;
+				rwStateCache.texstage[ stage ].filter = ( Texture::FilterMode )filter;
+				samplerDirty[ stage ] = 1;
 			}
 		}
 
 		static void
-			setAddressU( uint32 addressing )
+			setAddressU( uint32 stage, uint32 addressing )
 		{
-			if( rwStateCache.texstage[ 0 ].addressingU != ( Texture::Addressing )addressing )
+			assert( stage < MAXNUMSTAGES );
+			if( rwStateCache.texstage[ stage ].addressingU != ( Texture::Addressing )addressing )
 			{
-				rwStateCache.texstage[ 0 ].addressingU = ( Texture::Addressing )addressing;
-				samplerDirty = 1;
+				rwStateCache.texstage[ stage ].addressingU = ( Texture::Addressing )addressing;
+				samplerDirty[ stage ] = 1;
 			}
 		}
 
 		static void
-			setAddressV( uint32 addressing )
+			setAddressV( uint32 stage, uint32 addressing )
 		{
-			if( rwStateCache.texstage[ 0 ].addressingV != ( Texture::Addressing )addressing )
+			assert( stage < MAXNUMSTAGES );
+			if( rwStateCache.texstage[ stage ].addressingV != ( Texture::Addressing )addressing )
 			{
-				rwStateCache.texstage[ 0 ].addressingV = ( Texture::Addressing )addressing;
-				samplerDirty = 1;
+				rwStateCache.texstage[ stage ].addressingV = ( Texture::Addressing )addressing;
+				samplerDirty[ stage ] = 1;
 			}
+		}
+
+		void
+			setTexture( uint32 stage, Texture* texture )
+		{
+			assert( stage < MAXNUMSTAGES );
+			if( texture == nil )
+			{
+				setRasterStage( stage, nil );
+				return;
+			}
+			if( texture->raster )
+			{
+				setFilterMode( stage, texture->getFilter() );
+				setAddressU( stage, texture->getAddressU() );
+				setAddressV( stage, texture->getAddressV() );
+			}
+			setRasterStage( stage, texture->raster );
 		}
 
 		static void
@@ -1264,14 +1288,17 @@ done:
 			rwStateCache.zwrite = 1;
 			rwStateCache.ztest = 1;
 			rwStateCache.cullmode = CULLNONE;
-			rwStateCache.texstage[ 0 ].addressingU = Texture::WRAP;
-			rwStateCache.texstage[ 0 ].addressingV = Texture::WRAP;
-			rwStateCache.texstage[ 0 ].filter = Texture::NEAREST;
+			for( uint32 i = 0; i < MAXNUMSTAGES; i++ )
+			{
+				rwStateCache.texstage[ i ].addressingU = Texture::WRAP;
+				rwStateCache.texstage[ i ].addressingV = Texture::WRAP;
+				rwStateCache.texstage[ i ].filter = Texture::NEAREST;
+				samplerDirty[ i ] = 1;
+			}
 			rwStateCache.fogcolor = makeRGBA( 0, 0, 0, 255 );
 			blendDirty = 1;
 			depthDirty = 1;
 			rasterizerDirty = 1;
-			samplerDirty = 1;
 			alphaTestDirty = 1;
 		}
 
@@ -1343,21 +1370,26 @@ done:
 		static void
 			applySamplerState( void )
 		{
-			if( !samplerDirty )
-				return;
-			safeRelease( samplerState );
-			D3D11_SAMPLER_DESC desc;
-			memset( &desc, 0, sizeof( desc ) );
-			desc.Filter = filterToD3D11( rwStateCache.texstage[ 0 ].filter );
-			desc.AddressU = addressMap[ rwStateCache.texstage[ 0 ].addressingU ];
-			desc.AddressV = addressMap[ rwStateCache.texstage[ 0 ].addressingV ];
-			desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-			desc.MaxLOD = D3D11_FLOAT32_MAX;
-			desc.MaxAnisotropy = 1;
-			desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-			if( SUCCEEDED( d3d11Globals.d3ddevice->CreateSamplerState( &desc, &samplerState ) ) )
-				d3d11Globals.context->PSSetSamplers( 0, 1, &samplerState );
-			samplerDirty = 0;
+			for( uint32 i = 0; i < MAXNUMSTAGES; i++ )
+			{
+				if( !samplerDirty[ i ] )
+					continue;
+				safeRelease( samplerState[ i ] );
+				D3D11_SAMPLER_DESC desc;
+				memset( &desc, 0, sizeof( desc ) );
+				desc.Filter = filterToD3D11( rwStateCache.texstage[ i ].filter );
+				desc.AddressU = addressMap[ rwStateCache.texstage[ i ].addressingU ];
+				desc.AddressV = addressMap[ rwStateCache.texstage[ i ].addressingV ];
+				desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+				desc.MaxLOD = D3D11_FLOAT32_MAX;
+				desc.MaxAnisotropy = 1;
+				desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+				if( SUCCEEDED( d3d11Globals.d3ddevice->CreateSamplerState(
+					&desc, &samplerState[ i ] ) ) )
+					d3d11Globals.context->PSSetSamplers(
+						i, 1, &samplerState[ i ] );
+				samplerDirty[ i ] = 0;
+			}
 		}
 
 		static void
@@ -1389,15 +1421,21 @@ done:
 			applySamplerState();
 			applyAlphaTestState();
 
-			ID3D11ShaderResourceView* srv = whiteSRV;
-			Raster* raster = rwStateCache.texstage[ 0 ].raster;
-			if( raster )
+			ID3D11ShaderResourceView* srvs[ MAXNUMSTAGES ] = {
+				whiteSRV, nil
+			};
+			for( uint32 i = 0; i < MAXNUMSTAGES; i++ )
 			{
-				D3dRaster* natras = GETD3DRASTEREXT( raster );
-				if( natras->srv )
-					srv = ( ID3D11ShaderResourceView* )natras->srv;
+				Raster* raster = rwStateCache.texstage[ i ].raster;
+				if( raster )
+				{
+					D3dRaster* natras = GETD3DRASTEREXT( raster );
+					if( natras->srv )
+						srvs[ i ] = ( ID3D11ShaderResourceView* )natras->srv;
+				}
 			}
-			d3d11Globals.context->PSSetShaderResources( 0, 1, &srv );
+			d3d11Globals.context->PSSetShaderResources(
+				0, MAXNUMSTAGES, srvs );
 		}
 
 		static bool32
@@ -1573,14 +1611,14 @@ done:
 			uint32 value = ( uint32 )( uintptr )pvalue;
 			switch( state )
 			{
-				case TEXTURERASTER: setRasterStage( ( Raster* )pvalue ); break;
+				case TEXTURERASTER: setRasterStage( 0, ( Raster* )pvalue ); break;
 				case TEXTUREADDRESS:
-				setAddressU( value );
-				setAddressV( value );
+				setAddressU( 0, value );
+				setAddressV( 0, value );
 				break;
-				case TEXTUREADDRESSU: setAddressU( value ); break;
-				case TEXTUREADDRESSV: setAddressV( value ); break;
-				case TEXTUREFILTER: setFilterMode( value ); break;
+				case TEXTUREADDRESSU: setAddressU( 0, value ); break;
+				case TEXTUREADDRESSV: setAddressV( 0, value ); break;
+				case TEXTUREFILTER: setFilterMode( 0, value ); break;
 				case VERTEXALPHA: setVertexAlpha( value != 0 ); break;
 				case SRCBLEND:
 				rwStateCache.srcblend = value;
@@ -1697,8 +1735,9 @@ done:
 			ID3D11DepthStencilView* dsv;
 			getRenderSurfaces( cam, &rtv, &dsv );
 
-			ID3D11ShaderResourceView* nullSRV = nil;
-			d3d11Globals.context->PSSetShaderResources( 0, 1, &nullSRV );
+			ID3D11ShaderResourceView* nullSRVs[ MAXNUMSTAGES ] = {};
+			d3d11Globals.context->PSSetShaderResources(
+				0, MAXNUMSTAGES, nullSRVs );
 			d3d11Globals.context->OMSetRenderTargets( 1, &rtv, dsv );
 		}
 

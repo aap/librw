@@ -6,6 +6,8 @@ enum ConstantBufferSlot
 {
 	VSlotObjects = 0,
 	VSlotLights = 1,
+	// Vertex and pixel shader slots are independent namespaces.
+	VSlotSkin = 2,
 	PSSlotD3D9States = 2
 };
 
@@ -47,6 +49,16 @@ struct DefaultVertex
 	V3d normal;
 	RGBA color;
 	TexCoords texcoord;
+};
+
+struct SkinVertex
+{
+	V3d position;
+	V3d normal;
+	RGBA color;
+	TexCoords texcoord;
+	V4d weights;
+	uint8 indices[4];
 };
 
 struct InstanceData
@@ -99,10 +111,13 @@ bool32 setVertexShader(void *shader);
 void clearVertexShader(void *shader);
 bool32 setPixelShader(void *shader);
 void clearPixelShader(void *shader);
+void setTexture(uint32 stage, Texture *texture);
 void applyDrawState(void);
-
-
-
+int32 lightingCB_Shader(Atomic *atomic);
+bool32 uploadDefaultMatrices(Matrix *world);
+bool32 uploadDefaultMaterial(const RGBA &color,
+	const SurfaceProperties &surfaceProps);
+bool32 setDefaultPixelShader(void);
 
 void *destroyNativeData(void *object, int32, int32);
 Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
