@@ -49,13 +49,12 @@ struct LightVS
 };
 
 #define MAX_LIGHTS 8
-#define MAX_SHADER_LIGHTS (MAX_LIGHTS*2)
 
 struct LightConstants
 {
 	int32 numLights[4];
 	int32 firstLight[4];
-	LightVS lights[MAX_SHADER_LIGHTS];
+	LightVS lights[MAX_LIGHTS];
 };
 
 static ID3D11VertexShader *default_amb_VS;
@@ -241,7 +240,10 @@ uploadLights(WorldLights *lightData)
 	LightVS directionals[MAX_LIGHTS] = {};
 	LightVS points[MAX_LIGHTS] = {};
 	LightVS spots[MAX_LIGHTS] = {};
-	for(i = 0; i < lightData->numDirectionals; i++){
+	int32 numDir = lightData->numDirectionals;
+	if(numDir > MAX_LIGHTS)
+		numDir = MAX_LIGHTS;
+	for(i = 0; i < numDir; i++){
 		Light *l = lightData->directionals[i];
 		directionals[i].color.x = l->color.red;
 		directionals[i].color.y = l->color.green;
@@ -252,7 +254,8 @@ uploadLights(WorldLights *lightData)
 
 	int32 np = 0;
 	int32 ns = 0;
-	for(i = 0; i < lightData->numLocals; i++){
+	int32 numLocal = MAX_LIGHTS - numDir;
+	for(i = 0; i < lightData->numLocals && np + ns < numLocal; i++){
 		Light *l = lightData->locals[i];
 
 		switch(l->getType()){
@@ -286,7 +289,6 @@ uploadLights(WorldLights *lightData)
 	}
 
 	firstLight[0] = 0;
-	int32 numDir = lightData->numDirectionals;
 	firstLight[1] = numDir + firstLight[0];
 	int32 numPoint = np;
 	firstLight[2] = numPoint + firstLight[1];

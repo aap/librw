@@ -20,7 +20,7 @@ cbuffer LightConstants : register(b1)
 {
 	int4 numLights;
 	int4 firstLight;
-	Light lights[16];
+	Light lights[8];
 };
 
 #define surfAmbient (surfProps.x)
