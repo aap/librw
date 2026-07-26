@@ -341,6 +341,67 @@ found:
 			d3d11Globals.modes[ 0 ] = d3d11Globals.startMode;
 		}
 
+		static void
+			addVideoMode( DXGI_MODE_DESC* mode )
+		{
+			for( int32 i = 1; i < d3d11Globals.numModes; i++ )
+			{
+				DXGI_MODE_DESC* current = &d3d11Globals.modes[ i ].mode;
+				if( current->Width == mode->Width &&
+					current->Height == mode->Height &&
+					current->Format == mode->Format )
+				{
+					uint64 currentRefresh =
+						(uint64)current->RefreshRate.Numerator * mode->RefreshRate.Denominator;
+					uint64 newRefresh =
+						(uint64)mode->RefreshRate.Numerator * current->RefreshRate.Denominator;
+					if( newRefresh > currentRefresh )
+						*current = *mode;
+					return;
+				}
+			}
+
+			d3d11Globals.modes[ d3d11Globals.numModes ].mode = *mode;
+			d3d11Globals.modes[ d3d11Globals.numModes ].flags = VIDEOMODEEXCLUSIVE;
+			d3d11Globals.numModes++;
+		}
+
+		static bool32
+			makeVideoModeList( void )
+		{
+			UINT modeCount = 0;
+			if( d3d11Globals.output &&
+				FAILED( d3d11Globals.output->GetDisplayModeList(
+					getColorFormat(), 0, &modeCount, nil ) ) )
+				return 0;
+
+			DXGI_MODE_DESC* modes = nil;
+			if( modeCount )
+			{
+				modes = rwNewT( DXGI_MODE_DESC, modeCount,
+					ID_DRIVER | MEMDUR_FUNCTION );
+				if( FAILED( d3d11Globals.output->GetDisplayModeList(
+					getColorFormat(), 0, &modeCount, modes ) ) )
+				{
+					rwFree( modes );
+					return 0;
+				}
+			}
+
+			rwFree( d3d11Globals.modes );
+			d3d11Globals.modes = rwNewT( DisplayMode, modeCount + 1,
+				ID_DRIVER | MEMDUR_EVENT );
+			d3d11Globals.numModes = 1;
+			d3d11Globals.currentMode = 0;
+			initDefaultMode();
+			updateDefaultMode();
+
+			for( UINT i = 0; i < modeCount; i++ )
+				addVideoMode( &modes[ i ] );
+			rwFree( modes );
+			return 1;
+		}
+
 		static bool32
 			createFactory( void )
 		{
@@ -495,11 +556,11 @@ found:
 			d3d11Globals.adapter = 0;
 			d3d11Globals.adapters[ d3d11Globals.adapter ]->EnumOutputs( 0, &d3d11Globals.output );
 
-			d3d11Globals.modes = rwNewT( DisplayMode, 1, ID_DRIVER | MEMDUR_EVENT );
-			d3d11Globals.numModes = 1;
-			d3d11Globals.currentMode = 0;
-			initDefaultMode();
-			updateDefaultMode();
+			if( !makeVideoModeList() )
+			{
+				RWERROR( (ERR_GENERAL, "IDXGIOutput::GetDisplayModeList() failed") );
+				return 0;
+			}
 
 			memset( &d3d11Globals.present, 0, sizeof( d3d11Globals.present ) );
 			d3d11Globals.present.BufferDesc.Width = d3d11Globals.startMode.mode.Width;
@@ -1093,14 +1154,16 @@ done:
 				case DEVICEFINALIZE:
 				return finalizeD3D11();
 				case DEVICEGETNUMSUBSYSTEMS:
-				return d3d11Globals.numAdapters ? d3d11Globals.numAdapters : 1;
+				return d3d11Globals.numAdapters;
 				case DEVICEGETCURRENTSUBSYSTEM:
 				return d3d11Globals.adapter;
 				case DEVICESETSUBSYSTEM:
 				if( n < 0 || n >= d3d11Globals.numAdapters )
 					return 0;
 				d3d11Globals.adapter = n;
-				return 1;
+				safeRelease( d3d11Globals.output );
+				d3d11Globals.adapters[ n ]->EnumOutputs( 0, &d3d11Globals.output );
+				return makeVideoModeList();
 				case DEVICEGETSUBSSYSTEMINFO:
 				if( n < 0 || n >= d3d11Globals.numAdapters )
 					return 0;
@@ -1108,7 +1171,7 @@ done:
 									 (( SubSystemInfo* )arg)->name, sizeof( SubSystemInfo::name ), nil, nil );
 				return 1;
 				case DEVICEGETNUMVIDEOMODES:
-				return d3d11Globals.numModes ? d3d11Globals.numModes : 1;
+				return d3d11Globals.numModes;
 				case DEVICEGETCURRENTVIDEOMODE:
 				return d3d11Globals.currentMode;
 				case DEVICESETVIDEOMODE:
