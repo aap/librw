@@ -2575,7 +2575,7 @@ fail:
 				return;
 
 			ID3D11PixelShader* shader;
-			if( engine->d3ddevice.getRenderState( TEXTURERASTER ) )
+			if( engine->device.getRenderState( TEXTURERASTER ) )
 				shader = im3dTexPS;
 			else
 				shader = im3dPS;
@@ -2626,7 +2626,7 @@ fail:
 			d3d11Globals.context->Unmap( im3dIndexBuffer, 0 );
 
 			ID3D11PixelShader* shader;
-			if( engine->d3ddevice.getRenderState( TEXTURERASTER ) )
+			if( engine->device.getRenderState( TEXTURERASTER ) )
 				shader = im3dTexPS;
 			else
 				shader = im3dPS;

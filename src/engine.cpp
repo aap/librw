@@ -271,18 +271,18 @@ Engine::open(EngineOpenParams *p)
 	// Initialize device
 	// Device and possibly OS specific!
 #ifdef RW_PS2
-	engine->d3ddevice = ps2::renderdevice;
+	engine->device = ps2::renderdevice;
 #elif RW_GL3
-	engine->d3ddevice = gl3::renderdevice;
+	engine->device = gl3::renderdevice;
 #elif RW_D3D11
-	engine->d3ddevice = d3d11::renderdevice;
+	engine->device = d3d11::renderdevice;
 #elif RW_D3D9
-	engine->d3ddevice = d3d::renderdevice;
+	engine->device = d3d::renderdevice;
 #else
-	engine->d3ddevice = null::renderdevice;
+	engine->device = null::renderdevice;
 #endif
 
-	engine->d3ddevice.system(DEVICEOPEN, (void*)p, 0);
+	engine->device.system(DEVICEOPEN, (void*)p, 0);
 
 	engine->dummyDefaultPipeline = ObjPipeline::create();
 	for(uint i = 0; i < NUM_PLATFORMS; i++){
@@ -316,13 +316,13 @@ Engine::start(void)
 		return 0;
 	}
 
-	engine->d3ddevice.system(DEVICEINIT, nil, 0);
+	engine->device.system(DEVICEINIT, nil, 0);
 
 	Engine::s_plglist.construct(engine);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		Driver::s_plglist[i].construct(rw::engine->driver[i]);
 
-	engine->d3ddevice.system(DEVICEFINALIZE, nil, 0);
+	engine->device.system(DEVICEFINALIZE, nil, 0);
 
 	// Register some image formats. Or should we leave that to the user?
 	Image::registerFileFormat("tga", readTGA, writeTGA);
@@ -358,7 +358,7 @@ Engine::close(void)
 		return;
 	}
 
-	engine->d3ddevice.system(DEVICECLOSE, nil, 0);
+	engine->device.system(DEVICECLOSE, nil, 0);
 	for(uint i = 0; i < NUM_PLATFORMS; i++)
 		rwFree(rw::engine->driver[i]);
 	engine->dummyDefaultPipeline->destroy();
@@ -379,7 +379,7 @@ Engine::stop(void)
 		Driver::s_plglist[i].destruct(rw::engine->driver[i]);
 	Engine::s_plglist.destruct(engine);
 
-	engine->d3ddevice.system(DEVICETERM, nil, 0);
+	engine->device.system(DEVICETERM, nil, 0);
 
 	Engine::state = Opened;
 }
@@ -388,25 +388,25 @@ Engine::stop(void)
 int32
 Engine::getNumSubSystems(void)
 {
-	return engine->d3ddevice.system(DEVICEGETNUMSUBSYSTEMS, nil, 0);
+	return engine->device.system(DEVICEGETNUMSUBSYSTEMS, nil, 0);
 }
 
 int32
 Engine::getCurrentSubSystem(void)
 {
-	return engine->d3ddevice.system(DEVICEGETCURRENTSUBSYSTEM, nil, 0);
+	return engine->device.system(DEVICEGETCURRENTSUBSYSTEM, nil, 0);
 }
 
 bool32
 Engine::setSubSystem(int32 subsys)
 {
-	return engine->d3ddevice.system(DEVICESETSUBSYSTEM, nil, subsys);
+	return engine->device.system(DEVICESETSUBSYSTEM, nil, subsys);
 }
 
 SubSystemInfo*
 Engine::getSubSystemInfo(SubSystemInfo *info, int32 subsys)
 {
-	if(engine->d3ddevice.system(DEVICEGETSUBSSYSTEMINFO, info, subsys))
+	if(engine->device.system(DEVICEGETSUBSSYSTEMINFO, info, subsys))
 		return info;
 	return nil;
 }
@@ -415,25 +415,25 @@ Engine::getSubSystemInfo(SubSystemInfo *info, int32 subsys)
 int32
 Engine::getNumVideoModes(void)
 {
-	return engine->d3ddevice.system(DEVICEGETNUMVIDEOMODES, nil, 0);
+	return engine->device.system(DEVICEGETNUMVIDEOMODES, nil, 0);
 }
 
 int32
 Engine::getCurrentVideoMode(void)
 {
-	return engine->d3ddevice.system(DEVICEGETCURRENTVIDEOMODE, nil, 0);
+	return engine->device.system(DEVICEGETCURRENTVIDEOMODE, nil, 0);
 }
 
 bool32
 Engine::setVideoMode(int32 mode)
 {
-	return engine->d3ddevice.system(DEVICESETVIDEOMODE, nil, mode);
+	return engine->device.system(DEVICESETVIDEOMODE, nil, mode);
 }
 
 VideoMode*
 Engine::getVideoModeInfo(VideoMode *info, int32 mode)
 {
-	if(engine->d3ddevice.system(DEVICEGETVIDEOMODEINFO, info, mode))
+	if(engine->device.system(DEVICEGETVIDEOMODEINFO, info, mode))
 		return info;
 	return nil;
 }
@@ -442,19 +442,19 @@ Engine::getVideoModeInfo(VideoMode *info, int32 mode)
 uint32
 Engine::getMaxMultiSamplingLevels(void)
 {
-	return engine->d3ddevice.system(DEVICEGETMAXMULTISAMPLINGLEVELS, nil, 0);
+	return engine->device.system(DEVICEGETMAXMULTISAMPLINGLEVELS, nil, 0);
 }
 
 uint32
 Engine::getMultiSamplingLevels(void)
 {
-	return engine->d3ddevice.system(DEVICEGETMULTISAMPLINGLEVELS, nil, 0);
+	return engine->device.system(DEVICEGETMULTISAMPLINGLEVELS, nil, 0);
 }
 
 bool32
 Engine::setMultiSamplingLevels(uint32 levels)
 {
-	return engine->d3ddevice.system(DEVICESETMULTISAMPLINGLEVELS, nil, levels);
+	return engine->device.system(DEVICESETMULTISAMPLINGLEVELS, nil, levels);
 }
 
 

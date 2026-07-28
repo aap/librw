@@ -187,7 +187,7 @@ Raster::toImage(void)
 void
 Raster::show(uint32 flags)
 {
-	engine->d3ddevice.showRaster(this, flags);
+	engine->device.showRaster(this, flags);
 }
 
 Raster*
@@ -220,7 +220,7 @@ Raster::getCurrentContext(void)
 bool32
 Raster::renderFast(int32 x, int32 y)
 {
-	return engine->d3ddevice.rasterRenderFast(this,x, y);
+	return engine->device.rasterRenderFast(this,x, y);
 }
 
 void

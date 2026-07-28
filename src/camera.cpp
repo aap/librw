@@ -22,13 +22,13 @@ defaultBeginUpdateCB(Camera *cam)
 {
 	engine->currentCamera = cam;
 	Frame::syncDirty();
-	engine->d3ddevice.beginUpdate(cam);
+	engine->device.beginUpdate(cam);
 }
 
 void
 defaultEndUpdateCB(Camera *cam)
 {
-	engine->d3ddevice.endUpdate(cam);
+	engine->device.endUpdate(cam);
 }
 
 static void
@@ -353,7 +353,7 @@ Camera::destroy(void)
 void
 Camera::clear(RGBA *col, uint32 mode)
 {
-	engine->d3ddevice.clearCamera(this, col, mode);
+	engine->device.clearCamera(this, col, mode);
 }
 
 void
@@ -367,8 +367,8 @@ calczShiftScale(Camera *cam)
 {
 	float32 n = cam->nearPlane;
 	float32 f = cam->farPlane;
-	float32 N = engine->d3ddevice.zNear;
-	float32 F = engine->d3ddevice.zFar;
+	float32 N = engine->device.zNear;
+	float32 F = engine->device.zFar;
 	// RW does this
 	N += (F - N)/10000.0f;
 	F -= (F - N)/10000.0f;
