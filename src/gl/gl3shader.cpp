@@ -224,6 +224,12 @@ linkprogram(GLint vs, GLint fs, GLuint *program)
 		glBindAttribLocation(prog, ATTRIB_INDICES, "in_indices");
 		glBindAttribLocation(prog, ATTRIB_TEXCOORDS0, "in_tex0");
 		glBindAttribLocation(prog, ATTRIB_TEXCOORDS1, "in_tex1");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS2, "in_tex2");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS3, "in_tex3");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS4, "in_tex4");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS5, "in_tex5");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS6, "in_tex6");
+		glBindAttribLocation(prog, ATTRIB_TEXCOORDS7, "in_tex7");
 	}
 
 	glAttachShader(prog, vs);

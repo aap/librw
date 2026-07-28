@@ -276,6 +276,13 @@ Frame::rotate(const V3d *axis, float32 angle, CombineOp op)
 }
 
 void
+Frame::rotate(const Quat *q, CombineOp op)
+{
+	this->matrix.rotate(*q, op);
+	updateObjects();
+}
+
+void
 Frame::translate(const V3d *trans, CombineOp op)
 {
 	this->matrix.translate(trans, op);

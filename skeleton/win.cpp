@@ -135,6 +135,10 @@ WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		ms.buttons = buttons;
 		EventHandler(MOUSEBTN, &ms);
 		break;
+	case WM_MOUSEWHEEL:
+		ms.wheelDelta = (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
+		EventHandler(MOUSEWHEEL, &ms);
+		break;
 
 	case WM_SIZE:
 		rw::Rect r;

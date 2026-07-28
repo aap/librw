@@ -1,3 +1,4 @@
+#define WITH_D3D
 #include <rw.h>
 #include <skeleton.h>
 #include <assert.h>
@@ -10,6 +11,35 @@ using namespace rw::RWDEVICE;
 static rw::Texture *g_FontTexture;
 static Im2DVertex *g_vertbuf;
 static int g_vertbufSize;
+
+// TODO: scissor from librw itself
+static void
+SetClip(const ImVec4 &clip)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	float x1 = clip.x; float y1 = clip.y;
+	float x2 = clip.z; float y2 = clip.w;
+#ifdef RW_OPENGL
+	glScissor(x1, io.DisplaySize.y-y2, x2-x1, y2-y1);
+	glEnable(GL_SCISSOR_TEST);
+#endif
+#ifdef RW_D3D9
+	rw::d3d::d3ddevice->SetRenderState(D3DRS_SCISSORTESTENABLE, 1);
+	RECT r = { (LONG)x1, (LONG)y1, (LONG)x2, (LONG)y2 };
+	rw::d3d::d3ddevice->SetScissorRect(&r);
+#endif
+}
+
+static void
+DisableClip(void)
+{
+#ifdef RW_OPENGL
+	glDisable(GL_SCISSOR_TEST);
+#endif
+#ifdef RW_D3D9
+	rw::d3d::d3ddevice->SetRenderState(D3DRS_SCISSORTESTENABLE, 0);
+#endif
+}
 
 void
 ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
@@ -88,9 +118,12 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 					rw::SetRenderState(rw::TEXTUREFILTER, tex->getFilter());
 				}else
 					rw::SetRenderStatePtr(rw::TEXTURERASTER, nil);
+
+				SetClip(pcmd->ClipRect);
 				rw::im2d::RenderIndexedPrimitive(rw::PRIMTYPETRILIST,
 					g_vertbuf+vtx_offset, cmd_list->VtxBuffer.Size,
 					cmd_list->IdxBuffer.Data+idx_offset, pcmd->ElemCount);
+				DisableClip();
 			}
 			idx_offset += pcmd->ElemCount;
 		}
@@ -141,7 +174,7 @@ ImGui_ImplRW_CreateFontsTexture()
 	g_FontTexture = rw::Texture::create(rw::Raster::createFromImage(image));
 	g_FontTexture->setFilter(rw::Texture::LINEAR);
 	image->destroy();
-	
+
 	// Store our identifier
 	io.Fonts->TexID = (void*)g_FontTexture;
 
@@ -151,8 +184,6 @@ ImGui_ImplRW_CreateFontsTexture()
 bool
 ImGui_ImplRW_CreateDeviceObjects()
 {
-//	if(!g_pd3dDevice)
-//		return false;
 	if(!ImGui_ImplRW_CreateFontsTexture())
 		return false;
 	return true;
@@ -285,10 +316,10 @@ ImGuiEventHandler(sk::Event e, void *param)
 
 	switch(e){
 	case KEYDOWN:
-        io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), true);
+		io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), true);
 		return EVENTPROCESSED;
 	case KEYUP:
-        io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), false);
+		io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), false);
 		return EVENTPROCESSED;
 	case CHARINPUT:
 		c = (uint)(uintptr)param;
@@ -304,6 +335,10 @@ ImGuiEventHandler(sk::Event e, void *param)
 		io.MouseDown[0] = !!(ms->buttons & 1);
 		io.MouseDown[2] = !!(ms->buttons & 2);
 		io.MouseDown[1] = !!(ms->buttons & 4);
+		return EVENTPROCESSED;
+	case MOUSEWHEEL:
+		ms = (MouseState*)param;
+		io.MouseWheel += ms->wheelDelta;
 		return EVENTPROCESSED;
 	}
 	return EVENTPROCESSED;
