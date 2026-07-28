@@ -6,7 +6,6 @@ newoption {
 	allowed		= {
 		{ "glfw",	"GLFW" },
 		{ "sdl2",	"SDL2" },
-		{ "sdl3",	"SDL3" },
 	},
 }
 
@@ -28,14 +27,7 @@ newoption {
 	trigger     = "sdl2dir",
 	value       = "PATH",
 	description = "Directory of sdl2",
-	default     = "../SDL2-2.32.10",
-}
-
-newoption {
-	trigger     = "sdl3dir",
-	value       = "PATH",
-	description = "Directory of sdl3",
-	default     = "../SDL3-3.2.22",
+	default     = "../SDL2-2.0.14",
 }
 
 local d3d11Shaders = {
@@ -55,46 +47,20 @@ local d3d11Shaders = {
 
 local d3d11GeneratedDir = path.join(_SCRIPT_DIR, "build/generated")
 
-local function readFile(filename)
-	local file, message = io.open(filename, "rb")
-	if not file then
-		error(message)
-	end
-	local contents = file:read("*all")
-	file:close()
-	return contents
-end
-
-local function writeFileIfChanged(filename, contents)
-	local current = io.open(filename, "rb")
-	if current then
-		local oldContents = current:read("*all")
-		current:close()
-		if oldContents == contents then
-			return
-		end
-	end
-
-	local file, message = io.open(filename, "wb")
-	if not file then
-		error(message)
-	end
-	file:write(contents)
-	file:close()
-end
-
 local function generateD3D11ShaderHeaders()
 	os.mkdir(d3d11GeneratedDir)
 	for _, shaderName in ipairs(d3d11Shaders) do
-		local shaderPath = path.join(
-			_SCRIPT_DIR, "src/d3d/shaders", shaderName .. ".hlsl")
-		local headerPath = path.join(
-			d3d11GeneratedDir, shaderName .. ".h")
-		local contents = "static const char " .. shaderName ..
-			"_source[] = R\"librw_shader(\n" ..
-			readFile(shaderPath) ..
-			"\n)librw_shader\";\n"
-		writeFileIfChanged(headerPath, contents)
+		local input = assert(io.open(path.join(
+			_SCRIPT_DIR, "src/d3d/shaders", shaderName .. ".hlsl"), "rb"))
+		local source = input:read("*all")
+		input:close()
+
+		local output = assert(io.open(path.join(
+			d3d11GeneratedDir, shaderName .. ".h"), "wb"))
+		output:write("static const char ", shaderName,
+			"_source[] = R\"librw_shader(\n", source,
+			"\n)librw_shader\";\n")
+		output:close()
 	end
 end
 
@@ -134,10 +100,6 @@ workspace "librw"
 		defines { "RW_GL3" }
 		if _OPTIONS["gfxlib"] == "sdl2" then
 			defines { "LIBRW_SDL2" }
-		elseif _OPTIONS["gfxlib"] == "sdl3" then
-			defines { "LIBRW_SDL3" }
-		elseif _OPTIONS["gfxlib"] == "glfw" then
-			defines { "LIBRW_GLFW" }
 		end
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
@@ -213,27 +175,21 @@ function findlibs()
 		links { "GL" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw" }
-		elseif _OPTIONS["gfxlib"] == "sdl2" then
+		else
 			links { "SDL2" }
-		elseif _OPTIONS["gfxlib"] == "sdl3" then
-			links { "SDL3" }
 		end
 	filter { "platforms:win-amd64-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir64"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x64") }
-		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x64") }
 	filter { "platforms:win-x86-gl3" }
 		libdirs { path.join(_OPTIONS["glfwdir32"], "lib-vc2015") }
 		libdirs { path.join(_OPTIONS["sdl2dir"], "lib/x86") }
-		libdirs { path.join(_OPTIONS["sdl3dir"], "lib/x86") }
 	filter { "platforms:win*gl3" }
 		links { "opengl32" }
 		if _OPTIONS["gfxlib"] == "glfw" then
 			links { "glfw3" }
-		elseif _OPTIONS["gfxlib"] == "sdl2" then
+		else
 			links { "SDL2" }
-		elseif _OPTIONS["gfxlib"] == "sdl3" then
-			links { "SDL3" }
 		end
 	filter { "platforms:*d3d9" }
 		links { "gdi32", "d3d9" }
