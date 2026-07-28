@@ -370,18 +370,14 @@ found:
 			makeVideoModeList( void )
 		{
 			UINT modeCount = 0;
-			if( d3d11Globals.output &&
-				FAILED( d3d11Globals.output->GetDisplayModeList(
-					getColorFormat(), 0, &modeCount, nil ) ) )
+			if( d3d11Globals.output &&FAILED( d3d11Globals.output->GetDisplayModeList(getColorFormat(), 0, &modeCount, nil ) ) )
 				return 0;
 
 			DXGI_MODE_DESC* modes = nil;
 			if( modeCount )
 			{
-				modes = rwNewT( DXGI_MODE_DESC, modeCount,
-					ID_DRIVER | MEMDUR_FUNCTION );
-				if( FAILED( d3d11Globals.output->GetDisplayModeList(
-					getColorFormat(), 0, &modeCount, modes ) ) )
+				modes = rwNewT( DXGI_MODE_DESC, modeCount,ID_DRIVER | MEMDUR_FUNCTION );
+				if( FAILED( d3d11Globals.output->GetDisplayModeList(getColorFormat(), 0, &modeCount, modes ) ) )
 				{
 					rwFree( modes );
 					return 0;
@@ -389,8 +385,7 @@ found:
 			}
 
 			rwFree( d3d11Globals.modes );
-			d3d11Globals.modes = rwNewT( DisplayMode, modeCount + 1,
-				ID_DRIVER | MEMDUR_EVENT );
+			d3d11Globals.modes = rwNewT( DisplayMode, modeCount + 1,ID_DRIVER | MEMDUR_EVENT );
 			d3d11Globals.numModes = 1;
 			d3d11Globals.currentMode = 0;
 			initDefaultMode();
