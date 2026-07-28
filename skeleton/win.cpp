@@ -6,7 +6,7 @@
 using namespace sk;
 using namespace rw;
 
-#ifdef RW_D3D9
+#if defined(RW_D3D9) || defined(RW_D3D11)
 
 #ifndef VK_OEM_NEC_EQUAL
 #define VK_OEM_NEC_EQUAL 0x92

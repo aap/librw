@@ -170,7 +170,7 @@ struct Engine
 
 	// Dynamically allocated because of plugins
 	Driver *driver[NUM_PLATFORMS];
-	Device device;
+	Device d3ddevice;
 	ObjPipeline *dummyDefaultPipeline;
 
 	// These must always be available

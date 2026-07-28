@@ -1,10 +1,47 @@
 /bin
 /build
+/build-*/
 /obj
 /lib
 /output
 /.vs
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+Testing/
+_deps/
+
+# Visual Studio and MSVC build artifacts
+*.obj
+*.o
+*.pch
+*.pdb
+*.ipch
+*.ilk
+*.idb
+*.tlog
+*.recipe
+*.lastbuildstate
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+*.vsidx
+
+# Compiled binaries and shader output
+*.bin
+*.cso
+*.exe
+*.dll
+*.lib
+*.exp
+
 librw.vcxproj.user
 librw.VC.db
 librw.VC.VC.opendb
 imgui.ini
+/glfw

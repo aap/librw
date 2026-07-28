@@ -7,7 +7,7 @@ target_link_libraries(ska2anm
         librw::librw
 )
 
-if(LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+if(LIBRW_GL3_GFXLIB MATCHES "SDL[23]")
     target_compile_definitions(ska2anm PRIVATE SDL_MAIN_HANDLED)
 endif()
 

@@ -1,0 +1,3 @@
+static const char @SHADER_VARIABLE@[] = R"librw_shader(
+@SHADER_SOURCE@
+)librw_shader";

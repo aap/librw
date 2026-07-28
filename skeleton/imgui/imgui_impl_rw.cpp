@@ -80,7 +80,7 @@ ImGui_ImplRW_RenderDrawLists(ImDrawData* draw_data)
 			if(pcmd->UserCallback)
 				pcmd->UserCallback(cmd_list, pcmd);
 			else{
-				rw::Texture *tex = (rw::Texture*)pcmd->TextureId;
+				rw::Texture *tex = (rw::Texture*)pcmd->GetTexID();
 				if(tex && tex->raster){
 					rw::SetRenderStatePtr(rw::TEXTURERASTER, tex->raster);
 					rw::SetRenderState(rw::TEXTUREADDRESSU, tex->getAddressU());
@@ -115,26 +115,6 @@ ImGui_ImplRW_Init(void)
 
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
-
-	io.KeyMap[ImGuiKey_Tab] = KEY_TAB;
-	io.KeyMap[ImGuiKey_LeftArrow] = KEY_LEFT;
-	io.KeyMap[ImGuiKey_RightArrow] = KEY_RIGHT;
-	io.KeyMap[ImGuiKey_UpArrow] = KEY_UP;
-	io.KeyMap[ImGuiKey_DownArrow] = KEY_DOWN;
-	io.KeyMap[ImGuiKey_PageUp] = KEY_PGUP;
-	io.KeyMap[ImGuiKey_PageDown] = KEY_PGDN;
-	io.KeyMap[ImGuiKey_Home] = KEY_HOME;
-	io.KeyMap[ImGuiKey_End] = KEY_END;
-	io.KeyMap[ImGuiKey_Delete] = KEY_DEL;
-	io.KeyMap[ImGuiKey_Backspace] = KEY_BACKSP;
-	io.KeyMap[ImGuiKey_Enter] = KEY_ENTER;
-	io.KeyMap[ImGuiKey_Escape] = KEY_ESC;
-	io.KeyMap[ImGuiKey_A] = 'A';
-	io.KeyMap[ImGuiKey_C] = 'C';
-	io.KeyMap[ImGuiKey_V] = 'V';
-	io.KeyMap[ImGuiKey_X] = 'X';
-	io.KeyMap[ImGuiKey_Y] = 'Y';
-	io.KeyMap[ImGuiKey_Z] = 'Z';
 
 	return true;
 }
@@ -189,15 +169,109 @@ ImGui_ImplRW_NewFrame(float timeDelta)
 	io.DisplaySize = ImVec2(sk::globals.width, sk::globals.height);
 	io.DeltaTime = timeDelta;
 
-	io.KeyCtrl = io.KeysDown[sk::KEY_LCTRL] || io.KeysDown[sk::KEY_RCTRL];
-	io.KeyShift = io.KeysDown[sk::KEY_LSHIFT] || io.KeysDown[sk::KEY_RSHIFT];
-	io.KeyAlt = io.KeysDown[sk::KEY_LALT] || io.KeysDown[sk::KEY_RALT];
+	io.KeyCtrl = ImGui::IsKeyPressed(ImGuiKey_LeftCtrl) || ImGui::IsKeyPressed(ImGuiKey_RightCtrl);
+	io.KeyShift = ImGui::IsKeyPressed(ImGuiKey_LeftShift) || ImGui::IsKeyPressed(ImGuiKey_RightShift);
+	io.KeyAlt = ImGui::IsKeyPressed(ImGuiKey_LeftAlt) || ImGui::IsKeyPressed(ImGuiKey_RightAlt);
 	io.KeySuper = false;
 
 	if(io.WantSetMousePos)
 		sk::SetMousePosition(io.MousePos.x, io.MousePos.y);
 
 	ImGui::NewFrame();
+}
+
+static ImGuiKey SkKeyToImGuiKey(int keycode)
+{
+    switch (keycode) {
+        case ' ': return ImGuiKey_Space;
+        case '\'': return ImGuiKey_Apostrophe;
+        case '-': return ImGuiKey_Minus;
+        case '.': return ImGuiKey_Period;
+        case '/': return ImGuiKey_Slash;
+        case '0': return ImGuiKey_0;
+        case '1': return ImGuiKey_1;
+        case '2': return ImGuiKey_2;
+        case '3': return ImGuiKey_3;
+        case '4': return ImGuiKey_4;
+        case '5': return ImGuiKey_5;
+        case '6': return ImGuiKey_6;
+        case '7': return ImGuiKey_7;
+        case '8': return ImGuiKey_8;
+        case '9': return ImGuiKey_9;
+
+        case ';': return ImGuiKey_Semicolon;
+        case '=': return ImGuiKey_Equal;
+
+        case 'A': return ImGuiKey_A;
+        case 'B': return ImGuiKey_B;
+        case 'C': return ImGuiKey_C;
+        case 'D': return ImGuiKey_D;
+        case 'E': return ImGuiKey_E;
+        case 'F': return ImGuiKey_F;
+        case 'G': return ImGuiKey_G;
+        case 'H': return ImGuiKey_H;
+        case 'I': return ImGuiKey_I;
+        case 'J': return ImGuiKey_J;
+        case 'K': return ImGuiKey_K;
+        case 'L': return ImGuiKey_L;
+        case 'M': return ImGuiKey_M;
+        case 'N': return ImGuiKey_N;
+        case 'O': return ImGuiKey_O;
+        case 'P': return ImGuiKey_P;
+        case 'Q': return ImGuiKey_Q;
+        case 'R': return ImGuiKey_R;
+        case 'S': return ImGuiKey_S;
+        case 'T': return ImGuiKey_T;
+        case 'U': return ImGuiKey_U;
+        case 'V': return ImGuiKey_V;
+        case 'W': return ImGuiKey_W;
+        case 'X': return ImGuiKey_X;
+        case 'Y': return ImGuiKey_Y;
+        case 'Z': return ImGuiKey_Z;
+
+        case '[': return ImGuiKey_LeftBracket;
+        case '\\': return ImGuiKey_Backslash;
+        case ']': return ImGuiKey_RightBracket;
+        case '`': return ImGuiKey_GraveAccent;
+        case sk::KEY_ESC: return ImGuiKey_Escape;
+        case sk::KEY_ENTER: return ImGuiKey_Enter;
+        case sk::KEY_TAB: return ImGuiKey_Tab;
+        case sk::KEY_BACKSP: return ImGuiKey_Backspace;
+        case sk::KEY_INS: return ImGuiKey_Insert;
+        case sk::KEY_DEL: return ImGuiKey_Delete;
+        case sk::KEY_RIGHT: return ImGuiKey_RightArrow;
+        case sk::KEY_LEFT: return ImGuiKey_LeftArrow;
+        case sk::KEY_DOWN: return ImGuiKey_DownArrow;
+        case sk::KEY_UP: return ImGuiKey_UpArrow;
+        case sk::KEY_PGUP: return ImGuiKey_PageUp;
+        case sk::KEY_PGDN: return ImGuiKey_PageDown;
+        case sk::KEY_HOME: return ImGuiKey_Home;
+        case sk::KEY_END: return ImGuiKey_End;
+        case sk::KEY_CAPSLK: return ImGuiKey_CapsLock;
+
+        case sk::KEY_F1: return ImGuiKey_F1;
+        case sk::KEY_F2: return ImGuiKey_F2;
+        case sk::KEY_F3: return ImGuiKey_F3;
+        case sk::KEY_F4: return ImGuiKey_F4;
+        case sk::KEY_F5: return ImGuiKey_F5;
+        case sk::KEY_F6: return ImGuiKey_F6;
+        case sk::KEY_F7: return ImGuiKey_F7;
+        case sk::KEY_F8: return ImGuiKey_F8;
+        case sk::KEY_F9: return ImGuiKey_F9;
+        case sk::KEY_F10: return ImGuiKey_F10;
+        case sk::KEY_F11: return ImGuiKey_F11;
+        case sk::KEY_F12: return ImGuiKey_F12;
+
+        case sk::KEY_LSHIFT: return ImGuiKey_LeftShift;
+        case sk::KEY_LCTRL: return ImGuiKey_LeftCtrl;
+        case sk::KEY_LALT: return ImGuiKey_LeftAlt;
+        case sk::KEY_RSHIFT: return ImGuiKey_RightShift;
+        case sk::KEY_RCTRL: return ImGuiKey_RightCtrl;
+        case sk::KEY_RALT: return ImGuiKey_RightAlt;
+
+        case sk::KEY_NULL: return ImGuiKey_None;
+    }
+    return ImGuiKey_None;
 }
 
 sk::EventStatus
@@ -211,14 +285,10 @@ ImGuiEventHandler(sk::Event e, void *param)
 
 	switch(e){
 	case KEYDOWN:
-		c = *(int*)param;
-		if(c < 256)
-			io.KeysDown[c] = 1;
+        io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), true);
 		return EVENTPROCESSED;
 	case KEYUP:
-		c = *(int*)param;
-		if(c < 256)
-			io.KeysDown[c] = 0;
+        io.AddKeyEvent(SkKeyToImGuiKey(*(int*)param), false);
 		return EVENTPROCESSED;
 	case CHARINPUT:
 		c = (uint)(uintptr)param;

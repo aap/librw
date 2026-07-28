@@ -1,0 +1,171 @@
+namespace rw {
+struct Device;
+namespace d3d11 {
+
+enum ConstantBufferSlot
+{
+	VSlotObjects = 0,
+	VSlotLights = 1,
+	// Vertex and pixel shader slots are independent namespaces.
+	VSlotSkin = 2,
+	VSlotMatFX = 2,
+	PSSlotD3D9States = 2,
+	PSSlotMatFX = 3
+};
+
+void registerPlatformPlugins(void);
+extern Device renderdevice;
+Raster *rasterCreate(Raster *raster);
+uint8 *rasterLock(Raster *raster, int32 level, int32 lockMode);
+void rasterUnlock(Raster *raster, int32 level);
+int32 rasterNumLevels(Raster *raster);
+bool32 imageFindRasterFormat(Image *img, int32 type,
+	int32 *width, int32 *height, int32 *depth, int32 *format);
+bool32 rasterFromImage(Raster *raster, Image *image);
+Image *rasterToImage(Raster *raster);
+void destroyRaster(Raster *raster);
+
+struct VertexElement
+{
+	uint16   stream;
+	uint16   offset;
+	uint8    type;
+	uint8    method;
+	uint8    usage;
+	uint8    usageIndex;
+};
+
+struct VertexStream
+{
+	void  *vertexBuffer;
+	uint32 offset;
+	uint32 stride;
+	uint16 geometryFlags;
+	uint8  managed;
+	uint8  dynamicLock;
+};
+
+struct DefaultVertex
+{
+	V3d position;
+	V3d normal;
+	RGBA color;
+	TexCoords texcoord;
+};
+
+struct SkinVertex
+{
+	V3d position;
+	V3d normal;
+	RGBA color;
+	TexCoords texcoord;
+	V4d weights;
+	uint8 indices[4];
+};
+
+struct InstanceData
+{
+	uint32    numIndex;
+	uint32    minVert;
+	Material *material;
+	bool32    vertexAlpha;
+	void     *vertexShader;
+	uint32    baseIndex;
+	uint32    numVertices;
+	uint32    startIndex;
+	uint32    numPrimitives;
+};
+
+struct InstanceDataHeader : rw::InstanceDataHeader
+{
+	uint32  serialNumber;
+	uint32  numMeshes;
+	void   *indexBuffer;
+	uint32  primType;
+	VertexStream vertexStream[2];
+	bool32  useOffsets;
+	void   *vertexDeclaration;
+	uint32  totalNumIndex;
+	uint32  totalNumVertex;
+
+	InstanceData *inst;
+};
+
+void *createVertexDeclaration(VertexElement *elements);
+void destroyVertexDeclaration(void *delaration);
+uint32 getDeclaration(void *declaration, VertexElement *elements);
+
+void drawInst_simple(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst);
+// Emulate PS2 GS alpha test FB_ONLY case: failed alpha writes to frame- but not to depth buffer
+void drawInst_GSemu(d3d11::InstanceDataHeader *header, InstanceData *inst);
+// This one switches between the above two depending on render state;
+void drawInst(d3d11::InstanceDataHeader *header, d3d11::InstanceData *inst);
+
+bool32 openDefaultRenderPipeline(void);
+void closeDefaultRenderPipeline(void);
+bool32 setIndices(void *indexBuffer);
+void clearIndices(void *buffer);
+bool32 setStreamSource(int n, void *buffer, uint32 offset, uint32 stride);
+void clearStreamSource(void *buffer);
+bool32 setVertexDeclaration(void *declaration);
+void clearVertexDeclaration(void *declaration);
+bool32 setVertexShader(void *shader);
+void clearVertexShader(void *shader);
+bool32 setPixelShader(void *shader);
+void clearPixelShader(void *shader);
+void setTexture(uint32 stage, Texture *texture);
+void applyDrawState(void);
+int32 lightingCB_Shader(Atomic *atomic);
+bool32 uploadDefaultMatrices(Matrix *world);
+bool32 uploadDefaultMaterial(const RGBA &color,
+	const SurfaceProperties &surfaceProps);
+bool32 setDefaultVertexDeclaration(void);
+bool32 setDefaultVertexShader(int32 lightBits);
+bool32 setDefaultPixelShader(void);
+
+void *destroyNativeData(void *object, int32, int32);
+Stream *readNativeData(Stream *stream, int32 len, void *object, int32, int32);
+Stream *writeNativeData(Stream *stream, int32 len, void *object, int32, int32);
+int32 getSizeNativeData(void *object, int32, int32);
+void registerNativeDataPlugin(void);
+
+class ObjPipeline : public rw::ObjPipeline
+{
+public:
+	void init(void);
+	static ObjPipeline *create(void);
+
+	void (*instanceCB)(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
+	void (*uninstanceCB)(Geometry *geo, InstanceDataHeader *header);
+	void (*renderCB)(Atomic *atomic, InstanceDataHeader *header);
+};
+
+void defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
+void defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header);
+void defaultRenderCB_Fix(Atomic *atomic, InstanceDataHeader *header);
+void defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header);
+
+ObjPipeline *makeDefaultPipeline(void);
+
+
+// Skin plugin
+
+void initSkin(void);
+void uploadSkinMatrices(Atomic *atomic);
+void skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance);
+void skinRenderCB(Atomic *atomic, InstanceDataHeader *header);
+ObjPipeline *makeSkinPipeline(void);
+
+// MatFX plugin
+
+void initMatFX(void);
+ObjPipeline *makeMatFXPipeline(void);
+
+// Native Texture and Raster
+
+Texture *readNativeTexture(Stream *stream);
+void writeNativeTexture(Texture *tex, Stream *stream);
+uint32 getSizeNativeTexture(Texture *tex);
+
+}
+}

@@ -134,7 +134,7 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	setVertexShader(im2d_VS);
 	if(im2dOverridePS)
 		setPixelShader(im2dOverridePS);
-	else if(engine->device.getRenderState(TEXTURERASTER))
+	else if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
 	else
 		setPixelShader(im2d_PS);
@@ -191,7 +191,7 @@ im2DRenderIndexedPrimitive(PrimitiveType primType,
 	setVertexShader(im2d_VS);
 	if(im2dOverridePS)
 		setPixelShader(im2dOverridePS);
-	else if(engine->device.getRenderState(TEXTURERASTER))
+	else if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		setPixelShader(im2d_tex_PS);
 	else
 		setPixelShader(im2d_PS);
@@ -321,7 +321,7 @@ im3DTransform(void *vertices, int32 numVertices, Matrix *world, uint32 flags)
 void
 im3DRenderPrimitive(PrimitiveType primType)
 {
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		setPixelShader(default_tex_PS);
 	else
 		setPixelShader(default_PS);
@@ -361,7 +361,7 @@ im3DRenderIndexedPrimitive(PrimitiveType primType, void *indices, int32 numIndic
 
 	setIndices(im3dindbuf);
 
-	if(engine->device.getRenderState(TEXTURERASTER))
+	if(engine->d3ddevice.getRenderState(TEXTURERASTER))
 		setPixelShader(default_tex_PS);
 	else
 		setPixelShader(default_PS);
