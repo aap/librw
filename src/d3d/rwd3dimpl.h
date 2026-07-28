@@ -63,11 +63,17 @@ struct D3d9Globals
 
 extern D3d9Globals d3d9Globals;
 
+void addVidmemRaster(Raster *raster);
+void removeVidmemRaster(Raster *raster);
+
 void addDynamicVB(uint32 length, uint32 fvf, IDirect3DVertexBuffer9** buf);	// NB: don't share this pointer
 void removeDynamicVB(IDirect3DVertexBuffer9** buf);
 
 void addDynamicIB(uint32 length, IDirect3DIndexBuffer9** buf);	// NB: don't share this pointer
 void removeDynamicIB(IDirect3DIndexBuffer9** buf);
+
+int findFormatDepth(uint32 format);
+void evictD3D9Raster(Raster *raster);
 
 #endif
 
@@ -127,14 +133,6 @@ void removeDynamicIB(ID3D11Buffer** buf);
 
 
 #endif
-
-void addVidmemRaster(Raster *raster);
-void removeVidmemRaster(Raster *raster);
-
-int findFormatDepth(uint32 format);
-void evictD3D9Raster(Raster *raster);
-
-
 
 Raster *rasterCreate(Raster *raster);
 uint8 *rasterLock(Raster *raster, int32 level, int32 lockMode);
