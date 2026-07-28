@@ -1181,6 +1181,9 @@ err:
 			D3DSURFACE_DESC desc;
 			tex->GetLevelDesc( level, &desc );
 			return calculateTextureSize( desc.Width, desc.Height, 1, desc.Format );
+		#elif defined(RW_D3D11)
+			RasterLevels* levels = ( RasterLevels* )ras->lockedSurf;
+			return levels->levels[ level ].size;
 		#else
 			RasterLevels* levels = ( RasterLevels* )ras->texture;
 			return levels->levels[ level ].size;

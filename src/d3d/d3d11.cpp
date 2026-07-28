@@ -696,24 +696,155 @@ fail:
 
 		// Native Texture and Raster
 
+		enum NativeTextureFlags
+		{
+			NATIVE_TEXTURE_HAS_ALPHA = 1,
+			NATIVE_TEXTURE_IS_CUBE = 2,
+			NATIVE_TEXTURE_AUTOMIPMAP = 4,
+			NATIVE_TEXTURE_COMPRESSED = 8
+		};
+
 		Texture*
 			readNativeTexture( Stream* stream )
 		{
-			// TODO: Implement D3D11 native texture reading
-			return nil;
+			if( !findChunk( stream, ID_STRUCT, nil, nil ) )
+			{
+				RWERROR( (ERR_CHUNK, "STRUCT") );
+				return nil;
+			}
+
+			uint32 platform = stream->readU32();
+			if( platform != PLATFORM_D3D11 )
+			{
+				RWERROR( (ERR_PLATFORM, platform) );
+				return nil;
+			}
+
+			Texture* tex = Texture::create( nil );
+			if( tex == nil )
+				return nil;
+
+			// Texture
+			tex->filterAddressing = stream->readU32();
+			stream->read8( tex->name, 32 );
+			stream->read8( tex->mask, 32 );
+
+			// Raster
+			int32 format = stream->readI32();
+			uint32 nativeFormat = stream->readU32();
+			int32 width = stream->readU16();
+			int32 height = stream->readU16();
+			int32 depth = stream->readU8();
+			int32 numLevels = stream->readU8();
+			int32 type = stream->readU8();
+			uint32 flags = stream->readU8();
+
+			if( flags & (NATIVE_TEXTURE_IS_CUBE | NATIVE_TEXTURE_COMPRESSED) ||
+				format & (Raster::PAL4 | Raster::PAL8) )
+			{
+				RWERROR( (ERR_INVRASTER) );
+				tex->destroy();
+				return nil;
+			}
+
+			Raster* raster = Raster::create( width, height, depth,
+				format | type, PLATFORM_D3D11 );
+			if( raster == nil )
+			{
+				tex->destroy();
+				return nil;
+			}
+			tex->raster = raster;
+
+			D3dRaster* ext = GETD3DRASTEREXT( raster );
+			if( nativeFormat != ext->format )
+			{
+				RWERROR( (ERR_INVRASTER) );
+				tex->destroy();
+				return nil;
+			}
+			ext->hasAlpha = (flags & NATIVE_TEXTURE_HAS_ALPHA) != 0;
+			ext->autogenMipmap = (flags & NATIVE_TEXTURE_AUTOMIPMAP) != 0;
+
+			for( int32 i = 0; i < numLevels; i++ )
+			{
+				uint32 size = stream->readU32();
+				if( i >= raster->getNumLevels() )
+				{
+					stream->seek( size );
+					continue;
+				}
+				if( size != (uint32)getLevelSize( raster, i ) )
+				{
+					RWERROR( (ERR_INVRASTER) );
+					tex->destroy();
+					return nil;
+				}
+
+				uint8* data = raster->lock( i, Raster::LOCKWRITE | Raster::LOCKNOFETCH );
+				if( data == nil )
+				{
+					tex->destroy();
+					return nil;
+				}
+				stream->read8( data, size );
+				raster->unlock( i );
+			}
+			return tex;
 		}
 
 		void
 			writeNativeTexture( Texture* tex, Stream* stream )
 		{
-			// TODO: Implement D3D11 native texture writing
+			int32 chunksize = getSizeNativeTexture( tex );
+			writeChunkHeader( stream, ID_STRUCT, chunksize - 12 );
+			stream->writeU32( PLATFORM_D3D11 );
+
+			// Texture
+			stream->writeU32( tex->filterAddressing );
+			stream->write8( tex->name, 32 );
+			stream->write8( tex->mask, 32 );
+
+			// Raster
+			Raster* raster = tex->raster;
+			D3dRaster* ext = GETD3DRASTEREXT( raster );
+			int32 numLevels = raster->getNumLevels();
+			assert( (raster->format & (Raster::PAL4 | Raster::PAL8)) == 0 );
+			assert( ext->customFormat == 0 );
+
+			stream->writeI32( raster->format );
+			stream->writeU32( ext->format );
+			stream->writeU16( raster->width );
+			stream->writeU16( raster->height );
+			stream->writeU8( raster->depth );
+			stream->writeU8( numLevels );
+			stream->writeU8( raster->type );
+
+			uint8 flags = 0;
+			if( ext->hasAlpha )
+				flags |= NATIVE_TEXTURE_HAS_ALPHA;
+			if( ext->autogenMipmap )
+				flags |= NATIVE_TEXTURE_AUTOMIPMAP;
+			stream->writeU8( flags );
+
+			for( int32 i = 0; i < numLevels; i++ )
+			{
+				uint32 size = getLevelSize( raster, i );
+				stream->writeU32( size );
+				uint8* data = raster->lock( i, Raster::LOCKREAD );
+				stream->write8( data, size );
+				raster->unlock( i );
+			}
 		}
 
 		uint32
 			getSizeNativeTexture( Texture* tex )
 		{
-			// TODO: Implement D3D11 native texture size calculation
-			return 0;
+			uint32 size = 12 + 72 + 16;
+			int32 numLevels = tex->raster->getNumLevels();
+			for( int32 i = 0; i < numLevels; i++ )
+				size += 4 + getLevelSize( tex->raster, i );
+			return size;
 		}
 
 	}

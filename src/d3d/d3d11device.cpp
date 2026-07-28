@@ -969,23 +969,128 @@ done:
 			natras->lockedSurf = nil;
 		}
 
+		static ID3D11Texture2D*
+			getRasterTextureForReadback( Raster* raster )
+		{
+			ID3D11Texture2D* texture = nil;
+			if( raster->type == Raster::CAMERA )
+			{
+				if( d3d11Globals.defaultRenderTarget == nil )
+					return nil;
+				ID3D11Resource* resource = nil;
+				d3d11Globals.defaultRenderTarget->GetResource( &resource );
+				if( resource )
+				{
+					resource->QueryInterface(
+						__uuidof(ID3D11Texture2D), (void**)&texture );
+					resource->Release();
+				}
+			}
+			else if( raster->type == Raster::CAMERATEXTURE )
+			{
+				D3dRaster* natras = GETD3DRASTEREXT( raster->parent );
+				texture = (ID3D11Texture2D*)natras->texture;
+				if( texture )
+					texture->AddRef();
+			}
+			return texture;
+		}
+
+		static ID3D11Texture2D*
+			createReadbackTexture( ID3D11Texture2D* source )
+		{
+			D3D11_TEXTURE2D_DESC desc;
+			source->GetDesc( &desc );
+
+			ID3D11Texture2D* resolved = nil;
+			ID3D11Texture2D* copySource = source;
+			if( desc.SampleDesc.Count > 1 )
+			{
+				D3D11_TEXTURE2D_DESC resolveDesc = desc;
+				resolveDesc.MipLevels = 1;
+				resolveDesc.ArraySize = 1;
+				resolveDesc.SampleDesc.Count = 1;
+				resolveDesc.SampleDesc.Quality = 0;
+				resolveDesc.Usage = D3D11_USAGE_DEFAULT;
+				resolveDesc.BindFlags = 0;
+				resolveDesc.CPUAccessFlags = 0;
+				resolveDesc.MiscFlags = 0;
+				if( FAILED( d3d11Globals.d3ddevice->CreateTexture2D(
+					&resolveDesc, nil, &resolved ) ) )
+					return nil;
+				d3d11Globals.context->ResolveSubresource(
+					resolved, 0, source, 0, desc.Format );
+				copySource = resolved;
+				desc = resolveDesc;
+			}
+
+			desc.Usage = D3D11_USAGE_STAGING;
+			desc.BindFlags = 0;
+			desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			desc.MiscFlags = 0;
+
+			ID3D11Texture2D* staging = nil;
+			if( SUCCEEDED( d3d11Globals.d3ddevice->CreateTexture2D(
+				&desc, nil, &staging ) ) )
+				d3d11Globals.context->CopyResource( staging, copySource );
+			if( resolved )
+				resolved->Release();
+			return staging;
+		}
+
 		uint8*
 			rasterLock( Raster* raster, int32 level, int32 lockMode )
 		{
 			D3dRaster* natras = GETD3DRASTEREXT( raster );
 			if( raster->privateFlags & (Raster::PRIVATELOCK_READ | Raster::PRIVATELOCK_WRITE) )
 				return nil;
-			if( raster->type != Raster::NORMAL && raster->type != Raster::TEXTURE )
-				return nil;
 
-			RasterLevels* levels = ( RasterLevels* )natras->lockedSurf;
-			if( levels == nil || level >= levels->numlevels )
-				return nil;
+			switch( raster->type )
+			{
+				case Raster::NORMAL:
+				case Raster::TEXTURE:
+				{
+					RasterLevels* levels = ( RasterLevels* )natras->lockedSurf;
+					if( levels == nil || level >= levels->numlevels )
+						return nil;
+					raster->pixels = levels->levels[ level ].data;
+					raster->width = levels->levels[ level ].width;
+					raster->height = levels->levels[ level ].height;
+					raster->stride = levels->levels[ level ].width * 4;
+					break;
+				}
+				case Raster::CAMERA:
+				case Raster::CAMERATEXTURE:
+				{
+					if( level != 0 || (lockMode & Raster::LOCKWRITE) )
+						return nil;
+					ID3D11Texture2D* source =
+						getRasterTextureForReadback( raster );
+					if( source == nil )
+						return nil;
+					ID3D11Texture2D* staging =
+						createReadbackTexture( source );
+					source->Release();
+					if( staging == nil )
+						return nil;
 
-			raster->pixels = levels->levels[ level ].data;
-			raster->width = levels->levels[ level ].width;
-			raster->height = levels->levels[ level ].height;
-			raster->stride = levels->levels[ level ].width * 4;
+					D3D11_MAPPED_SUBRESOURCE mapped;
+					if( FAILED( d3d11Globals.context->Map(
+						staging, 0, D3D11_MAP_READ, 0, &mapped ) ) )
+					{
+						staging->Release();
+						return nil;
+					}
+					natras->lockedSurf = staging;
+					raster->pixels = (uint8*)mapped.pData +
+						raster->offsetY * mapped.RowPitch +
+						raster->offsetX * 4;
+					raster->stride = mapped.RowPitch;
+					break;
+				}
+				default:
+					return nil;
+			}
 			if( lockMode & Raster::LOCKREAD ) raster->privateFlags |= Raster::PRIVATELOCK_READ;
 			if( lockMode & Raster::LOCKWRITE ) raster->privateFlags |= Raster::PRIVATELOCK_WRITE;
 			return raster->pixels;
@@ -994,8 +1099,20 @@ done:
 		void
 			rasterUnlock( Raster* raster, int32 level )
 		{
-			if( (raster->privateFlags & Raster::PRIVATELOCK_WRITE) &&
-				(raster->type == Raster::NORMAL || raster->type == Raster::TEXTURE) )
+			if( raster->type == Raster::CAMERA ||
+				raster->type == Raster::CAMERATEXTURE )
+			{
+				D3dRaster* natras = GETD3DRASTEREXT( raster );
+				ID3D11Texture2D* staging =
+					(ID3D11Texture2D*)natras->lockedSurf;
+				if( staging )
+				{
+					d3d11Globals.context->Unmap( staging, 0 );
+					staging->Release();
+					natras->lockedSurf = nil;
+				}
+			}
+			else if( raster->privateFlags & Raster::PRIVATELOCK_WRITE )
 				uploadRasterLevel( raster, level );
 
 			raster->width = raster->originalWidth;
@@ -1117,13 +1234,11 @@ done:
 		Image*
 			rasterToImage( Raster* raster )
 		{
-			if( raster->type != Raster::NORMAL && raster->type != Raster::TEXTURE )
-				return nil;
-
 			bool unlock = false;
 			if( raster->pixels == nil )
 			{
-				raster->lock( 0, Raster::LOCKREAD );
+				if( raster->lock( 0, Raster::LOCKREAD ) == nil )
+					return nil;
 				unlock = true;
 			}
 
