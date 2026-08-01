@@ -11,6 +11,7 @@ void main() {
     gl_Position.xy = gl_Position.xy * pc.xform.xy + pc.xform.zw;
     gl_Position.w = in_pos.w;
     gl_Position.xyz *= gl_Position.w;
+    gl_PointSize = 1.0;
     v_color = in_color * pc.matColor;
     v_uv = in_uv;
 }

@@ -19,6 +19,10 @@
 #define RWDEVICE vulkan
 #endif
 
+#ifdef RW_D3D11
+#define RWDEVICE d3d11
+#endif
+
 #ifdef RW_GLES2
 #define RW_GLES
 #endif
@@ -548,6 +552,7 @@ enum Platform
 	PLATFORM_WDGL = 11,	// WarDrum OpenGL
 	PLATFORM_GL3  = 12,	// my GL3 implementation
 	PLATFORM_VULKAN = 13,	// Vulkan through SDL3
+	PLATFORM_D3D11 = 14,	// Direct3D 11
 
 	NUM_PLATFORMS,
 
@@ -622,6 +627,7 @@ enum PluginID
 	ID_RASTERWDGL    = MAKEPLUGINID(VEND_RASTER, PLATFORM_WDGL),
 	ID_RASTERGL3     = MAKEPLUGINID(VEND_RASTER, PLATFORM_GL3),
 	ID_RASTERVULKAN  = MAKEPLUGINID(VEND_RASTER, PLATFORM_VULKAN),
+	ID_RASTERD3D11   = MAKEPLUGINID(VEND_RASTER, PLATFORM_D3D11),
 
 	// anything driver/device related (only as allocation tag)
 	ID_DRIVER        = MAKEPLUGINID(VEND_DRIVER, 0)

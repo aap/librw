@@ -18,6 +18,7 @@
 #include "d3d/rwd3dimpl.h"
 #include "gl/rwgl3.h"
 #include "vulkan/rwvulkan.h"
+#include "d3d11/rwd3d11.h"
 
 #define PLUGIN_ID 0
 
@@ -486,6 +487,10 @@ Texture::streamReadNative(Stream *stream)
 	if(platform == PLATFORM_VULKAN)
 		return vulkan::readNativeTexture(stream);
 #endif
+#ifdef RW_D3D11
+	if(platform == PLATFORM_D3D11)
+		return d3d11::readNativeTexture(stream);
+#endif
 	assert(0 && "unsupported platform");
 	return nil;
 }
@@ -507,6 +512,10 @@ Texture::streamWriteNative(Stream *stream)
 	else if(this->raster->platform == PLATFORM_VULKAN)
 		vulkan::writeNativeTexture(this, stream);
 #endif
+#ifdef RW_D3D11
+	else if(this->raster->platform == PLATFORM_D3D11)
+		d3d11::writeNativeTexture(this, stream);
+#endif
 	else
 		assert(0 && "unsupported platform");
 }
@@ -527,6 +536,10 @@ Texture::streamGetSizeNative(void)
 #ifdef RW_VULKAN
 	if(this->raster->platform == PLATFORM_VULKAN)
 		return vulkan::getSizeNativeTexture(this);
+#endif
+#ifdef RW_D3D11
+	if(this->raster->platform == PLATFORM_D3D11)
+		return d3d11::getSizeNativeTexture(this);
 #endif
 	assert(0 && "unsupported platform");
 	return 0;

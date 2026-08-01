@@ -205,6 +205,7 @@ struct Engine
 	}
 };
 
+extern bool32 bChangingVideoMode;
 extern Engine *engine;
 
 #define RWTOSTR_(X) #X

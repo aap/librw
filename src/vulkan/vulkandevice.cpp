@@ -24,9 +24,86 @@
 #define PLUGIN_ID ID_DRIVER
 
 namespace rw {
+
+extern int32 textureModuleOffset;
+struct TextureGlobals
+{
+	TexDictionary *initialTexDict;
+	TexDictionary *currentTexDict;
+	bool32 loadTextures;
+	bool32 makeDummies;
+	bool32 mipmapping;
+	bool32 autoMipmapping;
+	LinkList texDicts;
+	LinkList textures;
+};
+
 namespace vulkan {
 
 #include "vulkanshaders.inc"
+
+static rw::Texture*
+findTextureForRaster(rw::Raster *raster)
+{
+	using namespace rw;
+	if(textureModuleOffset < 0)
+		return nil;
+	TextureGlobals *texGlobals = PLUGINOFFSET(TextureGlobals, engine, textureModuleOffset);
+	FORLIST(lnk, texGlobals->textures){
+		Texture *tex = LLLinkGetData(lnk, Texture, inGlobalList);
+		if(tex->raster == raster)
+			return tex;
+	}
+	return nil;
+}
+
+static VkSamplerAddressMode
+vulkanAddressMode(uint32 address)
+{
+	using namespace rw;
+	switch(address){
+	case Texture::MIRROR:
+		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	case Texture::CLAMP:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	case Texture::BORDER:
+		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	case Texture::WRAP:
+	default:
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	}
+}
+
+static void
+vulkanFilterMode(uint32 filter, VkFilter *magFilter, VkFilter *minFilter, VkSamplerMipmapMode *mipmapMode)
+{
+	using namespace rw;
+	switch(filter){
+	case Texture::NEAREST:
+		*magFilter = VK_FILTER_NEAREST;
+		*minFilter = VK_FILTER_NEAREST;
+		*mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		break;
+	case Texture::LINEAR:
+		*magFilter = VK_FILTER_LINEAR;
+		*minFilter = VK_FILTER_LINEAR;
+		*mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		break;
+	case Texture::MIPNEAREST:
+		*magFilter = VK_FILTER_LINEAR;
+		*minFilter = VK_FILTER_LINEAR;
+		*mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		break;
+	case Texture::MIPLINEAR:
+	case Texture::LINEARMIPNEAREST:
+	case Texture::LINEARMIPLINEAR:
+	default:
+		*magFilter = VK_FILTER_LINEAR;
+		*minFilter = VK_FILTER_LINEAR;
+		*mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		break;
+	}
+}
 
 struct DisplayMode
 {
@@ -43,12 +120,33 @@ struct VulkanBuffer
 	void *mapped;
 };
 
+struct TextureGarbage
+{
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView view;
+	VkSampler sampler;
+};
+
+struct GeometryGarbage
+{
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
+};
+
 struct FrameTextureUploadGarbage
 {
-	VulkanBuffer staging[16];
-	Raster *raster[16];
+	VulkanBuffer staging[256];
+	Raster *raster[256];
 	uint32 numStaging;
+	TextureGarbage textures[1024];
+	uint32 numTextures;
+	GeometryGarbage geometries[1024];
+	uint32 numGeometries;
 };
+
 
 struct RayAccelerationStructure
 {
@@ -95,6 +193,34 @@ struct Color3DPushConstants
 	float rtLight[4];
 };
 
+// Per-draw uniforms of the lit3d pipeline, std140 layout
+// Per mesh values. These are the only things that change between the meshes of
+// one atomic, so they travel as push constants instead of dragging the whole
+// uniform block (mvp, world, eight lights, fog) through memory per draw call.
+struct Lit3DPush
+{
+	float matColor[4];
+	float surfProps[4];	// x=ambient, y=diffuse, z=lighting on
+	float alphaRef[4];
+};
+
+struct Lit3DUniforms
+{
+	float mvp[16];
+	float world[16];
+	float ambient[4];
+	float lightParams[8][4];	// x=type, y=radius, z=minusCosAngle, w=hardSpot
+	float lightColor[8][4];
+	float lightPosition[8][4];
+	float lightDirection[8][4];
+	float texMatrix[16];
+	float colorClamp[4];
+	float envColor[4];
+	float fxParams[4];
+	float fogData[4];	// x=start, y=end, z=range, w=disable
+	float fogColor[4];
+};
+
 enum PipelineKind
 {
 	PIPE_IM2D,
@@ -105,6 +231,14 @@ enum PipelineKind
 	PIPE_COLOR3D_NOZWRITE,
 	PIPE_COLOR3D_NOZTEST,
 	PIPE_COLOR3D_NOZTEST_NOZWRITE,
+	PIPE_LIT3D,
+	PIPE_LIT3D_NOZWRITE,
+	PIPE_LIT3D_NOZTEST,
+	PIPE_LIT3D_NOZTEST_NOZWRITE,
+	PIPE_MATFX_ENVMAP,
+	PIPE_MATFX_ENVMAP_NOZWRITE,
+	PIPE_MATFX_ENVMAP_NOZTEST,
+	PIPE_MATFX_ENVMAP_NOZTEST_NOZWRITE,
 	PIPE_COUNT
 };
 
@@ -142,6 +276,7 @@ enum PresentModePreference
 
 static const VkDeviceSize DYNAMIC_VERTEX_BUFFER_SIZE = 32ull * 1024ull * 1024ull;
 static const VkDeviceSize DYNAMIC_INDEX_BUFFER_SIZE = 8ull * 1024ull * 1024ull;
+static const VkDeviceSize DYNAMIC_LIT_UNIFORM_BUFFER_SIZE = 16ull * 1024ull * 1024ull;
 static const VkDeviceSize TEXTURE_UPLOAD_BYTES_PER_FRAME = 16ull * 1024ull * 1024ull;
 static const uint32 TEXTURE_UPLOADS_PER_FRAME = 12;
 static const uint64 TEXTURE_UPLOAD_USECS_PER_FRAME = 4000;
@@ -166,6 +301,9 @@ struct VulkanGlobals
 	int32 presentModePreference;
 	VkPresentModeKHR activePresentMode;
 	bool32 swapchainRecreateRequested;
+	bool32 surfaceRecreateRequested;
+	bool32 appInBackground;
+	float fogStart, fogEnd;
 	void *renderStates[GSALPHATESTREF + 1];
 	float view[16];
 	float proj[16];
@@ -209,6 +347,15 @@ struct VulkanGlobals
 	uint32 tempVertexCapacity;
 	uint16 *tempIndices;
 	uint32 tempIndexCapacity;
+	RGBA *tempBaseColors;
+	RGBAf *tempDiffuse;
+	VkDescriptorSetLayout litSetLayout;
+	VkDescriptorSet litDescriptorSets[MAX_FRAMES_IN_FLIGHT];
+	VkBuffer litDescriptorBuffers[MAX_FRAMES_IN_FLIGHT];
+	VulkanBuffer litUniformBuffers[MAX_FRAMES_IN_FLIGHT];
+	VkDeviceSize litUniformOffset;
+	VkDeviceSize uboAlignment;
+	InstanceDataHeader *instanceList;
 	VkPipeline currentPipeline;
 	VkDescriptorSet currentDescriptorSet;
 	PipelineKind currentDescriptorSetKind;
@@ -222,7 +369,13 @@ vkOk(VkResult result, const char *what)
 {
 	if(result == VK_SUCCESS)
 		return 1;
+	// stderr goes nowhere on Android, which hid every one of these
+#ifdef __ANDROID__
+	__android_log_print(ANDROID_LOG_ERROR, "librw-vulkan",
+		"Vulkan error in %s: %d", what, result);
+#else
 	fprintf(stderr, "Vulkan error in %s: %d\n", what, result);
+#endif
 	RWERROR((ERR_GENERAL, what));
 	return 0;
 }
@@ -231,6 +384,8 @@ static void copyIdentity(float *m);
 static void queueTextureUpload(Raster *raster);
 static void removeTextureUploadGarbageForRaster(Raster *raster);
 static void destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler);
+static bool32 keepTextureGarbage(uint32 frame, VkImage image, VkDeviceMemory memory, VkImageView view, VkSampler sampler);
+static bool32 keepGeometryGarbage(uint32 frame, VkBuffer vertexBuffer, VkDeviceMemory vertexBufferMemory, VkBuffer indexBuffer, VkDeviceMemory indexBufferMemory);
 
 static bool32
 apiVersionAtLeast(uint32 version, uint32 major, uint32 minor)
@@ -949,7 +1104,9 @@ createTextureImage(uint32 width, uint32 height, const uint8 *rgba,
 static bool32
 createTextureImageForFrame(uint32 width, uint32 height, const uint8 *rgba, VkCommandBuffer commandBuffer,
 	VulkanBuffer *stagingOut, VkImage *image, VkDeviceMemory *memory, VkImageView *view,
-	VkSampler *sampler, VkDescriptorSet *descriptorSet)
+	VkSampler *sampler, VkDescriptorSet *descriptorSet,
+	VkSamplerAddressMode addressModeU, VkSamplerAddressMode addressModeV,
+	VkFilter magFilter, VkFilter minFilter, VkSamplerMipmapMode mipmapMode)
 {
 	Context *ctx = &vkGlobals.context;
 	if(ctx->device == VK_NULL_HANDLE || commandBuffer == VK_NULL_HANDLE ||
@@ -1036,14 +1193,14 @@ createTextureImageForFrame(uint32 width, uint32 height, const uint8 *rgba, VkCom
 	VkSamplerCreateInfo samplerInfo;
 	memset(&samplerInfo, 0, sizeof(samplerInfo));
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.magFilter = magFilter;
+	samplerInfo.minFilter = minFilter;
+	samplerInfo.mipmapMode = mipmapMode;
+	samplerInfo.addressModeU = addressModeU;
+	samplerInfo.addressModeV = addressModeV;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.maxAnisotropy = 1.0f;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;
 	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler(frame texture)")){
 		destroyTextureHandles(image, memory, view, sampler);
@@ -1211,7 +1368,19 @@ destroyRasterTexture(Raster *raster)
 	}
 	removeTextureUploadGarbageForRaster(raster);
 	VulkanRaster *natras = GETVULKANRASTEREXT(raster);
-	destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
+	if(natras->image != VK_NULL_HANDLE || natras->imageMemory != VK_NULL_HANDLE ||
+	   natras->imageView != VK_NULL_HANDLE || natras->sampler != VK_NULL_HANDLE){
+		Context *ctx = &vkGlobals.context;
+		if(!keepTextureGarbage(ctx->currentFrame, natras->image, natras->imageMemory, natras->imageView, natras->sampler)){
+			vkDeviceWaitIdle(ctx->device);
+			destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
+		}else{
+			natras->image = VK_NULL_HANDLE;
+			natras->imageMemory = VK_NULL_HANDLE;
+			natras->imageView = VK_NULL_HANDLE;
+			natras->sampler = VK_NULL_HANDLE;
+		}
+	}
 	natras->descriptorSet = VK_NULL_HANDLE;
 	natras->imageFormat = VK_FORMAT_UNDEFINED;
 	natras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1295,6 +1464,41 @@ ensureTextureUploaded(Raster *raster)
 	return 0;
 }
 
+static bool32
+keepTextureGarbage(uint32 frame, VkImage image, VkDeviceMemory memory, VkImageView view, VkSampler sampler)
+{
+	if(frame >= MAX_FRAMES_IN_FLIGHT)
+		return 0;
+	FrameTextureUploadGarbage *garbage = &vkGlobals.textureUploadGarbage[frame];
+	if(garbage->numTextures >= nelem(garbage->textures))
+		return 0;
+
+	garbage->textures[garbage->numTextures].image = image;
+	garbage->textures[garbage->numTextures].memory = memory;
+	garbage->textures[garbage->numTextures].view = view;
+	garbage->textures[garbage->numTextures].sampler = sampler;
+	garbage->numTextures++;
+	return 1;
+}
+
+static bool32
+keepGeometryGarbage(uint32 frame, VkBuffer vertexBuffer, VkDeviceMemory vertexBufferMemory,
+	VkBuffer indexBuffer, VkDeviceMemory indexBufferMemory)
+{
+	if(frame >= MAX_FRAMES_IN_FLIGHT)
+		return 0;
+	FrameTextureUploadGarbage *garbage = &vkGlobals.textureUploadGarbage[frame];
+	if(garbage->numGeometries >= nelem(garbage->geometries))
+		return 0;
+
+	garbage->geometries[garbage->numGeometries].vertexBuffer = vertexBuffer;
+	garbage->geometries[garbage->numGeometries].vertexBufferMemory = vertexBufferMemory;
+	garbage->geometries[garbage->numGeometries].indexBuffer = indexBuffer;
+	garbage->geometries[garbage->numGeometries].indexBufferMemory = indexBufferMemory;
+	garbage->numGeometries++;
+	return 1;
+}
+
 static void
 retireTextureUploadGarbage(uint32 frame)
 {
@@ -1311,7 +1515,27 @@ retireTextureUploadGarbage(uint32 frame)
 		garbage->raster[i] = nil;
 	}
 	garbage->numStaging = 0;
+
+	for(uint32 i = 0; i < garbage->numTextures; i++){
+		destroyTextureHandles(&garbage->textures[i].image, &garbage->textures[i].memory,
+			&garbage->textures[i].view, &garbage->textures[i].sampler);
+	}
+	garbage->numTextures = 0;
+
+	for(uint32 i = 0; i < garbage->numGeometries; i++){
+		Context *ctx = &vkGlobals.context;
+		if(garbage->geometries[i].vertexBuffer != VK_NULL_HANDLE)
+			vkDestroyBuffer(ctx->device, garbage->geometries[i].vertexBuffer, nil);
+		if(garbage->geometries[i].vertexBufferMemory != VK_NULL_HANDLE)
+			vkFreeMemory(ctx->device, garbage->geometries[i].vertexBufferMemory, nil);
+		if(garbage->geometries[i].indexBuffer != VK_NULL_HANDLE)
+			vkDestroyBuffer(ctx->device, garbage->geometries[i].indexBuffer, nil);
+		if(garbage->geometries[i].indexBufferMemory != VK_NULL_HANDLE)
+			vkFreeMemory(ctx->device, garbage->geometries[i].indexBufferMemory, nil);
+	}
+	garbage->numGeometries = 0;
 }
+
 
 static void
 removeTextureUploadGarbageForRaster(Raster *raster)
@@ -1411,16 +1635,38 @@ uploadTextureForFrame(Raster *raster, VkCommandBuffer commandBuffer, VkDeviceSiz
 
 	removeTextureUploadGarbageForRaster(raster);
 	if(natras->image != VK_NULL_HANDLE || natras->imageMemory != VK_NULL_HANDLE ||
-	   natras->imageView != VK_NULL_HANDLE || natras->sampler != VK_NULL_HANDLE)
-		vkDeviceWaitIdle(ctx->device);
-	destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
+	   natras->imageView != VK_NULL_HANDLE || natras->sampler != VK_NULL_HANDLE){
+		if(!keepTextureGarbage(ctx->currentFrame, natras->image, natras->imageMemory, natras->imageView, natras->sampler)){
+			vkDeviceWaitIdle(ctx->device);
+			destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
+		}else{
+			natras->image = VK_NULL_HANDLE;
+			natras->imageMemory = VK_NULL_HANDLE;
+			natras->imageView = VK_NULL_HANDLE;
+			natras->sampler = VK_NULL_HANDLE;
+		}
+	}
 	natras->descriptorSet = VK_NULL_HANDLE;
 	natras->imageFormat = VK_FORMAT_UNDEFINED;
 	natras->imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
+	Texture *tex = findTextureForRaster(raster);
+	VkSamplerAddressMode addrModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	VkSamplerAddressMode addrModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	VkFilter magF = VK_FILTER_LINEAR;
+	VkFilter minF = VK_FILTER_LINEAR;
+	VkSamplerMipmapMode mipM = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+
+	if(tex != nil){
+		addrModeU = vulkanAddressMode(tex->getAddressU());
+		addrModeV = vulkanAddressMode(tex->getAddressV());
+		vulkanFilterMode(tex->getFilter(), &magF, &minF, &mipM);
+	}
+
 	VulkanBuffer staging;
 	bool32 ok = createTextureImageForFrame((uint32)width, (uint32)height, rgba, commandBuffer, &staging,
-		&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler, &natras->descriptorSet);
+		&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler, &natras->descriptorSet,
+		addrModeU, addrModeV, magF, minF, mipM);
 	rwFree(rgba);
 	if(ok && !keepTextureUploadStaging(ctx->currentFrame, raster, &staging)){
 		destroyTextureHandles(&natras->image, &natras->imageMemory, &natras->imageView, &natras->sampler);
@@ -1620,7 +1866,7 @@ geometryHasVertexAlpha(Geometry *geo)
 	if(geo == nil || (geo->flags & Geometry::PRELIT) == 0 || geo->colors == nil)
 		return 0;
 	for(int32 i = 0; i < geo->numVertices; i++)
-		if(geo->colors[i].alpha != 0xFF)
+		if(geo->colors[i].alpha != 0 && geo->colors[i].alpha != 0xFF)
 			return 1;
 	return 0;
 }
@@ -1858,9 +2104,20 @@ selectColor3DPipelineKind(void)
 	return zwrite ? PIPE_COLOR3D : PIPE_COLOR3D_NOZWRITE;
 }
 
+static PipelineKind
+selectLit3DPipelineKind(void)
+{
+	bool32 ztest = getRenderStateUInt(ZTESTENABLE, 1);
+	bool32 zwrite = getRenderStateUInt(ZWRITEENABLE, 1);
+	if(!ztest)
+		return zwrite ? PIPE_LIT3D_NOZTEST : PIPE_LIT3D_NOZTEST_NOZWRITE;
+	return zwrite ? PIPE_LIT3D : PIPE_LIT3D_NOZWRITE;
+}
+
 static bool32 createDrawPipelines(void);
 static void destroyDrawPipelines(void);
 static void destroyDrawResources(void);
+static void destroyInstanceGpuBuffers(InstanceDataHeader *header);
 
 static bool32
 createTextureDescriptors(void)
@@ -1883,6 +2140,29 @@ createTextureDescriptors(void)
 	         "vkCreateDescriptorSetLayout"))
 		return 0;
 
+	// Per-draw uniforms of the lit3d pipeline, bound with a dynamic offset
+	VkDescriptorSetLayoutBinding litBinding;
+	memset(&litBinding, 0, sizeof(litBinding));
+	litBinding.binding = 0;
+	litBinding.descriptorCount = 1;
+	litBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	litBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutCreateInfo litLayoutInfo;
+	memset(&litLayoutInfo, 0, sizeof(litLayoutInfo));
+	litLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	litLayoutInfo.bindingCount = 1;
+	litLayoutInfo.pBindings = &litBinding;
+	if(!vkOk(vkCreateDescriptorSetLayout(ctx->device, &litLayoutInfo, nil, &vkGlobals.litSetLayout),
+	         "vkCreateDescriptorSetLayout(lit)"))
+		return 0;
+
+	VkPhysicalDeviceProperties deviceProps;
+	vkGetPhysicalDeviceProperties(ctx->physicalDevice, &deviceProps);
+	vkGlobals.uboAlignment = deviceProps.limits.minUniformBufferOffsetAlignment;
+	if(vkGlobals.uboAlignment < 4)
+		vkGlobals.uboAlignment = 4;
+
 	if(ctx->rayQueryEnabled){
 		VkDescriptorSetLayoutBinding rayBinding;
 		memset(&rayBinding, 0, sizeof(rayBinding));
@@ -1901,15 +2181,17 @@ createTextureDescriptors(void)
 			return 0;
 	}
 
-	VkDescriptorPoolSize poolSizes[2];
+	VkDescriptorPoolSize poolSizes[3];
 	memset(poolSizes, 0, sizeof(poolSizes));
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[0].descriptorCount = 8192;
-	uint32 poolSizeCount = 1;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+	poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT;
+	uint32 poolSizeCount = 2;
 	if(ctx->rayQueryEnabled){
-		poolSizes[1].type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-		poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT;
-		poolSizeCount = 2;
+		poolSizes[2].type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT;
+		poolSizeCount = 3;
 	}
 
 	VkDescriptorPoolCreateInfo poolInfo;
@@ -1917,10 +2199,27 @@ createTextureDescriptors(void)
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = poolSizeCount;
 	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = 8192 + (ctx->rayQueryEnabled ? MAX_FRAMES_IN_FLIGHT : 0);
+	poolInfo.maxSets = 8192 + MAX_FRAMES_IN_FLIGHT + (ctx->rayQueryEnabled ? MAX_FRAMES_IN_FLIGHT : 0);
 	if(!vkOk(vkCreateDescriptorPool(ctx->device, &poolInfo, nil, &vkGlobals.descriptorPool),
 	         "vkCreateDescriptorPool"))
 		return 0;
+
+	{
+		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
+		for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			layouts[i] = vkGlobals.litSetLayout;
+		VkDescriptorSetAllocateInfo allocInfo;
+		memset(&allocInfo, 0, sizeof(allocInfo));
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = vkGlobals.descriptorPool;
+		allocInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
+		allocInfo.pSetLayouts = layouts;
+		if(!vkOk(vkAllocateDescriptorSets(ctx->device, &allocInfo, vkGlobals.litDescriptorSets),
+		         "vkAllocateDescriptorSets(lit)"))
+			return 0;
+		for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			vkGlobals.litDescriptorBuffers[i] = VK_NULL_HANDLE;
+	}
 
 	if(ctx->rayQueryEnabled){
 		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
@@ -2067,6 +2366,134 @@ createPipelineLayout(PipelineKind kind, uint32 pushSize)
 	            "vkCreatePipelineLayout");
 }
 
+static void
+makeLitPushRange(VkPushConstantRange *range)
+{
+	memset(range, 0, sizeof(*range));
+	range->stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+	range->offset = 0;
+	range->size = sizeof(Lit3DPush);
+}
+
+static bool32
+createLitPipelineLayout(PipelineKind kind)
+{
+	Context *ctx = &vkGlobals.context;
+	VkPushConstantRange pushRange;
+	makeLitPushRange(&pushRange);
+	VkPipelineLayoutCreateInfo layoutInfo;
+	memset(&layoutInfo, 0, sizeof(layoutInfo));
+	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayout layouts[2] = { vkGlobals.textureSetLayout, vkGlobals.litSetLayout };
+	layoutInfo.setLayoutCount = 2;
+	layoutInfo.pSetLayouts = layouts;
+	layoutInfo.pushConstantRangeCount = 1;
+	layoutInfo.pPushConstantRanges = &pushRange;
+	return vkOk(vkCreatePipelineLayout(ctx->device, &layoutInfo, nil, &vkGlobals.pipelineLayouts[kind]),
+	            "vkCreatePipelineLayout(lit)");
+}
+
+static bool32
+createMatFXPipelineLayout(PipelineKind kind)
+{
+	Context *ctx = &vkGlobals.context;
+	VkPushConstantRange pushRange;
+	makeLitPushRange(&pushRange);
+	VkPipelineLayoutCreateInfo layoutInfo;
+	memset(&layoutInfo, 0, sizeof(layoutInfo));
+	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	VkDescriptorSetLayout layouts[3] = { vkGlobals.textureSetLayout, vkGlobals.litSetLayout, vkGlobals.textureSetLayout };
+	layoutInfo.setLayoutCount = 3;
+	layoutInfo.pSetLayouts = layouts;
+	layoutInfo.pushConstantRangeCount = 1;
+	layoutInfo.pPushConstantRanges = &pushRange;
+	return vkOk(vkCreatePipelineLayout(ctx->device, &layoutInfo, nil, &vkGlobals.pipelineLayouts[kind]),
+	            "vkCreatePipelineLayout(matfx)");
+}
+
+// createDrawPipelines() creates every (kind x blend x primType) permutation up
+// front - a few hundred vkCreateGraphicsPipelines calls on a cold cache. A
+// VkPipelineCache shared across all of them lets the driver skip redundant
+// compilation work within one run, and persisting it to disk turns every run
+// after the first into a much cheaper "warm" load. A missing/corrupt/stale
+// cache file is not a correctness problem: the driver validates the blob's
+// header (vendor/device ID, driver UUID) itself and just ignores anything
+// that doesn't match, falling back to a normal from-scratch build.
+static char *
+getPipelineCachePath(void)
+{
+	static char path[512];
+	char *pref = SDL_GetPrefPath("librw", "vkpipelinecache");
+	if(pref == nil)
+		return nil;
+	SDL_snprintf(path, sizeof(path), "%svulkan_pipeline_cache.bin", pref);
+	SDL_free(pref);
+	return path;
+}
+
+static bool32
+createPipelineCache(void)
+{
+	Context *ctx = &vkGlobals.context;
+	void *initialData = nil;
+	size_t initialSize = 0;
+
+	const char *path = getPipelineCachePath();
+	SDL_IOStream *io = path ? SDL_IOFromFile(path, "rb") : nil;
+	if(io){
+		Sint64 size = SDL_GetIOSize(io);
+		if(size > 0){
+			initialData = rwNewT(uint8, (uint32)size, MEMDUR_FUNCTION | ID_DRIVER);
+			if(initialData != nil && SDL_ReadIO(io, initialData, (size_t)size) == (size_t)size)
+				initialSize = (size_t)size;
+			else if(initialData != nil){
+				rwFree(initialData);
+				initialData = nil;
+			}
+		}
+		SDL_CloseIO(io);
+	}
+
+	VkPipelineCacheCreateInfo cacheInfo;
+	memset(&cacheInfo, 0, sizeof(cacheInfo));
+	cacheInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+	cacheInfo.initialDataSize = initialSize;
+	cacheInfo.pInitialData = initialData;
+	bool32 ok = vkOk(vkCreatePipelineCache(ctx->device, &cacheInfo, nil, &ctx->pipelineCache),
+	                  "vkCreatePipelineCache");
+
+	if(initialData != nil)
+		rwFree(initialData);
+	return ok;
+}
+
+static void
+destroyPipelineCache(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->pipelineCache == VK_NULL_HANDLE)
+		return;
+
+	size_t size = 0;
+	if(vkGetPipelineCacheData(ctx->device, ctx->pipelineCache, &size, nil) == VK_SUCCESS && size > 0){
+		void *data = rwNewT(uint8, (uint32)size, MEMDUR_FUNCTION | ID_DRIVER);
+		if(data != nil){
+			if(vkGetPipelineCacheData(ctx->device, ctx->pipelineCache, &size, data) == VK_SUCCESS){
+				const char *path = getPipelineCachePath();
+				SDL_IOStream *io = path ? SDL_IOFromFile(path, "wb") : nil;
+				if(io){
+					SDL_WriteIO(io, data, size);
+					SDL_CloseIO(io);
+				}
+			}
+			rwFree(data);
+		}
+	}
+
+	vkDestroyPipelineCache(ctx->device, ctx->pipelineCache, nil);
+	ctx->pipelineCache = VK_NULL_HANDLE;
+}
+
 static bool32
 createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, PrimitiveType primType,
 	const uint32 *vertCode, size_t vertSize, const uint32 *fragCode, size_t fragSize,
@@ -2132,10 +2559,15 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	memset(&depthStencil, 0, sizeof(depthStencil));
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	bool32 depthTest = kind == PIPE_IM2D_ZTEST || kind == PIPE_IM2D_ZTEST_ZWRITE ||
-		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZWRITE;
+		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZWRITE ||
+		kind == PIPE_LIT3D || kind == PIPE_LIT3D_NOZWRITE ||
+		kind == PIPE_MATFX_ENVMAP || kind == PIPE_MATFX_ENVMAP_NOZWRITE;
 	bool32 depthWrite = kind == PIPE_IM2D_ZWRITE || kind == PIPE_IM2D_ZTEST_ZWRITE ||
-		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZTEST;
-	bool32 depthAlways = kind == PIPE_IM2D_ZWRITE || kind == PIPE_COLOR3D_NOZTEST;
+		kind == PIPE_COLOR3D || kind == PIPE_COLOR3D_NOZTEST ||
+		kind == PIPE_LIT3D || kind == PIPE_LIT3D_NOZTEST ||
+		kind == PIPE_MATFX_ENVMAP || kind == PIPE_MATFX_ENVMAP_NOZTEST;
+	bool32 depthAlways = kind == PIPE_IM2D_ZWRITE || kind == PIPE_COLOR3D_NOZTEST ||
+		kind == PIPE_LIT3D_NOZTEST || kind == PIPE_MATFX_ENVMAP_NOZTEST;
 	depthStencil.depthTestEnable = (depthTest || depthWrite) ? VK_TRUE : VK_FALSE;
 	depthStencil.depthWriteEnable = depthWrite ? VK_TRUE : VK_FALSE;
 	depthStencil.depthCompareOp = depthAlways ? VK_COMPARE_OP_ALWAYS : VK_COMPARE_OP_LESS_OR_EQUAL;
@@ -2183,7 +2615,7 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	pipelineInfo.renderPass = ctx->renderPass;
 	pipelineInfo.subpass = 0;
 
-	bool32 ok = vkOk(vkCreateGraphicsPipelines(ctx->device, VK_NULL_HANDLE, 1, &pipelineInfo, nil,
+	bool32 ok = vkOk(vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &pipelineInfo, nil,
 		&vkGlobals.pipelines[kind][blendMode][primType]), "vkCreateGraphicsPipelines");
 	vkDestroyShaderModule(ctx->device, vertShader, nil);
 	vkDestroyShaderModule(ctx->device, fragShader, nil);
@@ -2200,7 +2632,15 @@ createDrawPipelines(void)
 	   !createPipelineLayout(PIPE_COLOR3D, sizeof(Color3DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D_NOZWRITE, sizeof(Color3DPushConstants)) ||
 	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST, sizeof(Color3DPushConstants)) ||
-	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST_NOZWRITE, sizeof(Color3DPushConstants)))
+	   !createPipelineLayout(PIPE_COLOR3D_NOZTEST_NOZWRITE, sizeof(Color3DPushConstants)) ||
+	   !createLitPipelineLayout(PIPE_LIT3D) ||
+	   !createLitPipelineLayout(PIPE_LIT3D_NOZWRITE) ||
+	   !createLitPipelineLayout(PIPE_LIT3D_NOZTEST) ||
+	   !createLitPipelineLayout(PIPE_LIT3D_NOZTEST_NOZWRITE) ||
+	   !createMatFXPipelineLayout(PIPE_MATFX_ENVMAP) ||
+	   !createMatFXPipelineLayout(PIPE_MATFX_ENVMAP_NOZWRITE) ||
+	   !createMatFXPipelineLayout(PIPE_MATFX_ENVMAP_NOZTEST) ||
+	   !createMatFXPipelineLayout(PIPE_MATFX_ENVMAP_NOZTEST_NOZWRITE))
 		return 0;
 
 	VkVertexInputBindingDescription im2dBinding;
@@ -2288,6 +2728,42 @@ createDrawPipelines(void)
 			      color3d_vert_spv, color3d_vert_spv_size, color3dFrag, color3dFragSize,
 			      &color3dBinding, color3dAttribs, 4))
 				return 0;
+			// Instanced geometry meshes are always tri lists or strips
+			if(prims[i] == PRIMTYPETRILIST || prims[i] == PRIMTYPETRISTRIP){
+				if(!createGraphicsPipeline(PIPE_LIT3D, (BlendPipelineMode)b, prims[i],
+				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_LIT3D_NOZWRITE, (BlendPipelineMode)b, prims[i],
+				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_LIT3D_NOZTEST, (BlendPipelineMode)b, prims[i],
+				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_LIT3D_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
+				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+
+				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP, (BlendPipelineMode)b, prims[i],
+				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZWRITE, (BlendPipelineMode)b, prims[i],
+				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZTEST, (BlendPipelineMode)b, prims[i],
+				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
+				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      &color3dBinding, color3dAttribs, 4))
+					return 0;
+			}
 		}
 	}
 	return 1;
@@ -2339,6 +2815,8 @@ createDrawResources(void)
 		   !ensureBuffer(&vkGlobals.dynamicIndexBuffers[i], DYNAMIC_INDEX_BUFFER_SIZE, VK_BUFFER_USAGE_INDEX_BUFFER_BIT))
 			return 0;
 	}
+	if(!createPipelineCache())
+		return 0;
 	return createDrawPipelines();
 }
 
@@ -2349,13 +2827,22 @@ destroyDrawResources(void)
 	if(ctx->device == VK_NULL_HANDLE)
 		return;
 	destroyDrawPipelines();
+	destroyPipelineCache();
 	destroyTextureUploadResources();
 	for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++){
 		destroyBuffer(&vkGlobals.dynamicVertexBuffers[i]);
 		destroyBuffer(&vkGlobals.dynamicIndexBuffers[i]);
+		destroyBuffer(&vkGlobals.litUniformBuffers[i]);
+		vkGlobals.litDescriptorBuffers[i] = VK_NULL_HANDLE;
+		vkGlobals.litDescriptorSets[i] = VK_NULL_HANDLE;
 	}
 	vkGlobals.dynamicVertexOffset = 0;
 	vkGlobals.dynamicIndexOffset = 0;
+	vkGlobals.litUniformOffset = 0;
+	// release the GPU buffers of all instanced geometries; the CPU side
+	// stays so they can be instanced again if the device comes back
+	for(InstanceDataHeader *h = vkGlobals.instanceList; h; h = h->nextInst)
+		destroyInstanceGpuBuffers(h);
 	destroyTextureHandles(&vkGlobals.whiteImage, &vkGlobals.whiteImageMemory,
 		&vkGlobals.whiteImageView, &vkGlobals.whiteSampler);
 	vkGlobals.whiteDescriptorSet = VK_NULL_HANDLE;
@@ -2372,12 +2859,20 @@ destroyDrawResources(void)
 		vkDestroyDescriptorSetLayout(ctx->device, vkGlobals.textureSetLayout, nil);
 		vkGlobals.textureSetLayout = VK_NULL_HANDLE;
 	}
+	if(vkGlobals.litSetLayout != VK_NULL_HANDLE){
+		vkDestroyDescriptorSetLayout(ctx->device, vkGlobals.litSetLayout, nil);
+		vkGlobals.litSetLayout = VK_NULL_HANDLE;
+	}
 	rwFree(vkGlobals.tempVertices);
 	vkGlobals.tempVertices = nil;
 	vkGlobals.tempVertexCapacity = 0;
 	rwFree(vkGlobals.tempIndices);
 	vkGlobals.tempIndices = nil;
 	vkGlobals.tempIndexCapacity = 0;
+	rwFree(vkGlobals.tempBaseColors);
+	vkGlobals.tempBaseColors = nil;
+	rwFree(vkGlobals.tempDiffuse);
+	vkGlobals.tempDiffuse = nil;
 }
 
 static void
@@ -2562,12 +3057,14 @@ openSDL3(EngineOpenParams *openparams)
 static int
 closeSDL3(void)
 {
-	rwFree(vkGlobals.modes);
-	vkGlobals.modes = nil;
-	SDL_free(vkGlobals.displays);
-	vkGlobals.displays = nil;
-	SDL_Vulkan_UnloadLibrary();
-	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	if(!bChangingVideoMode) {
+		rwFree(vkGlobals.modes);
+		vkGlobals.modes = nil;
+		SDL_free(vkGlobals.displays);
+		vkGlobals.displays = nil;
+		SDL_Vulkan_UnloadLibrary();
+		SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	}
 	return 1;
 }
 
@@ -2890,13 +3387,17 @@ createLogicalDevice(void)
 static VkSurfaceFormatKHR
 chooseSurfaceFormat(VkSurfaceFormatKHR *formats, uint32 count)
 {
+	// The whole pipeline works in gamma space like the d3d9 backend:
+	// textures are sampled raw and shaders do no gamma conversion, so an
+	// SRGB swapchain would apply a second gamma curve and wash out the image.
 	for(uint32 i = 0; i < count; i++){
-		if(formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+		if(formats[i].format == VK_FORMAT_B8G8R8A8_UNORM &&
 		   formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 			return formats[i];
 	}
 	for(uint32 i = 0; i < count; i++){
-		if(formats[i].format == VK_FORMAT_B8G8R8A8_UNORM)
+		if(formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+		   formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 			return formats[i];
 	}
 	return formats[0];
@@ -3458,6 +3959,41 @@ recreateSwapchain(void)
 	return createSwapchain() && createDrawPipelines();
 }
 
+// Android throws the ANativeWindow away when the app goes to the background, so
+// coming back needs a brand new VkSurfaceKHR - recreating just the swapchain
+// leaves it pointing at a window that no longer exists, which is the black
+// screen after minimising.
+static bool32
+recreateSurface(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device != VK_NULL_HANDLE)
+		vkDeviceWaitIdle(ctx->device);
+	destroyDrawPipelines();
+	destroySwapchain();
+	if(ctx->surface != VK_NULL_HANDLE){
+		vkDestroySurfaceKHR(ctx->instance, ctx->surface, nil);
+		ctx->surface = VK_NULL_HANDLE;
+	}
+	if(!createSurface())
+		return 0;
+	return createSwapchain() && createDrawPipelines();
+}
+
+void
+notifySurfaceLost(void)
+{
+	vkGlobals.surfaceRecreateRequested = 1;
+}
+
+void
+notifyAppBackground(bool32 background)
+{
+	vkGlobals.appInBackground = background != 0;
+	if(background)
+		vkGlobals.surfaceRecreateRequested = 1;
+}
+
 static void
 buildRaySceneForCurrentFrame(VkCommandBuffer commandBuffer)
 {
@@ -3597,15 +4133,26 @@ startSDL3(void)
 	DisplayMode *mode = &vkGlobals.modes[vkGlobals.currentMode];
 	SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN;
 
-	if(mode->flags & VIDEOMODEEXCLUSIVE) {
-		flags |= SDL_WINDOW_FULLSCREEN;
-		ctx->window = SDL_CreateWindow(vkGlobals.winTitle, mode->mode.w, mode->mode.h, flags);
-		if(ctx->window)
+	if (vkGlobals.pWindow && *vkGlobals.pWindow) {
+		ctx->window = *vkGlobals.pWindow;
+		if (mode->flags & VIDEOMODEEXCLUSIVE) {
 			SDL_SetWindowFullscreenMode(ctx->window, &mode->mode);
-	}else{
-		ctx->window = SDL_CreateWindow(vkGlobals.winTitle, vkGlobals.winWidth, vkGlobals.winHeight, flags);
-		if(ctx->window)
-			SDL_SetWindowFullscreenMode(ctx->window, nil);
+			SDL_SetWindowFullscreen(ctx->window, true);
+		} else {
+			SDL_SetWindowFullscreen(ctx->window, false);
+			SDL_SetWindowSize(ctx->window, vkGlobals.winWidth, vkGlobals.winHeight);
+		}
+	} else {
+		if(mode->flags & VIDEOMODEEXCLUSIVE) {
+			flags |= SDL_WINDOW_FULLSCREEN;
+			ctx->window = SDL_CreateWindow(vkGlobals.winTitle, mode->mode.w, mode->mode.h, flags);
+			if(ctx->window)
+				SDL_SetWindowFullscreenMode(ctx->window, &mode->mode);
+		}else{
+			ctx->window = SDL_CreateWindow(vkGlobals.winTitle, vkGlobals.winWidth, vkGlobals.winHeight, flags);
+			if(ctx->window)
+				SDL_SetWindowFullscreenMode(ctx->window, nil);
+		}
 	}
 	if(ctx->window == nil){
 		RWERROR((ERR_GENERAL, SDL_GetError()));
@@ -3638,8 +4185,12 @@ stopSDL3(void)
 		vkDestroySurfaceKHR(ctx->instance, ctx->surface, nil);
 	if(ctx->instance != VK_NULL_HANDLE)
 		vkDestroyInstance(ctx->instance, nil);
-	if(ctx->window)
-		SDL_DestroyWindow(ctx->window);
+	if(ctx->window) {
+		if(!bChangingVideoMode) {
+			SDL_DestroyWindow(ctx->window);
+			*vkGlobals.pWindow = nil;
+		}
+	}
 	resetContext(ctx);
 	return 1;
 }
@@ -3651,7 +4202,16 @@ beginFrame(void)
 	if(ctx->frameStarted)
 		return 1;
 
-	if(vkGlobals.swapchainRecreateRequested){
+	// Nothing to draw into while the app is backgrounded on Android.
+	if(vkGlobals.appInBackground)
+		return 0;
+
+	if(vkGlobals.surfaceRecreateRequested){
+		vkGlobals.surfaceRecreateRequested = 0;
+		vkGlobals.swapchainRecreateRequested = 0;
+		if(!recreateSurface())
+			return 0;
+	}else if(vkGlobals.swapchainRecreateRequested){
 		vkGlobals.swapchainRecreateRequested = 0;
 		if(!recreateSwapchain())
 			return 0;
@@ -3664,6 +4224,8 @@ beginFrame(void)
 
 	VkResult result = vkAcquireNextImageKHR(ctx->device, ctx->swapchain, UINT64_MAX,
 		ctx->imageAvailable[ctx->currentFrame], VK_NULL_HANDLE, &ctx->currentImage);
+	if(result == VK_ERROR_SURFACE_LOST_KHR)
+		return recreateSurface() && beginFrame();
 	if(result == VK_ERROR_OUT_OF_DATE_KHR)
 		return recreateSwapchain() && beginFrame();
 	if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -3691,7 +4253,36 @@ beginFrame(void)
 	vkGlobals.commandReady = 0;
 	vkGlobals.dynamicVertexOffset = 0;
 	vkGlobals.dynamicIndexOffset = 0;
+	vkGlobals.litUniformOffset = 0;
 	return 1;
+}
+
+// Rect of a camera raster inside the swapchain target, handling sub-rasters.
+static void
+rasterViewportRect(Raster *raster, VkRect2D *rect)
+{
+	Context *ctx = &vkGlobals.context;
+	int32 maxw = (int32)ctx->swapchainExtent.width;
+	int32 maxh = (int32)ctx->swapchainExtent.height;
+	int32 x = 0, y = 0, w = maxw, h = maxh;
+	if(raster){
+		x = raster->offsetX;
+		y = raster->offsetY;
+		w = raster->width;
+		h = raster->height;
+	}
+	if(x < 0) x = 0;
+	if(y < 0) y = 0;
+	if(x > maxw) x = maxw;
+	if(y > maxh) y = maxh;
+	if(w > maxw - x) w = maxw - x;
+	if(h > maxh - y) h = maxh - y;
+	if(w < 0) w = 0;
+	if(h < 0) h = 0;
+	rect->offset.x = x;
+	rect->offset.y = y;
+	rect->extent.width = (uint32)w;
+	rect->extent.height = (uint32)h;
 }
 
 static void
@@ -3718,6 +4309,9 @@ beginUpdate(Camera *cam)
 	view[15] =  1.0f;
 	memcpy(&cam->devView, &view, sizeof(RawMatrix));
 	memcpy(vkGlobals.view, view, sizeof(view));
+
+	vkGlobals.fogStart = cam->fogPlane;
+	vkGlobals.fogEnd = cam->farPlane;
 
 	float32 invwx = 1.0f/cam->viewWindow.x;
 	float32 invwy = 1.0f/cam->viewWindow.y;
@@ -3750,14 +4344,30 @@ beginUpdate(Camera *cam)
 	engine->currentCamera = cam;
 	if(cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
 		return;
-	beginFrame();
+	if(!beginFrame())
+		return;
+
+	// Point viewport and scissor at the camera raster's rect so
+	// rendering to sub-rasters only touches their region.
+	Context *ctx = &vkGlobals.context;
+	VkRect2D rect;
+	rasterViewportRect(cam->frameBuffer, &rect);
+	if(rect.extent.width == 0 || rect.extent.height == 0)
+		return;
+	VkViewport viewport;
+	viewport.x = (float)rect.offset.x;
+	viewport.y = (float)rect.offset.y;
+	viewport.width = (float)rect.extent.width;
+	viewport.height = (float)rect.extent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
+	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &rect);
 }
 
 static void
-endUpdate(Camera *cam)
+finishFrameCommands(void)
 {
-	if(cam && cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
-		return;
 	Context *ctx = &vkGlobals.context;
 	if(!ctx->frameStarted || vkGlobals.commandReady)
 		return;
@@ -3767,10 +4377,60 @@ endUpdate(Camera *cam)
 }
 
 static void
-clearCamera(Camera*, RGBA *col, uint32 mode)
+endUpdate(Camera *cam)
+{
+	// Cameras can be updated several times per frame (e.g. sub-rasters),
+	// so command recording only finishes in showRaster.
+}
+
+static void
+clearCamera(Camera *cam, RGBA *col, uint32 mode)
 {
 	vkGlobals.clearColor = *col;
 	vkGlobals.clearMode = mode;
+
+	if(cam && cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	bool32 opensFrame = !ctx->frameStarted;
+	if(!beginFrame())
+		return;
+	// When this clear opened the frame, the render pass load op already
+	// cleared the whole target with the requested color.
+	if(opensFrame)
+		return;
+
+	VkClearRect rect;
+	memset(&rect, 0, sizeof(rect));
+	rasterViewportRect(cam ? cam->frameBuffer : nil, &rect.rect);
+	if(rect.rect.extent.width == 0 || rect.rect.extent.height == 0)
+		return;
+	rect.baseArrayLayer = 0;
+	rect.layerCount = 1;
+
+	RGBAf c;
+	convColor(&c, col);
+	VkClearAttachment atts[2];
+	memset(atts, 0, sizeof(atts));
+	uint32 n = 0;
+	if(mode & Camera::CLEARIMAGE){
+		atts[n].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		atts[n].colorAttachment = 0;
+		atts[n].clearValue.color.float32[0] = c.red;
+		atts[n].clearValue.color.float32[1] = c.green;
+		atts[n].clearValue.color.float32[2] = c.blue;
+		atts[n].clearValue.color.float32[3] = c.alpha;
+		n++;
+	}
+	if(mode & Camera::CLEARZ){
+		atts[n].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		atts[n].clearValue.depthStencil.depth = 1.0f;
+		atts[n].clearValue.depthStencil.stencil = 0;
+		n++;
+	}
+	if(n)
+		vkCmdClearAttachments(ctx->commandBuffers[ctx->currentImage], n, atts, 1, &rect);
 }
 
 static void
@@ -3779,8 +4439,7 @@ showRaster(Raster*, uint32 flags)
 	Context *ctx = &vkGlobals.context;
 	if(!ctx->frameStarted)
 		return;
-	if(!vkGlobals.commandReady)
-		endUpdate(nil);
+	finishFrameCommands();
 
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submitInfo;
@@ -3807,7 +4466,9 @@ showRaster(Raster*, uint32 flags)
 	presentInfo.pImageIndices = &ctx->currentImage;
 
 	VkResult result = vkQueuePresentKHR(ctx->presentQueue, &presentInfo);
-	if(result == VK_ERROR_OUT_OF_DATE_KHR)
+	if(result == VK_ERROR_SURFACE_LOST_KHR)
+		vkGlobals.surfaceRecreateRequested = 1;
+	else if(result == VK_ERROR_OUT_OF_DATE_KHR)
 		recreateSwapchain();
 	else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		vkOk(result, "vkQueuePresentKHR");
@@ -3815,6 +4476,7 @@ showRaster(Raster*, uint32 flags)
 	ctx->currentFrame = (ctx->currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	ctx->frameStarted = 0;
 	vkGlobals.commandReady = 0;
+
 }
 
 static bool32
@@ -4293,6 +4955,8 @@ struct SimpleLightSet
 	V3d directionalsNormalized[8];
 	RGBAf directionalsColor[8];
 	int32 numDirectionals;
+	Light *locals[8];
+	int32 numLocals;
 };
 
 static void
@@ -4310,14 +4974,14 @@ collectSimpleLights(Atomic *atomic, SimpleLightSet *lights)
 	}
 
 	WorldLights lightData;
-	Light *locals[8];
 	lightData.directionals = lights->directionals;
 	lightData.numDirectionals = 8;
-	lightData.locals = locals;
+	lightData.locals = lights->locals;
 	lightData.numLocals = 8;
 	((World*)engine->currentWorld)->enumerateLights(atomic, &lightData);
 	lights->ambient = lightData.ambient;
 	lights->numDirectionals = lightData.numDirectionals;
+	lights->numLocals = lightData.numLocals;
 	lights->enabled = 1;
 
 	// Pre-calculate normalized directions and colors of all directionals
@@ -4333,42 +4997,83 @@ collectSimpleLights(Atomic *atomic, SimpleLightSet *lights)
 	}
 }
 
-static RGBA
-applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, const RGBA &base)
+// Per-vertex sum of directional and local light contributions,
+// same math as the gl3/d3d11 vertex shaders.
+static RGBAf
+computeDiffuseLight(SimpleLightSet *lights, const V3d &worldPos, const V3d &worldNormal)
 {
-	if(!lights->enabled)
-		return base;
-
-	if(!lights->hasNormals){
-		float r = base.red / 255.0f + lights->ambient.red;
-		float g = base.green / 255.0f + lights->ambient.green;
-		float b = base.blue / 255.0f + lights->ambient.blue;
-		if(r > 1.0f) r = 1.0f;
-		if(g > 1.0f) g = 1.0f;
-		if(b > 1.0f) b = 1.0f;
-		RGBA out = base;
-		out.red = (uint8)(r*255.0f);
-		out.green = (uint8)(g*255.0f);
-		out.blue = (uint8)(b*255.0f);
+	RGBAf out = { 0.0f, 0.0f, 0.0f, 0.0f };
+	if(!lights->enabled || !lights->hasNormals)
 		return out;
-	}
 
-	V3d n = transformVector(world, normal);
+	V3d n = worldNormal;
 	normalizeVector(&n);
-
-	float r = base.red / 255.0f + lights->ambient.red;
-	float g = base.green / 255.0f + lights->ambient.green;
-	float b = base.blue / 255.0f + lights->ambient.blue;
 
 	for(int32 i = 0; i < lights->numDirectionals; i++){
 		float f = dotVector(n, lights->directionalsNormalized[i]);
 		if(f > 0.0f){
-			r += f*lights->directionalsColor[i].red;
-			g += f*lights->directionalsColor[i].green;
-			b += f*lights->directionalsColor[i].blue;
+			out.red += f*lights->directionalsColor[i].red;
+			out.green += f*lights->directionalsColor[i].green;
+			out.blue += f*lights->directionalsColor[i].blue;
 		}
 	}
 
+	for(int32 i = 0; i < lights->numLocals; i++){
+		Light *l = lights->locals[i];
+		Matrix *m = l->getFrame()->getLTM();
+		V3d dir = sub(worldPos, m->pos);
+		float dist = length(dir);
+		float radius = l->radius > 0.0001f ? l->radius : 0.0001f;
+		float atten = 1.0f - dist/radius;
+		if(atten <= 0.0f)
+			continue;
+		dir = scale(dir, 1.0f/(dist > 0.0001f ? dist : 0.0001f));
+		float f = -dotVector(n, dir);
+		if(f < 0.0f) f = 0.0f;
+
+		switch(l->getType()){
+		case Light::POINT:
+			break;
+		case Light::SPOT:
+		case Light::SOFTSPOT: {
+			float ccos = -l->minusCosAngle;	// cos of cone angle
+			float denom = 1.0f - ccos;
+			if(denom < 0.0001f) denom = 0.0001f;
+			float falloff = (dotVector(dir, m->at) - ccos) / denom;
+			if(falloff < 0.0f){
+				// outside of cone
+				f = 0.0f;
+				break;
+			}
+			float minFalloff = l->getType() == Light::SOFTSPOT ? 0.0f : 1.0f;
+			f *= falloff > minFalloff ? falloff : minFalloff;
+			break;
+		}
+		default:
+			continue;
+		}
+
+		f *= atten;
+		if(f > 0.0f){
+			out.red += f*l->color.red;
+			out.green += f*l->color.green;
+			out.blue += f*l->color.blue;
+		}
+	}
+	return out;
+}
+
+// Combine base color, ambient and diffuse light scaled by the material's
+// surface properties, like the gl3/d3d11 vertex shaders do.
+static RGBA
+combineLitColor(SimpleLightSet *lights, const RGBA &base, const RGBAf &diffuse, const SurfaceProperties *surf)
+{
+	if(!lights->enabled)
+		return base;
+
+	float r = base.red / 255.0f + lights->ambient.red*surf->ambient + diffuse.red*surf->diffuse;
+	float g = base.green / 255.0f + lights->ambient.green*surf->ambient + diffuse.green*surf->diffuse;
+	float b = base.blue / 255.0f + lights->ambient.blue*surf->ambient + diffuse.blue*surf->diffuse;
 	if(r > 1.0f) r = 1.0f;
 	if(g > 1.0f) g = 1.0f;
 	if(b > 1.0f) b = 1.0f;
@@ -4380,12 +5085,410 @@ applySimpleLighting(SimpleLightSet *lights, Matrix *world, const V3d &normal, co
 }
 
 
+//
+// Static geometry instancing, mirrors the d3d11 backend
+//
+
+static void
+findMinVertAndNumVertices(uint16 *indices, uint32 numIndices, uint32 *minVert, int32 *numVertices)
+{
+	uint32 min = 0xFFFFFFFF;
+	uint32 max = 0;
+	while(numIndices--){
+		if(*indices < min) min = *indices;
+		if(*indices > max) max = *indices;
+		indices++;
+	}
+	*minVert = min;
+	*numVertices = max - min + 1;
+}
+
+static bool32
+createStaticGpuBuffer(VkBuffer *buffer, VkDeviceMemory *memory, const void *data,
+	VkDeviceSize size, VkBufferUsageFlags usage)
+{
+	*buffer = VK_NULL_HANDLE;
+	*memory = VK_NULL_HANDLE;
+	if(size == 0 || data == nil || vkGlobals.context.device == VK_NULL_HANDLE)
+		return 0;
+
+	VulkanBuffer dst;
+	if(!createRawBuffer(&dst, size, usage,
+	   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1, 0)){
+		return 0;
+	}
+	memcpy(dst.mapped, data, (size_t)size);
+
+	*buffer = dst.buffer;
+	*memory = dst.memory;
+	return 1;
+}
+
+static void
+destroyInstanceGpuBuffers(InstanceDataHeader *header)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device != VK_NULL_HANDLE &&
+	   (header->vertexBuffer != VK_NULL_HANDLE || header->indexBuffer != VK_NULL_HANDLE)){
+		if(!keepGeometryGarbage(ctx->currentFrame, header->vertexBuffer, header->vertexBufferMemory,
+			header->indexBuffer, header->indexBufferMemory)){
+			if(header->vertexBuffer != VK_NULL_HANDLE)
+				vkDestroyBuffer(ctx->device, header->vertexBuffer, nil);
+			if(header->vertexBufferMemory != VK_NULL_HANDLE)
+				vkFreeMemory(ctx->device, header->vertexBufferMemory, nil);
+			if(header->indexBuffer != VK_NULL_HANDLE)
+				vkDestroyBuffer(ctx->device, header->indexBuffer, nil);
+			if(header->indexBufferMemory != VK_NULL_HANDLE)
+				vkFreeMemory(ctx->device, header->indexBufferMemory, nil);
+		}
+	}
+	header->vertexBuffer = VK_NULL_HANDLE;
+	header->vertexBufferMemory = VK_NULL_HANDLE;
+	header->indexBuffer = VK_NULL_HANDLE;
+	header->indexBufferMemory = VK_NULL_HANDLE;
+	header->gpuDirty = 1;
+}
+
+static void
+linkInstanceData(InstanceDataHeader *header)
+{
+	header->prevInst = nil;
+	header->nextInst = vkGlobals.instanceList;
+	if(vkGlobals.instanceList)
+		vkGlobals.instanceList->prevInst = header;
+	vkGlobals.instanceList = header;
+}
+
+static void
+unlinkInstanceData(InstanceDataHeader *header)
+{
+	if(header->prevInst)
+		header->prevInst->nextInst = header->nextInst;
+	else if(vkGlobals.instanceList == header)
+		vkGlobals.instanceList = header->nextInst;
+	if(header->nextInst)
+		header->nextInst->prevInst = header->prevInst;
+	header->prevInst = nil;
+	header->nextInst = nil;
+}
+
+static bool32
+ensureInstanceBuffers(InstanceDataHeader *header)
+{
+	if(header == nil)
+		return 0;
+	if(header->isSkinned)
+		return 1; // Skinned geometries use dynamic buffers per frame; zero static VRAM allocations!
+	if(header->vertexBuffer != VK_NULL_HANDLE && header->indexBuffer != VK_NULL_HANDLE &&
+	   !header->gpuDirty)
+		return 1;
+	destroyInstanceGpuBuffers(header);
+	if(!createStaticGpuBuffer(&header->vertexBuffer, &header->vertexBufferMemory, header->vertices,
+	   header->totalNumVertex*sizeof(Im3DVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT))
+		return 0;
+	if(!createStaticGpuBuffer(&header->indexBuffer, &header->indexBufferMemory, header->indices,
+	   header->totalNumIndex*sizeof(uint16), VK_BUFFER_USAGE_INDEX_BUFFER_BIT)){
+		destroyInstanceGpuBuffers(header);
+		return 0;
+	}
+	header->gpuDirty = 0;
+	return 1;
+}
+
+void
+freeInstanceData(Geometry *geometry)
+{
+	if(geometry == nil || geometry->instData == nil ||
+	   geometry->instData->platform != PLATFORM_VULKAN)
+		return;
+	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
+	geometry->instData = nil;
+	unlinkInstanceData(header);
+	destroyInstanceGpuBuffers(header);
+	rwFree(header->vertices);
+	rwFree(header->indices);
+	rwFree(header->inst);
+	rwFree(header);
+}
+
+void*
+destroyNativeData(void *object, int32, int32)
+{
+	freeInstanceData((Geometry*)object);
+	return object;
+}
+
+static InstanceDataHeader*
+instanceMesh(Geometry *geo)
+{
+	MeshHeader *meshh = geo->meshHeader;
+	if(meshh == nil)
+		return nil;
+
+	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
+	if(header == nil)
+		return nil;
+	memset(header, 0, sizeof(*header));
+	header->platform = PLATFORM_VULKAN;
+	header->serialNumber = meshh->serialNum;
+	header->numMeshes = meshh->numMeshes;
+	header->primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
+	header->totalNumVertex = geo->numVertices;
+	header->totalNumIndex = meshh->totalIndices;
+	header->isSkinned = (Skin::get(geo) != nil);
+	header->gpuDirty = 1;
+	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
+	header->indices = rwNewT(uint16, header->totalNumIndex, MEMDUR_EVENT | ID_GEOMETRY);
+	if(header->inst == nil || header->indices == nil){
+		rwFree(header->inst);
+		rwFree(header->indices);
+		rwFree(header);
+		return nil;
+	}
+
+	InstanceData *inst = header->inst;
+	Mesh *mesh = meshh->getMeshes();
+	uint32 startIndex = 0;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		memset(inst, 0, sizeof(*inst));
+		if(mesh->indices && mesh->numIndices)
+			findMinVertAndNumVertices(mesh->indices, mesh->numIndices,
+				&inst->minVert, &inst->numVertices);
+		inst->numIndex = mesh->numIndices;
+		inst->material = mesh->material;
+		inst->startIndex = startIndex;
+		if(mesh->indices && mesh->numIndices)
+			memcpy(&header->indices[startIndex], mesh->indices, mesh->numIndices*sizeof(uint16));
+		startIndex += mesh->numIndices;
+		mesh++;
+		inst++;
+	}
+	linkInstanceData(header);
+	return header;
+}
+
+static void
+defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
+{
+	if(geo == nil || header == nil || geo->numVertices <= 0 || geo->morphTargets == nil)
+		return;
+	if(header->vertices == nil)
+		header->vertices = rwNewT(Im3DVertex, geo->numVertices, MEMDUR_EVENT | ID_GEOMETRY);
+	if(header->vertices == nil)
+		return;
+
+	bool32 hasNormals = !!(geo->flags & Geometry::NORMALS);
+	bool32 hasPrelit = !!(geo->flags & Geometry::PRELIT);
+	bool32 hasTex = geo->numTexCoordSets > 0 && geo->texCoords[0] != nil;
+	RGBA white = { 255, 255, 255, 255 };
+	RGBA black = { 0, 0, 0, 255 };
+	MorphTarget *morph = &geo->morphTargets[0];
+
+	for(int32 i = 0; i < geo->numVertices; i++){
+		Im3DVertex &v = header->vertices[i];
+		v.position = morph->vertices[i];
+		if(hasNormals)
+			v.normal = morph->normals[i];
+		else{
+			v.normal.x = 0.0f;
+			v.normal.y = 0.0f;
+			v.normal.z = 1.0f;
+		}
+		RGBA color = hasPrelit ? geo->colors[i] :
+			((geo->flags & Geometry::LIGHT) ? black : white);
+		v.r = color.red;
+		v.g = color.green;
+		v.b = color.blue;
+		v.a = (hasPrelit && color.alpha != 0) ? color.alpha : 255;
+		if(hasTex){
+			v.u = geo->texCoords[0][i].u;
+			v.v = geo->texCoords[0][i].v;
+		}else{
+			v.u = 0.0f;
+			v.v = 0.0f;
+		}
+	}
+
+	InstanceData *inst = header->inst;
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		inst->vertexAlpha = 0;
+		uint32 end = inst->minVert + inst->numVertices;
+		if(end > header->totalNumVertex)
+			end = header->totalNumVertex;
+		for(uint32 j = inst->minVert; j < end; j++)
+			if(header->vertices[j].a != 0xFF){
+				inst->vertexAlpha = 1;
+				break;
+			}
+		inst++;
+	}
+
+	header->gpuDirty = 1;
+}
+
+static InstanceDataHeader*
+ensureInstanced(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
+	if(header && header->platform != PLATFORM_VULKAN)
+		return nil;
+	if(header && geo->meshHeader && header->serialNumber != geo->meshHeader->serialNum){
+		freeInstanceData(geo);
+		header = nil;
+	}
+	if(header == nil){
+		header = instanceMesh(geo);
+		geo->instData = header;
+		if(header)
+			defaultInstanceCB(geo, header);
+	}else if(geo->lockedSinceInst)
+		defaultInstanceCB(geo, header);
+	geo->lockedSinceInst = 0;
+	if(header && !ensureInstanceBuffers(header))
+		return nil;
+	return header;
+}
+
+static bool32
+ensureLitUniformResources(void)
+{
+	Context *ctx = &vkGlobals.context;
+	VulkanBuffer *buffer = &vkGlobals.litUniformBuffers[ctx->currentFrame];
+	if(vkGlobals.litDescriptorSets[ctx->currentFrame] == VK_NULL_HANDLE)
+		return 0;
+	if(buffer->buffer == VK_NULL_HANDLE){
+		if(vkGlobals.litUniformOffset != 0)
+			return 0;
+		if(!ensureBuffer(buffer, DYNAMIC_LIT_UNIFORM_BUFFER_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT))
+			return 0;
+	}
+	if(vkGlobals.litDescriptorBuffers[ctx->currentFrame] != buffer->buffer){
+		VkDescriptorBufferInfo bufferInfo;
+		memset(&bufferInfo, 0, sizeof(bufferInfo));
+		bufferInfo.buffer = buffer->buffer;
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(Lit3DUniforms);
+		VkWriteDescriptorSet write;
+		memset(&write, 0, sizeof(write));
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = vkGlobals.litDescriptorSets[ctx->currentFrame];
+		write.dstBinding = 0;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+		write.pBufferInfo = &bufferInfo;
+		vkUpdateDescriptorSets(ctx->device, 1, &write, 0, nil);
+		vkGlobals.litDescriptorBuffers[ctx->currentFrame] = buffer->buffer;
+	}
+	return 1;
+}
+
+// Same fog constants the GL3 backend feeds its shaders: the range is negative
+// because fogStart (the camera's fog plane) is nearer than fogEnd, so DoFog
+// gives 1 at the fog plane and 0 at the far plane.
+static void
+setLit3DFog(Lit3DUniforms *u)
+{
+	bool32 enabled = getRenderStateUInt(FOGENABLE, 0) != 0;
+	float range = vkGlobals.fogStart - vkGlobals.fogEnd;
+	u->fogData[0] = vkGlobals.fogStart;
+	u->fogData[1] = vkGlobals.fogEnd;
+	u->fogData[2] = range != 0.0f ? 1.0f/range : 0.0f;
+	u->fogData[3] = enabled ? 0.0f : 1.0f;
+
+	uint32 packed = getRenderStateUInt(FOGCOLOR, 0);
+	RGBA c;
+	c.red = packed;
+	c.green = packed >> 8;
+	c.blue = packed >> 16;
+	c.alpha = packed >> 24;
+	colorToFloat(u->fogColor, c);
+}
+
+// Same light constants as the d3d11 backend's setLightConstants
+static void
+setLit3DLights(Lit3DUniforms *u, Lit3DPush *p, Atomic *atomic)
+{
+	p->surfProps[2] = 0.0f;
+
+	SimpleLightSet lights;
+	collectSimpleLights(atomic, &lights);
+	if(!lights.enabled)
+		return;
+
+	p->surfProps[2] = 1.0f;
+	u->ambient[0] = lights.ambient.red;
+	u->ambient[1] = lights.ambient.green;
+	u->ambient[2] = lights.ambient.blue;
+	u->ambient[3] = lights.ambient.alpha;
+
+	int32 n = 0;
+	for(int32 i = 0; i < lights.numDirectionals && n < 8; i++, n++){
+		Light *l = lights.directionals[i];
+		Matrix *m = l->getFrame()->getLTM();
+		u->lightParams[n][0] = 1.0f;
+		u->lightColor[n][0] = l->color.red;
+		u->lightColor[n][1] = l->color.green;
+		u->lightColor[n][2] = l->color.blue;
+		u->lightColor[n][3] = l->color.alpha;
+		u->lightDirection[n][0] = m->at.x;
+		u->lightDirection[n][1] = m->at.y;
+		u->lightDirection[n][2] = m->at.z;
+	}
+
+	for(int32 i = 0; i < lights.numLocals && n < 8; i++){
+		Light *l = lights.locals[i];
+		Matrix *m = l->getFrame()->getLTM();
+		switch(l->getType()){
+		case Light::POINT:
+			u->lightParams[n][0] = 2.0f;
+			u->lightParams[n][1] = l->radius;
+			u->lightColor[n][0] = l->color.red;
+			u->lightColor[n][1] = l->color.green;
+			u->lightColor[n][2] = l->color.blue;
+			u->lightColor[n][3] = l->color.alpha;
+			u->lightPosition[n][0] = m->pos.x;
+			u->lightPosition[n][1] = m->pos.y;
+			u->lightPosition[n][2] = m->pos.z;
+			n++;
+			break;
+
+		case Light::SPOT:
+		case Light::SOFTSPOT:
+			u->lightParams[n][0] = 3.0f;
+			u->lightParams[n][1] = l->radius;
+			u->lightParams[n][2] = l->minusCosAngle;
+			u->lightParams[n][3] = l->getType() == Light::SOFTSPOT ? 0.0f : 1.0f;
+			u->lightColor[n][0] = l->color.red;
+			u->lightColor[n][1] = l->color.green;
+			u->lightColor[n][2] = l->color.blue;
+			u->lightColor[n][3] = l->color.alpha;
+			u->lightPosition[n][0] = m->pos.x;
+			u->lightPosition[n][1] = m->pos.y;
+			u->lightPosition[n][2] = m->pos.z;
+			u->lightDirection[n][0] = m->at.x;
+			u->lightDirection[n][1] = m->at.y;
+			u->lightDirection[n][2] = m->at.z;
+			n++;
+			break;
+
+		default:
+			break;
+		}
+	}
+}
+
+
 static bool32
 ensureTempGeometry(uint32 numVertices, uint32 numIndices)
 {
 	if(vkGlobals.tempVertexCapacity < numVertices){
 		rwFree(vkGlobals.tempVertices);
 		vkGlobals.tempVertices = rwNewT(Im3DVertex, numVertices, MEMDUR_EVENT | ID_DRIVER);
+		rwFree(vkGlobals.tempBaseColors);
+		vkGlobals.tempBaseColors = rwNewT(RGBA, numVertices, MEMDUR_EVENT | ID_DRIVER);
+		rwFree(vkGlobals.tempDiffuse);
+		vkGlobals.tempDiffuse = rwNewT(RGBAf, numVertices, MEMDUR_EVENT | ID_DRIVER);
 		vkGlobals.tempVertexCapacity = numVertices;
 	}
 	if(vkGlobals.tempIndexCapacity < numIndices){
@@ -4393,11 +5496,14 @@ ensureTempGeometry(uint32 numVertices, uint32 numIndices)
 		vkGlobals.tempIndices = rwNewT(uint16, numIndices, MEMDUR_EVENT | ID_DRIVER);
 		vkGlobals.tempIndexCapacity = numIndices;
 	}
-	return vkGlobals.tempVertices != nil && vkGlobals.tempIndices != nil;
+	return vkGlobals.tempVertices != nil && vkGlobals.tempIndices != nil &&
+		vkGlobals.tempBaseColors != nil && vkGlobals.tempDiffuse != nil;
 }
 
-void
-defaultRenderCB(Atomic *atomic)
+// CPU fallback used with ray query: the ray pipeline wants world space
+// vertices and the rt push constants of the color3d shaders.
+static void
+cpuDefaultRenderCB(Atomic *atomic)
 {
 	Geometry *geo = atomic->geometry;
 	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
@@ -4430,13 +5536,12 @@ defaultRenderCB(Atomic *atomic)
 			localNormal.z = 1.0f;
 		}
 		V3d::transformVectors(&v.normal, &localNormal, 1, world);
-		RGBA c = hasPrelit ? geo->colors[i] :
+		RGBA color = hasPrelit ? geo->colors[i] :
 			((geo->flags & Geometry::LIGHT) ? black : white);
-		c = applySimpleLighting(&lights, world, localNormal, c);
-		v.r = c.red;
-		v.g = c.green;
-		v.b = c.blue;
-		v.a = c.alpha;
+		if(hasPrelit && color.alpha == 0)
+			color.alpha = 255;
+		vkGlobals.tempBaseColors[i] = color;
+		vkGlobals.tempDiffuse[i] = computeDiffuseLight(&lights, v.position, v.normal);
 		if(hasTex){
 			v.u = geo->texCoords[0][i].u;
 			v.v = geo->texCoords[0][i].v;
@@ -4454,16 +5559,11 @@ defaultRenderCB(Atomic *atomic)
 	Context *ctx = &vkGlobals.context;
 	VkDeviceSize vertexSize = (VkDeviceSize)geo->numVertices * sizeof(Im3DVertex);
 	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
-	VkDeviceSize vertexOffset;
-	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vkGlobals.tempVertices,
-		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
-		return;
 
 	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
 	Mesh *mesh = meshh->getMeshes();
-	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
-	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	static const SurfaceProperties defaultSurfProps = { 1.0f, 0.0f, 1.0f };
+	const SurfaceProperties *curSurf = nil;
 
 	for(uint32 i = 0; i < meshh->numMeshes; i++){
 		if(mesh[i].numIndices <= 0)
@@ -4479,6 +5579,28 @@ defaultRenderCB(Atomic *atomic)
 				texRaster = mat->texture->raster;
 				tex = getTextureDescriptor(texRaster);
 			}
+		}
+
+		// Lit vertex colors depend on the material's surface properties,
+		// so refill and upload the vertex buffer whenever they change.
+		const SurfaceProperties *surf = mat ? &mat->surfaceProps : &defaultSurfProps;
+		if(curSurf == nil || curSurf->ambient != surf->ambient || curSurf->diffuse != surf->diffuse){
+			for(int32 j = 0; j < geo->numVertices; j++){
+				Im3DVertex &v = vkGlobals.tempVertices[j];
+				RGBA c = combineLitColor(&lights, vkGlobals.tempBaseColors[j], vkGlobals.tempDiffuse[j], surf);
+				v.r = c.red;
+				v.g = c.green;
+				v.b = c.blue;
+				v.a = c.alpha;
+			}
+			VkDeviceSize vertexOffset;
+			if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vkGlobals.tempVertices,
+				vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
+				return;
+			VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+			VkDeviceSize offsets[] = { vertexOffset };
+			vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+			curSurf = surf;
 		}
 
 		VulkanBuffer *indexBuffer = &vkGlobals.dynamicIndexBuffers[ctx->currentFrame];
@@ -4509,6 +5631,101 @@ defaultRenderCB(Atomic *atomic)
 		bindTextureSet(k, tex);
 		bindRaySet(k);
 		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
+	}
+}
+
+void
+defaultRenderCB(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
+		return;
+
+	if(vkGlobals.rayTracingUserEnabled && vkGlobals.context.rayQueryEnabled){
+		cpuDefaultRenderCB(atomic);
+		return;
+	}
+
+	InstanceDataHeader *header = ensureInstanced(atomic);
+	if(header == nil || header->numMeshes == 0)
+		return;
+
+	PrimitiveType primType = (PrimitiveType)header->primType;
+	PipelineKind k = selectLit3DPipelineKind();
+	if(!validDrawState(k, primType))
+		return;
+	if(!ensureLitUniformResources())
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+
+	Matrix ident;
+	ident.setIdentity();
+	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
+
+	Lit3DUniforms u;
+	Lit3DPush p;
+	memset(&u, 0, sizeof(u));
+	memset(&p, 0, sizeof(p));
+	makeMVP(u.mvp, world);
+	makeRawMatrix(u.world, world);
+	setLit3DLights(&u, &p, atomic);
+	setLit3DFog(&u);
+
+	VkBuffer vertexBuffers[] = { header->vertexBuffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(cmd, header->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+	// One upload and one descriptor bind for the whole atomic; what varies per
+	// mesh rides along in push constants instead.
+	VkDeviceSize uboOffset;
+	if(!uploadDynamicBuffer(&vkGlobals.litUniformBuffers[ctx->currentFrame], &vkGlobals.litUniformOffset,
+		&u, sizeof(u), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vkGlobals.uboAlignment, &uboOffset))
+		return;
+	uint32 dynamicOffset = (uint32)uboOffset;
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[k],
+		1, 1, &vkGlobals.litDescriptorSets[ctx->currentFrame], 1, &dynamicOffset);
+
+	RGBA white = { 255, 255, 255, 255 };
+	static const SurfaceProperties defaultSurfProps = { 1.0f, 0.0f, 1.0f };
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		InstanceData *inst = &header->inst[i];
+		if(inst->numIndex == 0)
+			continue;
+		Material *mat = inst->material;
+		RGBA matColor = white;
+		const SurfaceProperties *surf = &defaultSurfProps;
+		VkDescriptorSet tex = vkGlobals.whiteDescriptorSet;
+		Raster *texRaster = nil;
+		if(mat){
+			if(geo->flags & Geometry::MODULATE)
+				matColor = mat->color;
+			surf = &mat->surfaceProps;
+			if(mat->texture && mat->texture->raster){
+				texRaster = mat->texture->raster;
+				tex = getTextureDescriptor(texRaster);
+			}
+		}
+
+		bool32 alpha = inst->vertexAlpha || matColor.alpha != 0xFF ||
+			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
+		VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
+		if(vkGlobals.currentPipeline != pipeline){
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkGlobals.currentPipeline = pipeline;
+		}
+
+		colorToFloat(p.matColor, matColor);
+		p.surfProps[0] = surf->ambient;
+		p.surfProps[1] = surf->diffuse;
+		makeAlphaRef(p.alphaRef, alpha);
+		vkCmdPushConstants(cmd, vkGlobals.pipelineLayouts[k],
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(p), &p);
+
+		bindTextureSet(k, tex);
+		vkCmdDrawIndexed(cmd, inst->numIndex, 1, inst->startIndex, 0, 0);
 	}
 }
 
@@ -4594,12 +5811,6 @@ skinRenderCB(Atomic *atomic)
 	MorphTarget *morph = &geo->morphTargets[0];
 	RGBA white = { 255, 255, 255, 255 };
 	RGBA black = { 0, 0, 0, 255 };
-	Matrix ident;
-	ident.setIdentity();
-	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
-	SimpleLightSet lights;
-	collectSimpleLights(atomic, &lights);
-
 	for(int32 i = 0; i < geo->numVertices; i++){
 		Im3DVertex &v = vkGlobals.tempVertices[i];
 		V3d srcPos = morph->vertices[i];
@@ -4653,13 +5864,13 @@ skinRenderCB(Atomic *atomic)
 			v.normal = srcNrm;
 		}
 
+		// Write prelit color — the lit3d vertex shader applies lighting
 		RGBA c = hasPrelit ? geo->colors[i] :
 			((geo->flags & Geometry::LIGHT) ? black : white);
-		c = applySimpleLighting(&lights, world, v.normal, c);
 		v.r = c.red;
 		v.g = c.green;
 		v.b = c.blue;
-		v.a = c.alpha;
+		v.a = (hasPrelit && c.alpha != 0) ? c.alpha : 255;
 		if(hasTex){
 			v.u = geo->texCoords[0][i].u;
 			v.v = geo->texCoords[0][i].v;
@@ -4670,34 +5881,65 @@ skinRenderCB(Atomic *atomic)
 	}
 
 	PrimitiveType primType = meshh->flags == MeshHeader::TRISTRIP ? PRIMTYPETRISTRIP : PRIMTYPETRILIST;
-	PipelineKind k = selectColor3DPipelineKind();
+	PipelineKind k = selectLit3DPipelineKind();
 	if(!validDrawState(k, primType))
+		return;
+	if(!ensureLitUniformResources())
 		return;
 
 	Context *ctx = &vkGlobals.context;
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+
+	Matrix ident;
+	ident.setIdentity();
+	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
+
+	// Set up lit3d uniforms once for the whole atomic
+	Lit3DUniforms u;
+	Lit3DPush p;
+	memset(&u, 0, sizeof(u));
+	memset(&p, 0, sizeof(p));
+	makeMVP(u.mvp, world);
+	makeRawMatrix(u.world, world);
+	setLit3DLights(&u, &p, atomic);
+	setLit3DFog(&u);
+
+	// Upload skinned vertex buffer once
 	VkDeviceSize vertexSize = (VkDeviceSize)geo->numVertices * sizeof(Im3DVertex);
 	VulkanBuffer *vertexBuffer = &vkGlobals.dynamicVertexBuffers[ctx->currentFrame];
 	VkDeviceSize vertexOffset;
 	if(!uploadDynamicBuffer(vertexBuffer, &vkGlobals.dynamicVertexOffset, vkGlobals.tempVertices,
 		vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 16, &vertexOffset))
 		return;
+	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
+	VkDeviceSize vbOffsets[] = { vertexOffset };
+	vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, vbOffsets);
+
+	// Upload UBO once
+	VkDeviceSize uboOffset;
+	if(!uploadDynamicBuffer(&vkGlobals.litUniformBuffers[ctx->currentFrame], &vkGlobals.litUniformOffset,
+		&u, sizeof(u), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vkGlobals.uboAlignment, &uboOffset))
+		return;
+	uint32 dynamicOffset = (uint32)uboOffset;
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[k],
+		1, 1, &vkGlobals.litDescriptorSets[ctx->currentFrame], 1, &dynamicOffset);
 
 	bool32 vertexAlpha = geometryHasVertexAlpha(geo);
 	Mesh *mesh = meshh->getMeshes();
-	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
-	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	static const SurfaceProperties defaultSurfProps = { 1.0f, 0.0f, 1.0f };
 
 	for(uint32 i = 0; i < meshh->numMeshes; i++){
 		if(mesh[i].numIndices <= 0)
 			continue;
 		Material *mat = mesh[i].material;
 		RGBA matColor = white;
+		const SurfaceProperties *surf = &defaultSurfProps;
 		VkDescriptorSet tex = vkGlobals.whiteDescriptorSet;
 		Raster *texRaster = nil;
 		if(mat){
 			if(geo->flags & Geometry::MODULATE)
 				matColor = mat->color;
+			surf = &mat->surfaceProps;
 			if(mat->texture && mat->texture->raster){
 				texRaster = mat->texture->raster;
 				tex = getTextureDescriptor(texRaster);
@@ -4715,23 +5957,20 @@ skinRenderCB(Atomic *atomic)
 			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
 		VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 		if(vkGlobals.currentPipeline != pipeline){
-			vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
-				VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 			vkGlobals.currentPipeline = pipeline;
 		}
-		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(cmd, indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
-		Color3DPushConstants pc;
-		makeMVP(pc.mvp, world);
-		colorToFloat(pc.matColor, matColor);
-		makeAlphaRef(pc.alphaRef, alpha);
-		makeRtParams(pc.rtParams, 0);
-		makeRtLight(pc.rtLight, nil);
-		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
-			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
+		colorToFloat(p.matColor, matColor);
+		p.surfProps[0] = surf->ambient;
+		p.surfProps[1] = surf->diffuse;
+		makeAlphaRef(p.alphaRef, alpha);
+		vkCmdPushConstants(cmd, vkGlobals.pipelineLayouts[k],
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(p), &p);
+
 		bindTextureSet(k, tex);
-		bindRaySet(k);
-		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
+		vkCmdDrawIndexed(cmd, mesh[i].numIndices, 1, 0, 0, 0);
 	}
 }
 
@@ -4767,10 +6006,177 @@ initSkin(void)
 	                       vkSkinOpen, vkSkinClose);
 }
 
+static void
+getEnvMatrix(float *dst, Frame *frame)
+{
+	Matrix invMat;
+	if(frame == nil)
+		frame = ((Camera*)engine->currentCamera)->getFrame();
+
+	static RawMatrix normal2texcoord = {
+		{ 0.5f,  0.0f, 0.0f }, 0.0f,
+		{ 0.0f, -0.5f, 0.0f }, 0.0f,
+		{ 0.0f,  0.0f, 1.0f }, 0.0f,
+		{ 0.5f,  0.5f, 0.0f }, 1.0f
+	};
+
+	RawMatrix envMtx;
+	RawMatrix invMtx;
+	Matrix::invert(&invMat, frame->getLTM());
+	convMatrix(&invMtx, &invMat);
+	invMtx.pos.set(0.0f, 0.0f, 0.0f);
+	float uscale = fabs(normal2texcoord.right.x);
+	normal2texcoord.right.x = MatFX::envMapFlipU ? -uscale : uscale;
+	RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
+	memcpy(dst, &envMtx, sizeof(envMtx));
+}
+
+static void
+matfxRenderCB(Atomic *atomic)
+{
+	Geometry *geo = atomic->geometry;
+	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
+		return;
+
+	if(vkGlobals.rayTracingUserEnabled && vkGlobals.context.rayQueryEnabled){
+		cpuDefaultRenderCB(atomic);
+		return;
+	}
+
+	InstanceDataHeader *header = ensureInstanced(atomic);
+	if(header == nil || header->numMeshes == 0)
+		return;
+
+	PrimitiveType primType = (PrimitiveType)header->primType;
+	PipelineKind kDefault = selectLit3DPipelineKind();
+	PipelineKind kEnvMap = PIPE_MATFX_ENVMAP;
+	if(kDefault == PIPE_LIT3D_NOZWRITE)
+		kEnvMap = PIPE_MATFX_ENVMAP_NOZWRITE;
+	else if(kDefault == PIPE_LIT3D_NOZTEST)
+		kEnvMap = PIPE_MATFX_ENVMAP_NOZTEST;
+	else if(kDefault == PIPE_LIT3D_NOZTEST_NOZWRITE)
+		kEnvMap = PIPE_MATFX_ENVMAP_NOZTEST_NOZWRITE;
+
+	if(!validDrawState(kDefault, primType))
+		return;
+	if(!ensureLitUniformResources())
+		return;
+
+	Context *ctx = &vkGlobals.context;
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+
+	Matrix ident;
+	ident.setIdentity();
+	Matrix *world = atomic->getFrame() ? atomic->getFrame()->getLTM() : &ident;
+
+	Lit3DUniforms u;
+	memset(&u, 0, sizeof(u));
+	makeMVP(u.mvp, world);
+	makeRawMatrix(u.world, world);
+	Lit3DPush p;
+	memset(&p, 0, sizeof(p));
+	setLit3DLights(&u, &p, atomic);
+	setLit3DFog(&u);
+
+	VkBuffer vertexBuffers[] = { header->vertexBuffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(cmd, header->indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+	RGBA white = { 255, 255, 255, 255 };
+	static const SurfaceProperties defaultSurfProps = { 1.0f, 0.0f, 1.0f };
+	for(uint32 i = 0; i < header->numMeshes; i++){
+		InstanceData *inst = &header->inst[i];
+		if(inst->numIndex == 0)
+			continue;
+		Material *mat = inst->material;
+		RGBA matColor = white;
+		const SurfaceProperties *surf = &defaultSurfProps;
+		VkDescriptorSet tex = vkGlobals.whiteDescriptorSet;
+		Raster *texRaster = nil;
+		if(mat){
+			if(geo->flags & Geometry::MODULATE)
+				matColor = mat->color;
+			surf = &mat->surfaceProps;
+			if(mat->texture && mat->texture->raster){
+				texRaster = mat->texture->raster;
+				tex = getTextureDescriptor(texRaster);
+			}
+		}
+
+		MatFX *matfx = MatFX::get(mat);
+		bool32 useEnvMap = matfx != nil && matfx->type == MatFX::ENVMAP &&
+			matfx->fx[0].env.tex != nil && matfx->fx[0].env.coefficient != 0.0f;
+
+		PipelineKind k = useEnvMap ? kEnvMap : kDefault;
+
+		bool32 baseAlpha = inst->vertexAlpha || matColor.alpha != 0xFF ||
+			getRenderStateUInt(VERTEXALPHA, 0);
+		bool32 alpha = useEnvMap ? 1 : baseAlpha;
+
+		// The env map shader outputs premultiplied colour (pass1.rgb*pass1.a + pass2.rgb*fba),
+		// so it needs SRCBLEND_ONE, DESTBLEND_INVSRCALPHA (PIPE_BLEND_ONE_INVSRCALPHA).
+		// getDrawPipeline with alpha=1 selects PIPE_BLEND_ALPHA (SRC_ALPHA), which
+		// multiplies by alpha a second time and makes vehicles see-through.
+		VkPipeline pipeline = useEnvMap ?
+			vkGlobals.pipelines[k][PIPE_BLEND_ONE_INVSRCALPHA][primType] :
+			getDrawPipeline(k, primType, alpha);
+		if(vkGlobals.currentPipeline != pipeline){
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+			vkGlobals.currentPipeline = pipeline;
+		}
+
+		colorToFloat(p.matColor, matColor);
+		p.surfProps[0] = surf->ambient;
+		p.surfProps[1] = surf->diffuse;
+		makeAlphaRef(p.alphaRef, alpha);
+		vkCmdPushConstants(cmd, vkGlobals.pipelineLayouts[k],
+			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(p), &p);
+
+		if(useEnvMap){
+			MatFX::Env *env = &matfx->fx[0].env;
+			getEnvMatrix(u.texMatrix, env->frame);
+			if(MatFX::envMapApplyLight){
+				u.colorClamp[0] = u.colorClamp[1] = u.colorClamp[2] = u.colorClamp[3] = 0.0f;
+			}else{
+				u.colorClamp[0] = u.colorClamp[1] = u.colorClamp[2] = u.colorClamp[3] = 1.0f;
+			}
+			RGBA envcol = MatFX::envMapUseMatColor ? matColor : MatFX::envMapColor;
+			colorToFloat(u.envColor, envcol);
+			u.fxParams[0] = env->coefficient;
+			u.fxParams[1] = env->fbAlpha ? 0.0f : 1.0f;
+			bool32 gl3BaseAlpha = matColor.alpha != 0xFF;
+			u.fxParams[2] = gl3BaseAlpha ? 0.0f : 1.0f;	// keep body opaque
+			u.fxParams[3] = 0.0f;
+		}
+
+		VkDeviceSize uboOffset;
+		if(!uploadDynamicBuffer(&vkGlobals.litUniformBuffers[ctx->currentFrame], &vkGlobals.litUniformOffset,
+			&u, sizeof(u), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, vkGlobals.uboAlignment, &uboOffset))
+			return;
+
+		bindTextureSet(k, tex);
+
+		if(useEnvMap){
+			VkDescriptorSet envSet = getTextureDescriptor(matfx->fx[0].env.tex->raster);
+			if(envSet == VK_NULL_HANDLE)
+				envSet = vkGlobals.whiteDescriptorSet;
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[k],
+				2, 1, &envSet, 0, nil);
+		}
+
+		uint32 dynamicOffset = (uint32)uboOffset;
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[k],
+			1, 1, &vkGlobals.litDescriptorSets[ctx->currentFrame], 1, &dynamicOffset);
+		vkCmdDrawIndexed(cmd, inst->numIndex, 1, inst->startIndex, 0, 0);
+	}
+}
+
 static ObjPipeline*
 makeMatFXPipeline(void)
 {
-	ObjPipeline *pipe = makeDefaultPipeline();
+	ObjPipeline *pipe = ObjPipeline::create();
+	pipe->renderCB = matfxRenderCB;
 	pipe->pluginID = ID_MATFX;
 	pipe->pluginData = 1;
 	return pipe;
@@ -4862,7 +6268,6 @@ deviceSystemSDL3(DeviceReq req, void *arg, int32 n)
 	case DEVICESETMULTISAMPLINGLEVELS:
 		return n == 1;
 	default:
-		assert(0 && "not implemented");
 		return 0;
 	}
 	return 1;

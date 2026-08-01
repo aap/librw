@@ -22,6 +22,9 @@
 #ifdef RW_VULKAN
 #include "vulkan/rwvulkan.h"
 #endif
+#ifdef RW_D3D11
+#include "d3d11/rwd3d11.h"
+#endif
 
 #define PLUGIN_ID ID_SKIN
 
@@ -378,6 +381,9 @@ registerSkinPlugin(void)
 	gl3::initSkin();
 #ifdef RW_VULKAN
 	vulkan::initSkin();
+#endif
+#ifdef RW_D3D11
+	d3d11::initSkin();
 #endif
 
 	int32 o;

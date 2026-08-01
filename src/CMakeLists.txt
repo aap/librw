@@ -63,6 +63,11 @@ add_library(librw
     d3d/xboxskin.cpp
     d3d/xboxvfmt.cpp
 
+    d3d11/d3d11.cpp
+    d3d11/d3d11device.cpp
+    d3d11/d3d11raster.cpp
+    d3d11/rwd3d11.h
+
     gl/gl3.cpp
     gl/gl3device.cpp
     gl/gl3immed.cpp
@@ -177,7 +182,7 @@ if(LIBRW_PLATFORM_GL3)
         )
     elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL3")
         librw_ensure_sdl3()
-        target_compile_definitions(librw PUBLIC LIBRW_SDL3)
+        target_compile_definitions(librw PUBLIC LIBRW_SDL3 SDL_MAIN_HANDLED)
         target_link_libraries(librw
             PUBLIC
                 SDL3::SDL3
@@ -210,6 +215,43 @@ elseif(LIBRW_PLATFORM_D3D9)
             d3d9
             xinput
     )
+elseif(LIBRW_PLATFORM_D3D11)
+    target_link_libraries(librw
+        PRIVATE
+            d3d11
+            dxgi
+            d3dcompiler
+    )
+
+    if (LIBRW_GL3_GFXLIB STREQUAL "GLFW")
+        if (NOT TARGET glfw)
+            find_package(glfw3 REQUIRED)
+        endif()
+        target_compile_definitions(librw PUBLIC LIBRW_GLFW)
+        target_link_libraries(librw
+            PUBLIC
+                glfw
+            )
+    elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL2")
+        if (NOT TARGET SDL2::SDL2)
+            find_package(SDL2 CONFIG)
+            if (NOT TARGET SDL2::SDL2)
+                find_package(SDL2 MODULE REQUIRED)
+            endif()
+        endif()
+        target_compile_definitions(librw PUBLIC LIBRW_SDL2)
+        target_link_libraries(librw
+            PUBLIC
+                SDL2::SDL2
+        )
+    elseif (LIBRW_GL3_GFXLIB STREQUAL "SDL3")
+        librw_ensure_sdl3()
+        target_compile_definitions(librw PUBLIC LIBRW_SDL3 SDL_MAIN_HANDLED)
+        target_link_libraries(librw
+            PUBLIC
+                SDL3::SDL3
+        )
+    endif()
 elseif(LIBRW_PLATFORM_VULKAN)
     librw_ensure_sdl3()
     find_package(Vulkan REQUIRED)
@@ -251,6 +293,7 @@ if(LIBRW_INSTALL)
             d3d/rwd3d.h
             d3d/rwd3d8.h
             d3d/rwd3d9.h
+            d3d11/rwd3d11.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/d3d"
     )
     install(

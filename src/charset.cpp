@@ -13,6 +13,7 @@
 #include "d3d/rwd3d.h"
 #include "gl/rwgl3.h"
 #include "vulkan/rwvulkan.h"
+#include "d3d11/rwd3d11.h"
 
 
 #define PLUGIN_ID 1000	// TODO: find a better ID

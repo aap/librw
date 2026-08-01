@@ -18,6 +18,7 @@
 #include "gl/rwgl3.h"
 #include "gl/rwwdgl.h"
 #include "vulkan/rwvulkan.h"
+#include "d3d11/rwd3d11.h"
 
 #define PLUGIN_ID 0
 
@@ -32,6 +33,7 @@
 namespace rw {
 
 Engine *engine;
+bool32 bChangingVideoMode = false;
 PluginList Engine::s_plglist(sizeof(Engine));
 Engine::State Engine::state = Dead;
 MemoryFunctions Engine::memfuncs;
@@ -237,7 +239,10 @@ Engine::init(MemoryFunctions *memfuncs)
 	d3d9::registerPlatformPlugins();
 	wdgl::registerPlatformPlugins();
 	gl3::registerPlatformPlugins();
+#ifdef RW_VULKAN
 	vulkan::registerPlatformPlugins();
+#endif
+	d3d11::registerPlatformPlugins();
 
 	Engine::state = Initialized;
 	return 1;
@@ -272,6 +277,8 @@ Engine::open(EngineOpenParams *p)
 	engine->device = gl3::renderdevice;
 #elif RW_VULKAN
 	engine->device = vulkan::renderdevice;
+#elif RW_D3D11
+	engine->device = d3d11::renderdevice;
 #elif RW_D3D9
 	engine->device = d3d::renderdevice;
 #else
@@ -342,6 +349,18 @@ Engine::term(void)
 	// This has to be reset because it won't be opened again otherwise
 	// TODO: maybe reset more stuff here?
 	d3d::nativeRasterOffset = 0;
+#ifdef RW_D3D11
+	d3d11::nativeRasterOffset = 0;
+#endif
+#ifdef RW_GL3
+	gl3::nativeRasterOffset = 0;
+#endif
+	wdgl::nativeRasterOffset = 0;
+	xbox::nativeRasterOffset = 0;
+	ps2::nativeRasterOffset = 0;
+#ifdef RW_VULKAN
+	vulkan::nativeRasterOffset = 0;
+#endif
 
 	Engine::state = Dead;
 }

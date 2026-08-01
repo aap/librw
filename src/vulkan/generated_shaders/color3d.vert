@@ -12,6 +12,7 @@ layout(location = 3) out vec3 v_world_normal;
 void main() {
     gl_Position = pc.mvp * vec4(in_pos, 1.0);
     gl_Position.y = -gl_Position.y;
+    gl_PointSize = 1.0;
     v_color = in_color * pc.matColor;
     v_uv = in_uv;
     v_world_pos = in_pos;

@@ -68,6 +68,7 @@ struct Context
 	uint32 currentFrame;
 	uint32 currentImage;
 	bool32 frameStarted;
+	VkPipelineCache pipelineCache;
 };
 
 Context *getContext(void);
@@ -84,6 +85,10 @@ bool32 isRayTracingEnabled(void);
 void setRayTracingEnabled(bool32 enabled);
 int32 getPresentModePreference(void);
 void setPresentModePreference(int32 preference);
+// Android tears the native window down when the app leaves the foreground;
+// the platform layer has to tell us so the surface can be rebuilt on return.
+void notifySurfaceLost(void);
+void notifyAppBackground(bool32 background);
 
 struct Im3DVertex
 {
@@ -163,9 +168,9 @@ struct InstanceData
 	uint32    numIndex;
 	uint32    minVert;
 	int32     numVertices;
+	uint32    startIndex;
 	Material *material;
 	bool32    vertexAlpha;
-	uint32    offset;
 };
 
 struct InstanceDataHeader : rw::InstanceDataHeader
@@ -173,8 +178,21 @@ struct InstanceDataHeader : rw::InstanceDataHeader
 	uint32 serialNumber;
 	uint32 numMeshes;
 	uint32 primType;
+	uint32 totalNumVertex;
 	uint32 totalNumIndex;
+	Im3DVertex *vertices;	// object space
+	uint16 *indices;
 	InstanceData *inst;
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
+	bool32 gpuDirty;
+	bool32 isSkinned;
+	// list of all instanced geometries so GPU buffers can be
+	// released when the device goes away
+	InstanceDataHeader *prevInst;
+	InstanceDataHeader *nextInst;
 };
 
 class ObjPipeline : public rw::ObjPipeline
@@ -205,6 +223,8 @@ void registerNativeRaster(void);
 
 ObjPipeline *makeDefaultPipeline(void);
 void defaultRenderCB(Atomic *atomic);
+void freeInstanceData(Geometry *geometry);
+void *destroyNativeData(void *object, int32 offset, int32 size);
 bool32 ensureTextureUploaded(Raster *raster);
 void destroyRasterTexture(Raster *raster);
 void initSkin(void);
