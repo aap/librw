@@ -513,7 +513,7 @@ InitGSregs(void)
 {
 	uint128 tmp;
 
-	int nregs = 3;
+	int nregs = 4;
 	MAKEQ(tmp, VIFdirect + nregs+1, VIFnop, 0, DMAcnt + nregs+1);
 	vifPacket[vifPacksz++].q_u128 = tmp;
 	MAKE128(tmp, 0xe, SCE_GIF_SET_TAG(nregs, 1, 0,0, SCE_GIF_PACKED, 1));
@@ -523,6 +523,9 @@ InitGSregs(void)
 	MAKE128(tmp, SCE_GS_PRIM, gsRegs.prmode);
 	vifPacket[vifPacksz++].q_u128 = tmp;
 	MAKE128(tmp, SCE_GS_PRMODE, gsRegs.prmode);
+	vifPacket[vifPacksz++].q_u128 = tmp;
+	// clamp additive blending instead of wrapping around
+	MAKE128(tmp, SCE_GS_COLCLAMP, 1);
 	vifPacket[vifPacksz++].q_u128 = tmp;
 }
 
@@ -1155,6 +1158,34 @@ deviceSystem(DeviceReq req, void *arg, int32 n)
 		// after plugins are constructed
 		break;
 
+	// there's only one of everything
+	case DEVICEGETNUMSUBSYSTEMS:
+		return 1;
+	case DEVICEGETCURRENTSUBSYSTEM:
+		return 0;
+	case DEVICESETSUBSYSTEM:
+		return 1;
+	case DEVICEGETSUBSSYSTEMINFO: {
+		SubSystemInfo *info = (SubSystemInfo*)arg;
+		strncpy(info->name, "PlayStation 2", sizeof(info->name));
+		return 1;
+	}
+
+	case DEVICEGETNUMVIDEOMODES:
+		return 1;
+	case DEVICEGETCURRENTVIDEOMODE:
+		return 0;
+	case DEVICESETVIDEOMODE:
+		return n == 0;
+	case DEVICEGETVIDEOMODEINFO: {
+		VideoMode *mode = (VideoMode*)arg;
+		mode->width = SCREEN_WIDTH;
+		mode->height = SCREEN_HEIGHT;
+		mode->depth = 32;
+		mode->flags = VIDEOMODEEXCLUSIVE;
+		return 1;
+	}
+
 	default:
 		printf("system request %d not implemented\n", req);
 		return 0;
@@ -1174,6 +1205,17 @@ beginFrame(int frame)
 void
 endFrame(float *t1, float *t2)
 {
+	uint128 tmp;
+
+	// send a FINISH at the end of the frame so the
+	// interrupt handler can record the finish time
+	MAKEQ(tmp, VIFdirect + 2, VIFnop, 0, DMAcnt + 2);
+	vifPacket[vifPacksz++].q_u128 = tmp;
+	MAKE128(tmp, 0xe, SCE_GIF_SET_TAG(1, 1, 0,0, SCE_GIF_PACKED, 1));
+	vifPacket[vifPacksz++].q_u128 = tmp;
+	MAKE128(tmp, SCE_GS_FINISH, 0);
+	vifPacket[vifPacksz++].q_u128 = tmp;
+
 	sceGsSyncPath(0, 0);
 	*t1 = GetTimeF();
 	// we could start uploading textures here now so they'll be ready after vsynch

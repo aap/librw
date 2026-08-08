@@ -167,9 +167,11 @@ EventStatus
 EventHandler(Event e, void *param)
 {
 	EventStatus s;
+#ifndef RW_PS2
 	if (e == INITIALIZE) {
 		ImGui::CreateContext();
 	}
+#endif
 
 	s = AppEventHandler(e, param);
 	if(e == QUIT){

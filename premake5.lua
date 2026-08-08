@@ -138,9 +138,10 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
-	vucode()
-	filter { "platforms:ps2" }
-		files { "src/ps2/vu1/*.dsm" }
+        vucode()
+        filter { "platforms:ps2" }
+                files { "src/ps2/vu1/*.dsm" }
+
 
 project "dumprwtree"
 	kind "ConsoleApp"
@@ -262,6 +263,14 @@ project "im3d"
 	entrypoint("WinMainCRTStartup")
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
+
+project "demoreel"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("demoreel")
+	entrypoint("WinMainCRTStartup")
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" } -- for now
 
 project "ska2anm"
 	kind "ConsoleApp"

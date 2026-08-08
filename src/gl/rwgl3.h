@@ -7,7 +7,9 @@
 #elif defined(LIBRW_GLFW)
 #include <GLFW/glfw3.h>
 #else
-not implemented
+// sane fallback
+#define LIBRW_GLFW
+#include <GLFW/glfw3.h>
 #endif
 #endif
 

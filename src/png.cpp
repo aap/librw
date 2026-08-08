@@ -96,6 +96,7 @@ writePNG(Image *image, const char *filename)
 	lodepng_state_init(&state);
 
 	pixels = image->pixels;
+int depth = image->depth;
 	switch(image->depth){
 	case 4:
 		state.info_raw.bitdepth = 4;
@@ -125,6 +126,7 @@ writePNG(Image *image, const char *filename)
 		// Don't think we can have 16 bits with PNG
 		// TODO: don't change original image
 		image->convertTo32();
+		pixels = image->pixels;
 		break;
 	case 24:
 		state.info_raw.colortype = LCT_RGB;
