@@ -138,10 +138,9 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
-	filter { "platforms:*ps2" }
-		vucode()
+	vucode()
+	filter { "platforms:ps2" }
 		files { "src/ps2/vu1/*.dsm" }
-		includedirs { "src/ps2/vu1" }
 
 project "dumprwtree"
 	kind "ConsoleApp"
