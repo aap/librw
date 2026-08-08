@@ -1,0 +1,35 @@
+	nop				xtop vi02				; input pointer
+	nop				xitop vi04				; vertex count
+	nop				lq vf10,0(vi02)				; load pos
+	nop				iadd vi03,vi00,vi00			; nClipped
+	nop				iadd vi09,vi00,vi02			; we're culling in-place
+	mulaw acc,vf31,vf00		nop
+PCullLoop:
+	maddax acc,vf28,vf10		lq vf02,1(vi02)				; xform pos - load st
+	madday acc,vf29,vf10		lq vf03,2(vi02)				; - load rgba
+	maddz vf01,vf30,vf10		nop
+	nop				iaddiu vi02,vi02,numInAttribs
+	nop				isubiu vi04,vi04,1
+	nop				lq vf10,0(vi02)				; load next pos
+	clipw.xyz vf01,vf01		nop					; check if clipped
+	addx.z vf01,vf00,vf00		nop					; clear ADC
+	nop				nop
+	mulaw acc,vf31,vf00		nop
+	nop				fcand vi01,0x3F				; test if vert is out of the frustum
+	nop				ibne vi01,vi00,PCullSkip		; yup, skip it
+	nop				sq vf01,0(vi09)				; - store clip
+	nop				sq vf02,1(vi09)				; - store st
+	nop				sq vf03,2(vi09)				; - store rgba
+	nop				iaddiu vi03,vi03,1			; - inc nClipped
+	nop				iaddiu vi09,vi09,numInAttribs
+PCullSkip:
+	nop				ibne vi04,vi00,PCullLoop		; more input
+	nop				nop
+	nop				ibeq vi03,vi00,End			; nothing to render
+	nop				nop
+
+	;; Process Clip buffer to output buffer and render
+	nop				bal vi15,ProcessClip
+	nop				xtop vi09
+	nop				b End
+	nop				nop

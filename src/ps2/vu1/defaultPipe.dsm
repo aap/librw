@@ -1,0 +1,131 @@
+.equ vertexTop, 0x3d0
+.equ numInAttribs, 4
+.equ numOutAttribs, 3
+.equ numOutBuf, 2
+.equ vertCount, ((vertexTop-numOutBuf)/(numInAttribs*2+numOutAttribs*numOutBuf))
+.equ offset, (vertCount*numInAttribs)
+.equ outBuf1, (2*offset) 
+;.equ outSize, ((vertexTop-outBuf1-numOutBuf)/numOutBuf)
+.equ outSize, (1 + vertCount*numOutAttribs)
+.equ outBuf2, (outBuf1+outSize) 
+
+.equ clipVertCount, ((vertexTop-outBuf1-numOutBuf)/(numInAttribs+numOutAttribs*numOutBuf))
+.equ clipOutSize, (1 + clipVertCount*numOutAttribs)
+.equ clipOutBuf2, (outBuf1+clipOutSize)
+.equ clipBuf, (clipOutBuf2+clipOutSize)	
+
+; up to 9 verts => 7 tris per poly in worst case, a lot for lists unfortunately
+.equ clipVertLimitTL, (clipVertCount-21)
+.equ clipVertLimitTS, (clipVertCount-15)	;;; TODO: this crashes when i set it to -9 as it should be
+
+.include "defines.inc"
+
+#define IN_VERTEX(n,r) 0 + (n)*numInAttribs(r)
+#define IN_UV(n,r) 1 + (n)*numInAttribs(r)
+#define IN_RGBA(n,r) 2 + (n)*numInAttribs(r)
+#define IN_NORMAL(n,r) 3 + (n)*numInAttribs(r)
+
+#define OUT_STQ(n,r) 0 + (n)*numOutAttribs(r)
+#define OUT_RGBA(n,r) 1 + (n)*numOutAttribs(r)
+#define OUT_XYZ(n,r) 2 + (n)*numOutAttribs(r)
+
+.balign 16,0
+
+.global vu1_default
+vu1_default:
+
+DMAret *
+MPG 0, *
+.vu
+start:
+	nop				ilw.y vi12,codeSwitch(vi00)
+	nop				ilw.z vi13,codeSwitch(vi00)
+	nop				lq vf28,matrix0(vi00)
+	nop				lq vf29,matrix1(vi00)
+	nop				lq vf30,matrix2(vi00)
+	nop				lq vf31,matrix3(vi00)
+	nop				lq vf27,xyzwScale(vi00)
+	nop				lq vf26,xyzwOffset(vi00)
+	nop				lq vf25,colorScale(vi00)
+	nop				lq vf24,clipConsts(vi00)
+restart:
+	nop				ilw.x vi09,codeSwitch(vi00)	; process switch
+
+	;; Calculate end of input buffer with vertex count rounded up to multiple of 4
+	;; Note that the maximum vertex count is always a multiple of 4 so this is always legal
+	nop				xtop vi02			; input pointer
+	nop				xitop vi01			; vertex count
+	nop				iaddiu vi03,vi01,3
+	nop				iaddiu vi04,vi00,~3
+	nop				iand vi04,vi03,vi04		; round up vertex count
+	nop				iadd vi03,vi02,vi04
+.rept numInAttribs-1
+	nop				iadd vi03,vi03,vi04
+.endr
+
+	;; Convert normals and colors to float. this is also where we d do skinning probably
+	;; TODO: could simplify this if we have no lighting
+	nop				iaddiu vi02,vi02,4*numInAttribs
+	nop				loi 0.007874015748031496	; normal scale
+	nop				lq vf01,IN_RGBA(0-4,vi02)
+	sub vf09,vf00,vf00		lq vf02,IN_RGBA(1-4,vi02)
+	nop				lq vf03,IN_RGBA(2-4,vi02)
+	nop				lq vf04,IN_RGBA(3-4,vi02)
+PreprocLoop:
+	itof0 vf01,vf01			lq vf05,IN_NORMAL(0-4,vi02)
+	itof0 vf02,vf02			lq vf06,IN_NORMAL(1-4,vi02)
+	itof0 vf03,vf03			lq vf07,IN_NORMAL(2-4,vi02)
+	itof0 vf04,vf04			lq vf08,IN_NORMAL(3-4,vi02)
+	itof0.xyz vf05,vf05		sq vf01,IN_RGBA(0-4,vi02)
+	itof0.xyz vf06,vf06		sq vf02,IN_RGBA(1-4,vi02)
+	itof0.xyz vf07,vf07		sq vf03,IN_RGBA(2-4,vi02)
+	itof0.xyz vf08,vf08		sq vf04,IN_RGBA(3-4,vi02)
+	muli.xyz vf05,vf05,i		  lq vf01,IN_RGBA(0,vi02)
+	muli.xyz vf06,vf06,i		  lq vf02,IN_RGBA(1,vi02)
+	muli.xyz vf07,vf07,i		  lq vf03,IN_RGBA(2,vi02)
+	muli.xyz vf08,vf08,i		  lq vf04,IN_RGBA(3,vi02)
+	nop				sq vf05,IN_NORMAL(0-4,vi02)
+	nop				sq vf06,IN_NORMAL(1-4,vi02)
+	nop				sq vf07,IN_NORMAL(2-4,vi02)
+	nop				sq vf08,IN_NORMAL(3-4,vi02)
+.if 0
+	;; clear ADC flag here if geometry doesn t write it
+	nop				sq.w vf09,IN_VERTEX(0-4,vi02)
+	nop				sq.w vf09,IN_VERTEX(1-4,vi02)
+	nop				sq.w vf09,IN_VERTEX(2-4,vi02)
+	nop				sq.w vf09,IN_VERTEX(3-4,vi02)
+.endif
+	nop				ibne vi02,vi03,PreprocLoop
+	nop				iaddiu vi02,vi02,4*numInAttribs
+
+
+#include "lighting.vu"
+
+	nop				jr vi09
+	nop				nop
+
+Process:
+#include "default_proc.vu"
+TLClip:
+#include "TLclip.vu"
+TSClip:
+#include "TSclip.vu"
+
+End:
+	nop[e]				nop
+	nop				nop
+	nop				b restart
+	nop				nop
+
+#include "cliptri.vu"
+#include "default_clipproc.vu"
+
+.EndMPG
+.EndDmaData
+
+
+.global vu1_default_desc
+vu1_default_desc:
+	.word Process, outBuf1, outBuf2, 0
+	.word TLClip, outBuf1, clipOutBuf2, 0
+	.word TSClip, outBuf1, clipOutBuf2, 0

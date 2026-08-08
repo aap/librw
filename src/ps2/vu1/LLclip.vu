@@ -1,0 +1,79 @@
+	nop				xtop vi02				; input pointer
+	nop				xitop vi04				; vertex count
+LLClipLoop:
+	nop				iaddiu vi03,vi00,0			; clipped vertex count
+	nop				iadd vi09,vi00,vi02			; clipPtr, can do this in-place
+	nop				lq vf24,clipConsts(vi00)		; [fogNear, fogFar, near, far]
+LLClipPrimLoop:
+	nop				lq vf01,0+0*numInAttribs(vi02)		; - load pos[0]
+	nop				lq vf03,0+1*numInAttribs(vi02)		; - load pos[1]
+	addw.x vf02,vf00,vf00		nop					; make bary1
+	addw.y vf04,vf00,vf00		move.yz vf02,vf00			; make bary2 - make bary1
+	mulax acc,vf28,vf01		move.xz vf04,vf00			; xform pos[0] - make bary2
+	madday acc,vf29,vf01		nop
+	maddaz acc,vf30,vf01		iaddiu vi02,vi02,2*numInAttribs		; - next input segment
+	maddw vf01,vf31,vf00		isubiu vi04,vi04,2
+	mulax acc,vf28,vf03		nop					; xform pos[1]
+	madday acc,vf29,vf03		nop
+	maddaz acc,vf30,vf03		nop
+	maddw vf03,vf31,vf00		nop
+	nop				nop
+	nop				nop
+	clipw.xyz vf01,vf01		nop
+	clipw.xyz vf03,vf03		nop
+	nop				nop
+	nop				nop
+	nop				nop
+	nop				fcand vi01,0xFFF			; test if any vert is out of the frustum
+	nop				ibeq vi01,vi00,LLClipAllInside		; no, all inside
+
+	;; Call Clipper
+	nop				nop					; ClipLine tests clip flags in first instruction!
+	nop				bal vi15,ClipLine			; skips return if there is a segment
+	nop				nop
+	nop				b LLClipNext
+	nop				nop
+
+LLClipNewSeg:
+	;; insert new segment here
+	addx.z vf01,vf00,vf00		lq vf05,1-2*numInAttribs(vi02)		; clear ADC - load st[0]
+	addx.z vf03,vf00,vf00		lq vf06,1-1*numInAttribs(vi02)		; clear ADC - load st[1]
+	nop				lq vf07,2-2*numInAttribs(vi02)		; - load rgba[0]
+	nop				lq vf08,2-1*numInAttribs(vi02)		; - load rgba[1]
+	mulax acc,vf05,vf02		nop					; interpolate st[0]
+	maddy vf09,vf06,vf02		sq vf01,0+0*numInAttribs(vi09)		; - store clip[0]
+	mulax acc,vf07,vf02		nop					; interpolate rgba[0]
+	maddy vf10,vf08,vf02		sq vf03,0+1*numInAttribs(vi09)		; - store clip[1]
+	mulax acc,vf05,vf04		nop					; interpolate st[1]
+	maddy vf11,vf06,vf04		sq vf09,1+0*numInAttribs(vi09)		; - store st[0]
+	mulax acc,vf07,vf04		iaddiu vi03,vi03,2			; interpolate rgba[1] - inc nClipped
+	maddy vf12,vf08,vf04		sq vf10,2+0*numInAttribs(vi09)		; - store rgba[0]
+	nop				iaddiu vi09,vi09,2*numInAttribs
+	nop				sq vf11,1-1*numInAttribs(vi09)		; - store st[1]
+	nop				b LLClipNext
+	nop				sq vf12,2-1*numInAttribs(vi09)		; - store rgba[1]
+LLClipAllInside:
+	;; segment completely inside
+	addx.z vf01,vf00,vf00		lq vf05,1-2*numInAttribs(vi02)		; clear ADC - load st[0]
+	addx.z vf03,vf00,vf00		lq vf06,1-1*numInAttribs(vi02)		; clear ADC - load st[1]
+	nop				lq vf07,2-2*numInAttribs(vi02)		; - load rgba[0]
+	nop				lq vf08,2-1*numInAttribs(vi02)		; - load rgba[1]
+	nop				sq vf05,1+0*numInAttribs(vi09)		; - store st[0]
+	nop				sq vf06,1+1*numInAttribs(vi09)		; - store st[1]
+	nop				sq vf07,2+0*numInAttribs(vi09)		; - store rgba[0]
+	nop				sq vf08,2+1*numInAttribs(vi09)		; - store rgba[1]
+	nop				sq vf01,0+0*numInAttribs(vi09)		; - store clip[0]
+	nop				sq vf03,0+1*numInAttribs(vi09)		; - store clip[1]
+	nop				iaddiu vi03,vi03,2			; - inc nClipped
+	nop				iaddiu vi09,vi09,2*numInAttribs
+LLClipNext:
+	nop				ibgtz vi04,LLClipPrimLoop		; more input
+	nop				nop
+	nop				ibeq vi03,vi00,End			; nothing to render
+	nop				nop
+
+	;; Process Clip buffer to output buffer and render
+	nop				bal vi15,ProcessClip
+	nop				xtop vi09
+	nop				b End
+	nop				nop

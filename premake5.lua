@@ -63,8 +63,8 @@ workspace "librw"
 	filter "configurations:Release*"
 		defines { "NDEBUG" }
 		optimize "On"
-	filter "configurations:ReleaseStatic"
-		staticruntime("On")
+--	filter "configurations:ReleaseStatic"
+--		staticruntime("On")
 
 	filter { "platforms:*null" }
 		defines { "RW_NULL" }
@@ -119,6 +119,16 @@ workspace "librw"
 	Libdir = "lib/%{cfg.platform}/%{cfg.buildcfg}"
 	Bindir = "bin/%{cfg.platform}/%{cfg.buildcfg}"
 
+function vucode()
+	filter "files:**.dsm"
+		buildmessage 'dvp-as %{file.name}'
+		buildcommands {
+			'cpp -x assembler-with-cpp "%{file.abspath}" | ee-dvp-as -I "%{file.directory}" -o "%{cfg.objdir}/%{file.basename}.o"'
+		}
+		buildoutputs { '%{cfg.objdir}/%{file.basename}.o' }
+	filter {}
+end
+
 project "librw"
 	kind "StaticLib"
 	targetname "rw"
@@ -128,6 +138,10 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
+	filter { "platforms:*ps2" }
+		vucode()
+		files { "src/ps2/vu1/*.dsm" }
+		includedirs { "src/ps2/vu1" }
 
 project "dumprwtree"
 	kind "ConsoleApp"
@@ -192,15 +206,6 @@ function skeltool(dir)
 	libdirs { Libdir }
 	links { "librw" }
 	findlibs()
-end
-
-function vucode()
-	filter "files:**.dsm"
-		buildcommands {
-			'cpp "%{file.relpath}" | dvp-as -o "%{cfg.objdir}/%{file.basename}.o"'
-		}
-		buildoutputs { '%{cfg.objdir}/%{file.basename}.o' }
-	filter {}
 end
 
 project "playground"
@@ -272,18 +277,18 @@ project "ska2anm"
 	findlibs()
 	removeplatforms { "*gl3", "*d3d9", "*ps2" }
 
-project "ps2test"
-	kind "ConsoleApp"
-	targetdir (Bindir)
-	vucode()
-	removeplatforms { "*gl3", "*d3d9", "*null" }
-	targetextension '.elf'
-	includedirs { "." }
-	files { "tools/ps2test/*.cpp",
-	        "tools/ps2test/vu/*.dsm",
-	        "tools/ps2test/*.h" }
-	libdirs { "$(PS2SDK)/ee/lib" }
-	links { "librw" }
+--project "ps2test"
+--	kind "ConsoleApp"
+--	targetdir (Bindir)
+--	vucode()
+--	removeplatforms { "*gl3", "*d3d9", "*null" }
+--	targetextension '.elf'
+--	includedirs { "." }
+--	files { "tools/ps2test/*.cpp",
+--	        "tools/ps2test/vu/*.dsm",
+--	        "tools/ps2test/*.h" }
+--	libdirs { "$(PS2SDK)/ee/lib" }
+--	links { "librw" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"

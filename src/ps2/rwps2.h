@@ -1,3 +1,8 @@
+#ifdef RW_PS2
+#include "ps2types.h"
+#include "ps2file.h"
+#endif
+
 namespace rw {
 
 #ifdef RW_PS2
@@ -276,6 +281,45 @@ void registerNativeRaster(void);
 Texture *readNativeTexture(Stream *stream);
 void writeNativeTexture(Texture *tex, Stream *stream);
 uint32 getSizeNativeTexture(Texture *tex);
+
+
+
+#ifdef RW_PS2
+// Real hardware
+// very messy atm
+
+void dmaFlip(int i);
+void dmaKick(void);
+
+extern rw::uint32 gifPacksz, gifBufSize;
+extern rw::uint32 vifPacksz, vifBufSize;
+extern QWord *gifPacket, *vifPacket;
+
+
+extern int path2Textures;
+extern int synchTextures;
+extern int gateTextures;
+
+extern int finishCycle;
+
+extern int32 doClipping;
+extern int32 doModulate2;
+
+extern QWord colorNoScale;
+extern QWord colorTexScale;
+
+void beginFrame(int frame);
+void endFrame(float *t1, float *t2);
+
+void uploadRaster(Raster *raster);
+void setTexture(Raster *raster, uint32 addressU, uint32 addressV, uint32 filterMode);
+void flushGSRegs(void);
+void uploadVUCode(uint32 *code);
+void setMatrix(RawMatrix *combined, Matrix *world);
+
+void defaultAtomicRender(rw::ObjPipeline *pipe, Atomic *atomic);
+
+#endif
 
 }
 }

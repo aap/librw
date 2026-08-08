@@ -1,0 +1,106 @@
+;;; Register usage:
+;; vf20		light color
+;; vf21		light direction
+;; vf23		surfaceProps
+
+Lighting:
+	nop				iaddiu vi08,vi00,light
+	nop				lq vf23,surfaceProps(vi00)
+LightLoop:
+	nop				ilw.w vi15,0(vi08)		; load light type
+	nop				lqi.xyz vf20,(vi08++)		; light color
+	nop				ibeq vi15,vi00,PostLighting
+	nop				xtop vi02			; input pointer
+	nop				iaddiu vi15,vi15,LightSwitch
+	nop				jr vi15
+LightSwitch:
+	;; Light type dispatch table
+	nop				nop
+	nop				b AmbientLight
+	nop				nop
+	nop				b DirectLight
+	nop				lqi.xyz vf21,(vi08++)		; light direction
+
+;; Apply Ambient light
+AmbientLight:
+	mulx.xyz vf20,vf20,vf23		iaddiu vi02,vi02,4*numInAttribs
+	nop				lq vf01,IN_RGBA(0-4,vi02)
+	nop				lq vf02,IN_RGBA(1-4,vi02)
+	nop				lq vf03,IN_RGBA(2-4,vi02)
+	nop				lq vf04,IN_RGBA(3-4,vi02)
+AmbientLoop:
+	add vf05,vf01,vf20		lq vf01,IN_RGBA(0,vi02)
+	add vf06,vf02,vf20		lq vf02,IN_RGBA(1,vi02)
+	add vf07,vf03,vf20		lq vf03,IN_RGBA(2,vi02)
+	add vf08,vf04,vf20		lq vf04,IN_RGBA(3,vi02)
+	nop				sq vf05,IN_RGBA(0-4,vi02)
+	nop				sq vf06,IN_RGBA(1-4,vi02)
+	nop				sq vf07,IN_RGBA(2-4,vi02)
+	nop				sq vf08,IN_RGBA(3-4,vi02)
+	nop				ibne vi02,vi03,AmbientLoop
+	nop				iaddiu vi02,vi02,4*numInAttribs
+	nop				b LightLoop
+	nop				nop
+
+;; Apply Directional light
+DirectLight:
+	sub.xyz vf21,vf00,vf21		lq vf01,IN_NORMAL(0,vi02)	; flip light directio
+	mulz.xyz vf20,vf20,vf23		lq vf02,IN_NORMAL(1,vi02)	; multiply color by surfProps
+	nop				lq vf03,IN_NORMAL(2,vi02)
+	nop				lq vf04,IN_NORMAL(3,vi02)
+	mul.xyz vf01,vf01,vf21		nop
+	mul.xyz vf02,vf02,vf21		nop
+	mul.xyz vf03,vf03,vf21		nop
+	mul.xyz vf04,vf04,vf21		nop
+	addy.x vf11,vf01,vf01		nop
+	addx.y vf11,vf02,vf02		nop
+	addx.z vf11,vf03,vf03		nop
+	addy.z vf04,vf04,vf04		mr32 vf09,vf04
+DirectLoop:
+	addz.x vf10,vf11,vf01		  lq vf01,IN_NORMAL(0+4,vi02)
+	addz.y vf10,vf11,vf02		  lq vf02,IN_NORMAL(1+4,vi02)
+	addy.z vf10,vf11,vf03		  lq vf03,IN_NORMAL(2+4,vi02)
+	addz.w vf10,vf09,vf04		  lq vf04,IN_NORMAL(3+4,vi02)
+	  mul.xyz vf01,vf01,vf21	lq vf05,IN_RGBA(0,vi02)
+	  mul.xyz vf02,vf02,vf21	lq vf06,IN_RGBA(1,vi02)
+	  mul.xyz vf03,vf03,vf21	lq vf07,IN_RGBA(2,vi02)
+	maxx vf10,vf10,vf00		lq vf08,IN_RGBA(3,vi02)
+	  mul.xyz vf04,vf04,vf21	nop
+	  addy.x vf11,vf01,vf01		nop
+	addax acc,vf05,vf00		nop
+	maddx.xyz vf05,vf20,vf10	nop
+	addax acc,vf06,vf00		  mr32 vf09,vf04
+	maddy.xyz vf06,vf20,vf10	nop
+	addax acc,vf07,vf00		iaddiu vi02,vi02,4*numInAttribs
+	maddz.xyz vf07,vf20,vf10	sq vf05,IN_RGBA(0-4,vi02)
+	addax acc,vf08,vf00		nop
+	maddw.xyz vf08,vf20,vf10	sq vf06,IN_RGBA(1-4,vi02)
+	  addx.y vf11,vf02,vf02		nop
+	  addx.z vf11,vf03,vf03		sq vf07,IN_RGBA(2-4,vi02)
+	  addy.z vf04,vf04,vf04		ibne vi02,vi03,DirectLoop
+	nop				sq vf08,IN_RGBA(3-4,vi02)
+	nop				b LightLoop
+	nop				nop
+
+;;; Clamp lighting and multiply by material color
+PostLighting:
+	nop				loi 255.0
+	nop				lq vf01,IN_RGBA(0,vi02)
+	nop				lq vf02,IN_RGBA(1,vi02)
+	nop				lq vf03,IN_RGBA(2,vi02)
+	nop				lq vf04,IN_RGBA(3,vi02)
+	minii vf05,vf01,i		iaddiu vi02,vi02,4*numInAttribs
+	minii vf06,vf02,i		nop
+	minii vf07,vf03,i		nop
+	minii vf08,vf04,i		nop
+PostLightLoop:
+	mul vf05,vf05,vf25		  lq vf01,IN_RGBA(0,vi02)
+	mul vf06,vf06,vf25		  lq vf02,IN_RGBA(1,vi02)
+	mul vf07,vf07,vf25		  lq vf03,IN_RGBA(2,vi02)
+	mul vf08,vf08,vf25		  lq vf04,IN_RGBA(3,vi02)
+	  minii vf05,vf01,i		sq vf05,IN_RGBA(0-4,vi02)
+	  minii vf06,vf02,i		sq vf06,IN_RGBA(1-4,vi02)
+	  minii vf07,vf03,i		sq vf07,IN_RGBA(2-4,vi02)
+	  minii vf08,vf04,i		sq vf08,IN_RGBA(3-4,vi02)
+	nop				ibne vi02,vi03,PostLightLoop
+	nop				iaddiu vi02,vi02,4*numInAttribs

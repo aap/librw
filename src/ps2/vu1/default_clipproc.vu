@@ -1,0 +1,46 @@
+
+;; Process clipping buffer to output
+;; vertices are already in clip space
+;; vi09: input buffer
+;; vi03: vertex Count
+;; CANNOT use: vi02, vi04 (clipping), vi15 (return)
+;; TMP: vi06
+ProcessClip:
+	nop				lq vf01,gifTag(vi00)		; GIF tag
+	nop				iaddiu vi06,vi00,0x4000
+	nop				iadd vi06,vi06,vi06		; EOP bit
+	nop				ior vi06,vi06,vi03		; enter vertex count
+	nop				sq vf01,0(vi12)			; store GIF tag
+	nop				isw.x vi06,0(vi12)
+	addw.z vf12,vf00,vf00		lq.xyw vf10,0(vi09)		; xyw
+	addw.z vf10,vf00,vf00		lq vf11,2(vi09)			; rgba
+	nop				lq.xy vf12,1(vi09)		; st
+	nop				iaddiu vi05,vi12,1		; output pointer
+ProcessClipLoop:
+	miniy.w vf01,vf10,vf24		div q,vf00w,vf10w		; clamp to fog far - start perspective division
+	nop				nop
+	mul.xyz vf22,vf10,vf27		lq.z vf13,0(vi09)		; pos.xyz*scale.xyz - load ADC flag
+	addax acc,vf26,vf00		nop				; init acc
+	maxx.w vf01,vf01,vf24		nop				; clamp to fog near
+	ftoi0 vf02,vf11			isubiu vi03,vi03,1		; convert rgba
+	maddaz.w acc,vf00,vf13		iaddiu vi09,vi09,numInAttribs	; add ADC flag
+	maddq.xyz vf01,vf22,q		nop				; calc pos (can use q now)
+	madd.w vf01,vf01,vf27		nop				; calc fog
+	mulq.xyz vf03,vf12,q		lq.xyw vf10,0(vi09)		; scale stq - next xyw
+	addw.z vf12,vf00,vf00		lq vf11,2(vi09)			; - next rgba
+	addw.z vf10,vf00,vf00		lq.xy vf12,1(vi09)		; - next st
+	ftoi4 vf01,vf01			iaddiu vi05,vi05,numOutAttribs		; convert xyzf
+	nop				sq vf02,1-numOutAttribs(vi05)		; rgba
+	nop				sq vf03,0-numOutAttribs(vi05)		; stq
+	nop				ibne vi03,vi00,ProcessClipLoop
+	nop				sq vf01,2-numOutAttribs(vi05)		; xyzf
+
+	;; Render it
+	nop				xgkick vi12
+	nop				iadd vi05,vi00,vi12
+	nop				iadd vi12,vi00,vi13
+	nop				iadd vi13,vi00,vi05
+
+	nop				jr vi15
+	nop				nop
+

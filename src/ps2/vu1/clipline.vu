@@ -1,0 +1,230 @@
+;;;;;;;;;;;;
+;;;;;;; Perspective Line Segment Clipper
+;;;;;;;;;;;
+
+;; TODO? start interpolating earlier and test the clipping flags later
+
+;;;; Uses the following registers
+;;
+;; vi01         tmp
+;; vi15         tmp (return address)
+;;
+;; vf01		p1 pos		input
+;; vf02		p1 bary		input
+;; vf03		p2 pos		input
+;; vf04		p2 bary		input
+;; vf05		interp pos
+;; vf06		interp bary
+;; vf07.w	d2
+;; vf08.w	d1
+;; vf09.w	d1-d2
+ClipLine:
+
+.if 1
+;;; ====== w = near plane ======
+	nop				fcor vi01,negZo2		; test if both out
+	sub.w vf09,vf01,vf03		ibne vi01,vi00,CullLine		; d1-d2 - yes, skip this segment completely
+	subz.w vf07,vf01,vf24		fcand vi01,negZn2		; d1 - test if both in
+	subz.w vf08,vf03,vf24		ibeq vi01,vi00,LClipNegZ_End	; d2 - yes, no need to clip against this plane
+	;; So we need to interpolate
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,negZn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipNegZ_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipNegZ_Done
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipNegZ_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipNegZ_Done:
+	nop				nop				; wait for clipping flags
+	nop				nop
+	nop				nop
+LClipNegZ_End:
+.endif
+
+.if 1
+;;; ====== w = far plane ======
+	nop				fcor vi01,posZo2		; test if both out
+	sub.w vf09,vf03,vf01		ibne vi01,vi00,CullLine		; d1-d2 - yes, skip this segment completely
+	sub.w vf07,vf24,vf01		fcand vi01,posZn2		; d1 - test if both in
+	sub.w vf08,vf24,vf03		ibeq vi01,vi00,LClipPosZ_End	; d2 - yes, no need to clip against this plane
+	;; So we need to interpolate
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,posZn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipPosZ_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipPosZ_Done
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipPosZ_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipPosZ_Done:
+	nop				nop				; wait for clipping flags
+	nop				nop
+	nop				nop
+LClipPosZ_End:
+.endif
+
+.if 1
+;;; ====== w = -x ======
+	addax.w acc,vf01,vf01		fcor vi01,negXo2		; test if both out
+	msubax.w acc,vf00,vf03		ibne vi01,vi00,CullLine		; yes, skip this segment completely
+	msub.w vf09,vf00,vf03		fcand vi01,negXn2		; d1-d2 test if both in
+	addx.w vf07,vf01,vf01		ibeq vi01,vi00,LClipNegX_End	; d1 yes, no need to clip against this plane
+	;; So we need to interpolate
+	addx.w vf08,vf03,vf03		nop				; d2
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,negXn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipNegX_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipNegX_Done
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipNegX_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipNegX_Done:
+	nop				nop				; wait for clipping flags
+	nop				nop
+	nop				nop
+LClipNegX_End:
+.endif
+
+.if 1
+;;; ====== w = x ======
+	subax.w acc,vf01,vf01		fcor vi01,posXo2		; test if both out
+	maddax.w acc,vf00,vf03		ibne vi01,vi00,CullLine		; yes, skip this segment completely
+	msub.w vf09,vf00,vf03		fcand vi01,posXn2		; d1-d2 - test if both in
+	subx.w vf07,vf01,vf01		ibeq vi01,vi00,LClipPosX_End	; d1 - yes, no need to clip against this plane
+	;; So we need to interpolate
+	subx.w vf08,vf03,vf03		nop				; d2
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,posXn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipPosX_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipPosX_Done
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipPosX_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipPosX_Done:
+	nop				nop				; wait for clipping flags
+	nop				nop
+	nop				nop
+LClipPosX_End:
+.endif
+
+.if 1
+;;; ====== w = -y ======
+	adday.w acc,vf01,vf01		fcor vi01,negYo2		; test if both out
+	msubay.w acc,vf00,vf03		ibne vi01,vi00,CullLine		; yes, skip this segment completely
+	msub.w vf09,vf00,vf03		fcand vi01,negYn2		; d1-d2 - test if both in
+	addy.w vf07,vf01,vf01		ibeq vi01,vi00,LClipNegY_End	; d1 - yes, no need to clip against this plane
+	;; So we need to interpolate
+	addy.w vf08,vf03,vf03		nop				; d2
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,negYn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipNegY_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipNegY_Done
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipNegY_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipNegY_Done:
+	nop				nop				; wait for clipping flags
+	nop				nop
+	nop				nop
+LClipNegY_End:
+.endif
+
+.if 1
+;;; ====== w = y ======
+	subay.w acc,vf01,vf01		fcor vi01,posYo2		; test if both out
+	madday.w acc,vf00,vf03		ibne vi01,vi00,CullLine		; yes, skip this segment completely
+	msub.w vf09,vf00,vf03		fcand vi01,posYn2		; d1-d2 - test if both in
+	suby.w vf07,vf01,vf01		ibeq vi01,vi00,LClipPosY_End	; d2 - yes, no need to clip against this plane
+	;; So we need to interpolate
+	suby.w vf08,vf03,vf03		nop				; d2
+	nop				nop
+	nop				div q,vf00w,vf09w
+	mulaw acc,vf03,vf07		nop				; interp pos (acc = p2*d1)
+	msubw vf05,vf01,vf08		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf07		nop				; interp bary (acc = p2*d1)
+	msubw vf06,vf02,vf08		nop				; interp bary (acc - p1*d2)
+	nop				nop
+	nop				nop
+	mulq vf05,vf05,q		nop				; interp pos
+	mulq vf06,vf06,q		nop				; interp bary
+	nop				fcand vi01,posYn1		; test p2's cliping
+	nop				ibeq vi01,vi00,LClipPosY_p1	; it's in, so p1 is out
+	;; p2 is out, so replace it
+	nop				nop
+	clipw.xyz vf01,vf01		move vf03,vf05
+	nop				b LClipPosY_End
+	clipw.xyz vf05,vf05		move vf04,vf06
+LClipPosY_p1:			;; p1 is out, so replace it
+	clipw.xyz vf05,vf05		move vf01,vf05
+	clipw.xyz vf03,vf03		move vf02,vf06
+LClipPosY_End:
+.endif
+
+	nop				iaddiu vi15,vi15,2
+CullLine:
+	nop				jr vi15
+	nop				nop
