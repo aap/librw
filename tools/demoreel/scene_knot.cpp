@@ -66,7 +66,8 @@ CreateKnotGeometry(void)
 			V3d ring = add(scale(n, cosf(a)), scale(b, sinf(a)));
 			verts[v] = add(c, scale(ring, tuberad));
 			norms[v] = ring;
-			uv[v].u = (float)i/SEGS*24.0f;
+			// keep u*texwidth below the ~1024 texel GS limit
+			uv[v].u = (float)i/SEGS*6.0f;
 			uv[v].v = (float)j/SIDES;
 			v++;
 		}
