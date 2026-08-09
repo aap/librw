@@ -222,6 +222,7 @@ main(int argc, char *argv[])
 	if(EventHandler(INITIALIZE, nil) == EVENTERROR)
 		return 0;
 
+	rw::ps2::adcHack = true;
 	if(EventHandler(RWINITIALIZE, nil) == EVENTERROR)
 		return 0;
 

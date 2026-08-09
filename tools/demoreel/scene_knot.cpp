@@ -100,9 +100,8 @@ CreateKnotGeometry(void)
 	mat->destroy();	// list holds a ref now
 
 	geo->calculateBoundingSphere();
-	// strips are the well-trodden path on PS2 (and a test for the tristripper)
-	geo->flags |= Geometry::TRISTRIP;
-	geo->buildMeshes();
+	geo->unlock();
+
 	return geo;
 }
 
