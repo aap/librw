@@ -176,19 +176,15 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
-<<<<<<< master
 	filter { "platforms:*d3d11" }
 		includedirs { d3d11GeneratedDir }
 		files { "src/d3d/shaders/*_d11.hlsl" }
 	filter { "files:**.hlsl" }
 		buildaction "None"
 	filter {}
-=======
         vucode()
         filter { "platforms:ps2" }
                 files { "src/ps2/vu1/*.dsm" }
-
->>>>>>> master
 
 project "dumprwtree"
 	kind "ConsoleApp"
