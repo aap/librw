@@ -27,6 +27,10 @@
 #define RWHALFPIXEL
 #endif
 
+#ifdef RW_D3D11
+#define RWDEVICE d3d
+#endif
+
 #ifdef RW_D3D8
 #define RWDEVICE d3d
 #endif
@@ -561,12 +565,14 @@ enum Platform
 	// SOFTRAS
 	PLATFORM_D3D8 = 8,
 	PLATFORM_D3D9 = 9,
+	PLATFORM_D3D11 = 10,
 	// PSP
 
 	// non-stock-RW platforms
 
 	PLATFORM_WDGL = 11,	// WarDrum OpenGL
 	PLATFORM_GL3  = 12,	// my GL3 implementation
+
 
 	NUM_PLATFORMS,
 

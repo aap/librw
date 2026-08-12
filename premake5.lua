@@ -38,6 +38,42 @@ newoption {
 	default     = "../SDL3-3.2.22",
 }
 
+local d3d11Shaders = {
+	"clear_VS_d11",
+	"clear_PS_d11",
+	"im2d_VS_d11",
+	"im2d_PS_d11",
+	"im3d_VS_d11",
+	"im3d_PS_d11",
+	"im3d_tex_PS_d11",
+	"default_VS_d11",
+	"default_PS_d11",
+	"skin_VS_d11",
+	"matfx_env_VS_d11",
+	"matfx_env_PS_d11",
+}
+
+local d3d11GeneratedDir = path.join(_SCRIPT_DIR, "build/generated")
+
+local function generateD3D11ShaderHeaders()
+	os.mkdir(d3d11GeneratedDir)
+	for _, shaderName in ipairs(d3d11Shaders) do
+		local input = assert(io.open(path.join(
+			_SCRIPT_DIR, "src/d3d/shaders", shaderName .. ".hlsl"), "rb"))
+		local source = input:read("*all")
+		input:close()
+
+		local output = assert(io.open(path.join(
+			d3d11GeneratedDir, shaderName .. ".h"), "wb"))
+		output:write("static const char ", shaderName,
+			"_source[] = R\"librw_shader(\n", source,
+			"\n)librw_shader\";\n")
+		output:close()
+	end
+end
+
+generateD3D11ShaderHeaders()
+
 workspace "librw"
 	location "build"
 	language "C++"
@@ -45,8 +81,8 @@ workspace "librw"
 	configurations { "Release", "Debug" }
 	filter { "system:windows" }
 		configurations { "ReleaseStatic" }
-		platforms { "win-x86-null", "win-x86-gl3", "win-x86-d3d9",
-			"win-amd64-null", "win-amd64-gl3", "win-amd64-d3d9" }
+		platforms { "win-x86-null", "win-x86-gl3", "win-x86-d3d9", "win-x86-d3d11",
+			"win-amd64-null", "win-amd64-gl3", "win-amd64-d3d9", "win-amd64-d3d11" }
 	filter { "system:linux" }
 		platforms { "linux-x86-null", "linux-x86-gl3",
 		"linux-amd64-null", "linux-amd64-gl3",
@@ -79,6 +115,8 @@ workspace "librw"
 		end
 	filter { "platforms:*d3d9" }
 		defines { "RW_D3D9" }
+	filter { "platforms:*d3d11" }
+		defines { "RW_D3D11" }
 	filter { "platforms:ps2" }
 		defines { "RW_PS2" }
 		toolset "gcc"
@@ -138,15 +176,20 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
+	filter { "platforms:*d3d11" }
+		includedirs { d3d11GeneratedDir }
+		files { "src/d3d/shaders/*_d11.hlsl" }
+	filter { "files:**.hlsl" }
+		buildaction "None"
+	filter {}
         vucode()
         filter { "platforms:ps2" }
                 files { "src/ps2/vu1/*.dsm" }
 
-
 project "dumprwtree"
 	kind "ConsoleApp"
 	targetdir (Bindir)
-	removeplatforms { "*gl3", "*d3d9", "ps2" }
+	removeplatforms { "*gl3", "*d3d9", "*d3d11", "ps2" }
 	files { "tools/dumprwtree/*" }
 	includedirs { "." }
 	libdirs { Libdir }
@@ -182,6 +225,10 @@ function findlibs()
 	filter { "platforms:*d3d9" }
 		links { "gdi32", "d3d9" }
 	filter { "platforms:*d3d9", "action:vs*" }
+		links { "Xinput9_1_0" }
+	filter { "platforms:*d3d11" }
+		links { "gdi32", "d3d11", "dxgi", "d3dcompiler" }
+	filter { "platforms:*d3d11", "action:vs*" }
 		links { "Xinput9_1_0" }
 	filter {}
 end
@@ -283,7 +330,7 @@ project "ska2anm"
 	libdirs { Libdir }
 	links { "librw" }
 	findlibs()
-	removeplatforms { "*gl3", "*d3d9", "*ps2" }
+	removeplatforms { "*gl3", "*d3d9", "*d3d11", "*ps2" }
 
 --project "ps2test"
 --	kind "ConsoleApp"

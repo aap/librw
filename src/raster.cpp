@@ -460,6 +460,81 @@ d3d_to_gl3(rw::Raster *ras)
 #endif
 }
 
+#ifdef RW_D3D11
+static bool32
+copy_raster_mip(rw::Raster *source, rw::Raster *destination, int32 mipLevel)
+{
+	using namespace rw;
+
+	if(source->lock(mipLevel, Raster::LOCKREAD) == nil)
+		return 0;
+
+	Image *image = source->toImage();
+	source->unlock(mipLevel);
+	if(image == nil)
+		return 0;
+	image->unpalettize();
+
+	if(destination->lock(mipLevel,
+	   Raster::LOCKWRITE | Raster::LOCKNOFETCH) == nil){
+		image->destroy();
+		return 0;
+	}
+
+	bool32 converted = destination->setFromImage(image) != nil; //Copy only in Cpu memory
+	destination->unlock( mipLevel ); //Here upload the mipmap level to the GPU
+	image->destroy();
+	return converted;
+}
+
+static rw::Raster*
+d3d_to_d3d11(rw::Raster *source)
+{
+	using namespace rw;
+
+	Image *baseImage = source->toImage();
+	if(baseImage == nil)
+		return nil;
+	baseImage->unpalettize();
+
+	int32 width, height, depth, format;
+	if(!Raster::imageFindRasterFormat(baseImage, Raster::TEXTURE,
+	   &width, &height, &depth, &format)){
+		baseImage->destroy();
+		return nil;
+	}
+
+	format |= source->format & (Raster::MIPMAP | Raster::AUTOMIPMAP);
+	Raster *destination = Raster::create(width, height, depth, format);
+	if(destination == nil){
+		baseImage->destroy();
+		return nil;
+	}
+
+	bool32 baseConverted = destination->setFromImage(baseImage) != nil;
+	baseImage->destroy();
+	if(!baseConverted){
+		destination->destroy();
+		return nil;
+	}
+
+	int32 numLevels = source->getNumLevels();
+	int32 destinationNumLevels = destination->getNumLevels();
+	if(numLevels > destinationNumLevels)
+		numLevels = destinationNumLevels;
+
+	for(int32 mipLevel = 1; mipLevel < numLevels; mipLevel++)
+		if(!copy_raster_mip(source, destination, mipLevel)){
+			destination->destroy();
+			return nil;
+		}
+
+	GETD3DRASTEREXT(destination)->hasAlpha =
+		GETD3DRASTEREXT(source)->hasAlpha;
+	return destination;
+}
+#endif
+
 static rw::Raster*
 xbox_to_gl3(rw::Raster *ras)
 {
@@ -515,6 +590,15 @@ Raster::convertTexToCurrentPlatform(rw::Raster *ras)
 			ras->destroy();
 			return newras;
 		}
+#ifdef RW_D3D11
+	}else if((ras->platform == PLATFORM_D3D8 || ras->platform == PLATFORM_D3D9) &&
+	         rw::platform == PLATFORM_D3D11){
+		Raster *newras = d3d_to_d3d11(ras);
+		if(newras){
+			ras->destroy();
+			return newras;
+		}
+#endif
 	}else if(ras->platform == PLATFORM_XBOX && (rw::platform == PLATFORM_D3D9 || rw::platform == PLATFORM_D3D8)){
 		Raster *newras = xbox_to_d3d(ras);
 		if(newras){

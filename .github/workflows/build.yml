@@ -15,6 +15,7 @@ jobs:
       matrix:
         case:
         - { name: 'Windows (DirectX 9)',  os: 'windows-latest', platform: 'D3D9' }
+        - { name: 'Windows (DirectX 11)', os: 'windows-latest', platform: 'D3D11' }
         - { name: 'Windows (GL3, glfw)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'GLFW' }
         - { name: 'Windows (GL3, SDL2)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'SDL2', sdl-version: '2-latest' }
         - { name: 'Windows (GL3, SDL3)',  os: 'windows-latest', platform: 'GL3',  gl3_gfxlib: 'SDL3', sdl-version: '3-latest' }

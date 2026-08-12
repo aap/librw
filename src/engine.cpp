@@ -15,6 +15,9 @@
 #include "d3d/rwd3d.h"
 #include "d3d/rwd3d8.h"
 #include "d3d/rwd3d9.h"
+#ifdef RW_D3D11
+#include "d3d/rwd3d11.h"
+#endif
 #include "gl/rwgl3.h"
 #include "gl/rwwdgl.h"
 
@@ -234,6 +237,9 @@ Engine::init(MemoryFunctions *memfuncs)
 	xbox::registerPlatformPlugins();
 	d3d8::registerPlatformPlugins();
 	d3d9::registerPlatformPlugins();
+	#ifdef RW_D3D11
+	d3d11::registerPlatformPlugins();
+	#endif
 	wdgl::registerPlatformPlugins();
 	gl3::registerPlatformPlugins();
 
@@ -268,6 +274,8 @@ Engine::open(EngineOpenParams *p)
 	engine->device = ps2::renderdevice;
 #elif RW_GL3
 	engine->device = gl3::renderdevice;
+#elif RW_D3D11
+	engine->device = d3d11::renderdevice;
 #elif RW_D3D9
 	engine->device = d3d::renderdevice;
 #else

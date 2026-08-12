@@ -52,6 +52,12 @@ add_library(librw
     d3d/d3ddevice.cpp
     d3d/d3dimmed.cpp
     d3d/d3drender.cpp
+    d3d/d3d11.cpp
+    d3d/d3d11device.cpp
+    d3d/d3d11matfx.cpp
+    d3d/d3d11skin.cpp
+    d3d/d3d11render.cpp
+    d3d/rwd3d11.h
     d3d/rwd3d8.h
     d3d/rwd3d9.h
     d3d/rwd3d.h
@@ -96,6 +102,48 @@ add_library(librw
     ps2/rwps2plg.h
 )
 add_library(librw::librw ALIAS librw)
+
+if(LIBRW_PLATFORM_D3D11)
+    set(D3D11_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/d3d/shaders")
+    set(D3D11_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    file(MAKE_DIRECTORY "${D3D11_GENERATED_DIR}")
+
+    set(D3D11_SHADERS
+        clear_VS_d11
+        clear_PS_d11
+        im2d_VS_d11
+        im2d_PS_d11
+        im3d_VS_d11
+        im3d_PS_d11
+        im3d_tex_PS_d11
+        default_VS_d11
+        default_PS_d11
+        skin_VS_d11
+        matfx_env_VS_d11
+        matfx_env_PS_d11
+    )
+
+    foreach(SHADER_NAME IN LISTS D3D11_SHADERS)
+        set(SHADER_PATH "${D3D11_SHADER_DIR}/${SHADER_NAME}.hlsl")
+        list(APPEND D3D11_SHADER_SOURCES "${SHADER_PATH}")
+        file(READ "${SHADER_PATH}" SHADER_SOURCE)
+        set(SHADER_VARIABLE "${SHADER_NAME}_source")
+        configure_file(
+            "${PROJECT_SOURCE_DIR}/cmake/ShaderSource.h.in"
+            "${D3D11_GENERATED_DIR}/${SHADER_NAME}.h"
+            @ONLY
+        )
+    endforeach()
+
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        ${D3D11_SHADER_SOURCES}
+    )
+    target_sources(librw PRIVATE ${D3D11_SHADER_SOURCES})
+    set_source_files_properties(${D3D11_SHADER_SOURCES}
+        PROPERTIES HEADER_FILE_ONLY TRUE
+    )
+    target_include_directories(librw PRIVATE "${D3D11_GENERATED_DIR}")
+endif()
 
 target_include_directories(librw
     INTERFACE
@@ -205,6 +253,14 @@ elseif(LIBRW_PLATFORM_D3D9)
             d3d9
             xinput
     )
+elseif(LIBRW_PLATFORM_D3D11)
+    target_link_libraries(librw
+        PRIVATE
+            d3d11
+            dxgi
+            d3dcompiler
+            xinput
+    )
 endif()
 
 if(LIBRW_INSTALL)
@@ -236,6 +292,7 @@ if(LIBRW_INSTALL)
             d3d/rwd3d.h
             d3d/rwd3d8.h
             d3d/rwd3d9.h
+            d3d/rwd3d11.h
         DESTINATION "${LIBRW_INSTALL_INCLUDEDIR}/src/d3d"
     )
     install(
