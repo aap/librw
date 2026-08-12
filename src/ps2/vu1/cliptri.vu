@@ -1,0 +1,272 @@
+
+;;;;;;;;;;;;
+;;;;;;; Perspective Triangle Clipper
+;;;;;;;;;;;
+
+;;;; Uses the following registers
+;;
+;; vi01         tmp
+;; vi05         polyInPtr       input
+;; vi06         polyInEnd       input
+;; vi07         polyOutPtr      input
+;; vi10         polyBuf1        input
+;; vi11         polyBuf2        input
+;; vi15         tmp (return address)
+;;
+;; vf01		p2 pos		input
+;; vf02		interp pos
+;; vf03		p1 pos		input
+;; vf04		p2 bary
+;; vf05		interp bary
+;; vf06		p1 bary		input
+;; vf07.w	d2
+;; vf08.w	d1
+;; vf09.w	d1-d2
+;; vf22		tmp
+;; vf23		tmp
+
+ClipTriangle:
+	nop				isw.w vi08,codeSwitch(vi00)	; save return
+nop nop			;; TODO: assembler complains about hazard here. why?
+	nop				iadd vi08,vi00,vi15		;
+.if 1
+;;; ====== w = near plane ======
+	nop				fcor vi01,negZo			; test if all out
+	nop				ibne vi01,vi00,CullTri		; yes, skip this triangle completely
+	nop				fcand vi01,negZn		; test if all in
+	nop				ibeq vi01,vi00,ClipNegZ_Skip	; yes, no need to clip against this plane
+ClipNegZ_Loop:
+	sub.w vf09,vf03,vf01		lq vf04,1(vi05)			; d1-d2 - load bary2
+	subz.w vf08,vf03,vf24		move vf22,vf03			; d1 - save pos1
+	subz.w vf07,vf01,vf24		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipNegZ_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; advance bary1 - sign of d1*d2
+	clipw.xyz vf22,vf22		sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipNegZ_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipNegZ_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	clipw.xyz vf02,vf02		sq vf02,-2(vi07)		; - store interp pos
+ClipNegZ_Next:
+	nop				ibne vi05,vi06,ClipNegZ_Loop
+	nop				sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipNegZ_Skip:
+.endif
+
+.if 1
+;; Early out if all verts outside of any one plane
+	nop				fcor vi01,posZo
+	nop				ibne vi01,vi00,CullTri
+	nop				fcor vi01,negXo
+	nop				ibne vi01,vi00,CullTri
+	nop				fcor vi01,posXo
+	nop				ibne vi01,vi00,CullTri
+	nop				fcor vi01,negYo
+	nop				ibne vi01,vi00,CullTri
+	nop				fcor vi01,posYo
+	nop				ibne vi01,vi00,CullTri
+.endif
+
+.if 1
+;;; ====== w = far plane ======
+	nop				lq vf01,0(vi05)			; load p2 pos
+	nop				ibeq vi05,vi06,CullTri
+	nop				fcand vi01,posZn		; test if all in
+	nop				ibeq vi01,vi00,ClipPosZ_Skip	; yes, no need to clip against this plane
+	nop				nop
+ClipPosZ_Loop:
+	sub.w vf09,vf01,vf03		lq vf04,1(vi05)			; d1-d2 - load bary2
+	sub.w vf08,vf24,vf03		move vf22,vf03			; d1 - save pos1
+	sub.w vf07,vf24,vf01		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipPosZ_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; sign of d1*d2
+	nop				sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipPosZ_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipPosZ_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	nop				sq vf02,-2(vi07)		; - store interp pos
+ClipPosZ_Next:
+	nop				ibne vi05,vi06,ClipPosZ_Loop
+	nop				sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipPosZ_Skip:
+.endif
+
+.if 1
+;;; ====== w = -x plane ======
+	nop				lq vf01,0(vi05)			; load p2 pos
+	nop				ibeq vi05,vi06,CullTri
+	nop				fcand vi01,negXn		; test if all in
+	addax.w acc,vf03,vf03		ibeq vi01,vi00,ClipNegX_Skip	; yes, no need to clip against this plane
+	msubax.w acc,vf00,vf01		nop
+ClipNegX_Loop:
+	msub.w vf09,vf00,vf01		lq vf04,1(vi05)			; d1-d2 - load bary2
+	addx.w vf08,vf03,vf03		move vf22,vf03			; d1 - save pos1
+	addx.w vf07,vf01,vf01		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipNegX_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; sign of d1*d2
+	nop				sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipNegX_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipNegX_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	nop				sq vf02,-2(vi07)		; - store interp pos
+ClipNegX_Next:
+	addax.w acc,vf03,vf03		ibne vi05,vi06,ClipNegX_Loop
+	msubax.w acc,vf00,vf01		sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipNegX_Skip:
+.endif
+
+.if 1
+;;; ====== w = +x plane ======
+	nop				lq vf01,0(vi05)			; load p2 pos
+	nop				ibeq vi05,vi06,CullTri
+	nop				fcand vi01,posXn		; test if all in
+	subax.w acc,vf03,vf03		ibeq vi01,vi00,ClipPosX_Skip	; yes, no need to clip against this plane
+	maddax.w acc,vf00,vf01		nop
+ClipPosX_Loop:
+	msub.w vf09,vf00,vf01		lq vf04,1(vi05)			; d1-d2 - load bary2
+	subx.w vf08,vf03,vf03		move vf22,vf03			; d1 - save pos1
+	subx.w vf07,vf01,vf01		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipPosX_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; sign of d1*d2
+	nop				sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipPosX_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipPosX_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	nop				sq vf02,-2(vi07)		; - store interp pos
+ClipPosX_Next:
+	subax.w acc,vf03,vf03		ibne vi05,vi06,ClipPosX_Loop
+	maddax.w acc,vf00,vf01		sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipPosX_Skip:
+.endif
+
+.if 1
+;;; ====== w = -y plane ======
+	nop				lq vf01,0(vi05)			; load p2 pos
+	nop				ibeq vi05,vi06,CullTri
+	nop				fcand vi01,negYn		; test if all in
+	adday.w acc,vf03,vf03		ibeq vi01,vi00,ClipNegY_Skip	; yes, no need to clip against this plane
+	msubay.w acc,vf00,vf01		nop
+ClipNegY_Loop:
+	msub.w vf09,vf00,vf01		lq vf04,1(vi05)			; d1-d2 - load bary2
+	addy.w vf08,vf03,vf03		move vf22,vf03			; d1 - save pos1
+	addy.w vf07,vf01,vf01		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipNegY_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; sign of d1*d2
+	nop				sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipNegY_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipNegY_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	nop				sq vf02,-2(vi07)		; - store interp pos
+ClipNegY_Next:
+	adday.w acc,vf03,vf03		ibne vi05,vi06,ClipNegY_Loop
+	msubay.w acc,vf00,vf01		sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipNegY_Skip:
+.endif
+
+.if 1
+;;; ====== w = +y plane ======
+	nop				lq vf01,0(vi05)			; load p2 pos
+	nop				ibeq vi05,vi06,CullTri
+	nop				fcand vi01,posYn		; test if all in
+	subay.w acc,vf03,vf03		ibeq vi01,vi00,ClipPosY_Skip	; yes, no need to clip against this plane
+	madday.w acc,vf00,vf01		nop
+ClipPosY_Loop:
+	msub.w vf09,vf00,vf01		lq vf04,1(vi05)			; d1-d2 - load bary2
+	suby.w vf08,vf03,vf03		move vf22,vf03			; d1 - save pos1
+	suby.w vf07,vf01,vf01		move vf23,vf06			; d2 - save pos2
+	addx vf03,vf01,vf00		iaddiu vi05,vi05,2		; advance pos1
+	nop				div q,vf00w,vf09w		; - 1/(d1-d2)
+	mulaw acc,vf01,vf08		fsand vi01,2			; interp pos (acc = p2*d1) get d1 sign
+	mul.w vf00,vf07,vf08		lq vf01,0(vi05)			; d1*d2
+	msubw vf02,vf22,vf07		nop				; interp pos (acc - p1*d2)
+	mulaw acc,vf04,vf08		nop				; interp bary (acc = p2*d1)
+	msubw vf05,vf06,vf07		ibne vi01,vi00,ClipPosY_Clipped	; interp bary (acc - p1*d2)
+	addx vf06,vf04,vf00		fsand vi15,2			; sign of d1*d2
+	nop				sqi vf22,(vi07++)		; store p1
+	nop				sqi vf23,(vi07++)
+ClipPosY_Clipped:	; p1 is clipped
+	mulq vf02,vf02,q		ibeq vi15,vi00,ClipPosY_Next	; interp pos
+	nop				iadd vi01,vi00,vi07		; always store interp bary here
+	mulq vf05,vf05,q		iaddiu vi07,vi07,2		; interp bary - advance out ptr
+	nop				nop
+	nop				sq vf02,-2(vi07)		; - store interp pos
+ClipPosY_Next:
+	subay.w acc,vf03,vf03		ibne vi05,vi06,ClipPosY_Loop
+	madday.w acc,vf00,vf01		sq vf05,1(vi01)			; - store interp bary (or junk if no interpolation)
+	nop				bal vi15,SwapClipBuffers
+	nop				nop
+ClipPosY_Skip:
+.endif
+	nop				iaddiu vi08,vi08,2
+CullTri:
+	nop				jr vi08
+	nop				ilw.w vi08,codeSwitch(vi00)
+
+;;;;;;;;;;;;
+;;;;;;; End of Perspective Triangle Clipper
+;;;;;;;;;;;
+
+SwapClipBuffers:
+	nop				iadd vi05,vi00,vi11		; polyInPtr
+	nop				iadd vi06,vi00,vi07		; polyInEnd
+	nop				iadd vi07,vi00,vi10		; polyOutPtr
+	nop				iadd vi11,vi00,vi10
+	nop				iadd vi10,vi00,vi05
+	nop				lq vf03,-2(vi06)		; load last vertex as p1
+	nop				jr vi15
+	nop				lq vf06,-1(vi06)
+

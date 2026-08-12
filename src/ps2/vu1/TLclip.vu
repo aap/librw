@@ -1,0 +1,182 @@
+;;; Triangle List clipping
+;;; Process input buffer to Clipping buffer
+;;; flush Clipping buffer whenever it gets full
+; vi01
+; vi02	input buffer		have to save this
+; vi03	nClipped
+; vi04	nVerts			have to save this
+; vi05	polyInPtr
+; vi06	polyInEnd
+; vi07	polyOutPtr
+; vi08
+; vi09  clipPtr
+; vi10  polyBuf1
+; vi11	polyBuf2
+; vi12
+; vi15
+	nop				xtop vi02				; input pointer
+	nop				xitop vi04				; vertex count
+TLClipLoop:
+	nop				iaddiu vi03,vi00,0			; clipped vertex count
+	nop				iaddiu vi09,vi00,clipBuf		; clipPtr
+	nop				iadd vi10,vi00,vi12			; polyBuf1
+	nop				iaddiu vi11,vi10,2*10			; polyBuf2, need some space for trailing junk
+	nop				lq vf24,clipConsts(vi00)		; [fogNear, fogFar, near, far]
+TLClipPrimLoop:
+	;; We have two polygon buffers (at vi10 and vi11).
+	;; For every clipping plane, clip polygon in one and generate new poly in the other
+	nop				iadd vi05,vi00,vi10			; polyInPtr
+	nop				iaddiu vi06,vi05,6			; polyInEnd
+	nop				iadd vi07,vi00,vi11			; polyOutPtr
+
+	;; init polygon buffer
+	nop				lq vf01,0+0*numInAttribs(vi02)		; - load pos[0]
+	nop				ilw.w vi15,0+2*numInAttribs(vi02)	; - load pos[2].w, ADC flag
+	nop				lq vf02,0+1*numInAttribs(vi02)		; - load pos[1]
+	nop				lq vf03,0+2*numInAttribs(vi02)		; - load pos[2]
+	mulax acc,vf28,vf01		nop					; xform pos[0]
+	madday acc,vf29,vf01		nop
+	maddaz acc,vf30,vf01		iaddiu vi02,vi02,3*numInAttribs		; - next input triangle
+	maddw vf01,vf31,vf00		isubiu vi04,vi04,3
+	mulax acc,vf28,vf02		nop					; xform pos[1]
+	madday acc,vf29,vf02		ibltz vi04,TLClipRender
+	maddaz acc,vf30,vf02		mr32 vf06,vf00				; - make bary[2]
+	maddw vf02,vf31,vf00		sq vf01,0(vi05)				; - store pos[0] in polybuf
+	mulax acc,vf28,vf03		ibne vi15,vi00,TLClipSkip		; xform pos[2] - this tri is marked, skip it
+	madday acc,vf29,vf03		nop
+	maddaz acc,vf30,vf03		mr32 vf05,vf06				; - make bary[1]
+	maddw vf03,vf31,vf00		sq vf02,2(vi05)				; - store pos[1] in polybuf
+	; do first clipping test (note we test the first one twice)
+	; note only z-test is valid at this point because w can still be negative
+	clipw.xyz vf01,vf01		nop
+	clipw.xyz vf01,vf01		nop
+	clipw.xyz vf02,vf02		mr32 vf04,vf05				; - make bary[0]
+	clipw.xyz vf03,vf03		sq vf03,4(vi05)				; - store pos[2] in polybuf
+	nop				sq vf06,5(vi05)				; - store bary[2]
+	nop				sq vf05,3(vi05)				; - store bary[1]
+	nop				sq vf04,1(vi05)				; - store bary[0]
+	nop				fcand vi01,0xFFFFFF			; test if any vert is out of the frustum
+	nop				ibeq vi01,vi00,TLClipAllInside		; no, all inside
+
+	;; Call Clipper
+	nop				nop
+	nop				bal vi15,ClipTriangle			; skips return if there is a poly
+	nop				nop
+	nop				b TLClipSkip
+	nop				nop
+
+TLClipTriangulate:
+	;; interpolate vertices and create new primitives from polygon buffer here
+	;; this depends on the INPUTFORMAT
+/*
+	v0 = interp(c0);
+	v1 = interp(c1);
+	clipPtr[1] = v1;
+	i = 2;
+	do {
+		vi = interp(ci);
+		i++;
+		clipPtr[0] = v0;
+		clipPtr[2] = vi;
+		clipPtr += 3;
+		if(polyPtr == polyEnd)
+			break;
+		clipPtr[1] = vi;
+	}
+*/
+	; vf01 - clip[0]
+	; vf02 - bary[0]
+	; vf03 - clip[i]
+	; vf04 - bary[i]
+	; input verts
+	; vf10 - rgba[0]
+	; vf11 - rgba[1]
+	; vf12 - rgba[2]
+	; vf13 - st[0]
+	; vf14 - st[1]
+	; vf15 - st[2]
+	; vf16 - clip rgba[0]
+	; vf17 - clip st[0]
+	; vf18 - clip rgba[n]
+	; vf19 - clip st[n]
+	nop				lq vf04,3(vi05)				; - load bary[1]
+	nop				ibeq vi05,vi06,TLClipSkip		; - no vertices at all
+	addx.z vf01,vf00,vf00		lq vf10,1-3*numInAttribs(vi02)		; clear ADC - load st[0]
+	addx.z vf03,vf00,vf00		lq vf11,1-2*numInAttribs(vi02)		; clear ADC - load st[1]
+	nop				lq vf12,1-1*numInAttribs(vi02)		; - load st[2]
+	nop				lq vf13,2-3*numInAttribs(vi02)		; - load rgba[0]
+	mulax acc,vf10,vf04		lq vf14,2-2*numInAttribs(vi02)		; interpolate st[1] - load rgba[1]
+	madday acc,vf11,vf04		lq vf15,2-1*numInAttribs(vi02)		; interpolate st[1] - load rgba[2]
+	maddz vf18,vf12,vf04		lq vf02,1(vi05)				; interpolate st[1] - load bary[0]
+	mulax acc,vf13,vf04		lq.xyw vf03,2(vi05)			; interpolate rgba[1] - load clip[1]
+	madday acc,vf14,vf04		lq.xyw vf01,0(vi05)			; interpolate rgba[1] - load clip[0]
+	maddz vf19,vf15,vf04		iaddiu vi05,vi05,4			; interpolate rgba[1]
+	mulax acc,vf10,vf02		nop					; interpolate st[0]
+	madday acc,vf11,vf02		sq vf03,0+1*numInAttribs(vi09)		; interpolate st[0] - store clip[1]
+	maddz vf16,vf12,vf02		sq vf18,1+1*numInAttribs(vi09)		; interpolate st[0] - store st[1]
+	mulax acc,vf13,vf02		sq vf19,2+1*numInAttribs(vi09)		; interpolate rgba[0] - store rgba[1]
+	madday acc,vf14,vf02		nop					; interpolate rgba[0]
+	maddz vf17,vf15,vf02		nop					; interpolate rgba[0]
+TLClipTriLoop:
+	;; write one triangle here
+	nop				lq vf04,1(vi05)				; - load bary[i]
+	nop				lq.xyw vf03,0(vi05)			; - load clip[i]
+	nop				sq vf01,0+0*numInAttribs(vi09)		; - store clip[0]
+	nop				sq vf16,1+0*numInAttribs(vi09)		; - store st[0]
+	mulax acc,vf10,vf04		sq vf17,2+0*numInAttribs(vi09)		; interpolate st[i] - store rgba[0]
+	madday acc,vf11,vf04		iaddiu vi05,vi05,2			; interpolate st[i] - inc polyPtr
+	maddz vf18,vf12,vf04		iaddiu vi03,vi03,3			; interpolate st[i] - inc nClipped
+	mulax acc,vf13,vf04		nop					; interpolate rgba[i]
+	madday acc,vf14,vf04		nop					; interpolate rgba[i]
+	maddz vf19,vf15,vf04		sq vf03,0+2*numInAttribs(vi09)		; interpolate rgba[i] - store clip[i]
+	nop				sq vf18,1+2*numInAttribs(vi09)		; - store st[i]
+	nop				iaddiu vi09,vi09,3*numInAttribs		; - inc clipPtr
+	nop				ibeq vi05,vi06,TLClipPrimEnd		; - reached the end
+	nop				sq vf19,2-1*numInAttribs(vi09)		; - store rgba[i]
+	nop				sq vf03,0+1*numInAttribs(vi09)		; - store clip[i]
+	nop				sq vf18,1+1*numInAttribs(vi09)		; - store st[i]
+	nop				b TLClipTriLoop
+	nop				sq vf19,2+1*numInAttribs(vi09)		; - store rgba[i]
+
+TLClipAllInside:
+	;; copy full triangle
+	;; this depends on the INPUTFORMAT
+	nop				lq vf04,1-3*numInAttribs(vi02)		; - load st[0]
+	nop				lq vf05,1-2*numInAttribs(vi02)		; - load st[1]
+	nop				lq vf06,1-1*numInAttribs(vi02)		; - load st[2]
+	nop				lq vf07,2-3*numInAttribs(vi02)		; - load rgba[0]
+	nop				lq vf08,2-2*numInAttribs(vi02)		; - load rgba[1]
+	nop				lq vf09,2-1*numInAttribs(vi02)		; - load rgba[2]
+	nop				sq vf04,1+0*numInAttribs(vi09)		; - store st[0]
+	nop				sq vf05,1+1*numInAttribs(vi09)		; - store st[1]
+	addx.z vf01,vf00,vf00		sq vf06,1+2*numInAttribs(vi09)		; clear ADC - store st[2]
+	addx.z vf02,vf00,vf00		sq vf07,2+0*numInAttribs(vi09)		; clear ADC - store rgba[0]
+	addx.z vf03,vf00,vf00		sq vf08,2+1*numInAttribs(vi09)		; clear ADC - store rgba[1]
+	nop				sq vf09,2+2*numInAttribs(vi09)		; - store rgba[2]
+	nop				sq vf01,0+0*numInAttribs(vi09)		; - store clip[0]
+	nop				sq vf02,0+1*numInAttribs(vi09)		; - store clip[1]
+	nop				sq vf03,0+2*numInAttribs(vi09)		; - store clip[2]
+	nop				iaddiu vi03,vi03,3			; - inc nClipped
+	nop				iaddiu vi09,vi09,3*numInAttribs
+
+TLClipPrimEnd:
+	nop				isubiu vi15,vi03,clipVertLimitTL	; can we overflow next time?
+	nop				nop
+	nop				ibgtz vi15,TLClipRender			; yes, have to render
+TLClipSkip:
+	nop				nop
+	nop				ibgtz vi04,TLClipPrimLoop		; next Triangle
+	nop				nop
+TLClipRender:
+	nop				ibeq vi03,vi00,End
+	nop				nop
+
+	;; Process Clip buffer to output buffer and render
+	nop				bal vi15,ProcessClip
+	nop				iaddiu vi09,vi00,clipBuf
+	
+	nop				iblez vi04,End				; no more verts to process
+	nop				nop
+	nop				b TLClipLoop				; next batch
+	nop				nop
+

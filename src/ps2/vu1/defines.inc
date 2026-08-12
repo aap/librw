@@ -1,0 +1,65 @@
+.equ light,		0x3d0
+.equ matrix0,		0x3f0
+.equ matrix1,		0x3f1
+.equ matrix2,		0x3f2
+.equ matrix3,		0x3f3
+.equ xyzwScale,		0x3f4
+.equ xyzwOffset,	0x3f5
+.equ clipConsts,	0x3f6
+.equ gifTag,		0x3fa
+.equ colorScale,	0x3fb
+.equ surfaceProps,	0x3fc
+.equ codeSwitch,	0x3ff
+
+;; FCAND masks -- if register is 0, the whole poly is out
+.equ posXn, (0x041041)
+.equ negXn, (0x082082)
+.equ posYn, (0x104104)
+.equ negYn, (0x208208)
+.equ posZn, (0x410410)
+.equ negZn, (0x820820)
+.equ posXn3, (posXn&0x3FFFF)
+.equ negXn3, (negXn&0x3FFFF)
+.equ posYn3, (posYn&0x3FFFF)
+.equ negYn3, (negYn&0x3FFFF)
+.equ posZn3, (posZn&0x3FFFF)
+.equ negZn3, (negZn&0x3FFFF)
+.equ posXn2, (posXn&0xFFF)
+.equ negXn2, (negXn&0xFFF)
+.equ posYn2, (posYn&0xFFF)
+.equ negYn2, (negYn&0xFFF)
+.equ posZn2, (posZn&0xFFF)
+.equ negZn2, (negZn&0xFFF)
+.equ posXn1, (posXn&0x3F)
+.equ negXn1, (negXn&0x3F)
+.equ posYn1, (posYn&0x3F)
+.equ negYn1, (negYn&0x3F)
+.equ posZn1, (posZn&0x3F)
+.equ negZn1, (negZn&0x3F)
+
+
+;; FCOR masks -- if register is 1, the whole poly is in
+.equ posXo, (0xFBEFBE)
+.equ negXo, (0xF7DF7D)
+.equ posYo, (0xEFBEFB)
+.equ negYo, (0xDF7DF7)
+.equ posZo, (0xBEFBEF)
+.equ negZo, (0x7DF7DF)
+.equ posXo3, (posXo|0xFC0000)
+.equ negXo3, (negXo|0xFC0000)
+.equ posYo3, (posYo|0xFC0000)
+.equ negYo3, (negYo|0xFC0000)
+.equ posZo3, (posZo|0xFC0000)
+.equ negZo3, (negZo|0xFC0000)
+.equ posXo2, (posXo|0xFFF000)
+.equ negXo2, (negXo|0xFFF000)
+.equ posYo2, (posYo|0xFFF000)
+.equ negYo2, (negYo|0xFFF000)
+.equ posZo2, (posZo|0xFFF000)
+.equ negZo2, (negZo|0xFFF000)
+.equ posXo1, (posXo|0xFFFFC0)
+.equ negXo1, (negXo|0xFFFFC0)
+.equ posYo1, (posYo|0xFFFFC0)
+.equ negYo1, (negYo|0xFFFFC0)
+.equ posZo1, (posZo|0xFFFFC0)
+.equ negZo1, (negZo|0xFFFFC0)

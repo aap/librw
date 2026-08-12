@@ -12,6 +12,7 @@ if(LIBRW_EXAMPLES)
         add_subdirectory(camera)
         add_subdirectory(im2d)
         add_subdirectory(im3d)
+        add_subdirectory(demoreel)
     endif()
 
     if(LIBRW_PLATFORM_PS2)

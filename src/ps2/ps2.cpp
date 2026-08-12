@@ -948,6 +948,9 @@ ObjPipeline::init(void)
 	this->groupPipeline = nil;
 	this->impl.instance = objInstance;
 	this->impl.uninstance = objUninstance;
+#ifdef RW_PS2
+	this->impl.render = defaultAtomicRender;
+#endif
 }
 
 ObjPipeline*

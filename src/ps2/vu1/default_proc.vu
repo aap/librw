@@ -1,0 +1,38 @@
+	mul.xyw vf23,vf31,vf27		xtop vi02			; scale matrix - input pointer
+	mul.xyw vf20,vf28,vf27		lq vf10,IN_VERTEX(0,vi02)	; scale matrix - load vert-1
+	mul.xyw vf21,vf29,vf27		lq vf01,gifTag(vi00)		; scale matrix
+	mul.xyw vf22,vf30,vf27		xitop vi01			; scale matrix - vertex count
+	mulaw acc,vf23,vf00		iaddiu vi05,vi00,0x4000		; xform vert-1
+	maddax acc,vf20,vf10		iadd vi05,vi05,vi05		; xform vert-1 - EOP bit
+	madday acc,vf21,vf10		ior vi05,vi05,vi01		; xform vert-1 - enter vertex count
+	maddz.xyw vf01,vf22,vf10	sq vf01,0(vi12)			; xform vert-1 - store GIF tag
+	mulw.xy vf06,vf24,vf27		move.z vf01,vf27		; scale fog clamp - init z-1
+	add.w vf05,vf26,vf10		isw.x vi05,0(vi12)		; add adc-1 to w-offset - store vertex count
+	nop				  lq vf10,IN_VERTEX(1,vi02)	; - load vert-2
+	nop				div q,vf27w,vf01w		; - divide vert-1
+	miniy.w vf01,vf01,vf06		nop				; clamp fog-1
+	nop				lq.xy vf12,IN_UV(0,vi02)	; - load uv-1
+	  mulaw acc,vf23,vf00		lq vf11,IN_RGBA(0,vi02)		; xform vert-2 - load rgba-1
+	  maddax acc,vf20,vf10		mr32.z vf12,vf00		; xform vert-2
+	maxx.w vf04,vf01,vf06		move.xyz vf05,vf26		; clamp fog-1
+	  madday acc,vf21,vf10		iaddiu vi04,vi12,1		; xform vert-2 - output pointer
+ProcessLoop:
+	mulq.xyz vf04,vf01,q		  move.z vf01,vf27
+	  maddz.xyw vf01,vf22,vf10	nop
+	ftoi0 vf02,vf11			  lq vf11,IN_RGBA(1,vi02)
+	mulq.xyz vf03,vf12,q		  lq.xy vf12,IN_UV(1,vi02)
+	add vf04,vf04,vf05		  iaddiu vi02,vi02,numInAttribs
+	  add.w vf05,vf26,vf10		  div q,vf27w,vf01w
+	  miniy.w vf01,vf01,vf06	    lq vf10,IN_VERTEX(1,vi02)
+	    mulaw acc,vf23,vf00		sqi vf03,(vi04++)  
+	ftoi4 vf07,vf04			sqi vf02,(vi04++)
+	nop				nop
+	  maxx.w vf04,vf01,vf06		mr32.z vf12,vf00
+	    maddax acc,vf20,vf10	ibne vi02,vi03,ProcessLoop
+	    madday acc,vf21,vf10	sqi vf07,(vi04++)
+
+	nop				xgkick vi12			; draw kick
+	nop				iadd vi15,vi00,vi12		; swap output buffers
+	nop				iadd vi12,vi00,vi13
+	nop				b End
+	nop				iadd vi13,vi00,vi15

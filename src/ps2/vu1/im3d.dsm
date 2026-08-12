@@ -1,0 +1,125 @@
+.equ vertexTop, 0x3f0
+.equ numInAttribs, 3
+.equ numOutAttribs, 3
+.equ numOutBuf, 2
+.equ vertCount, ((vertexTop-numOutBuf)/(numInAttribs*2+numOutAttribs*numOutBuf))
+.equ offset, (vertCount*numInAttribs)
+.equ outBuf1, (2*offset) 
+;.equ outSize, ((vertexTop-outBuf1-numOutBuf)/numOutBuf)
+.equ outSize, (1 + vertCount*numOutAttribs)
+.equ outBuf2, (outBuf1+outSize) 
+
+.equ clipVertCount, ((vertexTop-outBuf1-numOutBuf)/(numInAttribs+numOutAttribs*numOutBuf))
+.equ clipOutSize, (1 + clipVertCount*numOutAttribs)
+.equ clipOutBuf2, (outBuf1+clipOutSize)
+.equ clipBuf, (clipOutBuf2+clipOutSize)	
+
+; up to 9 verts => 7 tris per poly in worst case
+.equ clipVertLimitTL, (clipVertCount-21)
+.equ clipVertLimitTS, (clipVertCount-15)	;;; TODO: this crashes when i set it to -9 as it should be
+
+.include "defines.inc"
+
+#define IN_VERTEX(n,r) 0 + (n)*numInAttribs(r)
+#define IN_UV(n,r) 1 + (n)*numInAttribs(r)
+#define IN_RGBA(n,r) 2 + (n)*numInAttribs(r)
+
+#define OUT_STQ(n,r) 0 + (n)*numOutAttribs(r)
+#define OUT_RGBA(n,r) 1 + (n)*numOutAttribs(r)
+#define OUT_XYZ(n,r) 2 + (n)*numOutAttribs(r)
+
+.balign 16,0
+
+.global vu1_im3d
+vu1_im3d:
+
+DMAret *
+MPG 0, *
+.vu
+start:
+	nop				ilw.y vi12,codeSwitch(vi00)
+	nop				ilw.z vi13,codeSwitch(vi00)
+	nop				lq vf28,matrix0(vi00)
+	nop				lq vf29,matrix1(vi00)
+	nop				lq vf30,matrix2(vi00)
+	nop				lq vf31,matrix3(vi00)
+	nop				lq vf27,xyzwScale(vi00)
+	nop				lq vf26,xyzwOffset(vi00)
+	nop				lq vf25,colorScale(vi00)
+	nop				lq vf24,clipConsts(vi00)
+restart:
+	nop				ilw.x vi09,codeSwitch(vi00)		; process switch
+
+	;; Calculate end of input buffer with vertex count rounded up to multiple of 4
+	;; Note that the maximum vertex count is always a multiple of 4 so this is always legal
+	nop				xtop vi02			; input pointer
+	nop				xitop vi01			; vertex count
+	nop				iaddiu vi03,vi01,3
+	nop				iaddiu vi04,vi00,~3
+	nop				iand vi04,vi03,vi04		; round up vertex count
+	nop				iadd vi03,vi02,vi04
+.rept numInAttribs-1
+	nop				iadd vi03,vi03,vi04
+.endr
+
+	;; Convert colors to float
+	nop				iaddiu vi02,vi02,4*numInAttribs
+	nop				lq vf01,IN_RGBA(0-4,vi02)
+	nop				lq vf02,IN_RGBA(1-4,vi02)
+	nop				lq vf03,IN_RGBA(2-4,vi02)
+	nop				lq vf04,IN_RGBA(3-4,vi02)
+	itof0 vf01,vf01			nop
+	itof0 vf02,vf02			nop
+	itof0 vf03,vf03			nop
+	itof0 vf04,vf04			nop
+PreprocLoop:
+	mul vf05,vf01,vf25		  lq vf01,IN_RGBA(0,vi02)
+	mul vf06,vf02,vf25		  lq vf02,IN_RGBA(1,vi02)
+	mul vf07,vf03,vf25		  lq vf03,IN_RGBA(2,vi02)
+	mul vf08,vf04,vf25		  lq vf04,IN_RGBA(3,vi02)
+	itof0 vf01,vf01			sq vf05,IN_RGBA(0-4,vi02)
+	itof0 vf02,vf02			sq vf06,IN_RGBA(1-4,vi02)
+	itof0 vf03,vf03			sq vf07,IN_RGBA(2-4,vi02)
+	itof0 vf04,vf04			sq vf08,IN_RGBA(3-4,vi02)
+	nop				ibne vi02,vi03,PreprocLoop
+	nop				iaddiu vi02,vi02,4*numInAttribs
+
+	nop				jr vi09
+	nop				nop
+
+Process:
+#include "default_proc.vu"
+TLClip:
+.include "TLclip.vu"
+TSClip:
+.include "TSclip.vu"
+LLClip:
+.include "LLclip.vu"
+LSClip:
+.include "LSclip.vu"
+PointCull:
+.include "PointCull.vu"
+
+End:
+	nop[e]				nop
+	nop				nop
+	nop				b restart
+	nop				nop
+
+.include "cliptri.vu"
+.include "clipline.vu"
+#include "default_clipproc.vu"
+
+.EndMPG
+.EndDmaData
+
+;; indexed by PrimitiveType
+.global vu1_im3d_desc
+vu1_im3d_desc:
+	.word Process, outBuf1, outBuf2, 0		; PRIMTYPENONE
+	.word LLClip, outBuf1, outBuf2, 0		; PRIMTYPELINELIST
+	.word LSClip, outBuf1, clipOutBuf2, 0		; PRIMTYPEPOLYLINE
+	.word TLClip, outBuf1, clipOutBuf2, 0		; PRIMTYPETRILIST
+	.word TSClip, outBuf1, clipOutBuf2, 0		; PRIMTYPETRISTRIP
+	.word 0, 0, 0, 0				; PRIMTYPETRIFAN	TODO
+	.word PointCull, outBuf1, outBuf2, 0		; PRIMTYPEPOINTLIST

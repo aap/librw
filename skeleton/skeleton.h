@@ -118,5 +118,7 @@ EventStatus EventHandler(Event e, void *param);
 
 sk::EventStatus AppEventHandler(sk::Event e, void *param);
 
+#ifndef RW_PS2
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_rw.h"
+#endif

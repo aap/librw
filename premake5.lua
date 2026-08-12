@@ -99,8 +99,8 @@ workspace "librw"
 	filter "configurations:Release*"
 		defines { "NDEBUG" }
 		optimize "On"
-	filter "configurations:ReleaseStatic"
-		staticruntime("On")
+--	filter "configurations:ReleaseStatic"
+--		staticruntime("On")
 
 	filter { "platforms:*null" }
 		defines { "RW_NULL" }
@@ -157,6 +157,16 @@ workspace "librw"
 	Libdir = "lib/%{cfg.platform}/%{cfg.buildcfg}"
 	Bindir = "bin/%{cfg.platform}/%{cfg.buildcfg}"
 
+function vucode()
+	filter "files:**.dsm"
+		buildmessage 'dvp-as %{file.name}'
+		buildcommands {
+			'cpp -x assembler-with-cpp "%{file.abspath}" | ee-dvp-as -I "%{file.directory}" -o "%{cfg.objdir}/%{file.basename}.o"'
+		}
+		buildoutputs { '%{cfg.objdir}/%{file.basename}.o' }
+	filter {}
+end
+
 project "librw"
 	kind "StaticLib"
 	targetname "rw"
@@ -166,12 +176,19 @@ project "librw"
 	files { "src/*/*.*" }
 	filter { "platforms:*gl3" }
 		files { "src/gl/glad/*.*" }
+<<<<<<< master
 	filter { "platforms:*d3d11" }
 		includedirs { d3d11GeneratedDir }
 		files { "src/d3d/shaders/*_d11.hlsl" }
 	filter { "files:**.hlsl" }
 		buildaction "None"
 	filter {}
+=======
+        vucode()
+        filter { "platforms:ps2" }
+                files { "src/ps2/vu1/*.dsm" }
+
+>>>>>>> master
 
 project "dumprwtree"
 	kind "ConsoleApp"
@@ -242,15 +259,6 @@ function skeltool(dir)
 	findlibs()
 end
 
-function vucode()
-	filter "files:**.dsm"
-		buildcommands {
-			'cpp "%{file.relpath}" | dvp-as -o "%{cfg.objdir}/%{file.basename}.o"'
-		}
-		buildoutputs { '%{cfg.objdir}/%{file.basename}.o' }
-	filter {}
-end
-
 project "playground"
 	kind "WindowedApp"
 	characterset ("MBCS")
@@ -307,6 +315,14 @@ project "im3d"
 	removeplatforms { "*null" }
 	removeplatforms { "ps2" }
 
+project "demoreel"
+	kind "WindowedApp"
+	characterset ("MBCS")
+	skeltool("demoreel")
+	entrypoint("WinMainCRTStartup")
+	removeplatforms { "*null" }
+	removeplatforms { "ps2" } -- for now
+
 project "ska2anm"
 	kind "ConsoleApp"
 	characterset ("MBCS")
@@ -320,18 +336,18 @@ project "ska2anm"
 	findlibs()
 	removeplatforms { "*gl3", "*d3d9", "*d3d11", "*ps2" }
 
-project "ps2test"
-	kind "ConsoleApp"
-	targetdir (Bindir)
-	vucode()
-	removeplatforms { "*gl3", "*d3d9", "*d3d11", "*null" }
-	targetextension '.elf'
-	includedirs { "." }
-	files { "tools/ps2test/*.cpp",
-	        "tools/ps2test/vu/*.dsm",
-	        "tools/ps2test/*.h" }
-	libdirs { "$(PS2SDK)/ee/lib" }
-	links { "librw" }
+--project "ps2test"
+--	kind "ConsoleApp"
+--	targetdir (Bindir)
+--	vucode()
+--	removeplatforms { "*gl3", "*d3d9", "*null" }
+--	targetextension '.elf'
+--	includedirs { "." }
+--	files { "tools/ps2test/*.cpp",
+--	        "tools/ps2test/vu/*.dsm",
+--	        "tools/ps2test/*.h" }
+--	libdirs { "$(PS2SDK)/ee/lib" }
+--	links { "librw" }
 
 --project "ps2rastertest"
 --	kind "ConsoleApp"

@@ -91,6 +91,15 @@ mult(const Quat &q, const Quat &p)
 	                q.w*p.z + q.z*p.w + q.x*p.y - q.y*p.x);
 }
 
+Quat
+cross(const Quat &q, const Quat &p)
+{
+	return makeQuat(0.0f,
+	                q.x*p.w + q.y*p.z - q.z*p.y,
+	                q.y*p.w + q.z*p.x - q.x*p.z,
+	                q.z*p.w + q.x*p.y - q.y*p.x);
+}
+
 
 Quat*
 Quat::rotate(const V3d *axis, float32 angle, CombineOp op)
@@ -108,6 +117,30 @@ Quat::rotate(const V3d *axis, float32 angle, CombineOp op)
 		break;
 	}
 	return this;
+}
+
+inline Quat quat(float32 w=1.0f, float32 x=0.0f, float32 y=0.0f, float32 z=0.0f) { return makeQuat(w, x, y, z); }
+
+Quat
+exp(const Quat &q)
+{
+	Quat qv = qvec(q);
+	float32 l = norm(qv);
+	if(l == 0.0f)
+		return quat(expf(q.w));
+	return scale(add(quat(cosf(l)), scale(qv, sinf(l)/l)), expf(q.w));
+}
+
+Quat
+log(const Quat &q)
+{
+	float32 l = norm(q);
+	Quat p = scale(q, 1.0f/l);
+	float32 c = p.w; p.w = 0.0f;
+	float32 s = norm(p);
+	if(s == 0)
+		return quat(logf(l));
+	return add(quat(logf(l)), scale(p, atan2f(s,c)/s));
 }
 
 Quat

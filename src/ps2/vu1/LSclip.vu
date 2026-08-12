@@ -1,0 +1,100 @@
+	nop				xtop vi02				; input pointer
+	nop				xitop vi04				; vertex count
+	nop				isubiu vi04,vi04,1			; for linestrip
+LSClipLoop:
+	nop				iaddiu vi03,vi00,0			; clipped vertex count
+	nop				iaddiu vi09,vi00,clipBuf		; clipPtr
+	nop				lq vf24,clipConsts(vi00)		; [fogNear, fogFar, near, far]
+	nop				iaddiu vi08,vi00,1			; restartStrip flag
+LSClipPrimLoop:
+	nop				lq vf01,0+0*numInAttribs(vi02)		; - load pos[0]
+	nop				lq vf03,0+1*numInAttribs(vi02)		; - load pos[1]
+	addw.x vf02,vf00,vf00		ilw.w vi15,0+1*numInAttribs(vi02)	; make bary1 - load pos[1].w, ADC flag
+	addw.y vf04,vf00,vf00		isubiu vi04,vi04,1			; make bary2
+	mulax acc,vf28,vf01		nop					; xform pos[0]
+	madday acc,vf29,vf01		ibltz vi04,LSClipRender			; - this could only really happen the first time
+	maddaz acc,vf30,vf01		iaddiu vi02,vi02,numInAttribs		; - next input segment
+	maddw vf01,vf31,vf00		ibne vi15,vi00,LSClipSkip		; - this segment is marked, skip it
+	mulax acc,vf28,vf03		ior vi08,vi08,vi15			; xform pos[1] - also set restart flag
+	madday acc,vf29,vf03		nop
+	maddaz acc,vf30,vf03		nop
+	maddw vf03,vf31,vf00		nop
+	nop				nop
+	nop				nop
+	clipw.xyz vf01,vf01		move.yz vf02,vf00			; - make bary1
+	clipw.xyz vf03,vf03		move.xz vf04,vf00			; - mark bary2
+	nop				nop
+	nop				nop
+	nop				nop
+	nop				fcand vi01,0xFFF			; test if any vert is out of the frustum
+	nop				ibeq vi01,vi00,LSClipAllInside		; no, all inside
+
+	;; Call Clipper
+	nop				nop					; ClipLine tests clip flags in first instruction!
+	nop				bal vi15,ClipLine			; skips return if there is a segment
+	nop				nop
+	nop				b LSClipSkip
+	nop				iaddiu vi08,vi00,1			; have to restart strip
+
+LSClipNewSeg:
+	;; insert new segment here
+	nop				loi 2048.0
+	addi.z vf01,vf00,i		lq vf05,1-1*numInAttribs(vi02)		; set ADC - load st[0
+	addx.z vf03,vf00,vf00		lq vf06,1-0*numInAttribs(vi02)		; clear ADC - load st[1]
+	nop				lq vf07,2-1*numInAttribs(vi02)		; - load rgba[0]
+	nop				lq vf08,2-0*numInAttribs(vi02)		; - load rgba[1]
+	mulax acc,vf05,vf02		iaddiu vi08,vi00,1			; interpolate st[0] - have to restart strip
+	maddy vf09,vf06,vf02		sq vf01,0+0*numInAttribs(vi09)		; - store clip[0]
+	mulax acc,vf07,vf02		nop					; interpolate rgba[0]
+	maddy vf10,vf08,vf02		sq vf03,0+1*numInAttribs(vi09)		; - store clip[1]
+	mulax acc,vf05,vf04		nop					; interpolate st[1]
+	maddy vf11,vf06,vf04		sq vf09,1+0*numInAttribs(vi09)		; - store st[0]
+	mulax acc,vf07,vf04		iaddiu vi03,vi03,2			; interpolate rgba[1] - inc nClipped
+	maddy vf12,vf08,vf04		sq vf10,2+0*numInAttribs(vi09)		; - store rgba[0]
+	nop				iaddiu vi09,vi09,2*numInAttribs
+	nop				sq vf11,1-1*numInAttribs(vi09)		; - store st[1]
+	nop				b LSClipPrimEnd
+	nop				sq vf12,2-1*numInAttribs(vi09)		; - store rgba[1]
+
+LSClipAllInside:
+	nop				ibeq vi08,vi00,LSClipContStrip
+	nop				loi 2048.0
+	addi.z vf01,vf00,i		lq vf05,1-1*numInAttribs(vi02)		; clear ADC - load st[0]
+	nop				lq vf07,2-1*numInAttribs(vi02)		; - load rgba[0]
+	nop				iaddiu vi03,vi03,1			; - inc nClipped
+	nop				iaddiu vi09,vi09,numInAttribs
+	nop				sq vf05,1-1*numInAttribs(vi09)		; - store st[0]
+	nop				sq vf07,2-1*numInAttribs(vi09)		; - store rgba[0]
+	nop				sq vf01,0-1*numInAttribs(vi09)		; - store clip[0]
+LSClipContStrip:
+	addx.z vf03,vf00,vf00		lq vf06,1-0*numInAttribs(vi02)		; clear ADC - load st[1]
+	nop				lq vf08,2-0*numInAttribs(vi02)		; - load rgba[1]
+	nop				iaddiu vi03,vi03,1			; - inc nClipped
+	nop				iaddiu vi09,vi09,numInAttribs
+	nop				sq vf06,1-1*numInAttribs(vi09)		; - store st[1]
+	nop				sq vf08,2-1*numInAttribs(vi09)		; - store rgba[1]
+	nop				sq vf03,0-1*numInAttribs(vi09)		; - store clip[1]
+	nop				iaddiu vi08,vi00,0			; we'll be in a strip after this
+
+LSClipPrimEnd:
+			;; TODO: don't use clipVertLimitTS
+	nop				isubiu vi15,vi03,clipVertLimitTS	; can we overflow next time?
+	nop				nop
+	nop				ibgtz vi15,LSClipRender			; yes, have to render
+LSClipSkip:
+	nop				nop
+	nop				ibgtz vi04,LSClipPrimLoop		; next segment
+	nop				nop
+LSClipRender:
+	nop				ibeq vi03,vi00,End			; nothing to render
+	nop				nop
+
+	;; Process Clip buffer to output buffer and render
+	nop				bal vi15,ProcessClip
+	nop				iaddiu vi09,vi00,clipBuf
+	
+	nop				iblez vi04,End				; no more verts to process
+	nop				nop
+	nop				b LSClipLoop				; next batch
+	nop				nop
+

@@ -294,15 +294,39 @@ inline Quat makeQuat(float32 w, const V3d &vec) { return makeQuat(w, vec.x, vec.
 inline Quat add(const Quat &q, const Quat &p) { return makeQuat(q.w+p.w, q.x+p.x, q.y+p.y, q.z+p.z); }
 inline Quat sub(const Quat &q, const Quat &p) { return makeQuat(q.w-p.w, q.x-p.x, q.y-p.y, q.z-p.z); }
 inline Quat negate(const Quat &q) { return makeQuat(-q.w, -q.x, -q.y, -q.z); }
-inline float32 dot(const Quat &q, const Quat &p) { return q.w*p.w + q.x*p.x + q.y*p.y + q.z*p.z; }
+inline Quat qvec(const Quat &q) { return makeQuat(0.0f, q.x, q.y, q.z); }
 inline Quat scale(const Quat &q, float32 r) { return makeQuat(q.w*r, q.x*r, q.y*r, q.z*r); }
-inline float32 length(const Quat &q) { return sqrtf(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z); }
-inline Quat normalize(const Quat &q) { return scale(q, 1.0f/length(q)); }
+inline float32 normsq(const Quat &q) { return q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z; }
+inline float32 norm(const Quat &q) { return sqrtf(normsq(q)); }
+inline Quat normalize(const Quat &q) { return scale(q, 1.0f/norm(q)); }
+inline float32 length(const Quat &q) { return norm(q); }
 inline Quat conj(const Quat &q) { return makeQuat(q.w, -q.x, -q.y, -q.z); }
+inline Quat inv(const Quat &q) { return scale(conj(q), 1.0f/normsq(q)); }
 Quat mult(const Quat &q, const Quat &p);
-inline V3d rotate(const V3d &v, const Quat &q) { return mult(mult(q, makeQuat(0.0f, v)), conj(q)).vec(); }
+Quat cross(const Quat &q, const Quat &p);
+inline float32 inner(const Quat &q, const Quat &p) { return q.w*p.w - q.x*p.x - q.y*p.y - q.z*p.z; }
+inline float32 dot(const Quat &q, const Quat &p) { return q.w*p.w + q.x*p.x + q.y*p.y + q.z*p.z; }
+inline Quat sandwich(const Quat &q, const Quat &v) { return mult(mult(q, v), conj(q)); }
+inline Quat transform(const Quat &q, const Quat &v) { return scale(sandwich(q, v), 1.0f/normsq(q)); }
+Quat exp(const Quat &q);
+Quat log(const Quat &q);
 Quat lerp(const Quat &q, const Quat &p, float32 r);
 Quat slerp(const Quat &q, const Quat &p, float32 a);
+inline V3d rotate(const V3d &v, const Quat &q) { return transform(q, makeQuat(0.0f, v)).vec(); }
+
+// Dual Quaternion
+// not a RW type
+struct DQuat
+{
+	Quat r, d;
+};
+inline DQuat makeDQuat(const Quat &r, const Quat &d) { DQuat q; q.r = r; q.d = d; return q; }
+inline DQuat makeDQuat(const Quat &r) { DQuat q; q.r = r; q.d = makeQuat(0.0f, 0.0f, 0.0f, 0.0f); return q; }
+inline DQuat add(const DQuat &q, const DQuat &p) { return makeDQuat(add(q.r,p.r), add(q.d,p.d)); }
+inline DQuat sub(const DQuat &q, const DQuat &p) { return  makeDQuat(sub(q.r,p.r), sub(q.d,p.d)); }
+inline DQuat negate(const DQuat &q) { return makeDQuat(negate(q.r), negate(q.d)); }
+inline DQuat scale(const DQuat &q, float32 r) { return makeDQuat(scale(q.r,r), scale(q.d,r)); }
+
 
 struct RawMatrix
 {
