@@ -164,7 +164,7 @@ struct RayGeometry
 
 struct RayInstanceRef
 {
-	RayGeometry *geometry;
+	VkDeviceAddress blasAddress;
 	Matrix transform;
 };
 
@@ -282,6 +282,25 @@ static const uint32 TEXTURE_UPLOADS_PER_FRAME = 12;
 static const uint64 TEXTURE_UPLOAD_USECS_PER_FRAME = 4000;
 static const uint32 MAX_RAY_PENDING_INSTANCES = 8192;
 
+struct VulkanSamplerKey
+{
+	VkSamplerAddressMode addressModeU;
+	VkSamplerAddressMode addressModeV;
+	VkFilter magFilter;
+	VkFilter minFilter;
+	VkSamplerMipmapMode mipmapMode;
+	VkBorderColor borderColor;
+};
+
+enum { MAX_POOLED_SAMPLERS = 64 };
+
+struct VulkanSamplerPool
+{
+	VulkanSamplerKey keys[MAX_POOLED_SAMPLERS];
+	VkSampler samplers[MAX_POOLED_SAMPLERS];
+	uint32 count;
+};
+
 struct VulkanGlobals
 {
 	Context context;
@@ -307,6 +326,7 @@ struct VulkanGlobals
 	void *renderStates[GSALPHATESTREF + 1];
 	float view[16];
 	float proj[16];
+	float viewProj[16];
 	VulkanBuffer dynamicVertexBuffers[MAX_FRAMES_IN_FLIGHT];
 	VulkanBuffer dynamicIndexBuffers[MAX_FRAMES_IN_FLIGHT];
 	VkDeviceSize dynamicVertexOffset;
@@ -360,6 +380,7 @@ struct VulkanGlobals
 	VkDescriptorSet currentDescriptorSet;
 	PipelineKind currentDescriptorSetKind;
 	bool renderStateSet[GSALPHATESTREF+1];
+	VulkanSamplerPool samplerPool;
 };
 
 static VulkanGlobals vkGlobals;
@@ -386,6 +407,10 @@ static void removeTextureUploadGarbageForRaster(Raster *raster);
 static void destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler);
 static bool32 keepTextureGarbage(uint32 frame, VkImage image, VkDeviceMemory memory, VkImageView view, VkSampler sampler);
 static bool32 keepGeometryGarbage(uint32 frame, VkBuffer vertexBuffer, VkDeviceMemory vertexBufferMemory, VkBuffer indexBuffer, VkDeviceMemory indexBufferMemory);
+static VkSampler getOrCreateSampler(VkSamplerAddressMode addressModeU, VkSamplerAddressMode addressModeV,
+	VkFilter magFilter, VkFilter minFilter, VkSamplerMipmapMode mipmapMode,
+	VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK);
+static void destroySamplerPool(void);
 
 static bool32
 apiVersionAtLeast(uint32 version, uint32 major, uint32 minor)
@@ -974,6 +999,71 @@ transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayou
 		0, nil, 0, nil, 1, &barrier);
 }
 
+static VkSampler
+getOrCreateSampler(VkSamplerAddressMode addressModeU, VkSamplerAddressMode addressModeV,
+	VkFilter magFilter, VkFilter minFilter, VkSamplerMipmapMode mipmapMode,
+	VkBorderColor borderColor)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return VK_NULL_HANDLE;
+
+	VulkanSamplerPool *pool = &vkGlobals.samplerPool;
+	for(uint32 i = 0; i < pool->count; i++){
+		if(pool->keys[i].addressModeU == addressModeU &&
+		   pool->keys[i].addressModeV == addressModeV &&
+		   pool->keys[i].magFilter == magFilter &&
+		   pool->keys[i].minFilter == minFilter &&
+		   pool->keys[i].mipmapMode == mipmapMode &&
+		   pool->keys[i].borderColor == borderColor)
+			return pool->samplers[i];
+	}
+
+	VkSamplerCreateInfo samplerInfo;
+	memset(&samplerInfo, 0, sizeof(samplerInfo));
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = magFilter;
+	samplerInfo.minFilter = minFilter;
+	samplerInfo.mipmapMode = mipmapMode;
+	samplerInfo.addressModeU = addressModeU;
+	samplerInfo.addressModeV = addressModeV;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.maxAnisotropy = 1.0f;
+	samplerInfo.borderColor = borderColor;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	VkSampler s = VK_NULL_HANDLE;
+	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, &s), "vkCreateSampler(pooled)"))
+		return VK_NULL_HANDLE;
+
+	if(pool->count < MAX_POOLED_SAMPLERS){
+		uint32 idx = pool->count++;
+		pool->keys[idx].addressModeU = addressModeU;
+		pool->keys[idx].addressModeV = addressModeV;
+		pool->keys[idx].magFilter = magFilter;
+		pool->keys[idx].minFilter = minFilter;
+		pool->keys[idx].mipmapMode = mipmapMode;
+		pool->keys[idx].borderColor = borderColor;
+		pool->samplers[idx] = s;
+	}
+	return s;
+}
+
+static void
+destroySamplerPool(void)
+{
+	Context *ctx = &vkGlobals.context;
+	if(ctx->device == VK_NULL_HANDLE)
+		return;
+	VulkanSamplerPool *pool = &vkGlobals.samplerPool;
+	for(uint32 i = 0; i < pool->count; i++){
+		if(pool->samplers[i] != VK_NULL_HANDLE){
+			vkDestroySampler(ctx->device, pool->samplers[i], nil);
+			pool->samplers[i] = VK_NULL_HANDLE;
+		}
+	}
+	pool->count = 0;
+}
+
 static bool32
 createTextureImage(uint32 width, uint32 height, const uint8 *rgba,
 	VkImage *image, VkDeviceMemory *memory, VkImageView *view, VkSampler *sampler, VkDescriptorSet *descriptorSet)
@@ -1059,19 +1149,9 @@ createTextureImage(uint32 width, uint32 height, const uint8 *rgba,
 	if(!vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, view), "vkCreateImageView"))
 		return 0;
 
-	VkSamplerCreateInfo samplerInfo;
-	memset(&samplerInfo, 0, sizeof(samplerInfo));
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.maxAnisotropy = 1.0f;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler"))
+	*sampler = getOrCreateSampler(VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_BORDER_COLOR_INT_OPAQUE_WHITE);
+	if(*sampler == VK_NULL_HANDLE)
 		return 0;
 
 	VkDescriptorSetAllocateInfo descAlloc;
@@ -1190,19 +1270,9 @@ createTextureImageForFrame(uint32 width, uint32 height, const uint8 *rgba, VkCom
 		return 0;
 	}
 
-	VkSamplerCreateInfo samplerInfo;
-	memset(&samplerInfo, 0, sizeof(samplerInfo));
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = magFilter;
-	samplerInfo.minFilter = minFilter;
-	samplerInfo.mipmapMode = mipmapMode;
-	samplerInfo.addressModeU = addressModeU;
-	samplerInfo.addressModeV = addressModeV;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.maxAnisotropy = 1.0f;
-	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler(frame texture)")){
+	*sampler = getOrCreateSampler(addressModeU, addressModeV, magFilter, minFilter, mipmapMode,
+		VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK);
+	if(*sampler == VK_NULL_HANDLE){
 		destroyTextureHandles(image, memory, view, sampler);
 		destroyBuffer(stagingOut);
 		return 0;
@@ -1291,19 +1361,9 @@ createEmptySampledImage(uint32 width, uint32 height, VkFormat format, VkImageUsa
 	if(!vkOk(vkCreateImageView(ctx->device, &viewInfo, nil, view), "vkCreateImageView(sampled)"))
 		return 0;
 
-	VkSamplerCreateInfo samplerInfo;
-	memset(&samplerInfo, 0, sizeof(samplerInfo));
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR;
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.maxAnisotropy = 1.0f;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-	samplerInfo.unnormalizedCoordinates = VK_FALSE;
-	if(!vkOk(vkCreateSampler(ctx->device, &samplerInfo, nil, sampler), "vkCreateSampler(sampled)"))
+	*sampler = getOrCreateSampler(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_BORDER_COLOR_INT_OPAQUE_WHITE);
+	if(*sampler == VK_NULL_HANDLE)
 		return 0;
 
 	VkDescriptorSetAllocateInfo descAlloc;
@@ -1339,8 +1399,7 @@ destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view,
 	Context *ctx = &vkGlobals.context;
 	if(ctx->device == VK_NULL_HANDLE)
 		return;
-	if(*sampler != VK_NULL_HANDLE)
-		vkDestroySampler(ctx->device, *sampler, nil);
+	*sampler = VK_NULL_HANDLE;
 	if(*view != VK_NULL_HANDLE)
 		vkDestroyImageView(ctx->device, *view, nil);
 	if(*image != VK_NULL_HANDLE)
@@ -1350,7 +1409,6 @@ destroyTextureHandles(VkImage *image, VkDeviceMemory *memory, VkImageView *view,
 	*image = VK_NULL_HANDLE;
 	*memory = VK_NULL_HANDLE;
 	*view = VK_NULL_HANDLE;
-	*sampler = VK_NULL_HANDLE;
 }
 
 void
@@ -1358,6 +1416,10 @@ destroyRasterTexture(Raster *raster)
 {
 	if(raster == nil || nativeRasterOffset == 0)
 		return;
+	if(vkGlobals.renderStates[TEXTURERASTER] == raster){
+		vkGlobals.renderStates[TEXTURERASTER] = nil;
+		vkGlobals.renderStateSet[TEXTURERASTER] = 0;
+	}
 	for(uint32 i = 0; i < vkGlobals.numPendingTextureUploads; ){
 		if(vkGlobals.pendingTextureUploads[i] == raster){
 			vkGlobals.pendingTextureUploads[i] =
@@ -1380,6 +1442,10 @@ destroyRasterTexture(Raster *raster)
 			natras->imageView = VK_NULL_HANDLE;
 			natras->sampler = VK_NULL_HANDLE;
 		}
+	}
+	if(natras->descriptorSet != VK_NULL_HANDLE && vkGlobals.descriptorPool != VK_NULL_HANDLE){
+		Context *ctx = &vkGlobals.context;
+		vkFreeDescriptorSets(ctx->device, vkGlobals.descriptorPool, 1, &natras->descriptorSet);
 	}
 	natras->descriptorSet = VK_NULL_HANDLE;
 	natras->imageFormat = VK_FORMAT_UNDEFINED;
@@ -1799,13 +1865,16 @@ static void
 multiplyMat4(float *dst, const float *a, const float *b)
 {
 	float out[16];
-	for(int c = 0; c < 4; c++)
-		for(int r = 0; r < 4; r++)
-			out[c*4 + r] =
-				a[0*4 + r]*b[c*4 + 0] +
-				a[1*4 + r]*b[c*4 + 1] +
-				a[2*4 + r]*b[c*4 + 2] +
-				a[3*4 + r]*b[c*4 + 3];
+	for(int c = 0; c < 4; c++){
+		float b0 = b[c*4 + 0];
+		float b1 = b[c*4 + 1];
+		float b2 = b[c*4 + 2];
+		float b3 = b[c*4 + 3];
+		out[c*4 + 0] = a[0]*b0 + a[4]*b1 + a[8]*b2  + a[12]*b3;
+		out[c*4 + 1] = a[1]*b0 + a[5]*b1 + a[9]*b2  + a[13]*b3;
+		out[c*4 + 2] = a[2]*b0 + a[6]*b1 + a[10]*b2 + a[14]*b3;
+		out[c*4 + 3] = a[3]*b0 + a[7]*b1 + a[11]*b2 + a[15]*b3;
+	}
 	memcpy(dst, out, sizeof(out));
 }
 
@@ -1820,21 +1889,19 @@ makeRawMatrix(float *dst, Matrix *src)
 static void
 makeMVP(float *dst, Matrix *world)
 {
-	float worldRaw[16], viewWorld[16];
+	float worldRaw[16];
 	makeRawMatrix(worldRaw, world);
-	multiplyMat4(viewWorld, vkGlobals.view, worldRaw);
-	multiplyMat4(dst, vkGlobals.proj, viewWorld);
+	multiplyMat4(dst, vkGlobals.viewProj, worldRaw);
 }
 
-static void
+static inline void
 colorToFloat(float *dst, const RGBA &color)
 {
-	RGBAf c;
-	convColor(&c, &color);
-	dst[0] = c.red;
-	dst[1] = c.green;
-	dst[2] = c.blue;
-	dst[3] = c.alpha;
+	static const float inv255 = 1.0f / 255.0f;
+	dst[0] = color.red * inv255;
+	dst[1] = color.green * inv255;
+	dst[2] = color.blue * inv255;
+	dst[3] = color.alpha * inv255;
 }
 
 static uint32
@@ -1940,12 +2007,32 @@ getRayGeometry(Geometry *geo)
 }
 
 static void
+freeRayGeometryFor(Geometry *geo)
+{
+	if(geo == nil || vkGlobals.rayGeometries == nil)
+		return;
+	for(uint32 i = 0; i < vkGlobals.numRayGeometries; i++){
+		if(vkGlobals.rayGeometries[i].geometry == geo){
+			destroyRayAccelerationStructure(&vkGlobals.rayGeometries[i].blas);
+			vkGlobals.numRayGeometries--;
+			if(i < vkGlobals.numRayGeometries)
+				vkGlobals.rayGeometries[i] = vkGlobals.rayGeometries[vkGlobals.numRayGeometries];
+			memset(&vkGlobals.rayGeometries[vkGlobals.numRayGeometries], 0, sizeof(RayGeometry));
+			break;
+		}
+	}
+}
+
+static void
 registerRayInstance(Geometry *geo, Matrix *world)
 {
 	if(!vkGlobals.rayResourcesReady || vkGlobals.numRayPendingInstances >= MAX_RAY_PENDING_INSTANCES)
 		return;
 	RayGeometry *rayGeo = getRayGeometry(geo);
 	if(rayGeo == nil || rayGeo->blas.as == VK_NULL_HANDLE)
+		return;
+	VkDeviceAddress blasAddress = getAccelerationStructureDeviceAddress(rayGeo->blas.as);
+	if(blasAddress == 0)
 		return;
 	if(vkGlobals.numRayPendingInstances >= vkGlobals.rayPendingInstanceCapacity){
 		uint32 newCapacity = vkGlobals.rayPendingInstanceCapacity ? vkGlobals.rayPendingInstanceCapacity * 2 : 512;
@@ -1963,7 +2050,7 @@ registerRayInstance(Geometry *geo, Matrix *world)
 		vkGlobals.rayPendingInstanceCapacity = newCapacity;
 	}
 	RayInstanceRef *inst = &vkGlobals.rayPendingInstances[vkGlobals.numRayPendingInstances++];
-	inst->geometry = rayGeo;
+	inst->blasAddress = blasAddress;
 	inst->transform = *world;
 }
 
@@ -2197,6 +2284,7 @@ createTextureDescriptors(void)
 	VkDescriptorPoolCreateInfo poolInfo;
 	memset(&poolInfo, 0, sizeof(poolInfo));
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	poolInfo.poolSizeCount = poolSizeCount;
 	poolInfo.pPoolSizes = poolSizes;
 	poolInfo.maxSets = 8192 + MAX_FRAMES_IN_FLIGHT + (ctx->rayQueryEnabled ? MAX_FRAMES_IN_FLIGHT : 0);
@@ -2496,13 +2584,11 @@ destroyPipelineCache(void)
 
 static bool32
 createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, PrimitiveType primType,
-	const uint32 *vertCode, size_t vertSize, const uint32 *fragCode, size_t fragSize,
+	VkShaderModule vertShader, VkShaderModule fragShader,
 	VkVertexInputBindingDescription *bindingDesc,
 	VkVertexInputAttributeDescription *attribDescs, uint32 attribCount)
 {
 	Context *ctx = &vkGlobals.context;
-	VkShaderModule vertShader = createShaderModule(vertCode, vertSize);
-	VkShaderModule fragShader = createShaderModule(fragCode, fragSize);
 	if(vertShader == VK_NULL_HANDLE || fragShader == VK_NULL_HANDLE)
 		return 0;
 
@@ -2615,11 +2701,8 @@ createGraphicsPipeline(PipelineKind kind, BlendPipelineMode blendMode, Primitive
 	pipelineInfo.renderPass = ctx->renderPass;
 	pipelineInfo.subpass = 0;
 
-	bool32 ok = vkOk(vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &pipelineInfo, nil,
+	return vkOk(vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &pipelineInfo, nil,
 		&vkGlobals.pipelines[kind][blendMode][primType]), "vkCreateGraphicsPipelines");
-	vkDestroyShaderModule(ctx->device, vertShader, nil);
-	vkDestroyShaderModule(ctx->device, fragShader, nil);
-	return ok;
 }
 
 static bool32
@@ -2694,79 +2777,118 @@ createDrawPipelines(void)
 	bool32 useRayTracing = vkGlobals.rayTracingUserEnabled && vkGlobals.rayResourcesReady;
 	const uint32 *color3dFrag = useRayTracing ? color3d_ray_frag_spv : color3d_frag_spv;
 	size_t color3dFragSize = useRayTracing ? color3d_ray_frag_spv_size : color3d_frag_spv_size;
+
+	VkShaderModule shIm2dVert = createShaderModule(im2d_vert_spv, im2d_vert_spv_size);
+	VkShaderModule shIm2dFrag = createShaderModule(im2d_frag_spv, im2d_frag_spv_size);
+	VkShaderModule shColor3dVert = createShaderModule(color3d_vert_spv, color3d_vert_spv_size);
+	VkShaderModule shColor3dFrag = createShaderModule(color3dFrag, color3dFragSize);
+	VkShaderModule shLit3dVert = createShaderModule(lit3d_vert_spv, lit3d_vert_spv_size);
+	VkShaderModule shLit3dFrag = createShaderModule(lit3d_frag_spv, lit3d_frag_spv_size);
+	VkShaderModule shMatfxVert = createShaderModule(matfx_env_vert_spv, matfx_env_vert_spv_size);
+	VkShaderModule shMatfxFrag = createShaderModule(matfx_env_frag_spv, matfx_env_frag_spv_size);
+
+	Context *ctx = &vkGlobals.context;
+	if(shIm2dVert == VK_NULL_HANDLE || shIm2dFrag == VK_NULL_HANDLE ||
+	   shColor3dVert == VK_NULL_HANDLE || shColor3dFrag == VK_NULL_HANDLE ||
+	   shLit3dVert == VK_NULL_HANDLE || shLit3dFrag == VK_NULL_HANDLE ||
+	   shMatfxVert == VK_NULL_HANDLE || shMatfxFrag == VK_NULL_HANDLE){
+		if(shIm2dVert) vkDestroyShaderModule(ctx->device, shIm2dVert, nil);
+		if(shIm2dFrag) vkDestroyShaderModule(ctx->device, shIm2dFrag, nil);
+		if(shColor3dVert) vkDestroyShaderModule(ctx->device, shColor3dVert, nil);
+		if(shColor3dFrag) vkDestroyShaderModule(ctx->device, shColor3dFrag, nil);
+		if(shLit3dVert) vkDestroyShaderModule(ctx->device, shLit3dVert, nil);
+		if(shLit3dFrag) vkDestroyShaderModule(ctx->device, shLit3dFrag, nil);
+		if(shMatfxVert) vkDestroyShaderModule(ctx->device, shMatfxVert, nil);
+		if(shMatfxFrag) vkDestroyShaderModule(ctx->device, shMatfxFrag, nil);
+		return 0;
+	}
+
+	bool32 buildOk = 1;
 	for(uint32 i = 0; i < sizeof(prims)/sizeof(prims[0]); i++){
 		for(int b = 0; b < PIPE_BLEND_COUNT; b++){
 			if(!createGraphicsPipeline(PIPE_IM2D, (BlendPipelineMode)b, prims[i],
-			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      shIm2dVert, shIm2dFrag,
 			      &im2dBinding, im2dAttribs, 3))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_IM2D_ZTEST, (BlendPipelineMode)b, prims[i],
-			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      shIm2dVert, shIm2dFrag,
 			      &im2dBinding, im2dAttribs, 3))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_IM2D_ZWRITE, (BlendPipelineMode)b, prims[i],
-			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      shIm2dVert, shIm2dFrag,
 			      &im2dBinding, im2dAttribs, 3))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_IM2D_ZTEST_ZWRITE, (BlendPipelineMode)b, prims[i],
-			      im2d_vert_spv, im2d_vert_spv_size, im2d_frag_spv, im2d_frag_spv_size,
+			      shIm2dVert, shIm2dFrag,
 			      &im2dBinding, im2dAttribs, 3))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_COLOR3D, (BlendPipelineMode)b, prims[i],
-			      color3d_vert_spv, color3d_vert_spv_size, color3dFrag, color3dFragSize,
+			      shColor3dVert, shColor3dFrag,
 			      &color3dBinding, color3dAttribs, 4))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZWRITE, (BlendPipelineMode)b, prims[i],
-			      color3d_vert_spv, color3d_vert_spv_size, color3dFrag, color3dFragSize,
+			      shColor3dVert, shColor3dFrag,
 			      &color3dBinding, color3dAttribs, 4))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZTEST, (BlendPipelineMode)b, prims[i],
-			      color3d_vert_spv, color3d_vert_spv_size, color3dFrag, color3dFragSize,
+			      shColor3dVert, shColor3dFrag,
 			      &color3dBinding, color3dAttribs, 4))
-				return 0;
+				{ buildOk = 0; break; }
 			if(!createGraphicsPipeline(PIPE_COLOR3D_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
-			      color3d_vert_spv, color3d_vert_spv_size, color3dFrag, color3dFragSize,
+			      shColor3dVert, shColor3dFrag,
 			      &color3dBinding, color3dAttribs, 4))
-				return 0;
+				{ buildOk = 0; break; }
 			// Instanced geometry meshes are always tri lists or strips
 			if(prims[i] == PRIMTYPETRILIST || prims[i] == PRIMTYPETRISTRIP){
 				if(!createGraphicsPipeline(PIPE_LIT3D, (BlendPipelineMode)b, prims[i],
-				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      shLit3dVert, shLit3dFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_LIT3D_NOZWRITE, (BlendPipelineMode)b, prims[i],
-				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      shLit3dVert, shLit3dFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_LIT3D_NOZTEST, (BlendPipelineMode)b, prims[i],
-				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      shLit3dVert, shLit3dFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_LIT3D_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
-				      lit3d_vert_spv, lit3d_vert_spv_size, lit3d_frag_spv, lit3d_frag_spv_size,
+				      shLit3dVert, shLit3dFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 
 				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP, (BlendPipelineMode)b, prims[i],
-				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      shMatfxVert, shMatfxFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZWRITE, (BlendPipelineMode)b, prims[i],
-				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      shMatfxVert, shMatfxFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZTEST, (BlendPipelineMode)b, prims[i],
-				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      shMatfxVert, shMatfxFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 				if(!createGraphicsPipeline(PIPE_MATFX_ENVMAP_NOZTEST_NOZWRITE, (BlendPipelineMode)b, prims[i],
-				      matfx_env_vert_spv, matfx_env_vert_spv_size, matfx_env_frag_spv, matfx_env_frag_spv_size,
+				      shMatfxVert, shMatfxFrag,
 				      &color3dBinding, color3dAttribs, 4))
-					return 0;
+					{ buildOk = 0; break; }
 			}
 		}
+		if(!buildOk)
+			break;
 	}
-	return 1;
+
+	vkDestroyShaderModule(ctx->device, shIm2dVert, nil);
+	vkDestroyShaderModule(ctx->device, shIm2dFrag, nil);
+	vkDestroyShaderModule(ctx->device, shColor3dVert, nil);
+	vkDestroyShaderModule(ctx->device, shColor3dFrag, nil);
+	vkDestroyShaderModule(ctx->device, shLit3dVert, nil);
+	vkDestroyShaderModule(ctx->device, shLit3dFrag, nil);
+	vkDestroyShaderModule(ctx->device, shMatfxVert, nil);
+	vkDestroyShaderModule(ctx->device, shMatfxFrag, nil);
+
+	return buildOk;
 }
 
 static void
@@ -2847,6 +2969,7 @@ destroyDrawResources(void)
 		&vkGlobals.whiteImageView, &vkGlobals.whiteSampler);
 	vkGlobals.whiteDescriptorSet = VK_NULL_HANDLE;
 	destroyRayResources();
+	destroySamplerPool();
 	if(vkGlobals.descriptorPool != VK_NULL_HANDLE){
 		vkDestroyDescriptorPool(ctx->device, vkGlobals.descriptorPool, nil);
 		vkGlobals.descriptorPool = VK_NULL_HANDLE;
@@ -3032,6 +3155,7 @@ openSDL3(EngineOpenParams *openparams)
 	memset(vkGlobals.renderStates, 0, sizeof(vkGlobals.renderStates));
 	copyIdentity(vkGlobals.view);
 	copyIdentity(vkGlobals.proj);
+	copyIdentity(vkGlobals.viewProj);
 	vkGlobals.im3dWorld.setIdentity();
 
 	if(!SDL_InitSubSystem(SDL_INIT_VIDEO)){
@@ -3068,16 +3192,72 @@ closeSDL3(void)
 	return 1;
 }
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+vulkanDebugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void* pUserData)
+{
+	(void)messageType;
+	(void)pUserData;
+	if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
+		fprintf(stderr, "[Vulkan Validation] %s\n", pCallbackData->pMessage);
+		SDL_Log("[Vulkan Validation] %s", pCallbackData->pMessage);
+	}
+	return VK_FALSE;
+}
+
+static bool32
+hasValidationLayer(void)
+{
+	uint32 layerCount = 0;
+	if(vkEnumerateInstanceLayerProperties(&layerCount, nil) != VK_SUCCESS || layerCount == 0)
+		return 0;
+	VkLayerProperties *layers = rwNewT(VkLayerProperties, layerCount, MEMDUR_FUNCTION | ID_DRIVER);
+	if(layers == nil)
+		return 0;
+	if(vkEnumerateInstanceLayerProperties(&layerCount, layers) != VK_SUCCESS){
+		rwFree(layers);
+		return 0;
+	}
+	bool32 found = 0;
+	for(uint32 i = 0; i < layerCount; i++){
+		if(strcmp(layers[i].layerName, "VK_LAYER_KHR_validation") == 0){
+			found = 1;
+			break;
+		}
+	}
+	rwFree(layers);
+	return found;
+}
+
 static bool32
 createInstance(void)
 {
 	Context *ctx = &vkGlobals.context;
-	Uint32 extensionCount = 0;
-	const char * const *extensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
-	if(extensions == nil){
+	Uint32 sdlExtCount = 0;
+	const char * const *sdlExts = SDL_Vulkan_GetInstanceExtensions(&sdlExtCount);
+	if(sdlExts == nil){
 		RWERROR((ERR_GENERAL, SDL_GetError()));
 		return 0;
 	}
+
+	bool32 enableValidation = hasValidationLayer();
+
+	uint32 totalExtCount = sdlExtCount;
+	if(enableValidation)
+		totalExtCount++;
+
+	const char **extensions = rwNewT(const char*, totalExtCount, MEMDUR_FUNCTION | ID_DRIVER);
+	if(extensions == nil)
+		return 0;
+	for(Uint32 i = 0; i < sdlExtCount; i++)
+		extensions[i] = sdlExts[i];
+	if(enableValidation)
+		extensions[sdlExtCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+	const char *validationLayers[] = { "VK_LAYER_KHR_validation" };
 
 	VkApplicationInfo appInfo;
 	memset(&appInfo, 0, sizeof(appInfo));
@@ -3099,14 +3279,43 @@ createInstance(void)
 		}
 	}
 
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+	memset(&debugCreateInfo, 0, sizeof(debugCreateInfo));
+	debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+	                                  VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+	                              VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+	                              VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	debugCreateInfo.pfnUserCallback = vulkanDebugCallback;
+
 	VkInstanceCreateInfo createInfo;
 	memset(&createInfo, 0, sizeof(createInfo));
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
-	createInfo.enabledExtensionCount = extensionCount;
+	createInfo.enabledExtensionCount = totalExtCount;
 	createInfo.ppEnabledExtensionNames = extensions;
+	if(enableValidation){
+		createInfo.enabledLayerCount = 1;
+		createInfo.ppEnabledLayerNames = validationLayers;
+		createInfo.pNext = &debugCreateInfo;
+	}
 
-	return vkOk(vkCreateInstance(&createInfo, nil, &ctx->instance), "vkCreateInstance");
+	bool32 ok = vkOk(vkCreateInstance(&createInfo, nil, &ctx->instance), "vkCreateInstance");
+	rwFree(extensions);
+	if(!ok)
+		return 0;
+
+	if(enableValidation){
+		PFN_vkCreateDebugUtilsMessengerEXT createDebugMessenger =
+			(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ctx->instance, "vkCreateDebugUtilsMessengerEXT");
+		if(createDebugMessenger)
+			createDebugMessenger(ctx->instance, &debugCreateInfo, nil, &ctx->debugMessenger);
+		fprintf(stderr, "[Vulkan] VK_LAYER_KHR_validation enabled successfully.\n");
+		SDL_Log("[Vulkan] VK_LAYER_KHR_validation enabled successfully.");
+	}
+
+	return 1;
 }
 
 static bool32
@@ -4024,10 +4233,7 @@ buildRaySceneForCurrentFrame(VkCommandBuffer commandBuffer)
 	uint32 count = 0;
 	for(uint32 i = 0; i < vkGlobals.numRayPendingInstances; i++){
 		RayInstanceRef *src = &vkGlobals.rayPendingInstances[i];
-		if(src->geometry == nil || src->geometry->blas.as == VK_NULL_HANDLE)
-			continue;
-		VkDeviceAddress blasAddress = getAccelerationStructureDeviceAddress(src->geometry->blas.as);
-		if(blasAddress == 0)
+		if(src->blasAddress == 0)
 			continue;
 		VkAccelerationStructureInstanceKHR *dst = &instances[count++];
 		memset(dst, 0, sizeof(*dst));
@@ -4036,7 +4242,7 @@ buildRaySceneForCurrentFrame(VkCommandBuffer commandBuffer)
 		dst->mask = 0xFF;
 		dst->instanceShaderBindingTableRecordOffset = 0;
 		dst->flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-		dst->accelerationStructureReference = blasAddress;
+		dst->accelerationStructureReference = src->blasAddress;
 	}
 	vkGlobals.numRayPendingInstances = 0;
 
@@ -4183,6 +4389,13 @@ stopSDL3(void)
 		vkDestroyDevice(ctx->device, nil);
 	if(ctx->surface != VK_NULL_HANDLE)
 		vkDestroySurfaceKHR(ctx->instance, ctx->surface, nil);
+	if(ctx->debugMessenger != VK_NULL_HANDLE){
+		PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugMessenger =
+			(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
+		if(destroyDebugMessenger)
+			destroyDebugMessenger(ctx->instance, ctx->debugMessenger, nil);
+		ctx->debugMessenger = VK_NULL_HANDLE;
+	}
 	if(ctx->instance != VK_NULL_HANDLE)
 		vkDestroyInstance(ctx->instance, nil);
 	if(ctx->window) {
@@ -4340,6 +4553,7 @@ beginUpdate(Camera *cam)
 	proj[14] = -cam->nearPlane*proj[10];
 	memcpy(&cam->devProj, &proj, sizeof(RawMatrix));
 	memcpy(vkGlobals.proj, proj, sizeof(proj));
+	multiplyMat4(vkGlobals.viewProj, proj, view);
 
 	engine->currentCamera = cam;
 	if(cam->frameBuffer && cam->frameBuffer->type == Raster::CAMERATEXTURE)
@@ -4581,10 +4795,17 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 static void setRenderState(int32 state, void *value)
 {
 	if(state >= 0 && state <= GSALPHATESTREF){
+		if(state == TEXTURERASTER){
+			vkGlobals.renderStates[state] = value;
+			vkGlobals.renderStateSet[state] = 1;
+			if(value && !ensureTextureUploaded((Raster*)value))
+				queueTextureUpload((Raster*)value);
+			return;
+		}
+		if(vkGlobals.renderStateSet[state] && vkGlobals.renderStates[state] == value)
+			return;
 		vkGlobals.renderStates[state] = value;
 		vkGlobals.renderStateSet[state] = 1;
-		if(state == TEXTURERASTER && value && !ensureTextureUploaded((Raster*)value))
-			queueTextureUpload((Raster*)value);
 	}
 }
 
@@ -5198,8 +5419,10 @@ ensureInstanceBuffers(InstanceDataHeader *header)
 void
 freeInstanceData(Geometry *geometry)
 {
-	if(geometry == nil || geometry->instData == nil ||
-	   geometry->instData->platform != PLATFORM_VULKAN)
+	if(geometry == nil)
+		return;
+	freeRayGeometryFor(geometry);
+	if(geometry->instData == nil || geometry->instData->platform != PLATFORM_VULKAN)
 		return;
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 	geometry->instData = nil;
@@ -5397,12 +5620,11 @@ setLit3DFog(Lit3DUniforms *u)
 	u->fogData[3] = enabled ? 0.0f : 1.0f;
 
 	uint32 packed = getRenderStateUInt(FOGCOLOR, 0);
-	RGBA c;
-	c.red = packed;
-	c.green = packed >> 8;
-	c.blue = packed >> 16;
-	c.alpha = packed >> 24;
-	colorToFloat(u->fogColor, c);
+	static const float inv255 = 1.0f / 255.0f;
+	u->fogColor[0] = (float)(packed & 0xFF) * inv255;
+	u->fogColor[1] = (float)((packed >> 8) & 0xFF) * inv255;
+	u->fogColor[2] = (float)((packed >> 16) & 0xFF) * inv255;
+	u->fogColor[3] = (float)((packed >> 24) & 0xFF) * inv255;
 }
 
 // Same light constants as the d3d11 backend's setLightConstants
@@ -5824,41 +6046,47 @@ skinRenderCB(Atomic *atomic)
 		}
 
 		// CPU skinning: blend by bone weights
-		if(skin && skin->weights && skin->indices){
-			V3d pos = {0,0,0};
-			V3d nrm = {0,0,0};
-			uint8 *idx = &skin->indices[i*4];
-			float *wgt = &skin->weights[i*4];
-			for(int32 j = 0; j < 4; j++){
-				float w = wgt[j];
-				if(w == 0.0f) continue;
-				Matrix *m = &skinMats[idx[j]];
-				// Transform point: pos += w * (m * srcPos)
-				V3d tp;
-				tp.x = m->right.x*srcPos.x + m->up.x*srcPos.y + m->at.x*srcPos.z + m->pos.x;
-				tp.y = m->right.y*srcPos.x + m->up.y*srcPos.y + m->at.y*srcPos.z + m->pos.y;
-				tp.z = m->right.z*srcPos.x + m->up.z*srcPos.y + m->at.z*srcPos.z + m->pos.z;
-				pos.x += w*tp.x;
-				pos.y += w*tp.y;
-				pos.z += w*tp.z;
-				// Transform vector: nrm += w * (m * srcNrm)
-				V3d tn;
-				tn.x = m->right.x*srcNrm.x + m->up.x*srcNrm.y + m->at.x*srcNrm.z;
-				tn.y = m->right.y*srcNrm.x + m->up.y*srcNrm.y + m->at.y*srcNrm.z;
-				tn.z = m->right.z*srcNrm.x + m->up.z*srcNrm.y + m->at.z*srcNrm.z;
-				nrm.x += w*tn.x;
-				nrm.y += w*tn.y;
-				nrm.z += w*tn.z;
+		if(skin && skin->weights && skin->indices && numBones > 0){
+			const uint8 *idx = &skin->indices[i*4];
+			const float *wgt = &skin->weights[i*4];
+			if(wgt[0] >= 0.999f && idx[0] < numBones){
+				// Fast path: single-bone rigid weight
+				const Matrix *m = &skinMats[idx[0]];
+				v.position.x = m->right.x*srcPos.x + m->up.x*srcPos.y + m->at.x*srcPos.z + m->pos.x;
+				v.position.y = m->right.y*srcPos.x + m->up.y*srcPos.y + m->at.y*srcPos.z + m->pos.y;
+				v.position.z = m->right.z*srcPos.x + m->up.z*srcPos.y + m->at.z*srcPos.z + m->pos.z;
+				v.normal.x = m->right.x*srcNrm.x + m->up.x*srcNrm.y + m->at.x*srcNrm.z;
+				v.normal.y = m->right.y*srcNrm.x + m->up.y*srcNrm.y + m->at.y*srcNrm.z;
+				v.normal.z = m->right.z*srcNrm.x + m->up.z*srcNrm.y + m->at.z*srcNrm.z;
+			}else{
+				V3d pos = {0,0,0};
+				V3d nrm = {0,0,0};
+				for(int32 j = 0; j < 4; j++){
+					float w = wgt[j];
+					if(w == 0.0f) continue;
+					uint8 boneIdx = idx[j];
+					if(boneIdx >= numBones) continue;
+					const Matrix *m = &skinMats[boneIdx];
+					// Transform point: pos += w * (m * srcPos)
+					pos.x += w * (m->right.x*srcPos.x + m->up.x*srcPos.y + m->at.x*srcPos.z + m->pos.x);
+					pos.y += w * (m->right.y*srcPos.x + m->up.y*srcPos.y + m->at.y*srcPos.z + m->pos.y);
+					pos.z += w * (m->right.z*srcPos.x + m->up.z*srcPos.y + m->at.z*srcPos.z + m->pos.z);
+					// Transform vector: nrm += w * (m * srcNrm)
+					nrm.x += w * (m->right.x*srcNrm.x + m->up.x*srcNrm.y + m->at.x*srcNrm.z);
+					nrm.y += w * (m->right.y*srcNrm.x + m->up.y*srcNrm.y + m->at.y*srcNrm.z);
+					nrm.z += w * (m->right.z*srcNrm.x + m->up.z*srcNrm.y + m->at.z*srcNrm.z);
+				}
+				v.position = pos;
+				// Normalize
+				float len = sqrtf(nrm.x*nrm.x + nrm.y*nrm.y + nrm.z*nrm.z);
+				if(len > 0.0001f){
+					float invLen = 1.0f / len;
+					nrm.x *= invLen;
+					nrm.y *= invLen;
+					nrm.z *= invLen;
+				}
+				v.normal = nrm;
 			}
-			v.position = pos;
-			// Normalize
-			float len = sqrtf(nrm.x*nrm.x + nrm.y*nrm.y + nrm.z*nrm.z);
-			if(len > 0.0001f){
-				nrm.x /= len;
-				nrm.y /= len;
-				nrm.z /= len;
-			}
-			v.normal = nrm;
 		}else{
 			v.position = srcPos;
 			v.normal = srcNrm;
@@ -6009,8 +6237,7 @@ initSkin(void)
 static void
 getEnvMatrix(float *dst, Frame *frame)
 {
-	Matrix invMat;
-	if(frame == nil)
+	if(frame == nil && engine->currentCamera)
 		frame = ((Camera*)engine->currentCamera)->getFrame();
 
 	static RawMatrix normal2texcoord = {
@@ -6020,6 +6247,12 @@ getEnvMatrix(float *dst, Frame *frame)
 		{ 0.5f,  0.5f, 0.0f }, 1.0f
 	};
 
+	if(frame == nil || frame->getLTM() == nil){
+		copyIdentity(dst);
+		return;
+	}
+
+	Matrix invMat;
 	RawMatrix envMtx;
 	RawMatrix invMtx;
 	Matrix::invert(&invMat, frame->getLTM());

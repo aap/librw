@@ -69,6 +69,7 @@ struct Context
 	uint32 currentImage;
 	bool32 frameStarted;
 	VkPipelineCache pipelineCache;
+	VkDebugUtilsMessengerEXT debugMessenger;
 };
 
 Context *getContext(void);
