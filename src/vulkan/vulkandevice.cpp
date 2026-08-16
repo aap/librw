@@ -600,11 +600,14 @@ uploadDynamicBuffer(VulkanBuffer *buffer, VkDeviceSize *cursor, const void *data
 
 	if(buffer->buffer == VK_NULL_HANDLE || buffer->capacity < end){
 		if(*cursor != 0){
-			fprintf(stderr, "Vulkan dynamic buffer exhausted: requested %llu bytes, capacity %llu bytes\n",
-				(unsigned long long)end, (unsigned long long)buffer->capacity);
-			return 0;
+			Context *ctx = &vkGlobals.context;
+			if(ctx->device != VK_NULL_HANDLE)
+				vkDeviceWaitIdle(ctx->device);
 		}
-		if(!ensureBuffer(buffer, end, usage))
+		VkDeviceSize newCap = buffer->capacity ? buffer->capacity * 2 : 16ull * 1024ull * 1024ull;
+		while(newCap < end)
+			newCap *= 2;
+		if(!ensureBuffer(buffer, newCap, usage))
 			return 0;
 	}
 
@@ -1887,11 +1890,32 @@ makeRawMatrix(float *dst, Matrix *src)
 }
 
 static void
+makeViewProj(RawMatrix *out)
+{
+	Camera *cam = (Camera*)engine->currentCamera;
+	if(cam)
+		RawMatrix::mult(out, &cam->devView, &cam->devProj);
+	else{
+		RawMatrix v, p;
+		memcpy(&v, vkGlobals.view, sizeof(RawMatrix));
+		memcpy(&p, vkGlobals.proj, sizeof(RawMatrix));
+		RawMatrix::mult(out, &v, &p);
+	}
+}
+
+static void
 makeMVP(float *dst, Matrix *world)
 {
-	float worldRaw[16];
-	makeRawMatrix(worldRaw, world);
-	multiplyMat4(dst, vkGlobals.viewProj, worldRaw);
+	Matrix ident;
+	if(world == nil){
+		ident.setIdentity();
+		world = &ident;
+	}
+	RawMatrix worldRaw, viewproj, mvp;
+	convMatrix(&worldRaw, world);
+	makeViewProj(&viewproj);
+	RawMatrix::mult(&mvp, &worldRaw, &viewproj);
+	memcpy(dst, &mvp, sizeof(RawMatrix));
 }
 
 static inline void
@@ -4291,13 +4315,13 @@ setSwapchainViewportAndScissor(void)
 	viewport.height = (float)ctx->swapchainExtent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
+	vkCmdSetViewport(ctx->commandBuffers[ctx->currentFrame], 0, 1, &viewport);
 
 	VkRect2D scissor;
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent = ctx->swapchainExtent;
-	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &scissor);
+	vkCmdSetScissor(ctx->commandBuffers[ctx->currentFrame], 0, 1, &scissor);
 }
 
 static void
@@ -4327,7 +4351,7 @@ beginSwapchainRenderPass(VkRenderPass renderPass, VkFramebuffer framebuffer, boo
 	rpInfo.renderArea.extent = ctx->swapchainExtent;
 	rpInfo.clearValueCount = clear ? nelem(clearValues) : 0;
 	rpInfo.pClearValues = clear ? clearValues : nil;
-	vkCmdBeginRenderPass(ctx->commandBuffers[ctx->currentImage], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(ctx->commandBuffers[ctx->currentFrame], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 	setSwapchainViewportAndScissor();
 	resetCommandBindings();
 }
@@ -4444,22 +4468,16 @@ beginFrame(void)
 	if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		return vkOk(result, "vkAcquireNextImageKHR");
 
-	if(ctx->imagesInFlight && ctx->imagesInFlight[ctx->currentImage] != VK_NULL_HANDLE)
-		vkWaitForFences(ctx->device, 1, &ctx->imagesInFlight[ctx->currentImage], VK_TRUE, UINT64_MAX);
-	if(ctx->imagesInFlight)
-		ctx->imagesInFlight[ctx->currentImage] = ctx->inFlight[ctx->currentFrame];
-
 	vkResetFences(ctx->device, 1, &ctx->inFlight[ctx->currentFrame]);
-	vkResetCommandBuffer(ctx->commandBuffers[ctx->currentImage], 0);
+	vkResetCommandBuffer(ctx->commandBuffers[ctx->currentFrame], 0);
 
 	VkCommandBufferBeginInfo beginInfo;
 	memset(&beginInfo, 0, sizeof(beginInfo));
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	if(!vkOk(vkBeginCommandBuffer(ctx->commandBuffers[ctx->currentImage], &beginInfo), "vkBeginCommandBuffer"))
+	if(!vkOk(vkBeginCommandBuffer(ctx->commandBuffers[ctx->currentFrame], &beginInfo), "vkBeginCommandBuffer"))
 		return 0;
 
-	flushPendingTextureUploads(ctx->commandBuffers[ctx->currentImage]);
-	buildRaySceneForCurrentFrame(ctx->commandBuffers[ctx->currentImage]);
+	flushPendingTextureUploads(ctx->commandBuffers[ctx->currentFrame]);
 	beginSwapchainRenderPass(ctx->renderPass, ctx->framebuffers[ctx->currentImage], 1);
 
 	ctx->frameStarted = 1;
@@ -4575,8 +4593,8 @@ beginUpdate(Camera *cam)
 	viewport.height = (float)rect.extent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(ctx->commandBuffers[ctx->currentImage], 0, 1, &viewport);
-	vkCmdSetScissor(ctx->commandBuffers[ctx->currentImage], 0, 1, &rect);
+	vkCmdSetViewport(ctx->commandBuffers[ctx->currentFrame], 0, 1, &viewport);
+	vkCmdSetScissor(ctx->commandBuffers[ctx->currentFrame], 0, 1, &rect);
 }
 
 static void
@@ -4585,8 +4603,8 @@ finishFrameCommands(void)
 	Context *ctx = &vkGlobals.context;
 	if(!ctx->frameStarted || vkGlobals.commandReady)
 		return;
-	vkCmdEndRenderPass(ctx->commandBuffers[ctx->currentImage]);
-	vkOk(vkEndCommandBuffer(ctx->commandBuffers[ctx->currentImage]), "vkEndCommandBuffer");
+	vkCmdEndRenderPass(ctx->commandBuffers[ctx->currentFrame]);
+	vkOk(vkEndCommandBuffer(ctx->commandBuffers[ctx->currentFrame]), "vkEndCommandBuffer");
 	vkGlobals.commandReady = 1;
 }
 
@@ -4644,7 +4662,7 @@ clearCamera(Camera *cam, RGBA *col, uint32 mode)
 		n++;
 	}
 	if(n)
-		vkCmdClearAttachments(ctx->commandBuffers[ctx->currentImage], n, atts, 1, &rect);
+		vkCmdClearAttachments(ctx->commandBuffers[ctx->currentFrame], n, atts, 1, &rect);
 }
 
 static void
@@ -4663,7 +4681,7 @@ showRaster(Raster*, uint32 flags)
 	submitInfo.pWaitSemaphores = &ctx->imageAvailable[ctx->currentFrame];
 	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &ctx->commandBuffers[ctx->currentImage];
+	submitInfo.pCommandBuffers = &ctx->commandBuffers[ctx->currentFrame];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &ctx->renderFinished[ctx->currentFrame];
 
@@ -4754,7 +4772,7 @@ rasterRenderFast(Raster *raster, int32 x, int32 y)
 	if(copyWidth == 0 || copyHeight == 0)
 		return 0;
 
-	VkCommandBuffer commandBuffer = ctx->commandBuffers[ctx->currentImage];
+	VkCommandBuffer commandBuffer = ctx->commandBuffers[ctx->currentFrame];
 	vkCmdEndRenderPass(commandBuffer);
 	resetCommandBindings();
 
@@ -4838,7 +4856,7 @@ bindTextureSet(PipelineKind kind, VkDescriptorSet set)
 	if(set == VK_NULL_HANDLE)
 		set = vkGlobals.whiteDescriptorSet;
 	if(vkGlobals.currentDescriptorSet != set || vkGlobals.currentDescriptorSetKind != kind){
-		vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentImage],
+		vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentFrame],
 			VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[kind],
 			0, 1, &set, 0, nil);
 		vkGlobals.currentDescriptorSet = set;
@@ -4862,7 +4880,7 @@ bindRaySet(PipelineKind kind)
 	VkDescriptorSet set = vkGlobals.rayDescriptorSets[ctx->currentFrame];
 	if(set == VK_NULL_HANDLE)
 		return;
-	vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentImage],
+	vkCmdBindDescriptorSets(ctx->commandBuffers[ctx->currentFrame],
 		VK_PIPELINE_BIND_POINT_GRAPHICS, vkGlobals.pipelineLayouts[kind],
 		1, 1, &set, 0, nil);
 }
@@ -4935,13 +4953,13 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 
 	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 	if(vkGlobals.currentPipeline != pipeline){
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentFrame],
 			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkGlobals.currentPipeline = pipeline;
 	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentFrame], 0, 1, vertexBuffers, offsets);
 
 	Im2DPushConstants pc;
 	Camera *cam = (Camera*)engine->currentCamera;
@@ -4954,10 +4972,10 @@ im2DRenderPrimitive(PrimitiveType primType, void *vertices, int32 numVertices)
 	RGBA white = { 255, 255, 255, 255 };
 	colorToFloat(pc.matColor, white);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentFrame], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 	bindTextureSet(k, getTextureDescriptor(textureRaster));
-	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
+	vkCmdDraw(ctx->commandBuffers[ctx->currentFrame], numVertices, 1, 0, 0);
 }
 
 static void
@@ -4989,14 +5007,14 @@ im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVert
 
 	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 	if(vkGlobals.currentPipeline != pipeline){
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentFrame],
 			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkGlobals.currentPipeline = pipeline;
 	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentFrame], 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentFrame], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
 	Im2DPushConstants pc;
 	Camera *cam = (Camera*)engine->currentCamera;
@@ -5009,10 +5027,10 @@ im2DRenderIndexedPrimitive(PrimitiveType primType, void *vertices, int32 numVert
 	RGBA white = { 255, 255, 255, 255 };
 	colorToFloat(pc.matColor, white);
 	makeAlphaRef(pc.alphaRef, alpha);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentFrame], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 	bindTextureSet(k, getTextureDescriptor(textureRaster));
-	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
+	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentFrame], numIndices, 1, 0, 0, 0);
 }
 
 static void
@@ -5032,13 +5050,13 @@ drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVert
 
 	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 	if(vkGlobals.currentPipeline != pipeline){
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentFrame],
 			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkGlobals.currentPipeline = pipeline;
 	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentFrame], 0, 1, vertexBuffers, offsets);
 
 	Color3DPushConstants pc;
 	makeMVP(pc.mvp, world);
@@ -5046,11 +5064,11 @@ drawColor3DPrimitive(PrimitiveType primType, Im3DVertex *vertices, int32 numVert
 	makeAlphaRef(pc.alphaRef, alpha);
 	makeRtParams(pc.rtParams, rayTrace);
 	makeRtLight(pc.rtLight, nil);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentFrame], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 	bindTextureSet(k, descriptorSet);
 	bindRaySet(k);
-	vkCmdDraw(ctx->commandBuffers[ctx->currentImage], numVertices, 1, 0, 0);
+	vkCmdDraw(ctx->commandBuffers[ctx->currentFrame], numVertices, 1, 0, 0);
 }
 
 static void
@@ -5074,14 +5092,14 @@ drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertic
 
 	VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 	if(vkGlobals.currentPipeline != pipeline){
-		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+		vkCmdBindPipeline(ctx->commandBuffers[ctx->currentFrame],
 			VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vkGlobals.currentPipeline = pipeline;
 	}
 	VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 	VkDeviceSize offsets[] = { vertexOffset };
-	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+	vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentFrame], 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentFrame], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
 	Color3DPushConstants pc;
 	makeMVP(pc.mvp, world);
@@ -5089,11 +5107,11 @@ drawColor3DIndexed(PrimitiveType primType, Im3DVertex *vertices, int32 numVertic
 	makeAlphaRef(pc.alphaRef, alpha);
 	makeRtParams(pc.rtParams, rayTrace);
 	makeRtLight(pc.rtLight, nil);
-	vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
+	vkCmdPushConstants(ctx->commandBuffers[ctx->currentFrame], vkGlobals.pipelineLayouts[k],
 		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 	bindTextureSet(k, descriptorSet);
 	bindRaySet(k);
-	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], numIndices, 1, 0, 0, 0);
+	vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentFrame], numIndices, 1, 0, 0, 0);
 }
 
 static void
@@ -5821,7 +5839,7 @@ cpuDefaultRenderCB(Atomic *atomic)
 				return;
 			VkBuffer vertexBuffers[] = { vertexBuffer->buffer };
 			VkDeviceSize offsets[] = { vertexOffset };
-			vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentImage], 0, 1, vertexBuffers, offsets);
+			vkCmdBindVertexBuffers(ctx->commandBuffers[ctx->currentFrame], 0, 1, vertexBuffers, offsets);
 			curSurf = surf;
 		}
 
@@ -5836,11 +5854,11 @@ cpuDefaultRenderCB(Atomic *atomic)
 			rasterHasAlpha(texRaster) || getRenderStateUInt(VERTEXALPHA, 0);
 		VkPipeline pipeline = getDrawPipeline(k, primType, alpha);
 		if(vkGlobals.currentPipeline != pipeline){
-			vkCmdBindPipeline(ctx->commandBuffers[ctx->currentImage],
+			vkCmdBindPipeline(ctx->commandBuffers[ctx->currentFrame],
 				VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 			vkGlobals.currentPipeline = pipeline;
 		}
-		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentImage], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(ctx->commandBuffers[ctx->currentFrame], indexBuffer->buffer, indexOffset, VK_INDEX_TYPE_UINT16);
 
 		Color3DPushConstants pc;
 		makeMVP(pc.mvp, &ident);
@@ -5848,11 +5866,11 @@ cpuDefaultRenderCB(Atomic *atomic)
 		makeAlphaRef(pc.alphaRef, alpha);
 		makeRtParams(pc.rtParams, !alpha);
 		makeRtLight(pc.rtLight, lights.numDirectionals > 0 ? &lights.directionalsNormalized[0] : nil);
-		vkCmdPushConstants(ctx->commandBuffers[ctx->currentImage], vkGlobals.pipelineLayouts[k],
+		vkCmdPushConstants(ctx->commandBuffers[ctx->currentFrame], vkGlobals.pipelineLayouts[k],
 			VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pc), &pc);
 		bindTextureSet(k, tex);
 		bindRaySet(k);
-		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentImage], mesh[i].numIndices, 1, 0, 0, 0);
+		vkCmdDrawIndexed(ctx->commandBuffers[ctx->currentFrame], mesh[i].numIndices, 1, 0, 0, 0);
 	}
 }
 
@@ -5862,11 +5880,6 @@ defaultRenderCB(Atomic *atomic)
 	Geometry *geo = atomic->geometry;
 	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
 		return;
-
-	if(vkGlobals.rayTracingUserEnabled && vkGlobals.context.rayQueryEnabled){
-		cpuDefaultRenderCB(atomic);
-		return;
-	}
 
 	InstanceDataHeader *header = ensureInstanced(atomic);
 	if(header == nil || header->numMeshes == 0)
@@ -5880,7 +5893,7 @@ defaultRenderCB(Atomic *atomic)
 		return;
 
 	Context *ctx = &vkGlobals.context;
-	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentFrame];
 
 	Matrix ident;
 	ident.setIdentity();
@@ -6116,7 +6129,7 @@ skinRenderCB(Atomic *atomic)
 		return;
 
 	Context *ctx = &vkGlobals.context;
-	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentFrame];
 
 	Matrix ident;
 	ident.setIdentity();
@@ -6263,18 +6276,12 @@ getEnvMatrix(float *dst, Frame *frame)
 	RawMatrix::mult(&envMtx, &invMtx, &normal2texcoord);
 	memcpy(dst, &envMtx, sizeof(envMtx));
 }
-
 static void
 matfxRenderCB(Atomic *atomic)
 {
 	Geometry *geo = atomic->geometry;
 	if(geo == nil || geo->numVertices <= 0 || geo->meshHeader == nil)
 		return;
-
-	if(vkGlobals.rayTracingUserEnabled && vkGlobals.context.rayQueryEnabled){
-		cpuDefaultRenderCB(atomic);
-		return;
-	}
 
 	InstanceDataHeader *header = ensureInstanced(atomic);
 	if(header == nil || header->numMeshes == 0)
@@ -6296,7 +6303,7 @@ matfxRenderCB(Atomic *atomic)
 		return;
 
 	Context *ctx = &vkGlobals.context;
-	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentImage];
+	VkCommandBuffer cmd = ctx->commandBuffers[ctx->currentFrame];
 
 	Matrix ident;
 	ident.setIdentity();
