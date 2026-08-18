@@ -1873,7 +1873,7 @@ static Stream*
 writeMipmap(Stream *stream, int32, void *object, int32 offset, int32)
 {
 	Texture *tex = (Texture*)object;
-	if(tex->raster){
+	if(tex->raster == nil){
 		stream->writeI32(defaultMipMapKL);
 		return stream;
 	}
