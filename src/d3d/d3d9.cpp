@@ -757,7 +757,9 @@ readNativeTexture(Stream *stream)
 		raster->flags &= ~Raster::DONTALLOCATE;
 		ext->customFormat = 1;
 	}else if(flags & 2){
-		assert(0 && "Can't have cube maps yet");
+		RWERROR((ERR_GENERAL, "Can't have cube maps yet"));
+		tex->destroy();
+		return nil;
 	}else{
 		raster = Raster::create(width, height, depth, format | type, PLATFORM_D3D9);
 		assert(raster);
