@@ -26,9 +26,11 @@ main(int argc, char *argv[])
 	rw::Engine::open(nil);
 	rw::Engine::start();
 
+	uint32 ver;
 	ARGBEGIN{
 	case 'v':
-		sscanf(EARGF(usage()), "%x", &rw::version);
+		sscanf(EARGF(usage()), "%x", &ver);
+		rw::version = ver;
 		break;
 	default:
 		usage();

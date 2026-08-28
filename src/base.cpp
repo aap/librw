@@ -702,12 +702,13 @@ correctPathCase(char *filename)
 	}
 	while((dir = strtok(arg, PSEP_S))){
 		arg = nil;
-		if(direct = opendir(sofar), dir == nil)
+		direct = opendir(sofar);
+		if(direct == nil)
 			return;
 		while(dirent = readdir(direct), dirent != nil)
 			if(strncmp_ci(dirent->d_name, dir, 1024) == 0){
-				strncat(sofar, PSEP_S, 1024);
-				strncat(sofar, dirent->d_name, 1024);
+				strncat(sofar, PSEP_S, sizeof(sofar)-strlen(sofar)-1);
+				strncat(sofar, dirent->d_name, sizeof(sofar)-strlen(sofar)-1);
 				break;
 			}
 		closedir(direct);

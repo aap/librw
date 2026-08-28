@@ -82,7 +82,7 @@ getChunkName(uint32 id)
 		return "ZModeler Lock";
 	}
 
-	if(id <= 45)
+	if(id < nelem(chunks))
 		return chunks[id];
         else if(id <= 0x0253F2FF && id >= 0x0253F2F0)
                 return RSchunks[id-0x0253F2F0];
