@@ -11,6 +11,7 @@ ENV TOOLCHAIN_GIT_BRANCH master
 
 ENV PREMAKE5_URL=https://github.com/premake/premake-core/releases/download/v5.0.0-alpha12/premake-5.0.0-alpha12-linux.tar.gz
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN mkdir -p "$PS2DEV" "$PS2SDK" \
     && apt-get update \
     && apt-get upgrade -y \
